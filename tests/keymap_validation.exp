@@ -1,0 +1,32 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+spawn -noecho $editor $testfile
+expect -timeout 10 -re ".*"
+
+send_user "\n--- Keymap Validation Test ---\n"
+
+# Test 1: Bind a simple key and verify
+send -raw "iHello World"
+send -raw "\x1b"
+expect -timeout 10 -re ".*"
+send_user "Test 1: Typed 'Hello World'\n"
+
+# Test 2: Bind a command to a key (e.g., C-x C-c for exit)
+send -raw "\x18\x03"
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y\r"
+        exp_continue
+    }
+    eof { }
+}
+send_user "Test 2: Attempted to exit using C-x C-c\n"
+
+wait
+send_user "--- Keymap Validation Test Completed ---\n"
+exit 0

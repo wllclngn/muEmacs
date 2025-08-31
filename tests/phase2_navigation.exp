@@ -1,0 +1,33 @@
+#!/usr/bin/expect -f
+set timeout 30
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+spawn -noecho $editor $testfile
+expect -timeout 5 -re ".*"
+
+# Basic movement: C-f/C-b/C-n/C-p
+send -raw "\x06\x06\x02\x02\x0e\x10" ;# C-f,C-f,C-b,C-b,C-n,C-p
+after 1
+
+# Line navigation: C-a/C-e
+send -raw "\x01\x05"
+after 1
+
+# Buffer edges: M-</M->
+send -raw "\x1b<\x1b>"
+after 1
+
+# Quit
+send -raw "\x18\x03"
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y\r"
+        exp_continue
+    }
+    eof { }
+}
+wait
+exit 0
+

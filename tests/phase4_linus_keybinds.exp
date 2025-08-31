@@ -1,0 +1,80 @@
+#!/usr/bin/expect -f
+# Linus Torvalds μEmacs Keybinding Stress Test (reduced iterations for CI)
+set timeout 60
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+spawn -noecho $editor $testfile
+expect -timeout 10 -re ".*"
+send_user "Starting massive Linus keybinding stress test...\n"
+
+# 4A: Movement Keys
+send_user "4A: Movement Keys (1,000 iterations)...\n"
+for {set i 0} {$i < 200} {incr i} {
+    send "\006\006\006\006\006"  ;# C-f x5
+    send "\002\002\002\002\002"  ;# C-b x5
+    if { $i % 25 == 0 } { after 1 }
+}
+
+# 4B: Word Navigation
+send_user "4B: Word Navigation (500 iterations)...\n"
+for {set i 0} {$i < 100} {incr i} {
+    send "\033f\033f"              ;# M-f x2
+    send "\033b\033b"              ;# M-b x2
+    if { $i % 25 == 0 } { after 1 }
+}
+
+# 4C: Line Navigation
+send_user "4C: Line Navigation (500 iterations)...\n"
+for {set i 0} {$i < 100} {incr i} {
+    send "\001"                    ;# C-a
+    send "\005"                    ;# C-e
+    if { $i % 25 == 0 } { after 1 }
+}
+
+# 4D: Page Navigation
+send_user "4D: Page Navigation (250 iterations)...\n"
+for {set i 0} {$i < 50} {incr i} {
+    send "\026"                    ;# C-v
+    send "\033v"                   ;# M-v
+    if { $i % 10 == 0 } { after 1 }
+}
+
+# 4E: Buffer Boundaries
+send_user "4E: Buffer Boundary (250 iterations)...\n"
+for {set i 0} {$i < 50} {incr i} {
+    send "\033<"                   ;# M-<
+    send "\033>"                   ;# M->
+    if { $i % 10 == 0 } { after 1 }
+}
+
+# 4F: C-x Prefix Commands
+send_user "4F: C-x Prefix Commands (100 iterations)...\n"
+for {set i 0} {$i < 100} {incr i} {
+    send "\030o"                   ;# C-x o
+    send "\0302"                   ;# C-x 2
+    send "\0301"                   ;# C-x 1
+}
+
+# 4I: Mixed Keybinding Test
+send_user "4I: Mixed Keybinding Test (400 iterations)...\n"
+for {set i 0} {$i < 80} {incr i} {
+    send "\006\002\016\020"        ;# C-f C-b C-n C-p
+    send "\033f\033b"               ;# M-f M-b
+    if { $i % 25 == 0 } { after 1 }
+}
+
+send_user "Linus keybinding stress test completed!\n"
+
+# Exit
+send -raw "\x18\x03"               ;# C-x C-c
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y\r"
+        exp_continue
+    }
+    eof { }
+}
+wait
+exit 0

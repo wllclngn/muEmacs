@@ -1,0 +1,32 @@
+#!/usr/bin/expect -f
+set timeout 60
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+spawn -noecho $editor $testfile
+expect -timeout 5 -re ".*"
+send -raw "iHello world"
+send -raw "\x1b" ;# ESC
+expect -timeout 5 -re ".*"
+send "u"
+expect "*"
+send "u"
+expect "*"
+
+# Redo using M-x redo to avoid ESC Z terminal control collisions
+send -raw "\x1bxredo\r"
+expect -timeout 5 -re ".*"
+send -raw "\x1bxredo\r"
+expect -timeout 5 -re ".*"
+
+# Exit cleanly
+send -raw "\x18\x03"  ;# C-x C-c
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y\r"
+        exp_continue
+    }
+    eof { }
+}
+expect eof
+exit 0

@@ -1,0 +1,32 @@
+μEmacs Icon Attribution
+=======================
+
+The μEmacs application icon (uemacs.png) is derived from:
+
+Source:
+- Original work: "Greek letter mu on font lines.svg"
+- URL: https://commons.wikimedia.org/wiki/File:Greek_letter_mu_on_font_lines.svg
+- License: Creative Commons Attribution-Share Alike 4.0 International (CC BY-SA 4.0)
+
+Modifications:
+- Simplified design for application icon use
+- Added background circle with modern app icon styling
+- Resized to 48x48 pixels for desktop integration
+- Color scheme adapted to match terminal editor aesthetic
+- Monospace font styling for technical/programming context
+
+License:
+This derivative work maintains the CC BY-SA 4.0 license of the original.
+
+Attribution:
+Based on Wikimedia Commons Greek letter mu, adapted for μEmacs application icon.
+Original work contributors: Wikimedia Commons community
+μEmacs adaptation: μEmacs development team
+
+CC BY-SA 4.0 License Summary:
+- Free to use, share, and modify
+- Must provide appropriate attribution
+- Derivative works must use same or compatible license
+- No additional restrictions may be imposed
+
+Full license text: https://creativecommons.org/licenses/by-sa/4.0/

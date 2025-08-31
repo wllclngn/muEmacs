@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/bench_search.dir/link.d CMakeFiles/bench_search.dir/tests/bench/search_bench.c.o -o build/bin/bench_search  libuemacs.a -lm -lncursesw

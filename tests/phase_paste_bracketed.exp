@@ -1,0 +1,25 @@
+#!/usr/bin/expect -f
+
+# Basic bracketed paste smoke test
+set timeout 5
+
+set uemacs_path [lindex $argv 0]
+if {$uemacs_path eq ""} {
+  set uemacs_path "./bin/uemacs"
+}
+
+spawn $uemacs_path
+
+# Enter paste mode, send text, end paste
+send "\033[200~"
+send "hello world"
+send "\033[201~"
+
+# Quit: C-x C-c
+send "\x18\x03"
+
+expect {
+  eof { exit 0 }
+  timeout { exit 1 }
+}
+

@@ -1,0 +1,6 @@
+#ifndef TEST_PHASE4_COMMAND_VALIDATION_H
+#define TEST_PHASE4_COMMAND_VALIDATION_H
+
+int test_phase4_command_validation();
+
+#endif // TEST_PHASE4_COMMAND_VALIDATION_H

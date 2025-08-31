@@ -1,0 +1,20 @@
+#!/usr/bin/expect -f
+set timeout 60
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+spawn -noecho $editor $testfile
+expect -timeout 10 -re ".*"
+send -raw "iHello world testing 123"
+send -raw "\x1b" ;# ESC
+expect -timeout 10 -re ".*"
+send -raw "\x18\x03" ;# C-x C-c
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y"
+        exp_continue
+    }
+    eof { }
+}
+wait
+exit 0

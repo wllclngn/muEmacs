@@ -1,0 +1,23 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: μEmacs
+Upstream-Contact: μEmacs Team <maintainer@example.com>
+Source: https://github.com/your-username/uemacs
+
+Files: *
+Copyright: Original μEmacs by Linus Torvalds
+           Modernization by Claude (Anthropic) 2024
+License: μEmacs-License
+ This modernized μEmacs maintains compatibility with the original μEmacs
+ licensing terms while incorporating contemporary development practices,
+ security enhancements, and architectural improvements. All modernization
+ work respects and preserves the original author's vision and licensing
+ intentions.
+ .
+ The original μEmacs was placed in the public domain, and this modernized
+ version maintains that spirit while ensuring proper attribution to both
+ the original author and the modernization effort.
+
+Files: debian/*
+Copyright: 2024 μEmacs Team <maintainer@example.com>
+License: μEmacs-License
+ Same license as upstream.

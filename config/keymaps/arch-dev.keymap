@@ -1,0 +1,57 @@
+# Arch Linux Developer Keymaps
+# Optimized for BASH workflow and modern development
+
+[navigation]
+Ctrl+G = goto-line
+Ctrl+F = search-forward
+Ctrl+Shift+F = search-backward
+F3 = search-again
+Shift+F3 = search-reverse
+Ctrl+R = search-replace
+Alt+G = goto-definition
+
+[editing]
+Ctrl+Z = undo
+Ctrl+Y = redo
+Ctrl+X = cut-region
+Ctrl+C = copy-region
+Ctrl+V = paste-region
+Ctrl+A = select-all
+Ctrl+D = duplicate-line
+Ctrl+L = select-line
+Ctrl+/ = comment-toggle
+
+[file_operations]
+Ctrl+N = new-file
+Ctrl+O = open-file
+Ctrl+S = save-file
+Ctrl+Shift+S = save-as
+Ctrl+W = close-buffer
+Ctrl+T = new-tab
+
+[arch_workflow]
+# Arch-specific shortcuts
+F5 = make-compile          # Build project
+F6 = run-tests            # Run test suite  
+F7 = git-status           # Quick git status
+F8 = pacman-search        # Search packages
+F9 = systemd-status       # Check service status
+F12 = terminal-toggle     # Toggle terminal
+
+[development]
+Ctrl+Shift+P = command-palette
+Ctrl+P = quick-open
+Ctrl+Shift+O = symbol-search
+Ctrl+B = build-project
+Ctrl+Shift+B = build-clean
+Alt+F12 = goto-definition
+Shift+F12 = find-references
+
+[terminal_integration]
+# BASH and terminal shortcuts
+Ctrl+` = toggle-terminal
+Ctrl+Shift+` = new-terminal
+Alt+Left = previous-buffer
+Alt+Right = next-buffer
+Ctrl+PageUp = scroll-up
+Ctrl+PageDown = scroll-down

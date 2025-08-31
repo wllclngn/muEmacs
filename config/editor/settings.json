@@ -1,0 +1,44 @@
+{
+    "locale":"en-US",
+    "files.encoding": "utf8",
+    "workbench.colorTheme": "One Dark Pro Darker",
+    "files.defaultLanguage": "plaintext",
+    "update.showReleaseNotes": false,
+    //"editor.fontFamily": "Nudica Mono Regular",
+    "editor.fontFamily": "Berkeley Mono",
+    "editor.cursorStyle": "block",
+    "editor.fontWeight": null,
+    "editor.rulers": [80],
+    "editor.insertSpaces": true,
+    "editor.semanticTokenColorCustomizations": null,
+    "window.zoomLevel": 0,
+    //"workbench.iconTheme": "file-icons",
+    "workbench.startupEditor": "none",
+    "git.confirmSync": false,
+    "editor.quickSuggestions": {
+        "other": false,
+        "comments": false,
+        "strings": false
+    },
+    "editor.inlineSuggest.enabled": false,
+    "editor.suggestOnTriggerCharacters": false,
+    "editor.parameterHints.enabled": false,
+    "workbench.colorCustomizations": {
+        "[dome]": {
+            "editorRuler.foreground": "#282828",
+            "editorCursor.background": "#FFFFFF",
+            "editorCursor.foreground": "#6B8CFF"
+        }
+    },
+    "terminal.integrated.profiles.windows": {
+    "PowerShell (MSVC)": {
+        "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "args": [
+            "-NoExit",
+            "-Command",
+            "& 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat'"
+        ]
+    }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell (MSVC)",
+}

@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/uemacs_executable.dir/link.d CMakeFiles/uemacs_executable.dir/main.c.o -o build/bin/uemacs_executable  libuemacs.a -lm -lncursesw

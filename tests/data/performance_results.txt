@@ -1,0 +1,22 @@
+=== μEmacs Performance Benchmark ===
+Date: Wed Aug 27 09:57:40 AM CDT 2025
+Binary: ./build/bin/uemacs
+
+=== Startup Time ===
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+tests/scripts/performance_bench.sh: line 30: -f: command not found
+
+=== File Load Times ===
+1KB file:
+tests/scripts/performance_bench.sh: line 39: -f: command not found
+tests/scripts/performance_bench.sh: line 39: -f: command not found
+tests/scripts/performance_bench.sh: line 39: -f: command not found
+tests/scripts/performance_bench.sh: line 39: -f: command not found

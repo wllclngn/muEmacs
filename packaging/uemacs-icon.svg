@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="48" height="48" viewBox="0 0 48 48">
+  <!-- Background circle for modern app icon look -->
+  <circle cx="24" cy="24" r="22" 
+          fill="#2e3440" 
+          stroke="#4c566a" 
+          stroke-width="2"/>
+  
+  <!-- μ symbol in clean, monospace style -->
+  <text x="24" y="32" 
+        font-family="monospace" 
+        font-size="28" 
+        font-weight="bold"
+        fill="#d8dee9" 
+        text-anchor="middle" 
+        dominant-baseline="middle">μ</text>
+  
+  <!-- Subtle highlight for 3D effect -->
+  <circle cx="24" cy="24" r="22" 
+          fill="none" 
+          stroke="rgba(255,255,255,0.1)" 
+          stroke-width="1"/>
+  
+  <!-- Attribution comment -->
+  <!-- Based on Wikimedia Commons Greek letter mu (CC BY-SA 4.0) -->
+  <!-- Adapted for μEmacs application icon -->
+</svg>

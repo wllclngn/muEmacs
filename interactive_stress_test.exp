@@ -1,0 +1,47 @@
+#!/usr/bin/expect -f
+# Interactive Stress Test for μEmacs
+# Shows real terminal behavior instead of raw escape sequences
+
+set timeout 60
+set editor "./build/bin/uemacs"
+set testfile "/tmp/interactive_test.txt"
+
+# Enable real terminal interaction
+spawn -noecho $editor $testfile
+expect -timeout 5 "*"
+
+# Insert some test content
+send "iInteractive stress test starting...\033"
+
+# Movement test with visible feedback
+send_user "\nTesting cursor movements...\n"
+for {set i 0} {$i < 10} {incr i} {
+    send "\006"  ; # Forward
+    after 100    ; # Delay to see movement
+    send "\002"  ; # Backward  
+    after 100
+}
+
+# Line operations
+send_user "\nTesting line operations...\n"
+send "\001"     ; # Beginning of line
+after 200
+send "\005"     ; # End of line
+after 200
+
+# Buffer operations
+send_user "\nTesting buffer operations...\n"
+send "\030\002" ; # C-x C-b (buffer list)
+after 500
+send "q"        ; # Quit buffer list
+
+send_user "\nInteractive test complete. Press any key in μEmacs to continue...\n"
+
+# Keep session open for manual interaction
+interact {
+    \003 {
+        send "\030\003"  ; # C-x C-c to quit
+        expect eof
+        exit 0
+    }
+}

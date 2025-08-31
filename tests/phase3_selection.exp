@@ -1,0 +1,39 @@
+#!/usr/bin/expect -f
+set timeout 30
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+spawn -noecho $editor $testfile
+expect -timeout 5 -re ".*"
+
+# Insert minimal text then select and operate
+send -raw "iHello selection test"
+send -raw "\x1b" ;# ESC
+after 1
+
+# Set mark (C-@ often is C-Space; here send C-@ = \x00 if supported)
+send -raw "\x00" ;# C-@ set-mark
+after 1
+
+# Move forward a few chars and kill region (C-w)
+send -raw "\x06\x06\x06" ;# C-f x3
+send -raw "\x17"          ;# C-w
+after 1
+
+# Yank (C-y)
+send -raw "\x19"
+after 1
+
+# Quit
+send -raw "\x18\x03"
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y\r"
+        exp_continue
+    }
+    eof { }
+}
+wait
+exit 0
+

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=μEmacs
+GenericName=Text Editor
+Comment=Modern minimalist text editor based on Linus Torvalds' original μEmacs
+Icon=uemacs
+Exec=uemacs %F
+Terminal=true
+MimeType=text/plain;text/x-c;text/x-c++;text/x-python;text/x-shellscript;text/x-makefile;application/x-shellscript;text/x-diff;
+Categories=Development;TextEditor;Utility;
+Keywords=editor;text;development;emacs;microemacs;
+StartupNotify=false
+NoDisplay=false

@@ -1,0 +1,39 @@
+# VSCode-style Keymaps for μEmacs
+# Modern key bindings familiar to VSCode users
+
+[navigation]
+Ctrl+G = goto-line
+Ctrl+F = search-forward
+Ctrl+H = query-replace
+F3 = search-again
+Shift+F3 = search-reverse
+
+[editing]
+Ctrl+Z = undo
+Ctrl+Y = redo  
+Ctrl+X = cut-region
+Ctrl+C = copy-region
+Ctrl+V = paste-region
+Ctrl+A = select-all
+Ctrl+D = duplicate-line
+Ctrl+L = select-line
+
+[file_operations]
+Ctrl+N = new-file
+Ctrl+O = open-file
+Ctrl+S = save-file
+Ctrl+Shift+S = save-as
+Ctrl+W = close-buffer
+
+[window_management]
+Ctrl+1 = focus-editor
+Ctrl+` = toggle-terminal
+Ctrl+B = toggle-sidebar
+Ctrl+Shift+E = explorer-focus
+
+[advanced]
+Ctrl+Shift+P = command-palette
+Ctrl+Shift+F = find-in-files
+Ctrl+P = quick-open
+F2 = rename-symbol
+F12 = goto-definition

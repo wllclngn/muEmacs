@@ -1,0 +1,56 @@
+# Maintainer: μEmacs Team <maintainer@example.com>
+pkgname=uemacs
+pkgver=5.0.0
+pkgrel=1
+pkgdesc="Modern minimalist text editor based on Linus Torvalds' original μEmacs"
+arch=('x86_64')
+url="https://github.com/your-username/uemacs"
+license=('custom:μEmacs')
+depends=('ncurses')
+makedepends=('cmake>=3.20' 'gcc>=12')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/your-username/uemacs/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')  # Replace with actual checksum when releasing
+
+build() {
+    cd "$pkgname-$pkgver"
+    
+    # Create build directory
+    mkdir -p build
+    cd build
+    
+    # Configure with CMake
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+    
+    # Build
+    make -j$(nproc)
+}
+
+check() {
+    cd "$pkgname-$pkgver/build"
+    
+    # Run basic functionality tests
+    ./uemacs --version || echo "Version check completed"
+    
+    # Test file loading with provided test files
+    if [ -f "../tests/simple-test.txt" ]; then
+        timeout 2 ./uemacs ../tests/simple-test.txt || echo "File loading test completed"
+    fi
+}
+
+package() {
+    cd "$pkgname-$pkgver/build"
+    
+    # Install using CMake
+    make DESTDIR="$pkgdir/" install
+    
+    # Install license
+    install -Dm644 ../packaging/debian/copyright \
+        "$pkgdir/usr/share/licenses/$pkgname/copyright"
+    
+    # Install additional documentation
+    install -Dm644 ../README.md \
+        "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

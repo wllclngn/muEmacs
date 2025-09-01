@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/muEmacs.dir/link.d CMakeFiles/muEmacs.dir/main.c.o -o build/bin/μEmacs  libuemacs.a -lncursesw -lm

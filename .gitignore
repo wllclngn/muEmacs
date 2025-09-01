@@ -1,2 +1,61 @@
-em
+git rm -r --cached -f -- build CMakeFiles CMakeCache.txt cmake_install.cmake libuemacs.a; git add .; git commit -m 'gitignore: ignore build and packaing artifacts'
+
+/em
+
+# Build directories and CMake artifacts
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/install_manifest.txt
+/CMakeUserPresets.json
+
+# Compilation outputs
 *.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.pdb
+*.ilk
+
+# Known stray artifacts
+/libuemacs.a
+/build/bin/
+
+# Logs, coverage, temp
+*.log
+*.trs
+*.tmp
+*.swp
+*.swo
+*.gcda
+*.gcno
+*.gcov
+coverage/
+.cache/
+
+# Python caches (scripts/)
+__pycache__/
+*.pyc
+
+# Packaging outputs
+/*.deb
+/*.rpm
+/*.pkg.tar.*
+/*.AppImage
+/*.tar.gz
+packaging/**/build/
+packaging/**/dist/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

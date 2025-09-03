@@ -589,6 +589,9 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
             SAFE_FREE(bp);
             return NULL;
 		}
+
+		// Set initial saved baseline to the current undo version (clean buffer)
+		atomic_store(&bp->b_saved_version_id, 1);
 		
 		// Add buffer to hash table for instant O(1) lookup
 		buffer_hash_insert(bp);

@@ -553,6 +553,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
     if (nfa_enabled && (curwp->w_bufp->b_mode & MDMAGIC) != 0) {
         /* Detect obvious unsupported constructs quickly: defer to legacy if contains '[' or ']' */
         /* Now supported: classes; proceed always */
+#ifdef ENABLE_SEARCH_NFA
             bool cs = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
             nfa_program_info nfa = {0};
             if (nfa_compile(patrn, cs, &nfa)) {
@@ -593,6 +594,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                     }
                 }
             }
+#endif
     }
 
     /* Cross-line literal search: Two-Way stream variant when pattern contains newline */

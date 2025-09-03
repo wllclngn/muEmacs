@@ -184,6 +184,7 @@ extern int ctoec(int c);
 extern fn_t getname(void);
 extern int tgetc(void);
 extern int get1key(void);
+int getcmd(void);
 extern void input_reset_parser_state(void);
 
 

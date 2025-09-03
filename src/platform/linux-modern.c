@@ -217,10 +217,10 @@ int get_clipboard(char *buf, int maxlen) {
         dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
         close(pipefd[1]);
         
-        // Try xclip first
-        execl("/usr/bin/xclip", "xclip", "-selection", "clipboard", "-o", (char *)NULL);
-        // If xclip fails, try xsel
-        execl("/usr/bin/xsel", "xsel", "--clipboard", "--output", (char *)NULL);
+        // Try xclip first (using PATH)
+        execlp("xclip", "xclip", "-selection", "clipboard", "-o", (char *)NULL);
+        // If xclip fails, try xsel (using PATH)
+        execlp("xsel", "xsel", "--clipboard", "--output", (char *)NULL);
         _exit(127);
     } else if (pid > 0) {
         // Parent process
@@ -265,10 +265,10 @@ int set_clipboard(const char *text) {
         dup2(pipefd[0], STDIN_FILENO); // Redirect stdin from pipe
         close(pipefd[0]);
         
-        // Try xclip first
-        execl("/usr/bin/xclip", "xclip", "-selection", "clipboard", (char *)NULL);
-        // If xclip fails, try xsel
-        execl("/usr/bin/xsel", "xsel", "--clipboard", "--input", (char *)NULL);
+        // Try xclip first (using PATH)
+        execlp("xclip", "xclip", "-selection", "clipboard", (char *)NULL);
+        // If xclip fails, try xsel (using PATH)
+        execlp("xsel", "xsel", "--clipboard", "--input", (char *)NULL);
         _exit(127);
     } else if (pid > 0) {
         // Parent process

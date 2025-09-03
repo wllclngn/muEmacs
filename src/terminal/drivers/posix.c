@@ -28,6 +28,7 @@
 
 #include "estruct.h"
 #include "edef.h"
+#include "terminal_capability.h"
 #include "efunc.h"
 #include "utf8.h"
 
@@ -91,6 +92,9 @@ void ttopen(void)
 	kbdflgs = fcntl(0, F_GETFL, 0);
 	kbdpoll = FALSE;
 
+	/* Setup terminal capabilities and optimizations */
+	terminal_caps_t caps = detect_terminal_capabilities();
+	optimize_for_terminal(&caps);
 
 	/* on all screens we are not sure of the initial position
 	   of the cursor                                        */
@@ -105,6 +109,7 @@ void ttopen(void)
  */
 void ttclose(void)
 {
+	cleanup_terminal_optimizations();	/* restore terminal capabilities */
 	tcsetattr(0, TCSADRAIN, &otermios);	/* restore terminal settings */
 }
 

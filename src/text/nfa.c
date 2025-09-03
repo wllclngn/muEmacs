@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <stdatomic.h>
 
+
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
@@ -327,3 +328,4 @@ bool nfa_search_forward(const nfa_program_info* prog,
     }
     return false;
 }
+

@@ -13,6 +13,9 @@
 #include "edef.h"
 #include "efunc.h"
 #include "line.h"
+#include "memory.h"
+/* Platform clipboard API (Linux implementation in platform/linux-modern.c) */
+extern int set_clipboard(const char *text);
 
 /* Clear the visual selection mark */
 static void clear_selection(void)
@@ -61,6 +64,10 @@ int copyregion(int f, int n)
 	int loffs;
 	int s;
 	struct region region;
+	/* For system clipboard aggregation */
+	char *cb = NULL;
+	long cb_len = 0;
+	long cb_cap = 0;
 
 	if ((s = getregion(&region)) != TRUE)
 		return s;
@@ -69,21 +76,40 @@ int copyregion(int f, int n)
 	thisflag |= CFKILL;
 	linep = region.r_linep;	/* Current line.        */
 	loffs = region.r_offset;	/* Current offset.      */
+	/* Pre-size clipboard buffer (exact size) */
+	if (region.r_size > 0) {
+		cb_cap = region.r_size + 1; /* include NUL */
+		cb = safe_alloc((size_t)cb_cap, "copyregion clipboard", __FILE__, __LINE__);
+		if (!cb) return FALSE;
+	}
 	while (region.r_size--) {
 		if (loffs == llength(linep)) {	/* End of line.         */
 			if ((s = kinsert('\n')) != TRUE)
-				return s;
+				goto copy_fail;
+			if (cb && cb_len < cb_cap - 1) cb[cb_len++] = '\n';
 			linep = lforw(linep);
 			loffs = 0;
 		} else {	/* Middle of line.      */
-			if ((s = kinsert(lgetc(linep, loffs))) != TRUE)
-				return s;
+			int ch = lgetc(linep, loffs);
+			if ((s = kinsert(ch)) != TRUE)
+				goto copy_fail;
+			if (cb && cb_len < cb_cap - 1) cb[cb_len++] = (char)ch;
 			++loffs;
 		}
+	}
+	/* Push to system clipboard (copy does not consume temp kill buffer) */
+	if (cb) {
+		cb[cb_len] = '\0';
+		set_clipboard(cb);
+		SAFE_FREE(cb);
 	}
 	mlwrite("(region copied)");
 	clear_selection();	/* Clear visual selection after copy */
 	return TRUE;
+
+copy_fail:
+	if (cb) SAFE_FREE(cb);
+	return s;
 }
 
 /*

@@ -18,6 +18,11 @@
 #include "memory.h"
 #include "error.h" // Required for REPORT_ERROR and ERR_MEMORY
 #include "undo.h"
+/* Helper: mark all windows showing bp to refresh their modelines */
+static inline void refresh_modelines_for_buffer(struct buffer *bp) {
+    struct window *wp = wheadp;
+    while (wp) { if (wp->w_bufp == bp) wp->w_flag |= WFMODE; wp = wp->w_wndp; }
+}
 
 // Simple ASCII word classification for grouping decisions
 static inline bool undo_is_word_byte(int ch) {
@@ -381,9 +386,17 @@ int undo_operation(struct buffer *bp) {
             cursor = prev;
         }
         atomic_store(&stack->undo_ptr, (cursor - 1 + cap) % cap);
-        if (atomic_load(&stack->count) > 0 && cursor == atomic_load(&stack->tail)) {
-            atomic_store(&stack->undo_ptr, -1);
+
+        // Clean/dirty decision: if current version equals saved_version, we are clean
+        uint64_t cur_version = (atomic_load(&stack->undo_ptr) == -1)
+            ? 1
+            : stack->operations[atomic_load(&stack->undo_ptr)].version_id;
+        if (cur_version == atomic_load(&bp->b_saved_version_id)) {
+            bp->b_flag &= ~BFCHG;
+        } else {
+            bp->b_flag |= BFCHG;
         }
+        refresh_modelines_for_buffer(bp);
     }
     
     curwp->w_flag |= WFHARD;
@@ -449,6 +462,15 @@ int redo_operation(struct buffer *bp) {
             cursor = next;
         }
         atomic_store(&stack->undo_ptr, cursor);
+
+        // Clean/dirty decision vs saved baseline
+        uint64_t cur_version = stack->operations[cursor].version_id;
+        if (cur_version == atomic_load(&bp->b_saved_version_id)) {
+            bp->b_flag &= ~BFCHG;
+        } else {
+            bp->b_flag |= BFCHG;
+        }
+        refresh_modelines_for_buffer(bp);
     }
 
     curwp->w_flag |= WFHARD;
@@ -465,6 +487,17 @@ int undo_cmd(int f, int n) {
 int redo_cmd(int f, int n) {
     if (!curbp) return FALSE;
     return redo_operation(curbp);
+}
+
+/* Mark current state as saved baseline for clean/dirty checks */
+void undo_mark_saved(struct buffer *bp) {
+    if (!bp || !bp->b_undo_stack) return;
+    struct atomic_undo_stack *stack = bp->b_undo_stack;
+    int up = atomic_load(&stack->undo_ptr);
+    uint64_t version = (up == -1) ? 1 : stack->operations[up].version_id;
+    atomic_store(&bp->b_saved_version_id, version);
+    bp->b_flag &= ~BFCHG;
+    refresh_modelines_for_buffer(bp);
 }
 
 void undo_group_begin(struct buffer *bp) {

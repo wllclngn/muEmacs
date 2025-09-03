@@ -160,15 +160,17 @@ void vtinit(void)
  */
 void vttidy(void)
 {
-	mlerase();
-	movecursor(term.t_nrow, 0);
-	TTflush();
-	/* Cleanup terminal optimizations/capabilities before closing */
+	/*
+	 * Restore the primary screen buffer and other terminal modes first,
+	 * so any final clears/cursor moves happen on the real shell screen.
+	 */
 	display_cleanup_optimization();
+	TTflush();
+
+	/* Close terminal I/O – do not write or move the cursor after
+	 * restoring the primary screen to avoid altering shell history. */
 	TTclose();
 	TTkclose();
-	ssize_t bytes_written = write(1, "\r", 1);
-	(void)bytes_written;
 
 }
 
@@ -1319,6 +1321,10 @@ static void modeline(struct window *wp)
 	char tline[NLINE];	/* buffer for part of mode line */
 
 	n = wp->w_toprow + wp->w_ntrows;	/* Location. */
+	// Bounds check for vscreen array access
+	if (n >= term.t_mrow) {
+		return;  // Safety: don't access beyond vscreen bounds
+	}
 	vscreen[n]->v_flag |= VFCHG | VFREQ | VFCOL;	/* Redraw next time. */
 	// Don't force statusline colors - use terminal defaults
 	vtmove(n, 0);		/* Seek to right line. */
@@ -1852,6 +1858,14 @@ static void clean_statusline(struct window *wp)
 	int n = wp->w_toprow + wp->w_ntrows;
 	int col_pos = 0;
 	char *cp;
+
+	// Bounds check for vscreen array access  
+	if (n >= term.t_mrow) {
+		// Debug info for boundary violation
+		fprintf(stderr, "[DEBUG] clean_statusline: n=%d, t_mrow=%d, toprow=%d, ntrows=%d\n", 
+		        n, term.t_mrow, wp->w_toprow, wp->w_ntrows);
+		return;  // Safety: don't access beyond vscreen bounds
+	}
 
 	// Set up virtual screen without reverse video flags to avoid color conflicts
 	vscreen[n]->v_flag |= VFCHG;

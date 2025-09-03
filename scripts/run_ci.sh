@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# μEmacs CI runner (non-interactive by default)
+# muEmacs CI runner (non-interactive by default)
 # - Skips expect tests and MAGIC/NFA unless explicitly enabled
 # - Runs safety linter when available
 
@@ -13,8 +13,8 @@ export STRESS=${STRESS:-0}               # 1 enables heavier scenarios (where su
 
 CI_BUILD_TYPE=${CI_BUILD_TYPE:-Release}
 echo "[CI] Building (${CI_BUILD_TYPE})..."
-cmake -S . -B . -DCMAKE_BUILD_TYPE="${CI_BUILD_TYPE}" >/dev/null
-make -s -j"${CI_CPUS:-$(nproc)}" full_integration_test muEmacs
+cmake -S . -B build -DCMAKE_BUILD_TYPE="${CI_BUILD_TYPE}" >/dev/null
+make -s -j"${CI_CPUS:-$(nproc)}" -C build full_integration_test muEmacs
 
 echo "[CI] Running non-interactive tests..."
 if [ "${TEST_TIMEOUT}" != "0" ]; then
@@ -33,7 +33,7 @@ fi
 # Optional microbenchmark (Release only)
 if [ "${CI_BUILD_TYPE}" = "Release" ]; then
   echo "[CI] Building and running search microbenchmark..."
-  cmake --build . --target bench_search -j"${CI_CPUS:-$(nproc)}" || true
+  cmake --build build --target bench_search -j"${CI_CPUS:-$(nproc)}" || true
   ./bin/bench_search || true
 fi
 

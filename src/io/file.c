@@ -301,8 +301,10 @@ int readin(const char *fname, int lockfl)
 			wp->w_flag |= WFMODE | WFHARD;
 		}
 	}
-	if (s == FIOERR || s == FIOFNF)	/* False if error.      */
+	if (s == FIOERR || s == FIOFNF) /* False if error.      */
 		return FALSE;
+	/* Successful read: mark current state as saved baseline */
+	undo_mark_saved(curbp);
 	return TRUE;
 }
 
@@ -374,14 +376,9 @@ int filewrite(int f, int n)
 	if ((s = mlreply("Write file: ", fname, NFILEN)) != TRUE)
 		return s;
 	if ((s = writeout(fname)) == TRUE) {
-        safe_strcpy(curbp->b_fname, fname, NFILEN);
-		curbp->b_flag &= ~BFCHG;
-		wp = wheadp;	/* Update mode lines.   */
-		while (wp != NULL) {
-			if (wp->w_bufp == curbp)
-				wp->w_flag |= WFMODE;
-			wp = wp->w_wndp;
-		}
+		safe_strcpy(curbp->b_fname, fname, NFILEN);
+		/* Mark saved baseline so undo-to-clean clears delta */
+		undo_mark_saved(curbp);
 	}
 	return s;
 }
@@ -466,13 +463,8 @@ int writeout(const char *fn)
 		uemacs_invoke_hooks(UEMACS_EVENT_ON_SAVE);
 
 		if ((s = writeout(curbp->b_fname)) == TRUE) {
-			curbp->b_flag &= ~BFCHG;
-			wp = wheadp;    /* Update mode lines.   */
-			while (wp != NULL) {
-				if (wp->w_bufp == curbp)
-					wp->w_flag |= WFMODE;
-				wp = wp->w_wndp;
-			}
+			/* Mark saved baseline so undo-to-clean clears delta */
+			undo_mark_saved(curbp);
 		}
 		return s;
 	}

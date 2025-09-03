@@ -80,4 +80,10 @@ int redo_cmd(int f, int n);
 void undo_group_begin(struct buffer *bp);
 void undo_group_end(struct buffer *bp);
 
+/**
+ * @brief Mark the current buffer state as saved/clean.
+ * Call this after a successful file save or initial read.
+ */
+void undo_mark_saved(struct buffer *bp);
+
 #endif // UNDO_H_

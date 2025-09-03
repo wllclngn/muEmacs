@@ -78,7 +78,10 @@ char *dolock(char *fname)
                 locker[MAXNAME - 1] = '\0';
             }
         }
-		write(fd, locker, strlen(locker));
+		ssize_t written = write(fd, locker, strlen(locker));
+		if (written < 0) {
+			/* Write failed, but we still proceed */
+		}
 		close(fd);
 		return NULL;
 	}

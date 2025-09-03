@@ -224,6 +224,7 @@ struct name_bind names[] = {
 	{"write-message", writemsg},
 	{"yank", yank},
 {"yank-pop", yankpop},
+	{"yank-clipboard", yank_clipboard},
 
 	{"", NULL}
 };

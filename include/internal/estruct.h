@@ -69,11 +69,11 @@ static_assert(NFILEN >= 64, "NFILEN must be at least 64 bytes for modern paths")
 static_assert(NSTRING >= 1024, "NSTRING must be at least 1KB for string operations");
 static_assert((NCOLORS & (NCOLORS - 1)) == 0, "NCOLORS must be power of 2 for efficient lookup");
 
-// C23: Modern binary literals for key flags - clearer bit patterns
-#define CONTROL 0b00010000000000000000000000000000U	/* Control flag, or'ed in       */
-#define META    0b00100000000000000000000000000000U	/* Meta flag, or'ed in          */  
-#define CTLX    0b01000000000000000000000000000000U	/* ^X flag, or'ed in            */
-#define	SPEC	0b10000000000000000000000000000000U	/* special key (function keys)  */
+/* Portable key flag bitmasks (avoid C23-only binary literals) */
+#define CONTROL (1u << 28)    /* Control flag, or'ed in       */
+#define META    (1u << 29)    /* Meta flag, or'ed in          */
+#define CTLX    (1u << 30)    /* ^X flag, or'ed in            */
+#define SPEC    (1u << 31)    /* special key (function keys)  */
 
 // C23 compile-time validation of key flag isolation
 static_assert((CONTROL & META) == 0, "CONTROL and META flags must not overlap");
@@ -278,6 +278,7 @@ struct buffer {
 	
 	// Atomic undo/redo system (VSCode-inspired)
 	struct atomic_undo_stack *b_undo_stack;	/* Edit history for this buffer */
+	_Atomic uint64_t b_saved_version_id;   /* Version id of last saved/clean state */
 	
 	char b_fname[NFILEN];	/* File name                    */
 	char b_bname[NBUFN];	/* Buffer name                  */

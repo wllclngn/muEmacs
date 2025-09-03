@@ -22,6 +22,7 @@
 /* Forward declarations for kill ring functions */
 static void kill_ring_add(const char *text, size_t len);
 extern int set_clipboard(const char *text);  /* Linux platform clipboard */
+extern int get_clipboard(char *buf, int maxlen); /* Linux platform clipboard */
 
 /* Modern unified kill buffer - single temporary buffer */
 static char temp_kill_buf[8192];  /* Same as KILL_ENTRY_MAX */
@@ -494,7 +495,7 @@ int ldelete(long n, int kflag)
 		} else {
 			cp1 = &dotp->l_text[doto];	/* Scrunch text.        */
 			cp2 = cp1 + chunk;
-			if (kflag != FALSE) {	/* Kill?                */
+			if (kflag != FALSE) {  /* Kill?                */
 				while (cp1 != cp2) {
 					if (kinsert(*cp1) == FALSE)
 						goto undo_fail;
@@ -543,10 +544,14 @@ int ldelete(long n, int kflag)
 			if (!left_is_word && !right_is_word) word_delta -= 1;
 		}
     }
-    buffer_update_stats_incremental(curbp, 0, -collected_len, word_delta);
+	buffer_update_stats_incremental(curbp, 0, -collected_len, word_delta);
     if (word_delta == 0) buffer_mark_stats_dirty(curbp); // Fallback for complex cases
 
-    undo_record_delete(curbp, lnum, doto, deleted_text, collected_len);
+	undo_record_delete(curbp, lnum, doto, deleted_text, collected_len);
+	/* If this was a kill, also update the system clipboard with the exact text */
+	if (kflag != FALSE && collected_len > 0) {
+		set_clipboard(deleted_text);
+	}
     SAFE_FREE(deleted_text);
 	return n == 0;
 
@@ -724,6 +729,31 @@ int yank(int f, int n)
 	thisflag |= CFYANK;
 	yanked_size = (int)temp_kill_len;
 	
+	return TRUE;
+}
+
+/* Yank directly from the system clipboard into the buffer */
+int yank_clipboard(int f, int n)
+{
+	char buf[8192];
+	(void)f; (void)n;
+	if (curbp->b_mode & MDVIEW)
+		return rdonly();
+	if (!get_clipboard(buf, (int)sizeof(buf))) {
+		mlwrite("(clipboard empty)");
+		return TRUE; /* not an error */
+	}
+	const char *p = buf;
+	while (*p) {
+		if (*p == '\n') {
+			if (lnewline() == FALSE) return FALSE;
+		} else {
+			if (linsert(1, (unsigned char)*p) == FALSE) return FALSE;
+		}
+		++p;
+	}
+	thisflag |= CFYANK;
+	yanked_size = (int)strlen(buf);
 	return TRUE;
 }
 

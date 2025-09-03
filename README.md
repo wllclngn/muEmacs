@@ -17,6 +17,8 @@
 **Advanced Text Editing**
 - **VSCode-Style Undo/Redo**: Atomic circular buffer with intelligent operation grouping, 400ms coalescing window, and 10,000 operation capacity
 - **Modern Kill Ring**: 32-entry atomic circular buffer (8KB per entry) with system clipboard integration via xclip/xsel
+	- Copy (Meta+W) and Kill (Ctrl+W, etc.) automatically mirror the selection into the system clipboard
+	- Use "yank-clipboard" (M-x yank-clipboard) to paste directly from the system clipboard
 - **Multiple Search Engines**: Boyer-Moore-Horspool (O(n/m) performance) and Thompson NFA regex engine with zero-heap runtime
 - **UTF-8 Support**: Full Unicode handling with proper terminal integration, bidirectional conversion, and minimality validation
 
@@ -24,6 +26,8 @@
 - **Modern Terminal Support**: 24-bit true color, bracketed paste mode, GPU terminal optimization (Alacritty, Kitty)
 - **Signal-Safe Operations**: Atomic terminal state changes with generation counting and concurrent access protection
 - **Customizable Status Line**: Real-time git integration, atomic buffer statistics, and configurable mode indicators
+- **Clean Exit UX**: Proper alternate screen restore on exit (no split history; no manual Ctrl+L needed)
+- **ESC Meta Processing**: Reliable ESC-as-Meta with C23 atomic key transformation and instantaneous case conversion
 
 **Performance & Reliability**
 - **Gap Buffer**: O(1) insert/delete at cursor with dynamic resizing and UTF-8 awareness  
@@ -49,6 +53,9 @@ make -j$(nproc)
 - GCC 12+ or Clang 15+ with C23 support
 - ncursesw library
 - 4MB RAM minimum
+  
+Optional tools
+- xclip or xsel (recommended) for system clipboard integration
 
 ## Testing
 
@@ -63,6 +70,7 @@ make bench
 ## Key Bindings
 
 **Meta Key**: `Ctrl+[` (ESC key) or `Ctrl+]` for prefix
+	- ESC works reliably as Meta with C23 atomic case conversion for all letter combinations
 
 ### Essential Commands
 - `Ctrl+X Ctrl+C` - Exit μEmacs
@@ -94,6 +102,11 @@ make bench
 - `Meta+W` - Copy region
 - `Ctrl+Y` - Yank (paste)
 - `Meta+Y` - Yank pop (cycle kill ring)
+  
+#### Clipboard
+- Clipboard is integrated by default:
+	- `Meta+W` (Copy) and `Ctrl+W` (Kill region) push text to the system clipboard
+	- `M-x yank-clipboard` pastes from the system clipboard (useful when content wasn’t produced inside μEmacs)
 
 ### Undo/Redo
 - `Ctrl+_` - Undo
@@ -135,8 +148,129 @@ make bench
 - `Meta+G` - Go to line
 - `Ctrl+L` - Redraw screen
 
-### Arrow Keys
-- `↑` `↓` `←` `→` - Navigate (when terminal supports)
+## Execute Named Commands (Meta+X)
+
+All commands available via `Meta+X` followed by command name:
+
+### Core Commands
+- `abort-command` - Cancel current operation
+- `exit-emacs` - Exit editor
+- `quick-exit` - Quick save and exit
+- `help` - Display help
+- `execute-named-command` - Prompt for command
+
+### Buffer Management
+- `find-file` - Open file
+- `save-file` - Save current buffer
+- `write-file` - Write buffer to file
+- `read-file` - Insert file contents
+- `view-file` - Open file read-only
+- `insert-file` - Insert file at cursor
+- `list-buffers` - Show buffer list
+- `select-buffer` - Switch to buffer
+- `next-buffer` - Next buffer
+- `delete-buffer` - Kill buffer
+- `name-buffer` - Rename buffer
+
+### Navigation
+- `beginning-of-file` - Go to start
+- `end-of-file` - Go to end
+- `beginning-of-line` - Go to line start
+- `end-of-line` - Go to line end
+- `goto-line` - Go to line number
+- `next-line` - Move down
+- `previous-line` - Move up
+- `forward-character` - Move right
+- `backward-character` - Move left
+- `next-word` - Next word
+- `previous-word` - Previous word
+- `next-subword` - Next subword (camelCase)
+- `previous-subword` - Previous subword
+- `goto-matching-fence` - Jump to matching bracket
+
+### Editing
+- `delete-next-character` - Delete char forward
+- `delete-previous-character` - Delete char backward
+- `delete-next-word` - Delete word forward
+- `delete-previous-word` - Delete word backward
+- `kill-to-end-of-line` - Kill to line end
+- `kill-region` - Kill selected region
+- `copy-region` - Copy region
+- `yank` - Paste
+- `yank-pop` - Cycle kill ring
+- `yank-clipboard` - Paste from clipboard
+- `quote-character` - Insert literal char
+- `transpose-characters` - Swap chars
+- `duplicate-line` - Duplicate current line
+- `move-line-up` - Move line up
+- `move-line-down` - Move line down
+
+### Text Formatting
+- `case-word-upper` - Uppercase word
+- `case-word-lower` - Lowercase word
+- `case-word-capitalize` - Capitalize word
+- `case-region-upper` - Uppercase region
+- `case-region-lower` - Lowercase region
+- `fill-paragraph` - Wrap paragraph
+- `justify-paragraph` - Justify text
+- `count-words` - Count words in region
+
+### Search & Replace
+- `search-forward` - Search forward
+- `search-reverse` - Search backward
+- `incremental-search` - Interactive search
+- `reverse-incremental-search` - Reverse isearch
+- `replace-string` - Replace all
+- `query-replace-string` - Interactive replace
+- `hunt-forward` - Repeat search forward
+- `hunt-backward` - Repeat search backward
+
+### Window Management
+- `split-current-window` - Split window
+- `delete-window` - Close window
+- `delete-other-windows` - Keep only current
+- `next-window` - Switch to next window
+- `previous-window` - Switch to previous window
+- `grow-window` - Enlarge window
+- `shrink-window` - Shrink window
+- `resize-window` - Resize window
+
+### Macros & Programming
+- `begin-macro` - Start macro recording
+- `end-macro` - End macro recording
+- `execute-macro` - Run macro
+- `store-macro` - Save macro
+- `execute-buffer` - Execute buffer as commands
+- `execute-file` - Execute file as commands
+- `execute-command-line` - Execute shell command
+- `execute-program` - Run external program
+- `shell-command` - Run shell command
+- `pipe-command` - Pipe region through command
+- `filter-buffer` - Filter buffer through command
+
+### Configuration
+- `bind-to-key` - Bind command to key
+- `unbind-key` - Remove key binding
+- `describe-key` - Show key binding
+- `describe-bindings` - Show all bindings
+- `add-mode` - Add buffer mode
+- `delete-mode` - Remove buffer mode
+- `add-global-mode` - Add global mode
+- `delete-global-mode` - Remove global mode
+- `set` - Set variable
+- `set-fill-column` - Set wrap column
+- `set-mark` - Set mark
+- `exchange-point-and-mark` - Swap cursor and mark
+- `unmark-buffer` - Clear mark
+
+### Advanced Operations
+- `undo` - Undo last operation
+- `redo` - Redo last undone operation
+- `universal-argument` - Repeat next command
+- `clear-and-redraw` - Refresh display
+- `redraw-display` - Redraw screen
+- `update-screen` - Update display
+- `apropos` - Search command help
 
 ## Modern Features Deep Dive
 
@@ -153,6 +287,7 @@ make bench
 - **Mode Indicators**: Configurable display of buffer modes (CMODE, VIEW, etc.)
 - **Terminal-Adaptive**: Automatically adjusts for terminal width and capabilities
 - **Performance Metrics**: Optional display of search timing and memory usage
+- **Clean/Dirty Baseline**: Accurate saved-state delta; undo back to saved state clears the dirty indicator
 
 ### Advanced Search
 - **Boyer-Moore-Horspool**: Sublinear O(n/m) average case with 256-character bad-character table
@@ -163,6 +298,7 @@ make bench
 
 ### Terminal Integration
 - **Bracketed Paste**: Automatic detection of `ESC[200~...ESC[201~` sequences with state machine parser
+- **Alt Screen Restore**: Leaves the terminal history intact after exit, avoiding the “split screen” artifact
 - **24-bit Color**: RGB color support `\033[38;2;r;g;b`m for modern terminals
 - **Cursor Shapes**: Block, underline, bar cursor styles with capability detection
 - **GPU Terminal Optimization**: Designed for Alacritty, Kitty, WezTerm performance

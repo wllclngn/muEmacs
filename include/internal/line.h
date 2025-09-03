@@ -52,6 +52,7 @@ extern int ldelnewline(void);
 extern void kdelete(void);
 extern int kinsert(int c);
 extern int yank(int f, int n);
+extern int yank_clipboard(int f, int n);
 extern int yankpop(int f, int n);
 extern struct line *lalloc(int);  /* Allocate a line. */
 

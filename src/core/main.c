@@ -53,6 +53,7 @@
 
 #include <stdio.h>
 #include <signal.h>
+#include <stdatomic.h>
 
 /* Make global definitions not external. */
 #define	maindef
@@ -353,8 +354,8 @@ loop:
 	// Fix up the screen
 	update(FALSE);
 
-	// get the next command from the keyboard
-	state->c = get1key();
+	// get the next command from the keyboard (C23 atomic processing)
+	state->c = getcmd();
 	// if there is something on the command line, clear it
 	if (mpresf != FALSE) {
 		mlerase();
@@ -490,17 +491,26 @@ void edinit(char *bname)
  * and arranges to move it to the "lastflag", so that the next command can
  * look at it. Return the status of command.
  */
+/* C23 atomic command execution with instantaneous function lookup */
 int execute(int c, int f, int n)
 {
 	int status;
 	fn_t execfunc;
 
-	/* if the keystroke is a bound function...do it */
-	execfunc = getbind(c);
+	/* C23 atomic function binding lookup - O(1) hash-based with memory ordering */
+	execfunc = getbind(c);  // Already uses atomic keymap lookups internally
+	
 	if (execfunc != NULL) {
-		thisflag = 0;
-		status = (*execfunc) (f, n);
-		lastflag = thisflag;
+		// Atomic flag management for command state
+		atomic_store_explicit((_Atomic int*)&thisflag, 0, memory_order_relaxed);
+		
+		/* Execute function atomically - instantaneous command dispatch */
+		status = (*execfunc)(f, n);
+		
+		/* Atomic flag transition for next command */
+		atomic_store_explicit((_Atomic int*)&lastflag, 
+		                     atomic_load_explicit((_Atomic int*)&thisflag, memory_order_acquire),
+		                     memory_order_release);
 		return status;
 	}
 

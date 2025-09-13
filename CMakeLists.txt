@@ -8,6 +8,9 @@ project(μEmacs
     LANGUAGES C
 )
 
+# Feature toggles (defined early so they affect source lists and targets)
+option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
+
 # Tuning knob: minimum literal length for BMH fast path
 set(BMH_MIN_LEN 5 CACHE STRING "Minimum length for Boyer–Moore–Horspool literal path (default 5)")
 
@@ -72,8 +75,11 @@ set(TEXT_SOURCES
     src/text/word.c
     src/text/random.c
     src/text/boyer_moore.c
-    $<$<BOOL:${ENABLE_SEARCH_NFA}>:src/text/nfa.c>
 )
+
+if(ENABLE_SEARCH_NFA)
+  list(APPEND TEXT_SOURCES src/text/nfa.c)
+endif()
 
 # I/O and file handling
 set(IO_SOURCES
@@ -91,6 +97,8 @@ set(CONFIG_SOURCES
     src/config/names.c
     src/config/exec.c
     src/config/eval.c
+    src/config/writing.c
+    src/config/settings.c
 )
 
 # Linux platform specific
@@ -182,6 +190,10 @@ target_compile_definitions(muEmacs PRIVATE
 # Integration test executable (TTY-capable stress testing)
 set(TEST_SOURCES
     tests/test_utils.c
+    tests/test_keymap_defaults.c
+    tests/test_key_decode_edges.c
+    tests/test_mx_command_flow.c
+    tests/test_help_prefix_toggle.c
     tests/test_phase1_core_ops.c
     tests/test_phase2_navigation.c
     tests/test_phase3_selection.c
@@ -199,6 +211,9 @@ set(TEST_SOURCES
     tests/test_search_engines.c
     tests/test_atomic_stats.c
     tests/test_fileio_stub.c
+    tests/test_key_decode_edges.c
+    tests/test_mx_command_flow.c
+    tests/test_writing_wrap_poe.c
     # 100% coverage completion test suites
     tests/test_terminal_display.c
     tests/test_text_processing.c
@@ -209,6 +224,8 @@ set(TEST_SOURCES
     tests/test_config_engine.c
     # Phase 1B: Security & Encryption Testing
     tests/test_security_encryption.c
+    # Key decode matrix tests
+    tests/test_key_decode_matrix.c
     # Phase 2C: Process & Shell Integration Tests
     tests/test_process_shell.c
     # Phase 2D: Transaction & Persistence System Tests
@@ -219,6 +236,8 @@ set(TEST_SOURCES
     tests/test_platform_specific.c
     # EXTREME Stress Testing (10X)
     tests/test_extreme_stress.c
+    # Kitty CSI u decoding tests
+    tests/test_kitty_csi_u.c
 )
 
 add_executable(full_integration_test
@@ -229,6 +248,30 @@ if(ENABLE_SEARCH_NFA)
   target_compile_definitions(full_integration_test PRIVATE ENABLE_SEARCH_NFA=1)
 endif()
 target_compile_definitions(full_integration_test PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
+
+# Focused keymap-only test runner (fast)
+add_executable(keymap_tests
+    tests/run_keymap_tests.c
+    tests/test_utils.c
+    tests/test_keymap.c
+    tests/test_keymap_defaults.c
+    tests/test_help_prefix_toggle.c
+)
+target_link_libraries(keymap_tests uemacs ${NCURSES_LIBRARIES} m Threads::Threads)
+target_compile_definitions(keymap_tests PRIVATE
+    LINUX=1
+    UNIX=1
+    POSIX=1
+    UTF8=1
+    COLOR=1
+    CRYPT=1
+    FILOCK=1
+    MODERN=1
+    AUTOCONF=1
+    HAVE_CONFIG_H=1
+    _GNU_SOURCE
+    _DEFAULT_SOURCE
+)
 
 # Simple search microbenchmark
 add_executable(bench_search tests/bench/search_bench.c)
@@ -242,8 +285,10 @@ target_compile_definitions(bench_search PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
 add_custom_target(bench
   COMMAND $<TARGET_FILE:bench_search>
+  COMMAND $<TARGET_FILE:bench_keymap>
+  COMMAND $<TARGET_FILE:bench_utf8>
   COMMAND $<TARGET_FILE:bench_editor>
-  DEPENDS bench_search
+  DEPENDS bench_search bench_keymap bench_utf8
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running microbenchmarks (search)"
 )
@@ -252,6 +297,24 @@ add_custom_target(bench
 add_executable(bench_editor tests/bench/editor_bench.c)
 target_link_libraries(bench_editor uemacs Threads::Threads m)
 target_include_directories(bench_editor PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+# Keymap lookup microbenchmark
+add_executable(bench_keymap tests/bench/keymap_bench.c)
+target_link_libraries(bench_keymap uemacs Threads::Threads m)
+target_include_directories(bench_keymap PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+# UTF-8 encode/decode microbenchmark
+add_executable(bench_utf8 tests/bench/utf8_bench.c)
+target_link_libraries(bench_utf8 uemacs Threads::Threads m)
+target_include_directories(bench_utf8 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_BINARY_DIR}/include
@@ -408,9 +471,31 @@ install(TARGETS muEmacs
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+# Provide an ASCII-friendly command alias alongside the μEmacs binary.
+# Create a symlink named `muEmacs` in the install bindir so users can run
+# the editor without typing the micro symbol.
+install(CODE [[
+  # Create ASCII-friendly alias in the install bindir, honoring DESTDIR.
+  set(_prefix "${CMAKE_INSTALL_PREFIX}")
+  if(_prefix STREQUAL "")
+    set(_prefix "/usr/local")
+  endif()
+  set(_bindir "${_prefix}/bin")
+  if(NOT "$ENV{DESTDIR}" STREQUAL "")
+    set(_bindir "$ENV{DESTDIR}${_bindir}")
+  endif()
+  file(MAKE_DIRECTORY "${_bindir}")
+  if(EXISTS "${_bindir}/μEmacs")
+    # Use relative symlink to avoid embedding absolute paths in packages
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E create_symlink "μEmacs" "${_bindir}/muEmacs")
+  else()
+    message(WARNING "μEmacs binary not found for alias creation in: ${_bindir}")
+  endif()
+]])
+
 # Install configuration files
 install(DIRECTORY config/ 
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/uemacs
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/muemacs
     PATTERN "*.md" EXCLUDE
     PATTERN "*.txt" EXCLUDE
 )
@@ -422,7 +507,7 @@ install(FILES README.md
 )
 
 # Install desktop entry for GUI integration
-install(FILES packaging/uemacs.desktop
+install(FILES packaging/muEmacs.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 
@@ -432,7 +517,7 @@ install(FILES packaging/uemacs.png
 )
 
 # Install man page
-install(FILES packaging/uemacs.1
+install(FILES packaging/muEmacs.1
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man1
 )
 
@@ -455,9 +540,8 @@ if(Python3_Interpreter_FOUND)
 else()
   message(STATUS "Python3 not found; 'lint' target will be unavailable.")
 endif()
-option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
 add_custom_target(itests
-  COMMAND ${CMAKE_COMMAND} -E env ENABLE_EXPECT=1 LSAN_OPTIONS=detect_leaks=0 ASAN_OPTIONS=detect_leaks=0 $<TARGET_FILE:full_integration_test>
+  COMMAND ${CMAKE_COMMAND} -E env ENABLE_EXPECT=1 UEMACS_INTERACTIVE=1 LSAN_OPTIONS=detect_leaks=0 ASAN_OPTIONS=detect_leaks=0 $<TARGET_FILE:full_integration_test>
   DEPENDS full_integration_test
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running interactive expect tests (PTY required)"
@@ -468,3 +552,31 @@ add_custom_target(api_tests
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running non-interactive API/integration tests"
 )
+
+# Dedicated heavy stress target (non-interactive, scalable)
+add_custom_target(stress
+  COMMAND ${CMAKE_COMMAND} -E env EXTREME_STRESS=1 UEMACS_STRESS=1 UEMACS_PHASE_TIMEOUT=1800 $<TARGET_FILE:full_integration_test>
+  DEPENDS full_integration_test
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  COMMENT "Running extreme non-interactive stress tests (set UEMACS_STRESS to scale)"
+)
+
+# Packaging via CPack (optional): generates DEB/RPM/TGZ packages
+set(CPACK_PACKAGE_NAME "muemacs")
+set(CPACK_PACKAGE_VENDOR "μEmacs Project")
+set(CPACK_PACKAGE_CONTACT "maintainers@example.com")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Modern Linux terminal text editor")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+set(CPACK_GENERATOR "TGZ")
+if(EXISTS "/etc/debian_version")
+  list(APPEND CPACK_GENERATOR "DEB")
+  set(CPACK_DEBIAN_PACKAGE_MAINTAINER "μEmacs Maintainers")
+  set(CPACK_DEBIAN_PACKAGE_SECTION "editors")
+endif()
+if(EXISTS "/etc/redhat-release")
+  list(APPEND CPACK_GENERATOR "RPM")
+  set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+  set(CPACK_RPM_PACKAGE_GROUP "Applications/Editors")
+endif()
+include(CPack)

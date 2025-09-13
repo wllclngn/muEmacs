@@ -201,6 +201,19 @@ full_integration_test/fast:
 .PHONY : full_integration_test/fast
 
 #=============================================================================
+# Target rules for targets named keymap_tests
+
+# Build rule for target.
+keymap_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 keymap_tests
+.PHONY : keymap_tests
+
+# fast build rule for target.
+keymap_tests/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/build
+.PHONY : keymap_tests/fast
+
+#=============================================================================
 # Target rules for targets named bench_search
 
 # Build rule for target.
@@ -240,6 +253,32 @@ bench_editor/fast:
 .PHONY : bench_editor/fast
 
 #=============================================================================
+# Target rules for targets named bench_keymap
+
+# Build rule for target.
+bench_keymap: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bench_keymap
+.PHONY : bench_keymap
+
+# fast build rule for target.
+bench_keymap/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_keymap.dir/build.make CMakeFiles/bench_keymap.dir/build
+.PHONY : bench_keymap/fast
+
+#=============================================================================
+# Target rules for targets named bench_utf8
+
+# Build rule for target.
+bench_utf8: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bench_utf8
+.PHONY : bench_utf8
+
+# fast build rule for target.
+bench_utf8/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_utf8.dir/build.make CMakeFiles/bench_utf8.dir/build
+.PHONY : bench_utf8/fast
+
+#=============================================================================
 # Target rules for targets named lint
 
 # Build rule for target.
@@ -277,6 +316,19 @@ api_tests: cmake_check_build_system
 api_tests/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/api_tests.dir/build.make CMakeFiles/api_tests.dir/build
 .PHONY : api_tests/fast
+
+#=============================================================================
+# Target rules for targets named stress
+
+# Build rule for target.
+stress: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 stress
+.PHONY : stress
+
+# fast build rule for target.
+stress/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/stress.dir/build.make CMakeFiles/stress.dir/build
+.PHONY : stress/fast
 
 main.o: main.c.o
 .PHONY : main.o
@@ -397,6 +449,54 @@ src/config/names.s: src/config/names.c.s
 src/config/names.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/names.c.s
 .PHONY : src/config/names.c.s
+
+src/config/settings.o: src/config/settings.c.o
+.PHONY : src/config/settings.o
+
+# target to build an object file
+src/config/settings.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/settings.c.o
+.PHONY : src/config/settings.c.o
+
+src/config/settings.i: src/config/settings.c.i
+.PHONY : src/config/settings.i
+
+# target to preprocess a source file
+src/config/settings.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/settings.c.i
+.PHONY : src/config/settings.c.i
+
+src/config/settings.s: src/config/settings.c.s
+.PHONY : src/config/settings.s
+
+# target to generate assembly for a file
+src/config/settings.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/settings.c.s
+.PHONY : src/config/settings.c.s
+
+src/config/writing.o: src/config/writing.c.o
+.PHONY : src/config/writing.o
+
+# target to build an object file
+src/config/writing.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/writing.c.o
+.PHONY : src/config/writing.c.o
+
+src/config/writing.i: src/config/writing.c.i
+.PHONY : src/config/writing.i
+
+# target to preprocess a source file
+src/config/writing.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/writing.c.i
+.PHONY : src/config/writing.c.i
+
+src/config/writing.s: src/config/writing.c.s
+.PHONY : src/config/writing.s
+
+# target to generate assembly for a file
+src/config/writing.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/uemacs.dir/build.make CMakeFiles/uemacs.dir/src/config/writing.c.s
+.PHONY : src/config/writing.c.s
 
 src/core/basic.o: src/core/basic.c.o
 .PHONY : src/core/basic.o
@@ -1766,6 +1866,30 @@ tests/bench/editor_bench.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_editor.dir/build.make CMakeFiles/bench_editor.dir/tests/bench/editor_bench.c.s
 .PHONY : tests/bench/editor_bench.c.s
 
+tests/bench/keymap_bench.o: tests/bench/keymap_bench.c.o
+.PHONY : tests/bench/keymap_bench.o
+
+# target to build an object file
+tests/bench/keymap_bench.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_keymap.dir/build.make CMakeFiles/bench_keymap.dir/tests/bench/keymap_bench.c.o
+.PHONY : tests/bench/keymap_bench.c.o
+
+tests/bench/keymap_bench.i: tests/bench/keymap_bench.c.i
+.PHONY : tests/bench/keymap_bench.i
+
+# target to preprocess a source file
+tests/bench/keymap_bench.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_keymap.dir/build.make CMakeFiles/bench_keymap.dir/tests/bench/keymap_bench.c.i
+.PHONY : tests/bench/keymap_bench.c.i
+
+tests/bench/keymap_bench.s: tests/bench/keymap_bench.c.s
+.PHONY : tests/bench/keymap_bench.s
+
+# target to generate assembly for a file
+tests/bench/keymap_bench.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_keymap.dir/build.make CMakeFiles/bench_keymap.dir/tests/bench/keymap_bench.c.s
+.PHONY : tests/bench/keymap_bench.c.s
+
 tests/bench/search_bench.o: tests/bench/search_bench.c.o
 .PHONY : tests/bench/search_bench.o
 
@@ -1790,6 +1914,30 @@ tests/bench/search_bench.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_search.dir/build.make CMakeFiles/bench_search.dir/tests/bench/search_bench.c.s
 .PHONY : tests/bench/search_bench.c.s
 
+tests/bench/utf8_bench.o: tests/bench/utf8_bench.c.o
+.PHONY : tests/bench/utf8_bench.o
+
+# target to build an object file
+tests/bench/utf8_bench.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_utf8.dir/build.make CMakeFiles/bench_utf8.dir/tests/bench/utf8_bench.c.o
+.PHONY : tests/bench/utf8_bench.c.o
+
+tests/bench/utf8_bench.i: tests/bench/utf8_bench.c.i
+.PHONY : tests/bench/utf8_bench.i
+
+# target to preprocess a source file
+tests/bench/utf8_bench.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_utf8.dir/build.make CMakeFiles/bench_utf8.dir/tests/bench/utf8_bench.c.i
+.PHONY : tests/bench/utf8_bench.c.i
+
+tests/bench/utf8_bench.s: tests/bench/utf8_bench.c.s
+.PHONY : tests/bench/utf8_bench.s
+
+# target to generate assembly for a file
+tests/bench/utf8_bench.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bench_utf8.dir/build.make CMakeFiles/bench_utf8.dir/tests/bench/utf8_bench.c.s
+.PHONY : tests/bench/utf8_bench.c.s
+
 tests/full_integration_test.o: tests/full_integration_test.c.o
 .PHONY : tests/full_integration_test.o
 
@@ -1813,6 +1961,30 @@ tests/full_integration_test.s: tests/full_integration_test.c.s
 tests/full_integration_test.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/full_integration_test.c.s
 .PHONY : tests/full_integration_test.c.s
+
+tests/run_keymap_tests.o: tests/run_keymap_tests.c.o
+.PHONY : tests/run_keymap_tests.o
+
+# target to build an object file
+tests/run_keymap_tests.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/run_keymap_tests.c.o
+.PHONY : tests/run_keymap_tests.c.o
+
+tests/run_keymap_tests.i: tests/run_keymap_tests.c.i
+.PHONY : tests/run_keymap_tests.i
+
+# target to preprocess a source file
+tests/run_keymap_tests.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/run_keymap_tests.c.i
+.PHONY : tests/run_keymap_tests.c.i
+
+tests/run_keymap_tests.s: tests/run_keymap_tests.c.s
+.PHONY : tests/run_keymap_tests.s
+
+# target to generate assembly for a file
+tests/run_keymap_tests.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/run_keymap_tests.c.s
+.PHONY : tests/run_keymap_tests.c.s
 
 tests/test_advanced_text_ops.o: tests/test_advanced_text_ops.c.o
 .PHONY : tests/test_advanced_text_ops.o
@@ -2030,12 +2202,88 @@ tests/test_fileio_stub.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_fileio_stub.c.s
 .PHONY : tests/test_fileio_stub.c.s
 
+tests/test_help_prefix_toggle.o: tests/test_help_prefix_toggle.c.o
+.PHONY : tests/test_help_prefix_toggle.o
+
+# target to build an object file
+tests/test_help_prefix_toggle.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_help_prefix_toggle.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_help_prefix_toggle.c.o
+.PHONY : tests/test_help_prefix_toggle.c.o
+
+tests/test_help_prefix_toggle.i: tests/test_help_prefix_toggle.c.i
+.PHONY : tests/test_help_prefix_toggle.i
+
+# target to preprocess a source file
+tests/test_help_prefix_toggle.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_help_prefix_toggle.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_help_prefix_toggle.c.i
+.PHONY : tests/test_help_prefix_toggle.c.i
+
+tests/test_help_prefix_toggle.s: tests/test_help_prefix_toggle.c.s
+.PHONY : tests/test_help_prefix_toggle.s
+
+# target to generate assembly for a file
+tests/test_help_prefix_toggle.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_help_prefix_toggle.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_help_prefix_toggle.c.s
+.PHONY : tests/test_help_prefix_toggle.c.s
+
+tests/test_key_decode_edges.o: tests/test_key_decode_edges.c.o
+.PHONY : tests/test_key_decode_edges.o
+
+# target to build an object file
+tests/test_key_decode_edges.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_key_decode_edges.c.o
+.PHONY : tests/test_key_decode_edges.c.o
+
+tests/test_key_decode_edges.i: tests/test_key_decode_edges.c.i
+.PHONY : tests/test_key_decode_edges.i
+
+# target to preprocess a source file
+tests/test_key_decode_edges.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_key_decode_edges.c.i
+.PHONY : tests/test_key_decode_edges.c.i
+
+tests/test_key_decode_edges.s: tests/test_key_decode_edges.c.s
+.PHONY : tests/test_key_decode_edges.s
+
+# target to generate assembly for a file
+tests/test_key_decode_edges.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_key_decode_edges.c.s
+.PHONY : tests/test_key_decode_edges.c.s
+
+tests/test_key_decode_matrix.o: tests/test_key_decode_matrix.c.o
+.PHONY : tests/test_key_decode_matrix.o
+
+# target to build an object file
+tests/test_key_decode_matrix.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_key_decode_matrix.c.o
+.PHONY : tests/test_key_decode_matrix.c.o
+
+tests/test_key_decode_matrix.i: tests/test_key_decode_matrix.c.i
+.PHONY : tests/test_key_decode_matrix.i
+
+# target to preprocess a source file
+tests/test_key_decode_matrix.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_key_decode_matrix.c.i
+.PHONY : tests/test_key_decode_matrix.c.i
+
+tests/test_key_decode_matrix.s: tests/test_key_decode_matrix.c.s
+.PHONY : tests/test_key_decode_matrix.s
+
+# target to generate assembly for a file
+tests/test_key_decode_matrix.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_key_decode_matrix.c.s
+.PHONY : tests/test_key_decode_matrix.c.s
+
 tests/test_keymap.o: tests/test_keymap.c.o
 .PHONY : tests/test_keymap.o
 
 # target to build an object file
 tests/test_keymap.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_keymap.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_keymap.c.o
 .PHONY : tests/test_keymap.c.o
 
 tests/test_keymap.i: tests/test_keymap.c.i
@@ -2044,6 +2292,7 @@ tests/test_keymap.i: tests/test_keymap.c.i
 # target to preprocess a source file
 tests/test_keymap.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_keymap.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_keymap.c.i
 .PHONY : tests/test_keymap.c.i
 
 tests/test_keymap.s: tests/test_keymap.c.s
@@ -2052,7 +2301,83 @@ tests/test_keymap.s: tests/test_keymap.c.s
 # target to generate assembly for a file
 tests/test_keymap.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_keymap.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_keymap.c.s
 .PHONY : tests/test_keymap.c.s
+
+tests/test_keymap_defaults.o: tests/test_keymap_defaults.c.o
+.PHONY : tests/test_keymap_defaults.o
+
+# target to build an object file
+tests/test_keymap_defaults.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_keymap_defaults.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_keymap_defaults.c.o
+.PHONY : tests/test_keymap_defaults.c.o
+
+tests/test_keymap_defaults.i: tests/test_keymap_defaults.c.i
+.PHONY : tests/test_keymap_defaults.i
+
+# target to preprocess a source file
+tests/test_keymap_defaults.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_keymap_defaults.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_keymap_defaults.c.i
+.PHONY : tests/test_keymap_defaults.c.i
+
+tests/test_keymap_defaults.s: tests/test_keymap_defaults.c.s
+.PHONY : tests/test_keymap_defaults.s
+
+# target to generate assembly for a file
+tests/test_keymap_defaults.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_keymap_defaults.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_keymap_defaults.c.s
+.PHONY : tests/test_keymap_defaults.c.s
+
+tests/test_kitty_csi_u.o: tests/test_kitty_csi_u.c.o
+.PHONY : tests/test_kitty_csi_u.o
+
+# target to build an object file
+tests/test_kitty_csi_u.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_kitty_csi_u.c.o
+.PHONY : tests/test_kitty_csi_u.c.o
+
+tests/test_kitty_csi_u.i: tests/test_kitty_csi_u.c.i
+.PHONY : tests/test_kitty_csi_u.i
+
+# target to preprocess a source file
+tests/test_kitty_csi_u.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_kitty_csi_u.c.i
+.PHONY : tests/test_kitty_csi_u.c.i
+
+tests/test_kitty_csi_u.s: tests/test_kitty_csi_u.c.s
+.PHONY : tests/test_kitty_csi_u.s
+
+# target to generate assembly for a file
+tests/test_kitty_csi_u.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_kitty_csi_u.c.s
+.PHONY : tests/test_kitty_csi_u.c.s
+
+tests/test_mx_command_flow.o: tests/test_mx_command_flow.c.o
+.PHONY : tests/test_mx_command_flow.o
+
+# target to build an object file
+tests/test_mx_command_flow.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_mx_command_flow.c.o
+.PHONY : tests/test_mx_command_flow.c.o
+
+tests/test_mx_command_flow.i: tests/test_mx_command_flow.c.i
+.PHONY : tests/test_mx_command_flow.i
+
+# target to preprocess a source file
+tests/test_mx_command_flow.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_mx_command_flow.c.i
+.PHONY : tests/test_mx_command_flow.c.i
+
+tests/test_mx_command_flow.s: tests/test_mx_command_flow.c.s
+.PHONY : tests/test_mx_command_flow.s
+
+# target to generate assembly for a file
+tests/test_mx_command_flow.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_mx_command_flow.c.s
+.PHONY : tests/test_mx_command_flow.c.s
 
 tests/test_paste.o: tests/test_paste.c.o
 .PHONY : tests/test_paste.o
@@ -2516,6 +2841,7 @@ tests/test_utils.o: tests/test_utils.c.o
 # target to build an object file
 tests/test_utils.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_utils.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_utils.c.o
 .PHONY : tests/test_utils.c.o
 
 tests/test_utils.i: tests/test_utils.c.i
@@ -2524,6 +2850,7 @@ tests/test_utils.i: tests/test_utils.c.i
 # target to preprocess a source file
 tests/test_utils.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_utils.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_utils.c.i
 .PHONY : tests/test_utils.c.i
 
 tests/test_utils.s: tests/test_utils.c.s
@@ -2532,7 +2859,32 @@ tests/test_utils.s: tests/test_utils.c.s
 # target to generate assembly for a file
 tests/test_utils.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_utils.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/keymap_tests.dir/build.make CMakeFiles/keymap_tests.dir/tests/test_utils.c.s
 .PHONY : tests/test_utils.c.s
+
+tests/test_writing_wrap_poe.o: tests/test_writing_wrap_poe.c.o
+.PHONY : tests/test_writing_wrap_poe.o
+
+# target to build an object file
+tests/test_writing_wrap_poe.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_writing_wrap_poe.c.o
+.PHONY : tests/test_writing_wrap_poe.c.o
+
+tests/test_writing_wrap_poe.i: tests/test_writing_wrap_poe.c.i
+.PHONY : tests/test_writing_wrap_poe.i
+
+# target to preprocess a source file
+tests/test_writing_wrap_poe.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_writing_wrap_poe.c.i
+.PHONY : tests/test_writing_wrap_poe.c.i
+
+tests/test_writing_wrap_poe.s: tests/test_writing_wrap_poe.c.s
+.PHONY : tests/test_writing_wrap_poe.s
+
+# target to generate assembly for a file
+tests/test_writing_wrap_poe.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/full_integration_test.dir/build.make CMakeFiles/full_integration_test.dir/tests/test_writing_wrap_poe.c.s
+.PHONY : tests/test_writing_wrap_poe.c.s
 
 # Help Target
 help:
@@ -2550,9 +2902,13 @@ help:
 	@echo "... bench"
 	@echo "... itests"
 	@echo "... lint"
+	@echo "... stress"
 	@echo "... bench_editor"
+	@echo "... bench_keymap"
 	@echo "... bench_search"
+	@echo "... bench_utf8"
 	@echo "... full_integration_test"
+	@echo "... keymap_tests"
 	@echo "... muEmacs"
 	@echo "... uemacs"
 	@echo "... main.o"
@@ -2570,6 +2926,12 @@ help:
 	@echo "... src/config/names.o"
 	@echo "... src/config/names.i"
 	@echo "... src/config/names.s"
+	@echo "... src/config/settings.o"
+	@echo "... src/config/settings.i"
+	@echo "... src/config/settings.s"
+	@echo "... src/config/writing.o"
+	@echo "... src/config/writing.i"
+	@echo "... src/config/writing.s"
 	@echo "... src/core/basic.o"
 	@echo "... src/core/basic.i"
 	@echo "... src/core/basic.s"
@@ -2741,12 +3103,21 @@ help:
 	@echo "... tests/bench/editor_bench.o"
 	@echo "... tests/bench/editor_bench.i"
 	@echo "... tests/bench/editor_bench.s"
+	@echo "... tests/bench/keymap_bench.o"
+	@echo "... tests/bench/keymap_bench.i"
+	@echo "... tests/bench/keymap_bench.s"
 	@echo "... tests/bench/search_bench.o"
 	@echo "... tests/bench/search_bench.i"
 	@echo "... tests/bench/search_bench.s"
+	@echo "... tests/bench/utf8_bench.o"
+	@echo "... tests/bench/utf8_bench.i"
+	@echo "... tests/bench/utf8_bench.s"
 	@echo "... tests/full_integration_test.o"
 	@echo "... tests/full_integration_test.i"
 	@echo "... tests/full_integration_test.s"
+	@echo "... tests/run_keymap_tests.o"
+	@echo "... tests/run_keymap_tests.i"
+	@echo "... tests/run_keymap_tests.s"
 	@echo "... tests/test_advanced_text_ops.o"
 	@echo "... tests/test_advanced_text_ops.i"
 	@echo "... tests/test_advanced_text_ops.s"
@@ -2774,9 +3145,27 @@ help:
 	@echo "... tests/test_fileio_stub.o"
 	@echo "... tests/test_fileio_stub.i"
 	@echo "... tests/test_fileio_stub.s"
+	@echo "... tests/test_help_prefix_toggle.o"
+	@echo "... tests/test_help_prefix_toggle.i"
+	@echo "... tests/test_help_prefix_toggle.s"
+	@echo "... tests/test_key_decode_edges.o"
+	@echo "... tests/test_key_decode_edges.i"
+	@echo "... tests/test_key_decode_edges.s"
+	@echo "... tests/test_key_decode_matrix.o"
+	@echo "... tests/test_key_decode_matrix.i"
+	@echo "... tests/test_key_decode_matrix.s"
 	@echo "... tests/test_keymap.o"
 	@echo "... tests/test_keymap.i"
 	@echo "... tests/test_keymap.s"
+	@echo "... tests/test_keymap_defaults.o"
+	@echo "... tests/test_keymap_defaults.i"
+	@echo "... tests/test_keymap_defaults.s"
+	@echo "... tests/test_kitty_csi_u.o"
+	@echo "... tests/test_kitty_csi_u.i"
+	@echo "... tests/test_kitty_csi_u.s"
+	@echo "... tests/test_mx_command_flow.o"
+	@echo "... tests/test_mx_command_flow.i"
+	@echo "... tests/test_mx_command_flow.s"
 	@echo "... tests/test_paste.o"
 	@echo "... tests/test_paste.i"
 	@echo "... tests/test_paste.s"
@@ -2837,6 +3226,9 @@ help:
 	@echo "... tests/test_utils.o"
 	@echo "... tests/test_utils.i"
 	@echo "... tests/test_utils.s"
+	@echo "... tests/test_writing_wrap_poe.o"
+	@echo "... tests/test_writing_wrap_poe.i"
+	@echo "... tests/test_writing_wrap_poe.s"
 .PHONY : help
 
 

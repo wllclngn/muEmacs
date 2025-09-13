@@ -214,6 +214,19 @@ def lint_file(path):
                     continue
                 warnings.append(f"{path}:{idx}: MAGIC NUMBER: {num}: {line.rstrip()}")
 
+        # --- Additional advisories ---
+        # Atomics without explicit ordering
+        if re.search(r"\batomic_(load|store)\s*\(", cleaned) and "_explicit" not in cleaned:
+            warnings.append(f"{path}:{idx}: STYLE: ATOMIC_ORDER_UNCLEAR: prefer atomic_*_explicit with memory_order")
+        # RAW IO discouraged in core/terminal paths
+        lower = path.replace('\\', '/')
+        if (lower.startswith('src/core/') or lower.startswith('src/terminal/')):
+            if re.search(r"\b(f?printf|puts|putchar)\s*\(", cleaned):
+                warnings.append(f"{path}:{idx}: STYLE: RAW_IO_FORBIDDEN: use vtputs/TT* wrappers in core/terminal code")
+        # memcpy/memset/memmove advisory
+        if re.search(r"\bmem(set|cpy|move)\s*\(", cleaned):
+            warnings.append(f"{path}:{idx}: STYLE: Consider safe_* wrappers instead of direct mem* calls where feasible: {line.rstrip()}")
+
     # ctype + estruct conflict
     if saw_ctype and saw_estruct:
         warnings.append(f"{path}:1: STYLE: CTYPE_CONFLICT: avoid mixing <ctype.h> with estruct.h macros; prefer local helpers or wrappers")
@@ -245,16 +258,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-        # --- Atomics without explicit ordering ---
-        if re.search(r"\batomic_(load|store)\s*\(", cleaned) and "_explicit" not in cleaned:
-            warnings.append(f"{path}:{idx}: STYLE: ATOMIC_ORDER_UNCLEAR: prefer atomic_*_explicit with memory_order")
-
-        # --- RAW IO forbidden in core/terminal paths ---
-        lower = path.replace('\\','/')
-        if (lower.startswith('src/core/') or lower.startswith('src/terminal/')):
-            if re.search(r"\b(f?printf|puts|putchar)\s*\(", cleaned):
-                warnings.append(f"{path}:{idx}: STYLE: RAW_IO_FORBIDDEN: use vtputs/TT* wrappers in core/terminal code")
-
-        # --- memcpy/memset/memmove advisory ---
-        if re.search(r"\bmem(set|cpy|move)\s*\(", cleaned):
-            warnings.append(f"{path}:{idx}: STYLE: Consider safe_* wrappers instead of direct mem* calls where feasible: {line.rstrip()}")

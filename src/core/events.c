@@ -18,7 +18,7 @@ struct event_stats global_event_stats = {0};
 
 // Event type names for debugging
 static const char *event_type_names[EVENT_MAX] = {
-    "NONE", "KEY_PRESS", "MOUSE_CLICK", "MOUSE_MOVE", "WINDOW_RESIZE",
+    "NONE", "KEY_PRESS", "WINDOW_RESIZE",
     "BUFFER_CHANGE", "CURSOR_MOVE", "MODE_CHANGE", "FILE_WATCH",
     "TIMER", "SIGNAL", "CUSTOM"
 };
@@ -227,12 +227,6 @@ int event_post(event_type_t type, event_priority_t priority, void *data) {
                 memcpy(&evt->data.key, data, sizeof(struct key_event_data));
             }
             break;
-        case EVENT_MOUSE_CLICK:
-        case EVENT_MOUSE_MOVE:
-            if (data) {
-                memcpy(&evt->data.mouse, data, sizeof(struct mouse_event_data));
-            }
-            break;
         case EVENT_WINDOW_RESIZE:
             if (data) {
                 memcpy(&evt->data.resize, data, sizeof(struct resize_event_data));
@@ -277,6 +271,9 @@ int event_post_key(uint32_t keycode, uint8_t modifiers, const char *utf8_seq, si
     
     return event_post(EVENT_KEY_PRESS, EVENT_PRIORITY_HIGH, &key_data);
 }
+
+// Post mouse event (minimal wrapper)
+/* Mouse event posting removed: editor is strictly keyboard-only. */
 
 // Register event handler
 int event_handler_register(event_type_t type, event_priority_t min_priority,

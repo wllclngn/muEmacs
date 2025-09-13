@@ -19,10 +19,9 @@
 #include "error.h"
 #include "c23_compat.h"
 
-/* Terminal capability structure */
+/* Terminal capability structure (matches header) */
 typedef struct terminal_caps {
     bool truecolor;         /* 24-bit color support */
-    bool mouse;             /* Mouse tracking */
     bool bracketed_paste;   /* Bracketed paste mode */
     bool focus_events;      /* Focus in/out events */
     bool sixel;            /* Sixel graphics */
@@ -36,6 +35,7 @@ typedef struct terminal_caps {
 
 static terminal_caps_t current_caps = {0};
 static bool caps_initialized = false;
+/* Mouse features removed; editor is keyboard-only. */
 
 /* Get terminal size using modern ioctl */
 static bool get_terminal_size(int* width, int* height) {
@@ -146,7 +146,6 @@ terminal_caps_t detect_terminal_capabilities(void) {
             caps.alt_screen = true;
             caps.max_colors = 16777216;
         } else if (strstr(term, "xterm")) {
-            caps.mouse = true;
             caps.alt_screen = true;
             caps.max_colors = caps.truecolor ? 16777216 : 256;
         }
@@ -219,11 +218,7 @@ void optimize_for_terminal(const terminal_caps_t* caps) {
         vtputs("\x1b[?2004h");
     }
     
-    /* Enable mouse support if available */
-    if (caps->mouse) {
-        vtputs("\x1b[?1000h");  /* Basic mouse reporting */
-        vtputs("\x1b[?1006h");  /* SGR mouse mode */
-    }
+    /* Mouse interactions are intentionally unsupported (keyboard-only editor). */
     
     /* Enable focus events if supported */
     if (caps->focus_events) {
@@ -244,10 +239,7 @@ void cleanup_terminal_optimizations(void) {
         vtputs("\x1b[?1004l");
     }
     
-    if (caps->mouse) {
-        vtputs("\x1b[?1006l");
-        vtputs("\x1b[?1000l");
-    }
+    /* No-op for mouse (not supported) */
     
     if (caps->bracketed_paste) {
         vtputs("\x1b[?2004l");
@@ -273,10 +265,12 @@ void print_terminal_capabilities(void) {
     mlwrite("  Size: %dx%d", caps->width, caps->height);
     mlwrite("  Colors: %d%s", caps->max_colors, caps->truecolor ? " (true color)" : "");
     mlwrite("  UTF-8: %s", caps->utf8_capable ? "yes" : "no");
-    mlwrite("  Mouse: %s", caps->mouse ? "yes" : "no");
     mlwrite("  Graphics: %s%s", caps->sixel ? "Sixel " : "", caps->kitty_graphics ? "Kitty" : "none");
     mlwrite("  Features: %s%s%s",
             caps->bracketed_paste ? "paste " : "",
             caps->focus_events ? "focus " : "",
             caps->alt_screen ? "altscreen" : "");
 }
+
+/* Runtime commands to enable/disable mouse reporting */
+/* Mouse commands removed: editor is keyboard-only */

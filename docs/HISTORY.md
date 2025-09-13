@@ -1,83 +1,103 @@
-		MicroEMACS 3.9 Release Notes	July 22, 1987
+# μEmacs — Modern Project History (Concise)
 
-**********************************************************************
+This document summarizes μEmacs’ lineage and the choices behind the current Linux‑only, C23 implementation.
 
-	(C)opyright 1987 by Daniel M. Lawrence
-	MicroEMACS 3.9 can be copied and distributed freely for any
-	non-commercial purposes. MicroEMACS 3.9 can only be incorporated
-	into commercial software with the permission of the current author.
+## Lineage
+- 1985–1987 — MicroEMACS (Dave G. Conroy → Daniel M. Lawrence)
+  - Small, portable editor written in C; spread widely across early UNIX/MSDOS systems.
+  - MicroEMACS 3.9 (1987) is the best‑known release in that family.
 
-**********************************************************************
+- 1991 — uEmacs/PK (Petri Kutvonen)
+  - A maintained fork that streamlined and fixed MicroEMACS for then‑current UNIX/VMS/MSDOS terminals.
+  - Introduced cohesive cleanups and feature refinements while staying small.
 
-	MicroEMACS 3.9 is availible in a couple of different ways. 
-First, it is availible via my bulletin board system..... 
+- 1990s–present — uEmacs (Linus Torvalds)
+  - Minimalist uEmacs used and maintained by Linus Torvalds.
+  - Keeps the spirit of a tiny, fast editor with conservative scope.
 
-	The Programmer's Room
-	FIDO 201/2
-	(317) 742-5533
-	24 hours  300/1200 baud
+## This Project: μEmacs (Modern Linux)
+Goal: keep the “small, fast, robust” DNA while making it native to modern Linux terminals and toolchains.
 
-	Also it should be online on the following BBS's:
+Key decisions
+- Linux‑only: all legacy drivers and OS ports removed.
+- C23 toolchain: modern types, atomics, and compile‑time hygiene.
+- Terminal correctness: POSIX termios + capability layer; Kitty/WezTerm/Alacritty tuned.
+- Safe APIs: consolidated unsafe string patterns behind checked helpers.
+- Instantaneous model: atomic counters/caches for status line, keymap stats, and buffer metrics.
 
-	The Starship Trooper	Fido 201/1	(317) 423-2281	2400
+What’s kept
+- Tiny core, fast startup, keyboard‑first UX.
+- Familiar MicroEMACS/uEmacs command set where it makes sense.
 
-	[These following two are open from 10pm till 5pm
-				and only while Purdue is in session]
-	The NightStaff		Fido 201/4	(317) 495-4270	1200
-	The Access Violation	Fido 201/5	(317) 495-4270	9600
+What’s changed (high‑impact)
+- Terminal: type‑safe terminal_ops, bracketed paste state machine, UTF‑8 display width.
+- Keymaps: O(1) hash lookup; ESC‑as‑Meta and Kitty CSI u decoding covered by tests.
+- Undo/Redo: deterministic grouping/coalescing; capacity wrap; atomic metadata.
+- Search: Boyer–Moore–Horspool for literals; optional NFA for “magic” cases.
+- Tests: non‑interactive integration suite with real‑text cases; optional interactive (PTY‑gated).
+- Settings: JSON at `~/.config/uemacs/settings.json` (auto‑created) for column width, wrap, ruler, and modeline toggles.
+- UX language: replaced Emacs jargon where confusing (`set-column-width` instead of `set-fill-column`).
 
-	There it is arranged as three MSDOS .ARC files, EMACSDOC.ARC
-which contains the documentation and command files, EMACSSRC.ARC which
-contains the sources and the UNIX Makefile, and EMACSEXE.EXE which
-contains the MSDOS executables.  Also all the various executables are
-available individually.
+Removed (by design)
+- Legacy platform drivers (MSDOS/VMS/Atari/Amiga/Win32) and related build logic.
+- Multiple terminal driver maze; only modern Linux terminals are supported.
+- Unused/orphaned experimental files were pruned to keep the tree crisp.
 
-EMACSDOC.ARC includes the files:
+## Why Linux‑only?
+Concentrating on one platform improves correctness, performance and maintenance drastically:
+- Robust TTY/PTY behavior, signals, and capability detection.
+- Predictable keyboard protocol support (ESC Meta, Kitty CSI u) with tests.
+- A simpler editor that is easier to keep fast and stable.
 
-	README		This file
-	
-	(These four files should be in your path for the standard setup)
-	EMACS.RC	Standard startup file
-	NEWPAGE.CMD	Shifted Function key Pager
-	PPAGE.CMD	Programming page
-	WPAGE.CMD	Word processing page
-	BPAGE.CMD	Block and box manipulation page
+## Today
+μEmacs is a small, modern Linux text editor that retains the classic feel but:
+- Builds with C23, runs fast, and has strong non‑interactive test coverage.
+- Integrates with modern terminals and workflows (truecolor, paste, UTF‑8 correctness).
+- Stays clear and approachable: small codebase, plain‑English commands, and simple JSON settings.
 
-	ME110.RC	HP110 startup file
-	ME150.RC	HP150 startup file
-	AMIGA.RC	AMIGA ".emacsrc" startup file
-	ST520.RC	ATARI ST startup file
+If you want to compare source lineages, consult:
+- MicroEMACS/uEmacs histories (public archives)
+- Petri Kutvonen’s uEmacs/PK notes
+- Linus Torvalds’s uEmacs repository
 
-	EMACS.HLP	Online help file
-	EMACS.MSS	MicroSCRIBE format of EMACS.TXT
-	EMACS.TXT       EMACS BEGINNER'S/REFERENCE MANUAL
+This project deliberately diverges to stay Linux‑focused and modern while honoring the original minimalist spirit.
 
-	AZMAP.CMD	Translate AZTEC .SYM files to .MAP
-	BDATA.CMD	BASIC Data statement builder
-	FINDCOM.CMD	Find mismatched C comments
-	FUNC.CMD	Allow function keys on systems with non (like UNIX)
-	MENU.CMD	Sample Menu system
-	MENU1		   datafile for menu system
-	SHELL.CMD	Sample interactive MSDOS shell
-	TRAND.CMD	Generate random numbers and do statistics on them
+## Appendix — Lineage Comparison (Torvalds uEmacs vs Modern μEmacs)
 
-EMACSSRC.ARC includes the files:
+The table below summarizes key differences observed by comparing Linus Torvalds’ uEmacs repository and this project:
 
-	ALINE.H		Atari ST graphic header file
-	ANSI.C		ANSI screen driver
-	BASIC.C		basic cursor movement
-	BIND.C		key binding commands
-	BUFFER.C	buffer manipulation commands
-	CRYPT.C		encryption functions
-	DOLOCK		file locking stub routines
-	DG10.C		Data General 10 screen driver
-	DISPLAY.C	main display driver
-	EBIND.H		binding list
-	EDEF.H		global variable declarations
-	EFUNC.H		function name list
-	EPATH.H		default path settings
-	ESTRUCT.H	configuration and structure definitions
-	EVAL.C		expression evaluator
+- Codebase organization
+  - Torvalds uEmacs: Single‑directory layout with all sources side‑by‑side; classic Makefile build.
+  - Modern μEmacs: CMake + modular layout (core/text/io/terminal/util/config/tests) with Linux‑only toolchain.
+
+- Language and safety
+  - Torvalds uEmacs: Classic C (C89‑style); hand‑rolled patterns; minimal safety wrappers.
+  - Modern μEmacs: C23; safe string helpers; atomic counters/caches for instantaneous modeline/keymap stats.
+
+- Terminal drivers
+  - Torvalds uEmacs: Multiple drivers (ansi.c, ibmpc.c, vmsvt.c, vt52.c, termio.c, tcap.c, posix.c).
+  - Modern μEmacs: Linux‑only POSIX driver with capability layer; legacy drivers removed; truecolor + bracketed paste.
+
+- Keyboard decoding
+  - Torvalds uEmacs: ESC‑as‑Meta; minimal awareness of modern keyboard protocols.
+  - Modern μEmacs: ESC‑as‑Meta and Kitty CSI u decoding with unit tests; robust numeric‑arg + M‑x flow.
+
+- Features/settings
+  - Torvalds uEmacs: Minimal, file‑based config (`emacs.rc`) and command set; no JSON config.
+  - Modern μEmacs: JSON settings at `~/.config/uemacs/settings.json` (auto‑created); `set-column-width`, `writing-mode`, ruler/highlight/modeline toggles.
+
+- Modeline/status
+  - Torvalds uEmacs: Classic status line; no async integrations.
+  - Modern μEmacs: Unified modeline with optional async git snippet and cached buffer stats; user‑gated by JSON toggles.
+
+- Testing
+  - Torvalds uEmacs: No bundled test harness.
+  - Modern μEmacs: Non‑interactive integration suite, optional PTY/Expect gated tests, real‑text paragraph reflow (Poe), performance/stress tests.
+
+- Scope
+  - Torvalds uEmacs: Broad terminal/OS historical heritage.
+  - Modern μEmacs: Intentional Linux‑only scope for correctness and simplicity.
+
 	EVAR.H		EMACS macro variable declarations
 	EXEC.C		macro execution functions
 	FILE.C		user file functions

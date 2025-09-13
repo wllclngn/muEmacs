@@ -19,12 +19,7 @@ int tabsize; /* Tab size (0: use real tabs) */
 /*
  * Set fill column to n.
  */
-int setfillcol(int f, int n)
-{
-	fillcol = n;
-	mlwrite("(Fill column is %d)", n);
-	return TRUE;
-}
+/* set-fill-column command removed; writing-mode manages fill column directly */
 
 /*
  * Display the current position of the cursor, in origin 1 X-Y coordinates,

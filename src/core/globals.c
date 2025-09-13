@@ -105,6 +105,19 @@ int overlap = 0;		/* line overlap in forw/back page */
 int scrollcount = 1;		/* number of lines to scroll */
 _Atomic int edit_transaction_depth = 0; /* transactional editing depth */
 
+/* Display preferences (user configurable) */
+int highlight_current_line = 0;     /* Highlight cursor row (reverse video) */
+int column_ruler_enabled = 0;       /* Enable vertical column ruler */
+int column_ruler_column = 80;       /* Ruler target column (1-based) */
+int hiline_style = 1;               /* 0 none, 1 underline, 2 bold, 3 dim */
+int ruler_style = 1;                /* 0 none, 1 underline, 2 bold, 3 dim */
+
+/* Modeline visibility toggles (user configurable via JSON) */
+int modeline_show_git = 1;
+int modeline_show_stats = 1;
+int modeline_show_modes = 1;
+int modeline_show_position = 1;
+
 /* uninitialized global definitions */
 
 int currow;			/* Cursor row                   */

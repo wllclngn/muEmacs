@@ -12,7 +12,11 @@
 #ifndef EFUNC_H_
 #define EFUNC_H_
 
-struct magic;  /* Forward declaration */
+struct magic;  /* Forward declarations */
+struct region;
+struct line;
+struct while_block;
+struct variable_description;
 
 /* External function declarations. */
 
@@ -79,7 +83,6 @@ extern int swapmark(int f, int n);
 
 /* random.c */
 extern int tabsize;  /* Tab size (0: use real tabs). */
-extern int setfillcol(int f, int n);
 extern int showcpos(int f, int n);
 extern int getcline(void);
 extern int getccol(int bflg);
@@ -118,7 +121,7 @@ extern int move_line_down(int f, int n);
 /* undo.c */
 #include "undo.h"
 
-/* Windows 11 bloat features removed - keeping Linus' minimalist vision */
+/* Minimal, Linux‑only command set */
 
 /* main.c */
 extern int uemacs_main_entry(int argc, char *argv[]);
@@ -185,7 +188,24 @@ extern fn_t getname(void);
 extern int tgetc(void);
 extern int get1key(void);
 int getcmd(void);
+/* Unified key_event decode helper (pure): decodes ESC/CSI u sequences */
+struct key_event;
+extern int decode_key_from_bytes(const unsigned char *buf, size_t len,
+                                 struct key_event *out, size_t *consumed);
 extern void input_reset_parser_state(void);
+/* Kitty CSI u parser (public for tests) */
+extern int parse_kitty_csi_u(const char *seq, int *out_key);
+/* Mouse interactions removed (keyboard-only) */
+/* Writing mode helpers */
+extern int writing_mode_enable(int f, int n);
+extern int writing_mode_disable(int f, int n);
+
+/* User settings (JSON) and friendly commands */
+extern int settings_load(int f, int n);
+extern int save_settings_cmd(int f, int n);
+extern int open_user_config_cmd(int f, int n);
+extern int list_settings_cmd(int f, int n);
+extern int set_column_width_cmd(int f, int n);
 
 
 extern int getstring(const char *prompt, char *buf, int nbuf, int eolchar);
@@ -211,6 +231,11 @@ extern char *getfname(fn_t);
 extern fn_t fncmatch(const char *);
 extern unsigned int stock(const char *keyname);
 extern char *transbind(const char *skey);
+/* Optional help prefix toggles */
+extern int help_prefix_enable(int f, int n);
+extern int help_prefix_disable(int f, int n);
+/* Keymap statistics */
+extern int keymap_stats_cmd(int f, int n);
 
 /* buffer.c */
 extern int usebuffer(int f, int n);

@@ -1,0 +1,22 @@
+pkgname=muemacs
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Modern Linux terminal text editor (μEmacs)"
+arch=('x86_64')
+url="https://github.com/wllclngn/muEmacs"
+license=('MIT')
+depends=('ncurses')
+makedepends=('cmake' 'gcc')
+source=("muemacs-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "${srcdir}/muemacs-${pkgver}"
+  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF
+  cmake --build build --target muEmacs -j"${CI_CPUS:-$(nproc)}"
+}
+
+package() {
+  cd "${srcdir}/muemacs-${pkgver}"
+  DESTDIR="${pkgdir}" cmake --install build --prefix /usr
+}

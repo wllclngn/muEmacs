@@ -28,5 +28,4 @@ expect {
     }
     eof { }
 }
-expect eof
 exit 0

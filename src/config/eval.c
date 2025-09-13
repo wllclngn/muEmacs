@@ -708,6 +708,41 @@ int svar(struct variable_description *var, const char *value)
 				term.t_scroll = NULL;
 #endif
 			break;
+		case EVHILINE:
+			highlight_current_line = stol(value) ? 1 : 0;
+			sgarbf = TRUE; /* force full redraw */
+			break;
+		case EVRULER:
+			column_ruler_enabled = stol(value) ? 1 : 0;
+			sgarbf = TRUE;
+			break;
+		case EVRULERCOL:
+			{
+				int col = atoi(value);
+				if (col < 1) col = 1;
+				if (col > 500) col = 500;
+				column_ruler_column = col;
+				sgarbf = TRUE;
+			}
+			break;
+        case EVHILINESTYLE:
+            {
+                int v = atoi(value);
+                if (v < 0) { v = 0; }
+                if (v > 3) { v = 3; }
+                hiline_style = v;
+                sgarbf = TRUE;
+            }
+            break;
+        case EVRULERSTYLE:
+            {
+                int v = atoi(value);
+                if (v < 0) { v = 0; }
+                if (v > 3) { v = 3; }
+                ruler_style = v;
+                sgarbf = TRUE;
+            }
+            break;
 		}
 		break;
 	}

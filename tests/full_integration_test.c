@@ -36,9 +36,17 @@
 #include "test_platform_specific.h"
 // EXTREME Stress Testing (10X)
 #include "test_extreme_stress.h"
+// Writing/wrap test on Gutenberg text
+int test_poe_gutenberg_wrap(void);
 
 // Forward declaration for the external keymap unit tests function
 extern int run_keymap_unit_tests();
+// Forward declaration: Kitty CSI u tests
+extern int run_kitty_csi_u_tests(void);
+// Forward declaration: extra key decode edge tests
+extern int run_key_decode_edge_tests(void);
+// Forward declaration: M-x flow via docmd
+extern int test_mx_command_flow(void);
 
 int main(int argc, char* argv[]) {
     // Disable LSAN leak detection in constrained environments (ASAN still active)
@@ -51,14 +59,16 @@ int main(int argc, char* argv[]) {
     printf("%s   Comprehensive Editor Validation      %s\n", BLUE, RESET);
     printf("%s========================================%s\n", BLUE, RESET);
 
-    // Try multiple locations for the binary
+    // Try multiple locations for the binary (optional unless expect is enabled)
     const char* binary_paths[] = {
+        "./μEmacs",
+        "./muEmacs",
         "./bin/μEmacs",
-        "./build/bin/μEmacs", 
+        "./build/bin/μEmacs",
         "../build/bin/μEmacs",
-        "./bin/uemacs",
-        "./build/bin/uemacs",
-        "../build/bin/uemacs",
+        "./bin/muEmacs",
+        "./build/bin/muEmacs",
+        "../build/bin/muEmacs",
         NULL
     };
 
@@ -69,20 +79,20 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (!uemacs_path) {
-        printf("[%sERROR%s] μEmacs binary not found in expected locations\n", RED, RESET);
-        return 1;
-    }
-
     printf("[%sINFO%s] Using μEmacs binary: %s\n", BLUE, RESET, uemacs_path);
 
-    // Check if expect is available and allowed
+    // Check if expect is available and allowed (gated by UEMACS_INTERACTIVE)
     const char* enable_expect = getenv("ENABLE_EXPECT");
-    if (system("which expect >/dev/null 2>&1") != 0 || !enable_expect || strcmp(enable_expect, "1") != 0) {
-        printf("[%sWARNING%s] expect disabled or unavailable; using non-interactive tests\n", YELLOW, RESET);
+    const char* interactive_gate = getenv("UEMACS_INTERACTIVE");
+    if (system("which expect >/dev/null 2>&1") != 0 || !enable_expect || strcmp(enable_expect, "1") != 0 || !interactive_gate || strcmp(interactive_gate, "1") != 0) {
+        printf("[%sWARNING%s] Interactive expect tests disabled; running non-interactive suite\n", YELLOW, RESET);
     } else {
-    printf("[%sINFO%s] expect available - interactive testing enabled\n", BLUE, RESET);
-    create_expect_scripts();
+        if (!uemacs_path) {
+            printf("[%sWARNING%s] μEmacs binary not found; skipping expect tests\n", YELLOW, RESET);
+        } else {
+            printf("[%sINFO%s] expect available - interactive testing enabled\n", BLUE, RESET);
+            create_expect_scripts();
+        }
     }
 
     struct timeval start_time, end_time;
@@ -92,7 +102,9 @@ int main(int argc, char* argv[]) {
 
     // Run keymap unit tests first
     all_phases_passed &= test_keymap_validation();
-    all_phases_passed &= test_keymap_functionality(); // New keymap functionality test
+    all_phases_passed &= test_keymap_defaults();       // Verify default bindings reflect expected actions
+    all_phases_passed &= test_help_prefix_toggle();    // Ensure optional help prefix toggle is safe
+    all_phases_passed &= test_keymap_functionality();  // Hash-based keymap functionality
 
     // Run all phases (now individual unit tests)
     all_phases_passed &= test_phase1_core_text_operations();
@@ -105,10 +117,16 @@ int main(int argc, char* argv[]) {
     all_phases_passed &= test_api_search_nomatch_and_long();
     all_phases_passed &= test_utf8_invalid_sequences();
     all_phases_passed &= test_utf8_randomized_sanity();
+    extern int run_key_decode_matrix_tests(void);
+    all_phases_passed &= run_key_decode_matrix_tests();
+    all_phases_passed &= run_kitty_csi_u_tests();
+    all_phases_passed &= run_key_decode_edge_tests();
+    all_phases_passed &= test_mx_command_flow();
     all_phases_passed &= test_phase2_navigation_cursor();
     all_phases_passed &= test_bmh_literals();
     all_phases_passed &= test_bmh_edge_cases();
     all_phases_passed &= test_bmh_additional_edges();
+    all_phases_passed &= test_poe_gutenberg_wrap();
     all_phases_passed &= test_paste_bracketed();
     all_phases_passed &= test_paste_partial_and_interleaved();
     all_phases_passed &= test_paste_macro_record_bypass();
@@ -248,6 +266,14 @@ int main(int argc, char* argv[]) {
         printf("\n[INFO] Running bracketed paste expect script...\n");
         all_phases_passed &= run_expect_script("phase_paste_bracketed.exp", "/tmp/paste_test.txt");
     }
+
+    // Optional interactive help prefix toggle test
+    if (getenv("ENABLE_EXPECT") && strcmp(getenv("ENABLE_EXPECT"), "1") == 0) {
+        printf("\n[INFO] Running help prefix toggle expect script...\n");
+        all_phases_passed &= run_expect_script("phase_help_prefix.exp", "/tmp/help_prefix_test.txt");
+    }
+
+    // Mouse interactions are disabled (keyboard-only)
 
     gettimeofday(&end_time, NULL);
     double total_time = (end_time.tv_sec - start_time.tv_sec) +

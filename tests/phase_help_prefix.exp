@@ -1,0 +1,53 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+spawn -noecho $editor $testfile
+expect -timeout 10 -re ".*"
+
+send_user "\n--- Help Prefix Toggle Interactive Test ---\n"
+
+# 1) Default: C-h should act as Backspace in insert mode
+send "iAB"
+send -raw "\x08"   ;# C-h backspace
+send -raw "\x1b"   ;# ESC
+expect -timeout 10 -re ".*"
+send_user "Default C-h backspace tested.\n"
+
+# 2) Enable help prefix via M-x
+send -raw "\x1b"
+send "xenable-help-prefix\r"
+expect -timeout 10 -re ".*"
+send_user "Enabled help prefix.\n"
+
+# 3) Test C-h k (describe-key), then describe C-f
+send -raw "\x08"   ;# C-h prefix
+send "k"
+send -raw "\x06"   ;# C-f
+expect -timeout 10 -re ".*"
+send_user "C-h k describe-key tested.\n"
+
+# 4) Disable help prefix and verify C-h backspace again
+send -raw "\x1b"
+send "xdisable-help-prefix\r"
+expect -timeout 10 -re ".*"
+send "iZ"
+send -raw "\x08"   ;# C-h backspace
+send -raw "\x1b"
+expect -timeout 10 -re ".*"
+send_user "Disabled help prefix and re-tested C-h backspace.\n"
+
+# Exit editor (C-x C-c)
+send -raw "\x18\x03"
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" {
+        send "y\r"
+        exp_continue
+    }
+    eof { }
+}
+    # Completed
+    exit 0

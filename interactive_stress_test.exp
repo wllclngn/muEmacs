@@ -3,8 +3,26 @@
 # Shows real terminal behavior instead of raw escape sequences
 
 set timeout 60
-set editor "./build/bin/uemacs"
-set testfile "/tmp/interactive_test.txt"
+
+# Usage: expect interactive_stress_test.exp [editor_path] [testfile]
+# Defaults to ./build/bin/μEmacs and /tmp/interactive_test.txt if not provided.
+
+if {$argc < 1} {
+    set editor "./build/bin/μEmacs"
+} else {
+    set editor [lindex $argv 0]
+}
+
+if {$argc < 2} {
+    set testfile "/tmp/interactive_test.txt"
+} else {
+    set testfile [lindex $argv 1]
+}
+
+# Fallback to ASCII name if micro character binary is unavailable
+if {![file executable $editor]} {
+    set editor "./build/bin/uemacs"
+}
 
 # Enable real terminal interaction
 spawn -noecho $editor $testfile
@@ -37,11 +55,21 @@ send "q"        ; # Quit buffer list
 
 send_user "\nInteractive test complete. Press any key in μEmacs to continue...\n"
 
-# Keep session open for manual interaction
-interact {
-    \003 {
-        send "\030\003"  ; # C-x C-c to quit
-        expect eof
-        exit 0
+# Keep session open for manual interaction only if explicitly enabled
+if {[info exists env(UEMACS_INTERACTIVE)] && $env(UEMACS_INTERACTIVE) eq "1"} {
+    interact {
+        \003 {
+            send "\030\003"  ; # C-x C-c to quit
+            expect eof
+            exit 0
+        }
     }
+} else {
+    # Non-interactive: gracefully exit the editor
+    send "\030\003"
+    expect {
+        "Modified buffers exist. Leave anyway (y/n)?" { send "y\r" ; exp_continue }
+        eof { }
+    }
+    exit 0
 }

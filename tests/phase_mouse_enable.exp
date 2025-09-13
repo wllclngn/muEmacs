@@ -1,0 +1,17 @@
+#!/usr/bin/expect -f
+set timeout 15
+log_user 0
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+spawn -noecho $editor $testfile
+expect -timeout 5 "*"
+send "xenable-mouse"
+after 200
+send "xdisable-mouse"
+after 200
+send ""
+expect {
+    "Modified buffers exist. Leave anyway (y/n)?" { send "y" ; exp_continue }
+    eof { }
+}
+exit 0

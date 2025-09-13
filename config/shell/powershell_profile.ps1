@@ -7,7 +7,7 @@ $PSStyle.Progress.Style = "$($PSStyle.Background.Blue)$($PSStyle.Foreground.Whit
 
 # μEmacs Environment Setup
 $env:UEMACS_THEME = "windows11"
-$env:EDITOR = "uemacs"
+$env:EDITOR = "muEmacs"
 
 # VSCode Terminal Detection
 if ($env:TERM_PROGRAM -eq "vscode") {
@@ -19,11 +19,11 @@ if ($env:TERM_PROGRAM -eq "vscode") {
 $env:UEMACS_FONT = "Berkeley Mono"
 
 # Quick μEmacs aliases (matching user's pattern)
-function ue { uemacs $args }
-function uemacs-session { uemacs --load-session }
+function ue { muEmacs $args }
+function uemacs-session { muEmacs --load-session }
 
 # Windows 11 native file associations
-if (Get-Command uemacs -ErrorAction SilentlyContinue) {
+if (Get-Command muEmacs -ErrorAction SilentlyContinue) {
     # Associate common text files with μEmacs
     $textExtensions = @('.txt', '.md', '.c', '.h', '.py', '.js', '.go', '.rs')
     
@@ -42,7 +42,7 @@ if (Get-Command uemacs -ErrorAction SilentlyContinue) {
         Set-ItemProperty -Path $uemacsClass -Name "(default)" -Value "μEmacs Document"
         
         New-Item -Path "$uemacsClass\shell\open\command" -Force | Out-Null
-        $uemacsPath = (Get-Command uemacs).Source
+        $uemacsPath = (Get-Command muEmacs).Source
         Set-ItemProperty -Path "$uemacsClass\shell\open\command" -Name "(default)" -Value "`"$uemacsPath`" `"%1`""
     }
 }

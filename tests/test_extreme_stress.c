@@ -17,7 +17,16 @@ static void init_editor_minimal(const char* name) {
     varinit();
 }
 
-// EXTREME stress test - 10x beyond current levels
+static int stress_factor(void) {
+    const char* s = getenv("UEMACS_STRESS");
+    if (!s) return 1; // default intensity
+    int f = atoi(s);
+    if (f < 1) f = 1;
+    if (f > 100) f = 100; // cap to avoid pathological CI
+    return f;
+}
+
+// EXTREME stress test - 10x beyond current levels (scalable)
 int test_extreme_text_operations(void) {
     printf("\n%s=== EXTREME TEXT OPERATIONS STRESS TEST ===%s\n", CYAN, RESET);
     int ok = 1;
@@ -29,46 +38,50 @@ int test_extreme_text_operations(void) {
     struct timeval start, end;
     gettimeofday(&start, NULL);
     
-    // PHASE 1: EXTREME TEXT INSERTION - 1,000,000 characters
-    printf("Testing EXTREME text insertion (1,000,000 characters)...\n");
+    int F = stress_factor();
+    long insert_target = 1000000L * F;
+    // PHASE 1: EXTREME TEXT INSERTION
+    printf("Testing EXTREME text insertion (%ld characters; factor=%d)...\n", insert_target, F);
     curwp->w_dotp = curbp->b_linep;
     curwp->w_doto = 0;
     lnewline();
     curwp->w_dotp = lforw(curbp->b_linep);
     
-    for (int i = 0; i < 1000000; i++) {
+    for (long i = 0; i < insert_target; i++) {
         char c = 'A' + (i % 26);
         if (!linsert(1, c)) {
             printf("[%sFAIL%s] Text insertion failed at %d\n", RED, RESET, i);
             ok = 0;
             break;
         }
-        if (i % 100000 == 0) {
-            printf("Progress: %d/1000000 characters inserted\n", i);
+        if (i % (100000 * F) == 0) {
+            printf("Progress: %ld/%ld characters inserted\n", i, insert_target);
         }
     }
     
-    // PHASE 2: EXTREME LINE OPERATIONS - 100,000 lines
-    printf("Testing EXTREME line operations (100,000 new lines)...\n");
-    for (int i = 0; i < 100000; i++) {
+    // PHASE 2: EXTREME LINE OPERATIONS
+    long lines_target = 100000L * F;
+    printf("Testing EXTREME line operations (%ld new lines)...\n", lines_target);
+    for (long i = 0; i < lines_target; i++) {
         if (!lnewline()) {
             printf("[%sFAIL%s] Line creation failed at %d\n", RED, RESET, i);
             ok = 0;
             break;
         }
-        if (i % 10000 == 0) {
-            printf("Progress: %d/100000 lines created\n", i);
+        if (i % (10000 * F) == 0) {
+            printf("Progress: %ld/%ld lines created\n", i, lines_target);
         }
     }
     
-    // PHASE 3: EXTREME DELETION STRESS - 500,000 deletions
-    printf("Testing EXTREME deletion stress (500,000 deletions)...\n");
-    for (int i = 0; i < 500000; i++) {
+    // PHASE 3: EXTREME DELETION STRESS
+    long del_target = 500000L * F;
+    printf("Testing EXTREME deletion stress (%ld deletions)...\n", del_target);
+    for (long i = 0; i < del_target; i++) {
         if (!ldelete(1, FALSE)) {
             break; // Hit end of buffer
         }
-        if (i % 50000 == 0) {
-            printf("Progress: %d/500000 deletions completed\n", i);
+        if (i % (50000 * F) == 0) {
+            printf("Progress: %ld/%ld deletions completed\n", i, del_target);
         }
     }
     
@@ -188,6 +201,7 @@ int test_extreme_concurrent_stress(void) {
 int test_extreme_file_size_stress(void) {
     printf("\n%s=== EXTREME FILE SIZE STRESS TEST ===%s\n", CYAN, RESET);
     int ok = 1;
+    int F = stress_factor();
     
     init_editor_minimal("giant-file");
     bclear(curbp);
@@ -201,14 +215,24 @@ int test_extreme_file_size_stress(void) {
     lnewline();
     curwp->w_dotp = lforw(curbp->b_linep);
     
-    // Simulate a 50MB file with long lines
-    const int lines = 50000;
-    const int chars_per_line = 1000;
+    // Simulate a large file with long lines (scalable)
+    long lines = 50000L * F;
+    int chars_per_line = 1000 * (F > 1 ? 2 : 1); // modestly scale line width
+    const char* env_lines = getenv("UEMACS_GIANT_LINES");
+    const char* env_width = getenv("UEMACS_GIANT_WIDTH");
+    if (env_lines) {
+        long v = atol(env_lines);
+        if (v > 0 && v < 1000000000L) lines = v; // sanity bounds
+    }
+    if (env_width) {
+        long v = atol(env_width);
+        if (v > 0 && v < 10000000L) chars_per_line = (int)v; // sanity bounds
+    }
     
-    printf("Simulating 50MB file: %d lines × %d chars = %d total chars\n", 
-           lines, chars_per_line, lines * chars_per_line);
+    printf("Simulating giant file: %ld lines × %d chars (factor=%d)\n", 
+           lines, chars_per_line, F);
     
-    for (int line = 0; line < lines; line++) {
+    for (long line = 0; line < lines; line++) {
         // Insert line content
         for (int c = 0; c < chars_per_line; c++) {
             char ch = 'a' + (c % 26);
@@ -229,8 +253,8 @@ int test_extreme_file_size_stress(void) {
             }
         }
         
-        if (line % 5000 == 0) {
-            printf("Progress: %d/%d lines (%.1f%% complete)\n", 
+        if (line % (5000 * F) == 0) {
+            printf("Progress: %ld/%ld lines (%.1f%% complete)\n", 
                    line, lines, (line * 100.0) / lines);
         }
     }
@@ -253,14 +277,35 @@ int test_extreme_stress_suite(void) {
     
     int total_passed = 0;
     
-    total_passed += test_extreme_text_operations();
-    total_passed += test_extreme_memory_stress();
-    total_passed += test_extreme_concurrent_stress();
-    total_passed += test_extreme_file_size_stress();
+    if (!getenv("UEMACS_SKIP_TEXT_OPS"))
+        total_passed += test_extreme_text_operations();
+    else
+        printf("[INFO] Skipping EXTREME text operations (UEMACS_SKIP_TEXT_OPS=1)\n");
+
+    if (!getenv("UEMACS_SKIP_MEM"))
+        total_passed += test_extreme_memory_stress();
+    else
+        printf("[INFO] Skipping EXTREME memory stress (UEMACS_SKIP_MEM=1)\n");
+
+    if (!getenv("UEMACS_SKIP_CONCURRENT"))
+        total_passed += test_extreme_concurrent_stress();
+    else
+        printf("[INFO] Skipping EXTREME concurrent stress (UEMACS_SKIP_CONCURRENT=1)\n");
+
+    if (!getenv("UEMACS_SKIP_GIANT_FILE"))
+        total_passed += test_extreme_file_size_stress();
+    else
+        printf("[INFO] Skipping EXTREME giant file stress (UEMACS_SKIP_GIANT_FILE=1)\n");
     
     printf("\n%s========================================%s\n", MAGENTA, RESET);
-    printf("EXTREME STRESS RESULTS: %d/4 tests passed\n", total_passed);
+    int planned = 4
+        - (getenv("UEMACS_SKIP_TEXT_OPS") ? 1 : 0)
+        - (getenv("UEMACS_SKIP_MEM") ? 1 : 0)
+        - (getenv("UEMACS_SKIP_CONCURRENT") ? 1 : 0)
+        - (getenv("UEMACS_SKIP_GIANT_FILE") ? 1 : 0);
+    if (planned <= 0) planned = 0;
+    printf("EXTREME STRESS RESULTS: %d/%d tests passed\n", total_passed, planned);
     printf("%s========================================%s\n", MAGENTA, RESET);
     
-    return total_passed == 4;
+    return total_passed == planned;
 }

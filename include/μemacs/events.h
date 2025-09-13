@@ -18,8 +18,6 @@ struct window;
 typedef enum {
     EVENT_NONE = 0,
     EVENT_KEY_PRESS,        // Keyboard input
-    EVENT_MOUSE_CLICK,      // Mouse events
-    EVENT_MOUSE_MOVE,
     EVENT_WINDOW_RESIZE,    // Terminal size change
     EVENT_BUFFER_CHANGE,    // Text modification
     EVENT_CURSOR_MOVE,      // Cursor position change
@@ -45,13 +43,6 @@ struct key_event_data {
     uint8_t modifiers;      // Ctrl, Alt, Shift flags
     char utf8_seq[8];       // UTF-8 sequence
     size_t utf8_len;        // Sequence length
-};
-
-// Mouse event data
-struct mouse_event_data {
-    int x, y;               // Screen coordinates
-    uint8_t buttons;        // Button state
-    uint8_t action;         // Click, release, drag
 };
 
 // Window resize data
@@ -97,7 +88,6 @@ struct event {
     
     union {
         struct key_event_data key;
-        struct mouse_event_data mouse;
         struct resize_event_data resize;
         struct buffer_change_data buffer;
         struct cursor_move_data cursor;
@@ -185,7 +175,6 @@ int event_post_immediate(event_type_t type, void *data);
 
 // Specific event posting functions
 int event_post_key(uint32_t keycode, uint8_t modifiers, const char *utf8_seq, size_t utf8_len);
-int event_post_mouse(int x, int y, uint8_t buttons, uint8_t action);
 int event_post_resize(int new_width, int new_height, int old_width, int old_height);
 int event_post_buffer_change(struct buffer *bp, size_t offset, size_t old_len, size_t new_len);
 int event_post_cursor_move(struct window *wp, size_t old_line, size_t old_col, size_t new_line, size_t new_col);

@@ -8,6 +8,15 @@
 /install_manifest.txt
 /CMakeUserPresets.json
 
+# CMake generated at repo root
+/Makefile
+/compile_commands.json
+
+# Alternate CMake build trees (CLion, etc.)
+/cmake-build-*/
+/_build/
+/_install/
+
 # Compilation outputs
 *.o
 *.obj
@@ -26,6 +35,14 @@
 # Known stray artifacts
 /libuemacs.a
 /build/bin/
+
+# Ninja generator files
+*.ninja
+.ninja_deps
+.ninja_log
+
+# Generated headers
+/include/config.h
 
 # Logs, coverage, temp
 *.log
@@ -51,6 +68,11 @@ __pycache__/
 /*.tar.gz
 packaging/**/build/
 packaging/**/dist/
+
+# CPack outputs
+/_CPack_Packages/
+/CPackConfig.cmake
+/CPackSourceConfig.cmake
 
 # OS/editor junk
 .DS_Store

@@ -1379,11 +1379,9 @@ int expandp(char *srcstr, char *deststr, int maxlength)
 }
 
 /*
- * boundry -- Return information depending on whether we may search no
- *	further.  Beginning of file and end of file are the obvious
- *	cases, but we may want to add further optional boundry restrictions
- *	in future, a' la VMS EDT.  At the moment, just return TRUE or
- *	FALSE depending on if a boundry is hit (ouch).
+ * boundary -- Return whether search may continue.
+ * Beginning and end of file are the obvious boundaries. Future
+ * optional limits could be added here if desired.
  */
 int boundry(struct line *curline, int curoff, int dir)
 {

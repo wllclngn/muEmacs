@@ -164,8 +164,6 @@ struct key_tab keytab[NBINDS] = {
 	,
 	{CTLX | 'E', ctlxe}
 	,
-	{CTLX | 'F', setfillcol}
-	,
 	{CTLX | 'K', killbuffer}
 	,
 	{CTLX | 'M', setemode}
@@ -186,7 +184,7 @@ struct key_tab keytab[NBINDS] = {
 	{CTLX | 'S', fisearch}
 	,
 #endif
-	{CTLX | 'W', resize}
+    {CTLX | 'W', set_column_width_cmd}
 	,
 	{CTLX | 'X', nextbuffer}
 	,
@@ -299,7 +297,9 @@ struct key_tab keytab[NBINDS] = {
 	,
 	{META | 'W', copyregion}
 	,
-	{META | 'X', namedcmd}
+    {META | 'X', namedcmd}
+    ,
+    {META | 'x', namedcmd}
 	,
 	{META | 'Z', quickexit}
 	,

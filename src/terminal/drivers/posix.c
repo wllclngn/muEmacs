@@ -1,13 +1,8 @@
-/*	posix.c
+/* posix.c
  *
- *      The functions in this file negotiate with the operating system for
- *      characters, and write characters in a barely buffered fashion on the
- *      display. All operating systems.
- *
- *	modified by Petri Kutvonen
- *
- *	based on termio.c, with all the old cruft removed, and
- *	fixed for termios rather than the old termio.. Linus Torvalds
+ * Linux terminal I/O using termios. Handles keyboard input and minimally
+ * buffered screen output. Derived from the classic termio path, modernized
+ * for termios and UTF‑8.
  */
 
 #ifdef POSIX
@@ -48,11 +43,7 @@ static char tobuf[TBUFSIZ];		/* terminal output buffer */
  */
 static pthread_mutex_t input_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/*
- * This function is called once to set up the terminal device streams.
- * On VMS, it translates TT until it finds the terminal, then assigns
- * a channel to it and sets it raw. On CPM it is a no-op.
- */
+/* Initialize terminal device streams and enter raw mode. */
 void ttopen(void)
 {
 	tcgetattr(0, &otermios);	/* save old settings */
@@ -102,23 +93,14 @@ void ttopen(void)
 	ttcol = 999;
 }
 
-/*
- * This function gets called just before we go back home to the command
- * interpreter. On VMS it puts the terminal back in a reasonable state.
- * Another no-operation on CPM.
- */
+/* Restore terminal to the original settings. */
 void ttclose(void)
 {
 	cleanup_terminal_optimizations();	/* restore terminal capabilities */
 	tcsetattr(0, TCSADRAIN, &otermios);	/* restore terminal settings */
 }
 
-/*
- * Write a character to the display. On VMS, terminal output is buffered, and
- * we just put the characters in the big array, after checking for overflow.
- * On CPM terminal I/O unbuffered, so we just write the byte out. Ditto on
- * MS-DOS (use the very very raw console output routine).
- */
+/* Write a character (UTF‑8 aware) to the display. */
 int ttputc(int c)
 {
 	char utf8[8];
@@ -136,22 +118,11 @@ int ttputc(int c)
 	return 0;
 }
 
-/*
- * Flush terminal buffer. Does real work where the terminal output is buffered
- * up. A no-operation on systems where byte at a time terminal I/O is done.
- */
+/* Flush terminal buffer. */
 void ttflush(void)
 {
 /*
- * Add some terminal output success checking, sometimes an orphaned
- * process may be left looping on SunOS 4.1.
- *
- * How to recover here, or is it best just to exit and lose
- * everything?
- *
- * jph, 8-Oct-1993
- * Jani Jaakkola suggested using select after EAGAIN but let's just wait a bit
- *
+ * Add simple terminal output success checking to avoid tight loops.
  */
 	int status;
 	

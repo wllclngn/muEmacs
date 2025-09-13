@@ -94,6 +94,17 @@ extern int justflag;		/* justify, don't fill */
 extern int overlap;		/* line overlap in forw/back page */
 extern int scrollcount;		/* number of lines to scroll */
 extern _Atomic int edit_transaction_depth; /* transactional editing depth */
+/* Display preferences */
+extern int highlight_current_line;
+extern int column_ruler_enabled;
+extern int column_ruler_column;
+extern int hiline_style;
+extern int ruler_style;
+/* Modeline toggles */
+extern int modeline_show_git;
+extern int modeline_show_stats;
+extern int modeline_show_modes;
+extern int modeline_show_position;
 
 /* Uninitialized global external declarations. */
 

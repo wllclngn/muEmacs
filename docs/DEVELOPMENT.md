@@ -1,4 +1,6 @@
-# μEmacs Development Guide
+# μEmacs Development Guide (Linux‑only)
+
+Note: This project targets modern Linux terminals exclusively. Any references to legacy platforms or drivers are historical and not part of the active codebase.
 
 ## Project History & Technical Evolution
 

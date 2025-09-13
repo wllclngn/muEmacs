@@ -40,7 +40,7 @@ struct edit_stack;
 #define	TYPEAH	1  /* type ahead causes update to be skipped       */
 #define DEBUGM	1  /* $debug triggers macro debugging              */
 #define	VISMAC	0  /* update display during keyboard macros        */
-// #define	CTRLZ	0  // Disabled - no MSDOS support
+// CTRLZ disabled (Linux‑only)
 #define ADDCR	0  /* ajout d'un CR en fin de chaque ligne (ST520) */
 #define	NBRACE	1  /* new style brace matching command             */
 #define	REVSTA	1  /* Status line appears in reverse video         */

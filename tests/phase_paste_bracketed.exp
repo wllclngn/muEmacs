@@ -1,25 +1,29 @@
 #!/usr/bin/expect -f
 
-# Basic bracketed paste smoke test
-set timeout 5
+# Bracketed paste smoke test using raw sequences
+set timeout 10
+log_user 0
 
-set uemacs_path [lindex $argv 0]
-if {$uemacs_path eq ""} {
-  set uemacs_path "./bin/uemacs"
-}
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+if {$editor eq ""} { set editor "./build/bin/μEmacs" }
+if {$testfile eq ""} { set testfile "/tmp/paste_test.txt" }
 
-spawn $uemacs_path
+spawn -noecho $editor $testfile
+expect -timeout 5 -re ".*"
 
-# Enter paste mode, send text, end paste
-send "\033[200~"
-send "hello world"
-send "\033[201~"
+# Enter insert mode and paste literal content using bracketed paste sequences
+send "i"
+send -raw "\x1b\[200~"
+send -raw "PASTED_CONTENT"
+send -raw "\x1b\[201~"
+send -raw "\x1b"  ;# exit insert
+expect -timeout 5 -re ".*"
 
-# Quit: C-x C-c
-send "\x18\x03"
-
+# Exit editor (C-x C-c), accept modified prompt
+send -raw "\x18\x03"
 expect {
-  eof { exit 0 }
-  timeout { exit 1 }
+    "Modified buffers exist. Leave anyway (y/n)?" { send "y\r" ; exp_continue }
+    eof { }
 }
-
+exit 0

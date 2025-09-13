@@ -15,6 +15,17 @@
 #define ΜEMACS_VERSION_PATCH 23
 #define ΜEMACS_VERSION_STRING "0.0.23"
 
+/* Paths for bundled resources (built at configure time) */
+/* Absolute install data dir (e.g. /usr/local/share/uemacs) */
+#define UEMACS_DATA_DIR "/muemacs"
+/* Absolute source config dirs for in-tree runs */
+/* Preferred project settings location (editor folder) */
+#define UEMACS_SOURCE_EDITOR_DIR "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/config/editor"
+/* Micro-symbol project settings dir */
+#define UEMACS_SOURCE_CONFIG_DIR "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/config/μemacs"
+/* ASCII fallback project settings dir */
+#define UEMACS_SOURCE_CONFIG_DIR_ASCII "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/config/muemacs"
+
 /* System headers - Linux only */
 #define HAVE_TERMIOS_H 1
 #define HAVE_SYS_IOCTL_H 1
@@ -38,13 +49,7 @@
 #define POSIX 1
 #define AUTOCONF 1
 
-/* Remove all non-Linux platforms */
-#define WIN32 0
-#define MSDOS 0
-#define VMS 0
-#define BSD 0
-#define USG 1
-#define V7 0
+/* Linux-only build: remove legacy platform toggles */
 
 /* Features always enabled for modern Linux */
 #define UTF8 1
@@ -63,17 +68,12 @@
 
 /* Terminal configuration - Modern Linux */
 #define TERMCAP 1
-#define ANSI 0
 #define VT220 1
-#define VT100 0
-#define VT52 0
-#define IBMPC 0
-#define VMSVT 0
 
 /* Modern Linux features */
 #define TRUECOLOR 1
 #define BRACKETED_PASTE 1
-#define MOUSE_TRACKING 1
+/* Mouse tracking removed (keyboard-only editor) */
 #define FILE_WATCHING 1
 #define SYSTEM_CLIPBOARD 1
 #define GIT_INTEGRATION 1

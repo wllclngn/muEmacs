@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+/* Forward declaration to avoid parameter list warnings */
+struct buffer;
+
 /* Undo history persistence API (stub) */
 bool undo_stack_save_to_file(struct buffer *bp, const char *filename);
 bool undo_stack_load_from_file(struct buffer *bp, const char *filename);

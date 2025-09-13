@@ -1,54 +1,8 @@
-/*
- *	main.c
-
- *	μEmacs/PK 4.0
+/* main.c
  *
- *	Based on:
- *
- *	MicroEMACS 3.9
- *	Written by Dave G. Conroy.
- *	Substantially modified by Daniel M. Lawrence
- *	Modified by Petri Kutvonen
- *
- *	MicroEMACS 3.9 (c) Copyright 1987 by Daniel M. Lawrence
- *
- *	Original statement of copying policy:
- *
- *	MicroEMACS 3.9 can be copied and distributed freely for any
- *	non-commercial purposes. MicroEMACS 3.9 can only be incorporated
- *	into commercial software with the permission of the current author.
- *
- *	No copyright claimed for modifications made by Petri Kutvonen.
- *
- *	This file contains the main driving routine, and some keyboard
- *	processing code.
- *
- * REVISION HISTORY:
- *
- * 1.0  Steve Wilhite, 30-Nov-85
- *
- * 2.0  George Jones, 12-Dec-85
- *
- * 3.0  Daniel Lawrence, 29-Dec-85
- *
- * 3.2-3.6 Daniel Lawrence, Feb...Apr-86
- *
- * 3.7	Daniel Lawrence, 14-May-86
- *
- * 3.8	Daniel Lawrence, 18-Jan-87
- *
- * 3.9	Daniel Lawrence, 16-Jul-87
- *
- * 3.9e	Daniel Lawrence, 16-Nov-87
- *
- * After that versions 3.X and Daniel Lawrence went their own ways.
- * A modified 3.9e/PK was heavily used at the University of Helsinki
- * for several years on different UNIX, VMS, and MSDOS platforms.
- *
- * This modified version is now called eEmacs/PK.
- *
- * 4.0	Petri Kutvonen, 1-Sep-91
- *
+ * μEmacs main loop and command processing (modern Linux build).
+ * Initializes subsystems, parses args, reads input files, and
+ * drives the editor loop.
  */
 
 #include <stdio.h>
@@ -187,11 +141,13 @@ static int handle_help_version(int argc, char **argv)
 // Initialize editor subsystems
 static void initialize_editor(void)
 {
-	vtinit();		// Display
-	display_width_init();	// UTF-8 display width calculations
-	edinit("main");		// Buffers, windows
-	varinit();		// user variables
-	keymap_init_from_legacy();	// Initialize keymaps from legacy bindings
+    vtinit();		// Display
+    display_width_init();	// UTF-8 display width calculations
+    edinit("main");		// Buffers, windows
+    varinit();		// user variables
+    keymap_init_from_legacy();	// Initialize keymaps from legacy bindings
+    // Load user settings from JSON, if present
+    settings_load(FALSE, 0);
 }
 
 // Parse command line arguments
@@ -364,40 +320,47 @@ loop:
 	state->f = FALSE;
 	state->n = 1;
 
-	// do META-# processing if needed
-	state->basec = state->c & ~META;	// strip meta char off if there
-	if ((state->c & META) && ((state->basec >= '0' && state->basec <= '9') || state->basec == '-')) {
-		state->f = TRUE;	// there is a # arg
-		state->n = 0;		// start with a zero default
-		state->mflag = 1;	// current minus flag
-		state->c = state->basec;	// strip the META
-		while ((state->c >= '0' && state->c <= '9') || (state->c == '-')) {
-			if (state->c == '-') {
-				// already hit a minus or digit?
-				if ((state->mflag == -1) || (state->n != 0))
-					break;
-				state->mflag = -1;
-			} else {
-				state->n = state->n * 10 + (state->c - '0');
-			}
-			if ((state->n == 0) && (state->mflag == -1))	// lonely -
-				mlwrite("Arg:");
-			else
-				mlwrite("Arg: %d", state->n * state->mflag);
+    // do META-# processing if needed
+    state->basec = state->c & ~META;	// strip meta char off if there
+    if ((state->c & META) && ((state->basec >= '0' && state->basec <= '9') || state->basec == '-')) {
+        state->f = TRUE;	// there is a # arg
+        state->n = 0;		// start with a zero default
+        state->mflag = 1;	// current minus flag
+        state->c = state->basec;	// strip the META
+        while ((state->c >= '0' && state->c <= '9') || (state->c == '-')) {
+            if (state->c == '-') {
+                // already hit a minus or digit?
+                if ((state->mflag == -1) || (state->n != 0))
+                    break;
+                state->mflag = -1;
+            } else {
+                state->n = state->n * 10 + (state->c - '0');
+            }
+            if ((state->n == 0) && (state->mflag == -1))	// lonely -
+                mlwrite("Arg:");
+            else
+                mlwrite("Arg: %d", state->n * state->mflag);
 
-			state->c = get1key();	// get the next key
-		}
-		state->n = state->n * state->mflag;	// figure in the sign
-	}
+            state->c = get1key();	// get the next key
+        }
+        state->n = state->n * state->mflag;	// figure in the sign
 
-	// do ^U repeat argument processing
-	if (state->c == reptc) {	// ^U, start argument
-		state->f = TRUE;
-		state->n = 4;		// with argument of 4
-		state->mflag = 0;	// that can be discarded.
-		mlwrite("Arg: 4");
-		while (((state->c = get1key()) >= '0' && state->c <= '9') || state->c == reptc
-		       || state->c == '-') {
+        // If the next key is an ESC prefix, combine it as Meta with the following key.
+        // This enables sequences like "M-80 M-x" to work naturally.
+        if (state->c == (CONTROL | '[')) {
+            int k = get1key();
+            state->c = META | k;
+        }
+    }
+
+    // do ^U repeat argument processing
+    if (state->c == reptc) {	// ^U, start argument
+        state->f = TRUE;
+        state->n = 4;		// with argument of 4
+        state->mflag = 0;	// that can be discarded.
+        mlwrite("Arg: 4");
+        while (((state->c = get1key()) >= '0' && state->c <= '9') || state->c == reptc
+               || state->c == '-') {
 			if (state->c == reptc)
 				if ((state->n > 0) == ((state->n * 4) > 0))
 					state->n = state->n * 4;
@@ -431,12 +394,18 @@ loop:
 		 * Make arguments preceded by a minus sign negative and change
 		 * the special argument "^U -" to an effective "^U -1".
 		 */
-		if (state->mflag == -1) {
-			if (state->n == 0)
-				state->n++;
-			state->n = -state->n;
-		}
-	}
+        if (state->mflag == -1) {
+            if (state->n == 0)
+                state->n++;
+            state->n = -state->n;
+        }
+
+        // Accept ESC as a Meta prefix for the command key after numeric arg (e.g., "C-u 80 M-x").
+        if (state->c == (CONTROL | '[')) {
+            int k = get1key();
+            state->c = META | k;
+        }
+    }
 
 	// and execute the command
 	execute(state->c, state->f, state->n);

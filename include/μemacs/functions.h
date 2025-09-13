@@ -72,7 +72,6 @@ extern int swapmark(int f, int n);
 
 /* random.c */
 extern int tabsize;  /* Tab size (0: use real tabs). */
-extern int setfillcol(int f, int n);
 extern int showcpos(int f, int n);
 extern int getcline(void);
 extern int getccol(int bflg);
@@ -97,6 +96,13 @@ extern int setemode(int f, int n);
 extern int delmode(int f, int n);
 extern int setgmode(int f, int n);
 extern int delgmode(int f, int n);
+extern int writing_mode_enable(int f, int n);
+extern int writing_mode_disable(int f, int n);
+extern int settings_load(int f, int n);
+extern int save_settings_cmd(int f, int n);
+extern int open_user_config_cmd(int f, int n);
+extern int list_settings_cmd(int f, int n);
+extern int set_column_width_cmd(int f, int n);
 extern int adjustmode(int kind, int global);
 extern int clrmes(int f, int n);
 extern int writemsg(int f, int n);
@@ -108,7 +114,7 @@ extern int duplicate_line(int f, int n);
 extern int move_line_up(int f, int n);
 extern int move_line_down(int f, int n);
 
-/* Windows 11 bloat features removed - keeping Linus' minimalist vision */
+/* Minimal, Linux‑only command set */
 
 /* main.c */
 extern void edinit(char *bname);
@@ -315,7 +321,7 @@ extern char *gtenv(char *vname);
 extern char *getkill(void);
 extern int setvar(int f, int n);
 extern void findvar(char *var, struct variable_description *vd, int size);
-extern int svar(struct variable_description *var, char *value);
+extern int svar(struct variable_description *var, const char *value);
 extern char *itoa(int i);
 extern int gettyp(char *token);
 extern char *getval(char *token, char *result, int size);

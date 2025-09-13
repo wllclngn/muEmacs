@@ -8,6 +8,7 @@
 #include "edef.h"
 #include "efunc.h"
 #include "memory.h"
+#include "efunc.h"  // for deskey, desbind, backdel
 
 // External reference to legacy keytab
 extern struct key_tab keytab[];
@@ -57,11 +58,11 @@ struct keymap *keymap_create(const char *name) {
 void keymap_destroy(struct keymap *km) {
 	if (!km) return;
 	
-	// Null global pointers if this is one of the global keymaps to prevent use-after-free
-	if (km == global_keymap) global_keymap = nullptr;
-	if (km == ctlx_keymap) ctlx_keymap = nullptr;
-	if (km == help_keymap) help_keymap = nullptr;
-	if (km == meta_keymap) meta_keymap = nullptr;
+    // Null global pointers if this is one of the global keymaps to prevent use-after-free
+    if (km == global_keymap) global_keymap = NULL;
+    if (km == ctlx_keymap) ctlx_keymap = NULL;
+    if (km == help_keymap) help_keymap = NULL;
+    if (km == meta_keymap) meta_keymap = NULL;
 	
 	// Free all hash table entries
 	for (int i = 0; i < KEYMAP_HASH_SIZE; i++) {
@@ -235,49 +236,87 @@ void keymap_init_from_legacy(void) {
 	atomic_store_explicit(&help_keymap, hkm, memory_order_release);
 	atomic_store_explicit(&meta_keymap, mkm, memory_order_release);
 	
-	// Import bindings from legacy keytab
-	extern struct key_tab keytab[];
-	struct key_tab *ktp = &keytab[0];
+    // Import bindings from legacy keytab
+    extern struct key_tab keytab[];
+    struct key_tab *ktp = &keytab[0];
+    
+    while (ktp->k_fp != NULL) {
+        uint32_t code = ktp->k_code;
+        
+        // Route to appropriate keymap based on prefix - C23 atomic loads
+        if (code & CTLX) {
+            // C-x prefix binding
+            code &= ~CTLX;  // Remove CTLX bit
+            struct keymap *ckm = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+            keymap_bind(ckm, code, ktp->k_fp);
+        } else if (code & META) {
+            // Meta prefix binding
+            uint32_t meta_code = code & ~META;
+            struct keymap *mkm = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+            keymap_bind(mkm, meta_code, ktp->k_fp);
+        } else {
+            // Global binding
+            struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
+            keymap_bind(gkm, code, ktp->k_fp);
+        }
+        
+        ktp++;
+    }
 	
-	while (ktp->k_fp != NULL) {
-		uint32_t code = ktp->k_code;
-		
-		// Route to appropriate keymap based on prefix - C23 atomic loads
-		if (code & CTLX) {
-			// C-x prefix binding
-			code &= ~CTLX;  // Remove CTLX bit
-			struct keymap *ckm = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
-			keymap_bind(ckm, code, ktp->k_fp);
-		} else if ((code & 0xFF) == ('H' - '@') && (code & CONTROL)) {
-			// C-h prefix (help)
-			struct keymap *hkm = atomic_load_explicit(&help_keymap, memory_order_acquire);
-			keymap_bind(hkm, code, ktp->k_fp);
-		} else if (code & META) {
-			// Meta prefix binding
-			uint32_t meta_code = code & ~META;
-			struct keymap *mkm = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-			keymap_bind(mkm, meta_code, ktp->k_fp);
-		} else {
-			// Global binding
-			struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
-			keymap_bind(gkm, code, ktp->k_fp);
-		}
-		
-		ktp++;
-	}
+    // Seed helpful entries in the help keymap (invoked only if user enables prefix)
+    struct keymap *hkm_setup = atomic_load_explicit(&help_keymap, memory_order_acquire);
+    if (hkm_setup) {
+        keymap_bind(hkm_setup, 'k', deskey);   // C-h k -> describe-key
+        keymap_bind(hkm_setup, 'b', desbind);  // C-h b -> describe-bindings
+    }
+
+    // Ensure legacy-essential defaults exist even if import changes: M-? -> help, C-x C-c -> quit
+    struct keymap *mkm_fix = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+    if (mkm_fix) {
+        keymap_bind(mkm_fix, '?', help);
+    }
+    struct keymap *ckm_fix = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+    if (ckm_fix) {
+        keymap_bind(ckm_fix, CONTROL | 'C', quit);
+    }
+
+    // Set up prefix maps in global keymap - C23 atomic loads for prefix setup
+    struct keymap *gkm_prefixes = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    struct keymap *ckm_prefixes = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+    struct keymap *hkm_prefixes = atomic_load_explicit(&help_keymap, memory_order_acquire);
+    struct keymap *mkm_prefixes = atomic_load_explicit(&meta_keymap, memory_order_acquire);
 	
-	// Set up prefix maps in global keymap - C23 atomic loads for prefix setup
-	struct keymap *gkm_prefixes = atomic_load_explicit(&global_keymap, memory_order_acquire);
-	struct keymap *ckm_prefixes = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
-	struct keymap *hkm_prefixes = atomic_load_explicit(&help_keymap, memory_order_acquire);
-	struct keymap *mkm_prefixes = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-	
-	keymap_bind_prefix(gkm_prefixes, CONTROL | 'X', ckm_prefixes);
-	keymap_bind_prefix(gkm_prefixes, CONTROL | 'H', hkm_prefixes);
-	keymap_bind_prefix(gkm_prefixes, 0x1B, mkm_prefixes);  // ESC key
+    keymap_bind_prefix(gkm_prefixes, CONTROL | 'X', ckm_prefixes);
+    // Do NOT hijack C-h as a help prefix by default; in μEmacs it's commonly Backspace.
+    // Help is available via M-? and M-x describe-* commands.
+    // If a dedicated help prefix is desired, it should be enabled explicitly via config.
+    keymap_bind_prefix(gkm_prefixes, 0x1B, mkm_prefixes);  // ESC key
 
 	// C23 atomic store of current keymap - instantaneous activation
 	atomic_store_explicit(&current_keymap, gkm_prefixes, memory_order_release);
+}
+
+// Runtime toggle: enable help prefix on C-h (overrides backspace behavior)
+int help_prefix_enable(int f, int n) {
+    (void)f; (void)n;
+    struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    struct keymap *hkm = atomic_load_explicit(&help_keymap, memory_order_acquire);
+    if (!gkm || !hkm) return FALSE;
+    if (!keymap_bind_prefix(gkm, CONTROL | 'H', hkm)) return FALSE;
+    mlwrite("Help prefix enabled on C-h (Backspace overridden)");
+    return TRUE;
+}
+
+// Runtime toggle: disable help prefix on C-h and restore Backspace behavior
+int help_prefix_disable(int f, int n) {
+    (void)f; (void)n;
+    struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    if (!gkm) return FALSE;
+    keymap_unbind(gkm, CONTROL | 'H');
+    // Restore traditional Backspace binding
+    if (!keymap_bind(gkm, CONTROL | 'H', backdel)) return FALSE;
+    mlwrite("Help prefix disabled on C-h (Backspace restored)");
+    return TRUE;
 }
 
 // Legacy compatibility: get binding for old-style key code
@@ -285,15 +324,18 @@ struct keymap_entry *keymap_get_binding(int legacy_code) {
 	struct keymap_entry *entry = NULL;
 	
 	// Check for prefix keymaps first
-	if (legacy_code & CTLX) {
-		uint32_t code = legacy_code & ~CTLX;
-		entry = keymap_lookup(ctlx_keymap, code);
-	} else if (legacy_code & META) {
-		uint32_t code = legacy_code & ~META;
-		entry = keymap_lookup(meta_keymap, code);
-	} else {
-		entry = keymap_lookup(global_keymap, legacy_code);
-	}
+    if (legacy_code & CTLX) {
+        uint32_t code = legacy_code & ~CTLX;
+        struct keymap *ckm = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+        entry = keymap_lookup(ckm, code);
+    } else if (legacy_code & META) {
+        uint32_t code = legacy_code & ~META;
+        struct keymap *mkm = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+        entry = keymap_lookup(mkm, code);
+    } else {
+        struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
+        entry = keymap_lookup(gkm, legacy_code);
+    }
 	
 	return entry;
 }
@@ -379,4 +421,17 @@ void keymap_validate(struct keymap *km) {
 	if (count != km->binding_count) {
 		mlwrite("Keymap validation failed: counted %zu, expected %zu", count, km->binding_count);
 	}
+}
+
+// User-facing command: show keymap lookup statistics
+int keymap_stats_cmd(int f, int n) {
+    (void)f; (void)n;
+    size_t lookups = atomic_load(&keymap_global_stats.lookups);
+    size_t hits = atomic_load(&keymap_global_stats.hits);
+    size_t misses = atomic_load(&keymap_global_stats.misses);
+    size_t collisions = atomic_load(&keymap_global_stats.collisions);
+    double hit_rate = (lookups > 0) ? ((double)hits / (double)lookups) * 100.0 : 0.0;
+    mlwrite("Keymap stats: lookups=%zu hits=%zu misses=%zu collisions=%zu hit-rate=%.2f%%",
+            lookups, hits, misses, collisions, hit_rate);
+    return TRUE;
 }

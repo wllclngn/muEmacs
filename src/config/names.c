@@ -126,6 +126,9 @@ struct name_bind names[] = {
 	{"hunt-forward", forwhunt},
 	{"hunt-backward", backhunt},
 	{"help", help},
+    {"keymap-stats", keymap_stats_cmd},
+    {"enable-help-prefix", help_prefix_enable},
+    {"disable-help-prefix", help_prefix_disable},
 	{"i-shell", spawncli},
 #if	ISRCH
 	{"incremental-search", fisearch},
@@ -177,7 +180,7 @@ struct name_bind names[] = {
 	{"read-file", fileread},
 	{"redo", redo_cmd},
 	{"redraw-display", reposition},
-/* Windows 11 commands removed - keeping command set minimal */
+/* Non-Linux specific commands removed — keep command set minimal */
 	{"resize-window", resize},
 	{"restore-window", restwnd},
 	{"replace-string", sreplace},
@@ -188,18 +191,23 @@ struct name_bind names[] = {
 	{"run", execproc},
 #endif
 	{"save-file", filesave},
-/* Session commands removed - keeping interface simple */
+/* Session commands removed — keep interface simple */
 	{"save-window", savewnd},
 	{"scroll-next-up", scrnextup},
 	{"scroll-next-down", scrnextdw},
 	{"search-forward", forwsearch},
 	{"search-reverse", backsearch},
 	{"select-buffer", usebuffer},
-	{"set", setvar},
+    {"set", setvar},
+    {"writing-mode", writing_mode_enable},
+    {"exit-writing-mode", writing_mode_disable},
+    {"set-column-width", set_column_width_cmd},
+    {"save-settings", save_settings_cmd},
+    {"open-user-config", open_user_config_cmd},
+    {"list-settings", list_settings_cmd},
 #if	CRYPT
 	{"set-encryption-key", set_encryption_key},
 #endif
-	{"set-fill-column", setfillcol},
 	{"set-mark", setmark},
 	{"shell-command", spawn},
 	{"shrink-window", shrinkwind},

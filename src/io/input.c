@@ -19,6 +19,7 @@
 #include "wrapper.h"
 #include "file_utils.h"
 #include "string_safe.h"
+#include "μemacs/keymap.h"
 
 #if	PKCODE
 #define	COMPLC	1
@@ -28,7 +29,6 @@
 
 /* C23 Atomic key processing structures */
 static _Atomic uint64_t meta_key_generation = 0;
-static _Atomic uint32_t meta_key_cache[256] = {0}; /* Atomic cache for meta key transformations */
 
 /* C23 atomic key transformation - instantaneous case conversion */
 static inline uint32_t atomic_meta_transform(int key_code)
@@ -565,11 +565,164 @@ static int buffered_getc(void)
 	return input_buf[buf_pos++];
 }
 
+/* Public helper: parse Kitty CSI u sequence from a string for tests/tools
+ * Expected form: "\x1b[<codepoint>;<mods>u". Returns TRUE on success. */
+int parse_kitty_csi_u(const char *seq, int *out_key)
+{
+    if (!seq || !out_key) return FALSE;
+    const unsigned char *p = (const unsigned char *)seq;
+    if (*p++ != 0x1B) return FALSE;      /* ESC */
+    if (*p++ != '[') return FALSE;       /* CSI */
+
+    long codepoint = 0;
+    long mods = 0;
+    if (!(*p >= '0' && *p <= '9')) return FALSE;
+    while (*p >= '0' && *p <= '9') {
+        codepoint = codepoint * 10 + (*p - '0');
+        p++;
+    }
+    if (*p++ != ';') return FALSE;
+    if (!(*p >= '0' && *p <= '9')) return FALSE;
+    while (*p >= '0' && *p <= '9') {
+        mods = mods * 10 + (*p - '0');
+        p++;
+    }
+    if (*p++ != 'u') return FALSE;
+
+    int out = (int)codepoint;
+    /* Ctrl (bit 3 in Kitty is 8) */
+    if (mods & 8) {
+        if (out >= 'A' && out <= 'Z') {
+            out = CONTROL | out;
+        } else if (out >= 'a' && out <= 'z') {
+            out = CONTROL | (out - 32);
+        } else {
+            /* Non-letters: best-effort leave numeric with no CONTROL bit */
+        }
+    }
+    /* Alt/Meta (bit 2 in Kitty is 4) */
+    if (mods & 4) {
+        out |= META;
+    }
+    *out_key = out;
+    return TRUE;
+}
+
+/* Pure decoder for ESC/CSI u into key_event for unit tests */
+int decode_key_from_bytes(const unsigned char *buf, size_t len,
+                          struct key_event *out, size_t *consumed)
+{
+    if (!buf || !out) return FALSE;
+    if (consumed) *consumed = 0;
+    struct key_event evt = {0};
+    if (len >= 3 && buf[0] == 0x1B && buf[1] == '[') {
+        size_t i = 2;
+        long codepoint = 0;
+        long mods = 0;
+        if (i < len && (buf[i] >= '0' && buf[i] <= '9')) {
+            while (i < len && buf[i] >= '0' && buf[i] <= '9') {
+                codepoint = codepoint * 10 + (buf[i] - '0');
+                i++;
+            }
+            if (i < len && buf[i] == ';') {
+                i++;
+                while (i < len && buf[i] >= '0' && buf[i] <= '9') {
+                    mods = mods * 10 + (buf[i] - '0');
+                    i++;
+                }
+                if (i < len && buf[i] == 'u') {
+                    i++;
+                    evt.code = (uint32_t)codepoint;
+                    evt.ctrl = (mods & 8) ? 1 : 0;
+                    evt.meta = (mods & 4) ? 1 : 0;
+                    if (consumed) *consumed = i;
+                    *out = evt;
+                    return TRUE;
+                }
+            }
+        }
+        /* fall through to ESC handling */
+    }
+    if (len >= 2 && buf[0] == 0x1B) {
+        evt.meta = 1;
+        unsigned char c = buf[1];
+        if (c <= 0x1F) {
+            evt.ctrl = 1;
+            evt.code = (uint32_t)(c + '@');
+        } else {
+            evt.code = (uint32_t)c;
+        }
+        if (consumed) *consumed = 2;
+        *out = evt;
+        return TRUE;
+    }
+    if (len >= 1 && buf[0] <= 0x1F) {
+        evt.ctrl = 1;
+        evt.code = (uint32_t)(buf[0] + '@');
+        if (consumed) *consumed = 1;
+        *out = evt;
+        return TRUE;
+    }
+    if (len >= 1) {
+        evt.code = buf[0];
+        if (consumed) *consumed = 1;
+        *out = evt;
+        return TRUE;
+    }
+    return FALSE;
+}
+
 /* C23 atomic key processing - matches Linus's get1key() behavior exactly */
 int get1key(void)
 {
 	// Atomic key retrieval - thread-safe terminal access  
 	int c = tgetc();
+
+    // Attempt to parse Kitty CSI u sequences starting with ESC '[' digits ';' digits 'u'
+    if (c == 0x1B) { // ESC
+        int next = tgetc();
+        if (next == '[') {
+            // Parse <codepoint> ; <mods> u
+            long codepoint = 0;
+			long mods = 0;
+			int ch;
+			// read digits for codepoint
+			while ((ch = tgetc()) >= '0' && ch <= '9') {
+				codepoint = codepoint * 10 + (ch - '0');
+			}
+			if (ch == ';') {
+				// read digits for mods
+				while ((ch = tgetc()) >= '0' && ch <= '9') {
+					mods = mods * 10 + (ch - '0');
+				}
+				if (ch == 'u') {
+					// Map to legacy code: ctrl/meta bits when representable
+					int out = (int)codepoint;
+					// Map Alt -> META (bit 3 per Kitty spec: 2=Shift, 4=Alt, 8=Ctrl)
+					if (mods & 8) { // Ctrl
+						// If ASCII letter, map to CONTROL|'X'
+						if (out >= 'A' && out <= 'Z') {
+							out = CONTROL | out;
+						} else if (out >= 'a' && out <= 'z') {
+							out = CONTROL | (out - 32);
+						} else {
+							// Non-letters: best effort, leave as is
+						}
+					}
+					if (mods & 4) { // Alt/Meta
+						out |= META;
+					}
+					// Shift is ignored as we don't encode it in legacy mapping
+					return out;
+				}
+			}
+			// Fallback: unrecognized sequence -> return ESC as control '['
+			return (int)(CONTROL | '[');
+		} else {
+			// Not CSI, treat ESC as control '['
+			return (int)(CONTROL | '[');
+		}
+	}
 
 	/* C23 atomic control character conversion - matches Linus exactly */
 	if (c >= 0x00 && c <= 0x1F) {
@@ -583,35 +736,26 @@ int get1key(void)
 /* C23 atomic Meta command processing - matches Linus's getcmd() behavior */
 int getcmd(void)
 {
-	// Get initial character through atomic processing
-	int c = get1key();
-	
-	/* C23 atomic META prefix processing - matches Linus's logic exactly */
-	if (c == (CONTROL | '[')) {  /* ESC converted to CONTROL|'[' by get1key() */
-		// Atomic increment of generation for cache coherency
-		atomic_fetch_add_explicit(&meta_key_generation, 1, memory_order_acq_rel);
-		
-		/* Get the next character - atomic terminal read */
-		c = get1key();
-		
-		/* C23 atomic case transformation - O(1) with cache (matches Linus's islower check) */
-		if (c >= 'a' && c <= 'z') {
-			uint32_t transformed_key = atomic_meta_transform(c);
-			c = (int)transformed_key;
-		}
-		
-		/* Atomic control character handling with memory ordering */
-		if (c >= 0x00 && c <= 0x1F) {
-			// Atomic composition of META | CONTROL combination
-			return (int)(META | CONTROL | (c + '@'));
-		}
-		
-		/* Atomic META flag composition - instantaneous */
-		return (int)(META | c);
-	}
-	
-	// Return normal key unchanged
-	return c;
+    // Unified key_event decoding using a small buffered read
+    unsigned char buf[6] = {0};
+    size_t len = 0;
+    buf[len++] = (unsigned char)tgetc();
+    if (buf[0] == 0x1B) {
+        buf[len++] = (unsigned char)tgetc();
+        if (buf[1] == '[') {
+            // Try to gather enough to recognize CSI u
+            for (int i = 0; i < 3 && len < sizeof(buf); i++) {
+                buf[len++] = (unsigned char)tgetc();
+            }
+        }
+    }
+    struct key_event evt = {0};
+    size_t consumed = 0;
+    if (!decode_key_from_bytes(buf, len, &evt, &consumed)) {
+        // Fallback for edge cases
+        return get1key();
+    }
+    return (int)key_to_legacy(evt);
 }
 
 

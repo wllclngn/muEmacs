@@ -1,0 +1,386 @@
+.TH MUEMACS 1 "2025" "μEmacs 0.0.23" "User Commands"
+.SH NAME
+muEmacs \- small, fast Linux terminal text editor (μEmacs)
+.SH SYNOPSIS
+.B muEmacs
+\fR[\fB+\fR\fIn\fR]\ |
+\fR[\fB-g\fR\fIn\fR]\ |
+\fR[\fB-s\fR\fIpattern\fR]\ |
+\fR[\fB-r\fR]\ |
+\fR[\fB-n\fR]\ |
+\fR[\fB-v\fR]\ |
+\fR[\fB-e\fR]\ |
+\fR[\fB--help\fR]\ |
+\fR[\fB--version\fR]
+\fR[\fIFILE\fR ...]
+.SH DESCRIPTION
+\fBμEmacs\fR is a modernization of Linus Torvalds' tiny uEmacs editor for contemporary Linux terminals.
+It retains the original philosophy: small codebase, instant startup, sane defaults, and classic Emacs-style
+key bindings in a pure TUI. This implementation focuses on Linux, UTF\-8 correctness, terminal fidelity,
+and robust behavior without bloat.
+.PP
+Notable traits:
+.IP \(bu 2
+Drop\-in build and install: compile fast; run everywhere Linux has \fIncursesw\fR.
+.IP \(bu 2
+UTF\-8 by default with correct display width and bracketed paste handling.
+.IP \(bu 2
+Single binary at runtime; predictable paths for data files.
+.SH OPTIONS
+The following options are recognized on the command line (a subset mirrors classic uEmacs behavior):
+.TP
+.B --help
+Show a brief usage summary and exit.
+.TP
+.B --version
+Show version information and exit.
+.TP
+.BI + n
+Start at line \fIn\fR of the first file. If \fIn\fR is omitted (plain \fB+\fR), start at end of file.
+.TP
+.BI -g n
+Go to line \fIn\fR after startup (equivalent to \fB+\fR\fIn\fR).
+.TP
+.BI -s pattern
+Search forward for \fIpattern\fR on startup (non\-interactive initial search).
+.TP
+.B -v
+View\-only mode (read\-only buffers).
+.TP
+.B -e
+Explicitly enable editing (cancels a prior \fB-v\fR in argument order).
+.TP
+.B -r
+Restricted mode: disallow file writes, shell escapes, and similar operations.
+.TP
+.B -n
+Accept NUL (\e0) characters in input files.
+.TP
+.BI @ file
+Execute startup macro file \fIfile\fR before entering the editor (classic uEmacs feature).
+.SH KEY BINDINGS (ABRIDGED)
+μEmacs uses Emacs\-style bindings. Selected defaults:
+.TP
+.B C\-x C\-c
+Exit μEmacs.
+.TP
+.B C\-x C\-s
+Save current buffer.
+.TP
+.B C\-x C\-f
+Find/open file.
+.TP
+.B C\-g
+Cancel current operation.
+.TP
+.B ESC (Meta prefix)
+Use ESC as Meta, e.g., \fBM\-x\fR to execute a named command.
+.TP
+.B C\-s, C\-r
+Incremental search forward, reverse.
+.TP
+.B C\-Space, C\-w, M\-w, C\-y
+Set mark; kill region; copy region; yank.
+.PP
+For a full list of commands, see the project README and in\-editor help (describe\-bindings, describe\-key).
+.SH KEY BINDINGS (COMPLETE)
+.SS Essential
+.TP
+.B C\-x C\-c
+Exit μEmacs.
+.TP
+.B C\-x C\-s
+Save file.
+.TP
+.B C\-x C\-f
+Find/open file.
+.TP
+.B C\-g
+Abort current command.
+.TP
+.B M\-z
+Quick exit.
+.SS Movement
+.TP
+.B C\-a / C\-e
+Beginning / end of line.
+.TP
+.B C\-f / C\-b
+Forward / backward character.
+.TP
+.B C\-n / C\-p
+Next / previous line.
+.TP
+.B C\-v / C\-z
+Next / previous page.
+.TP
+.B M\-< / M\->
+Beginning / end of file.
+.SS Editing
+.TP
+.B C\-d / C\-h
+Delete next / previous character.
+.TP
+.B C\-k
+Kill (cut) to end of line.
+.TP
+.B C\-o
+Open line.
+.TP
+.B C\-t
+Transpose characters.
+.TP
+.B C\-Space
+Set mark.
+.TP
+.B C\-w / M\-w / C\-y / M\-y
+Kill region (cut) / copy region / yank (paste) / yank pop.
+.SS Words & Case
+.TP
+.B M\-f / M\-b
+Forward / backward word.
+.TP
+.B M\-d / M\-C\-h
+Delete next / previous word.
+.TP
+.B M\-u / M\-l / M\-c
+Uppercase / lowercase / capitalize word.
+.SS Undo/Redo
+.TP
+.B C\-_ / C\-/
+Undo.
+.TP
+.B C\-x R / M\-_
+Redo.
+.SS Search & Replace
+.TP
+.B C\-s / C\-r
+Search forward / reverse.
+.TP
+.B M\-r / M\-C\-r
+Replace string / query replace.
+.SS Windows & Buffers
+.TP
+.B C\-x 0 / C\-x 1 / C\-x 2
+Delete window / delete other windows / split window.
+.TP
+.B C\-x o / C\-x B / C\-x C\-B / C\-x k
+Next window / select buffer / list buffers / kill buffer.
+.SS Misc
+.TP
+.B C\-x \(ha / C\-x ) / C\-x E
+Begin / end / execute macro.
+.TP
+.B M\-x
+Execute named command.
+.TP
+.B M\-k
+Bind command to key.
+.TP
+.B C\-x =
+Show cursor position.
+.TP
+.B M\-g
+Go to line.
+.TP
+.B C\-l
+Redraw screen.
+.SS Numeric Arguments and M\-x
+Use \fBC\-u\fR (universal argument) to prefix counts; ESC may be used as Meta for M\-x and other Meta bindings.
+.SH FILES
+.TP
+.I /usr/share/muemacs/editor/settings.json
+System defaults for editor behavior (installed with the program).
+.TP
+.I /usr/share/muemacs/keymaps
+Default keymap overlays.
+.TP
+.I /usr/share/muemacs/terminal
+Terminal integration snippets (e.g., kitty config).
+.TP
+.I /usr/share/applications/muEmacs.desktop
+Desktop entry to launch μEmacs in a terminal emulator.
+.SH ENVIRONMENT
+.TP
+.B TERM
+Specifies terminal type; use a modern entry such as \fBxterm\-256color\fR or a terminal\-specific entry.
+.TP
+.B COLORTERM
+If set to \fBtruecolor\fR, enables 24\-bit color sequences in capable terminals.
+.TP
+.B LANG, LC_ALL, LC_CTYPE
+Should be set to a UTF\-8 locale for correct processing and display of Unicode text.
+.SH EXIT STATUS
+Returns \fB0\fR on success, non\-zero on error.
+.SH DIAGNOSTICS
+Errors are reported in the echo area (status line) and via a non\-zero exit status when applicable.
+Restricted mode (\fB-r\fR) prevents operations such as file writes and shell escapes.
+.SH NOTES
+.IP \(bu 2
+Two command names are available after install: \fBμEmacs\fR (Unicode) and the ASCII\-friendly alias \fBmuEmacs\fR.
+.IP \(bu 2
+This build targets Linux only and links against \fIncursesw\fR; it is TUI\-only by design.
+.IP \(bu 2
+Defaults ship with the program and are intentionally simple; see \fIFILES\fR.
+.SH HISTORY
+μEmacs descends from MicroEMACS (1985) through Petri Kutvonen’s uEmacs/PK to Linus Torvalds’ tiny uEmacs.
+This build preserves that lineage (small, portable, fast) while modernizing terminal and UTF\-8 behavior.
+.SH SEE ALSO
+.BR emacs (1),
+.BR nano (1),
+.BR vim (1),
+.BR mg (1),
+.BR ed (1)
+.SH AUTHOR
+Original μEmacs by Linus Torvalds; MicroEMACS by Dave G. Conroy and Daniel M. Lawrence; uEmacs/PK by Petri H. Kutvonen.
+This Linux\-modernized μEmacs is maintained by the μEmacs project.
+.SH BUGS
+Report issues via the project issue tracker.
+.SH COPYRIGHT
+μEmacs preserves the original licensing terms appropriate to uEmacs while adopting modern build and packaging practices.
+.SH COMMANDS (NAMED)
+All editor functions are available via \fBM\-x\fR followed by the command name.
+This section lists commonly used commands, grouped by category.
+.SS Core
+.TP
+.B abort-command
+Cancel current operation.
+.TP
+.B exit-emacs, quick-exit
+Exit editor; quick variant saves and exits.
+.TP
+.B help, execute-named-command
+Display help; prompt for command by name (M\-x).
+.SS Buffers & Files
+.TP
+.B find-file, view-file, read-file, write-file, save-file, insert-file
+Open, view, insert, save, and write buffers/files.
+.TP
+.B list-buffers, select-buffer, next-buffer, delete-buffer, name-buffer
+Manage buffers and buffer list.
+.SS Navigation
+.TP
+.B beginning-of-file, end-of-file, beginning-of-line, end-of-line, goto-line
+Move to file/line boundaries and arbitrary line numbers.
+.TP
+.B next-line, previous-line, forward-character, backward-character, next-word, previous-word
+Basic motion commands.
+.SS Editing & Regions
+.TP
+.B delete-next-character, delete-previous-character, delete-next-word, delete-previous-word
+Delete characters and words.
+.TP
+.B kill-to-end-of-line, kill-region, copy-region, yank, yank-pop, yank-clipboard
+Kill/copy/paste operations and clipboard integration.
+.TP
+.B quote-character, transpose-characters, duplicate-line, move-line-up, move-line-down
+Editing helpers and line manipulation.
+.SS Text Formatting
+.TP
+.B case-word-upper, case-word-lower, case-word-capitalize
+Change case for words.
+.TP
+.B case-region-upper, case-region-lower
+Change case for region.
+.TP
+.B fill-paragraph, justify-paragraph, count-words
+Paragraph formatting and statistics.
+.SS Search & Replace
+.TP
+.B search-forward, search-reverse, incremental-search, reverse-incremental-search
+Forward/reverse search modes.
+.TP
+.B replace-string, query-replace-string, hunt-forward, hunt-backward
+Replacement and repeated search.
+.SS Windows & Display
+.TP
+.B split-current-window, delete-window, delete-other-windows, next-window, previous-window
+Window management.
+.TP
+.B grow-window, shrink-window, resize-window
+Resize windows.
+.TP
+.B clear-and-redraw, redraw-display, update-screen
+Screen refresh and redraw.
+.SS Macros & Scripting
+.TP
+.B begin-macro, end-macro, execute-macro, store-macro
+Record, run, and store macros.
+.TP
+.B execute-buffer, execute-file, execute-command-line, execute-program, shell-command, pipe-command, filter-buffer
+Execute buffers/files/commands, run external programs, and filter regions through commands.
+.SS Configuration & Modes
+.TP
+.B bind-to-key, unbind-key, describe-key, describe-bindings
+Key binding management and help.
+.TP
+.B add-mode, delete-mode, add-global-mode, delete-global-mode
+Toggle buffer and global modes.
+.TP
+.B set, set-column-width, writing-mode, exit-writing-mode
+Set variables; writing helpers and wrap configuration.
+.TP
+.B set-mark, exchange-point-and-mark, unmark-buffer
+Mark management and region selection.
+.SH MODES
+Buffer and global modes alter editing behavior. Toggle with \fBadd-mode\fR / \fBdelete-mode\fR (buffer) and
+\fBadd-global-mode\fR / \fBdelete-global-mode\fR (global). Common modes:
+.TP
+.B WRAP
+Enable word wrap at the fill column.
+.TP
+.B CMODE
+C language editing conveniences.
+.TP
+.B SPELL
+Spell-related hooks (if available).
+.TP
+.B EXACT
+Exact (case-sensitive) searches by default.
+.TP
+.B VIEW
+View-only (read-only) buffer behavior.
+.TP
+.B OVER
+Overwrite mode (typing replaces characters).
+.TP
+.B MAGIC
+Enable regex-lite (NFA) “MAGIC” search engine.
+.TP
+.B CRYPT
+Per-buffer encryption enabled (classic uEmacs).
+.TP
+.B ASAVE
+Auto-save after a configured threshold.
+.TP
+.B UTF-8
+Force UTF-8 operations and display handling.
+.SH VARIABLES
+Variables control editor behavior and modeline display. Set with \fBset\fR (e.g., \fBset ruler 1\fR). Useful variables:
+.TP
+.B fillcol
+Target column for wrap/fill operations (default 72).
+.TP
+.B highlightline \(em hilinestyle
+Enable current-line highlight; choose style (0 none, 1 underline, 2 bold, 3 dim).
+.TP
+.B ruler \(em rulerstyle \(em rulercol
+Enable a vertical column ruler; style as above; set the target column (default 80).
+.TP
+.B modeline_show_git / _stats / _modes / _position
+Toggle git branch indicator, stats, modes, and cursor position in the modeline.
+.TP
+.B column_width
+Preferred wrap column for writing; used by \fBwriting-mode\fR and \fBset-column-width\fR.
+.TP
+.B scrollcount
+Number of lines to scroll for paging commands.
+.TP
+.B overlap
+Line overlap when paging.
+.TP
+.B nullflag
+Accept NUL (\e0) characters in files.
+.TP
+.B restflag
+Restricted mode (disables writes and external commands).

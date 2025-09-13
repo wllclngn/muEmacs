@@ -25,10 +25,28 @@ static bool modern_keymaps_initialized = false;
 
 // Initialize modern keymap system once
 static void ensure_modern_keymaps(void) {
-	if (!modern_keymaps_initialized) {
-		keymap_init_from_legacy();
-		modern_keymaps_initialized = true;
-	}
+    if (!modern_keymaps_initialized) {
+        keymap_init_from_legacy();
+        modern_keymaps_initialized = true;
+    }
+}
+
+/* Map a legacy key code to a target keymap and stripped key code */
+static void legacy_to_modern_map(int legacy_code, struct keymap **out_map, uint32_t *out_key)
+{
+    struct keymap *map = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    uint32_t key = (uint32_t)legacy_code;
+
+    if (legacy_code & CTLX) {
+        map = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+        key = (uint32_t)(legacy_code & ~CTLX);
+    } else if (legacy_code & META) {
+        map = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+        key = (uint32_t)(legacy_code & ~META);
+    }
+
+    if (out_map) *out_map = map;
+    if (out_key) *out_key = key;
 }
 
 int help(int f, int n)
@@ -168,9 +186,9 @@ int bindtokey(int f, int n)
 		++ktp;
 	}
 
-	if (found) {		/* it exists, just change it then */
-		ktp->k_fp = kfunc;
-	} else {		/* otherwise we need to add it to the end */
+    if (found) {		/* it exists, just change it then */
+        ktp->k_fp = kfunc;
+    } else {		/* otherwise we need to add it to the end */
 		/* if we run out of binding room, bitch */
 		if (ktp >= &keytab[NBINDS]) {
 			REPORT_ERROR(ERR_MEMORY, "Binding table FULL!");
@@ -183,7 +201,19 @@ int bindtokey(int f, int n)
 		ktp->k_code = 0;
 		ktp->k_fp = NULL;
 	}
-	return TRUE;
+    /* Also update modern keymaps to keep runtime in sync */
+    ensure_modern_keymaps();
+    struct keymap *dst = NULL;
+    uint32_t mkey = 0;
+    legacy_to_modern_map((int)c, &dst, &mkey);
+    if (dst) {
+        if (!keymap_bind(dst, mkey, kfunc)) {
+            mlwrite("Failed to bind key in modern keymap");
+            return FALSE;
+        }
+    }
+
+    return TRUE;
 }
 
 /*
@@ -210,11 +240,19 @@ int unbindkey(int f, int n)
 	ostring(outseq);
 
 	/* if it isn't bound, bitch */
-	if (unbindchar(c) == FALSE) {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "Key not bound");
-		return FALSE;
-	}
-	return TRUE;
+    if (unbindchar(c) == FALSE) {
+        REPORT_ERROR(ERR_COMMAND_UNKNOWN, "Key not bound");
+        return FALSE;
+    }
+    /* Keep modern keymaps in sync */
+    ensure_modern_keymaps();
+    struct keymap *dst = NULL;
+    uint32_t mkey = 0;
+    legacy_to_modern_map(c, &dst, &mkey);
+    if (dst) {
+        keymap_unbind(dst, mkey);
+    }
+    return TRUE;
 }
 
 
@@ -289,6 +327,32 @@ int apro(int f, int n)
  * int type;		true = full list,   false = partial list
  * char *mstring;	match string if a partial list
  */
+/* helper: append binding lines for a given keymap and prefix modifier */
+static void append_bindings_for_map(struct keymap *map, int prefix_flag,
+                                    struct name_bind *nptr, char *outseq, int *cpos)
+{
+    if (!map || !nptr || !outseq || !cpos) return;
+    for (int i = 0; i < KEYMAP_HASH_SIZE; i++) {
+        struct keymap_entry *entry = map->table[i];
+        while (entry) {
+            if (!entry->is_prefix) {
+                fn_t fn = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+                if (fn == nptr->n_func) {
+                    /* pad spaces */
+                    while (*cpos < 28) outseq[(*cpos)++] = ' ';
+                    int code = (int)entry->key;
+                    if (prefix_flag) code |= prefix_flag;
+                    cmdstr(code, &outseq[*cpos]);
+                    SAFE_STRCAT(outseq, "\n");
+                    if (linstr(outseq) != TRUE) return;
+                    *cpos = 0; /* reset line */
+                }
+            }
+            entry = entry->next;
+        }
+    }
+}
+
 int buildlist(int type, const char *mstring)
 #endif
 {
@@ -335,6 +399,11 @@ int buildlist(int type, const char *mstring)
 	wp->w_marko = 0;
 
 	/* build the contents of this window, inserting it line by line */
+	ensure_modern_keymaps();
+	struct keymap *gkm_list = atomic_load_explicit(&global_keymap, memory_order_acquire);
+	struct keymap *ckm_list = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+	struct keymap *mkm_list = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+
 	nptr = &names[0];
 	while (nptr->n_func != NULL) {
 
@@ -349,26 +418,11 @@ int buildlist(int type, const char *mstring)
 		    strinc(outseq, mstring) == FALSE)
 			goto fail;
 #endif
-		/* search down any keys bound to this */
-		ktp = &keytab[0];
-		while (ktp->k_fp != NULL) {
-			if (ktp->k_fp == nptr->n_func) {
-				/* padd out some spaces */
-				while (cpos < 28)
-					outseq[cpos++] = ' ';
 
-				/* add in the command sequence */
-				cmdstr(ktp->k_code, &outseq[cpos]);
-                SAFE_STRCAT(outseq, "\n");
-
-				/* and add it as a line into the buffer */
-				if (linstr(outseq) != TRUE)
-					return FALSE;
-
-				cpos = 0;	/* and clear the line */
-			}
-			++ktp;
-		}
+		/* append all modern keymap bindings for this function */
+		append_bindings_for_map(gkm_list, 0, nptr, outseq, &cpos);
+		append_bindings_for_map(ckm_list, CTLX, nptr, outseq, &cpos);
+		append_bindings_for_map(mkm_list, META, nptr, outseq, &cpos);
 
 		/* if no key was bound, we need to dump it anyway */
 		if (cpos > 0) {
@@ -613,32 +667,23 @@ void cmdstr(int c, char *seq)
  */
 int (*getbind(int c))(int, int)
 {
-	// C23 atomic read of keymap pointer - instantaneous
-	struct keymap *km = atomic_load_explicit(&current_keymap, memory_order_acquire);
-	if (!km) {
-		km = atomic_load_explicit(&global_keymap, memory_order_acquire);
-	}
-	
-	// Fast path: atomic keymap lookup
-	if (km) {
-		struct keymap_entry *entry = keymap_lookup_chain(km, c);
-		if (entry && !entry->is_prefix) {
-			// C23 atomic read of function pointer - instantaneous
-			return atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
-		}
-	}
-	
-	// Atomic fallback to legacy keytab - single linear scan
-	extern struct key_tab keytab[];
-	register struct key_tab *ktp = &keytab[0];
-	while (ktp->k_fp) {
-		if (ktp->k_code == c) {
-			return ktp->k_fp;  // Direct read - instantaneous
-		}
-		++ktp;
-	}
-	
-	return nullptr;  // C23 nullptr
+    // Ensure modern keymaps initialized once
+    ensure_modern_keymaps();
+
+    // Interpret legacy CTLX/META flags and route to appropriate keymap
+    struct keymap_entry *entry = keymap_get_binding(c);
+    if (entry && !entry->is_prefix) {
+        return atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+    }
+    // Fallback: legacy table (ensures defaults like M-? and C-x C-c)
+    {
+        struct key_tab *ktp = &keytab[0];
+        while (ktp->k_fp != NULL) {
+            if (ktp->k_code == c) return ktp->k_fp;
+            ++ktp;
+        }
+    }
+    return NULL;
 }
 
 /*

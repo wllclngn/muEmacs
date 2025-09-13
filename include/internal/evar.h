@@ -63,6 +63,11 @@ static char *envars[] = {
 #if SCROLLCODE
 	"scroll",		/* scroll enabled */
 #endif
+	"highlightline", /* highlight current line (0/1) */
+	"ruler",         /* enable vertical column ruler (0/1) */
+	"rulercol",      /* ruler column (1-based) */
+	"hilinestyle",  /* current line style: 0 none, 1 underline, 2 bold, 3 dim */
+	"rulerstyle",   /* ruler style: 0 none, 1 underline, 2 bold, 3 dim */
 };
 
 /* And its preprocesor definitions. */
@@ -108,6 +113,11 @@ static char *envars[] = {
 #define EVOVERLAP	38
 #define EVSCROLLCOUNT	39
 #define EVSCROLL	40
+#define EVHILINE	41
+#define EVRULER		42
+#define EVRULERCOL	43
+#define EVHILINESTYLE 44
+#define EVRULERSTYLE  45
 
 enum function_type {
 	NILNAMIC = 0,

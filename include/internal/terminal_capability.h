@@ -11,7 +11,6 @@
 /* Terminal capability structure */
 typedef struct terminal_caps {
     bool truecolor;         /* 24-bit color support */
-    bool mouse;             /* Mouse tracking */
     bool bracketed_paste;   /* Bracketed paste mode */
     bool focus_events;      /* Focus in/out events */
     bool sixel;            /* Sixel graphics */

@@ -34,6 +34,33 @@
 
 #include "../util/git_status.h"
 
+/* Lightweight SGR attribute helpers (inherit terminal theme) */
+static inline void sgr_underline_on(void)  { vtputs("\x1b[4m"); }
+static inline void sgr_underline_off(void) { vtputs("\x1b[24m"); }
+static inline void sgr_bold_on(void)       { vtputs("\x1b[1m"); }
+static inline void sgr_dim_on(void)        { vtputs("\x1b[2m"); }
+static inline void sgr_bold_dim_off(void)  { vtputs("\x1b[22m"); }
+static inline void sgr_reset(void)         { vtputs("\x1b[0m"); }
+
+static inline void style_on(int style)
+{
+    switch (style) {
+    case 1: sgr_underline_on(); break;
+    case 2: sgr_bold_on(); break;
+    case 3: sgr_dim_on(); break;
+    default: break;
+    }
+}
+static inline void style_off(int style)
+{
+    switch (style) {
+    case 1: sgr_underline_off(); break;
+    case 2:
+    case 3: sgr_bold_dim_off(); break;
+    default: break;
+    }
+}
+
 struct video {
 	int v_flag;		/* Flags */
 	int v_fcolor;		/* current forground color */
@@ -603,6 +630,9 @@ static void show_line(struct line *lp)
 	int apply_highlighting = (curwp != NULL && curwp->w_markp != NULL && 
 	                         lp != NULL && lp != curwp->w_bufp->b_linep);
 
+	/* Decide if we should force highlight for this line (cursor row) */
+	int force_line_highlight = (highlight_current_line && vtrow == currow) ? TRUE : FALSE;
+
 	while (i < len) {
 		unicode_t c;
 		int bytes = utf8_to_unicode(lp->l_text, i, len, &c);
@@ -621,7 +651,7 @@ static void show_line(struct line *lp)
 		}
 		if (c < 32 && c != '\t') {
 			// Display other control chars as printable to avoid corruption
-			if (in_selection) {
+			if (in_selection || force_line_highlight) {
 				vtputc_highlighted('^');
 				vtputc_highlighted('@' + c);
 			} else {
@@ -629,7 +659,7 @@ static void show_line(struct line *lp)
 				vtputc('@' + c);
 			}
 		} else {
-			if (in_selection) {
+			if (in_selection || force_line_highlight) {
 				vtputc_highlighted(c);
 			} else {
 				vtputc(c);
@@ -666,6 +696,13 @@ static void updone(struct window *wp)
 	vscreen[sline]->v_rfcolor = wp->w_fcolor;
 	vscreen[sline]->v_rbcolor = wp->w_bcolor;
 	vteeol();
+	/* Apply column ruler overlay if enabled and within screen */
+	if (column_ruler_enabled) {
+		int idx = column_ruler_column - 1;
+		if (idx >= 0 && idx < term.t_ncol) {
+			vscreen[sline]->v_text[idx] |= HIGHLIGHT_BIT;
+		}
+	}
 }
 
 /*
@@ -698,6 +735,13 @@ static void updall(struct window *wp)
 		vscreen[sline]->v_rfcolor = wp->w_fcolor;
 		vscreen[sline]->v_rbcolor = wp->w_bcolor;
 		vteeol();
+		/* Column ruler overlay */
+		if (column_ruler_enabled) {
+			int idx = column_ruler_column - 1;
+			if (idx >= 0 && idx < term.t_ncol) {
+				vscreen[sline]->v_text[idx] |= HIGHLIGHT_BIT;
+			}
+		}
 		++sline;
 	}
 
@@ -1160,8 +1204,8 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	cp1 = &vp1->v_text[0];
 	cp2 = &vp2->v_text[0];
 
-	TTforg(vp1->v_rfcolor);
-	TTbacg(vp1->v_rbcolor);
+    TTforg(vp1->v_rfcolor);
+    TTbacg(vp1->v_rbcolor);
 
 #if	REVSTA
 	/* if we need to change the reverse video status of the
@@ -1174,35 +1218,35 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	    ) {
 		movecursor(row, 0);	/* Go to start of line. */
 		/* set rev video if needed */
-		if (rev != req)
-			(*term.t_rev) (req);
+        if (rev != req)
+            (*term.t_rev) (req);
 
 		/* scan through the line and dump it to the screen and
 		   the virtual screen array                             */
 		cp3 = &vp1->v_text[term.t_ncol];
 		int current_reverse = req;
-		while (cp1 < cp3) {
-			int highlighted = (*cp1 & HIGHLIGHT_BIT) != 0;
-			unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
-			
-			/* Toggle reverse video if highlight state changes */
-			if (highlighted != current_reverse) {
-				current_reverse = highlighted;
-				(*term.t_rev)(current_reverse);
-			}
-			
-			TTputc(ch);
-			++ttcol;
-			*cp2++ = *cp1++;
-		}
-		
-		/* Ensure reverse video is properly reset at end of line */
-		if (current_reverse) {
-			(*term.t_rev)(FALSE);
-		}
-		/* turn rev video off */
-		if (rev != req)
-			(*term.t_rev) (FALSE);
+        while (cp1 < cp3) {
+            int col = (int)(cp1 - &vp1->v_text[0]);
+            int highlighted_bit = (*cp1 & HIGHLIGHT_BIT) != 0;
+            int ruler_here = (column_ruler_enabled && col == (column_ruler_column - 1));
+            int row_here = (highlight_current_line && row == currow);
+            int target_style = 0;
+            if (highlighted_bit || row_here) target_style = hiline_style;
+            else if (ruler_here) target_style = ruler_style;
+
+            static int active_style = 0;
+            if (target_style != active_style) { style_off(active_style); style_on(target_style); active_style = target_style; }
+
+            unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
+            TTputc(ch);
+            ++ttcol;
+            *cp2++ = *cp1++;
+        }
+        /* Ensure style is disabled at end of line */
+        style_off(0); style_off(1); style_off(2); style_off(3);
+        /* turn rev video off */
+        if (rev != req)
+            (*term.t_rev) (FALSE);
 
 		/* update the needed flags */
 		vp1->v_flag &= ~VFCHG;
@@ -1262,28 +1306,28 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	TTrev(rev);
 #endif
 
-	{
-		int current_reverse = FALSE;
-		while (cp1 != cp5) {	/* Ordinary. */
-			int highlighted = (*cp1 & HIGHLIGHT_BIT) != 0;
-			unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
-			
-			/* Toggle reverse video only when state changes */
-			if (highlighted != current_reverse) {
-				current_reverse = highlighted;
-				TTrev(current_reverse);
-			}
-			
-			TTputc(ch);
-			++ttcol;
-			*cp2++ = *cp1++;
-		}
-		
-		/* Ensure reverse video is off at end */
-		if (current_reverse) {
-			TTrev(FALSE);
-		}
-	}
+        {
+            int current_reverse = FALSE;
+            static int active_style2 = 0;
+            while (cp1 != cp5) {	/* Ordinary. */
+                int col = (int)(cp1 - &vp1->v_text[0]);
+                int highlighted_bit = (*cp1 & HIGHLIGHT_BIT) != 0;
+                int ruler_here = (column_ruler_enabled && col == (column_ruler_column - 1));
+                int row_here = (highlight_current_line && row == currow);
+                int target_style = 0;
+                if (highlighted_bit || row_here) target_style = hiline_style;
+                else if (ruler_here) target_style = ruler_style;
+
+                if (target_style != active_style2) { style_off(active_style2); style_on(target_style); active_style2 = target_style; }
+
+                unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
+                TTputc(ch);
+                ++ttcol;
+                *cp2++ = *cp1++;
+            }
+            /* Ensure style is off at end */
+            style_off(active_style2); active_style2 = 0;
+        }
 
 	if (cp5 != cp3) {	/* Erase. */
 		TTeeol();
@@ -1890,21 +1934,28 @@ static void clean_statusline(struct window *wp)
 	// Delta symbol for modified files - modern Unicode modification indicator
 	const char *mod_indicator = (bp->b_flag & BFCHG) ? "  Δ" : "";
 
-	// --- GIT STATUS INTEGRATION ---
-	char git_info[64] = "";
-	git_status_request_async(NULL); // non-blocking, throttled
-	if (getenv("UEMACS_GIT_STATUS")) {
-		git_status_get_cached(git_info, sizeof(git_info));
-	}
+    // --- GIT STATUS INTEGRATION ---
+    char git_info[64] = "";
+    if (modeline_show_git) {
+        git_status_request_async(NULL); // non-blocking, throttled
+        if (getenv("UEMACS_GIT_STATUS")) {
+            git_status_get_cached(git_info, sizeof(git_info));
+        }
+    }
 
 	// Compose left_info with git
-	if (git_info[0]) {
-		safe_snprintf(left_info, sizeof(left_info), "   %s  %s  Text  UTF-8%s", \
-			bp->b_fname[0] ? bp->b_fname : bp->b_bname, git_info, mod_indicator);
-	} else {
-		safe_snprintf(left_info, sizeof(left_info), "   %s  Text  UTF-8%s", \
-			bp->b_fname[0] ? bp->b_fname : bp->b_bname, mod_indicator);
-	}
+    const char* fname = bp->b_fname[0] ? bp->b_fname : bp->b_bname;
+    if (modeline_show_modes) {
+        if (git_info[0])
+            safe_snprintf(left_info, sizeof(left_info), "   %s  %s  Text  UTF-8%s", fname, git_info, mod_indicator);
+        else
+            safe_snprintf(left_info, sizeof(left_info), "   %s  Text  UTF-8%s", fname, mod_indicator);
+    } else {
+        if (git_info[0])
+            safe_snprintf(left_info, sizeof(left_info), "   %s  %s%s", fname, git_info, mod_indicator);
+        else
+            safe_snprintf(left_info, sizeof(left_info), "   %s%s", fname, mod_indicator);
+    }
 
 	// Format right: C{COL} L{LINE}/{TOTAL}  {SIZE} {WORDS}
 	char size_str[32];
@@ -1923,8 +1974,17 @@ static void clean_statusline(struct window *wp)
 	// Fast UTF-8 aware column calculation using atomic cache
 	int current_col = calculate_display_column_cached(wp->w_dotp, wp->w_doto, 8) + 1;
 
-	safe_snprintf(right_info, sizeof(right_info), "C%d L%d/%d  %s %dW   ",
-		current_col, current_line, total_lines, size_str, word_count);
+    right_info[0] = '\0';
+    if (modeline_show_position) {
+        char pos[64];
+        snprintf(pos, sizeof(pos), "C%d L%d/%d  ", current_col, current_line, total_lines);
+        strncat(right_info, pos, sizeof(right_info) - strlen(right_info) - 1);
+    }
+    if (modeline_show_stats) {
+        char stats[64];
+        snprintf(stats, sizeof(stats), "%s %dW   ", size_str, word_count);
+        strncat(right_info, stats, sizeof(right_info) - strlen(right_info) - 1);
+    }
 
 	// Display left info with proper UTF-8 handling for delta symbol
 	int right_len = strlen(right_info);

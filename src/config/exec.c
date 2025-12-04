@@ -482,9 +482,16 @@ static int scan_while_blocks(struct buffer *bp, struct exec_state *state)
 	char *eline;
 	int i;
 
+	char line_buf[NSTRING];
 	while (lp != hlp) {
-		eline = lp->l_text;
-		i = lp->l_used;
+		/* Extract line from gap buffer */
+		i = llength(lp);
+		if (i >= NSTRING) i = NSTRING - 1;
+		for (int j = 0; j < i; j++) {
+			line_buf[j] = lgetc(lp, j);
+		}
+		line_buf[i] = '\0';
+		eline = line_buf;
 
 		// Trim leading whitespace
 		while (i-- > 0 && (*eline == ' ' || *eline == '\t'))
@@ -565,17 +572,17 @@ static int execute_buffer_lines(struct buffer *bp, struct exec_state *state)
 
 	while (ctx.lp != ctx.hlp) {
 		// Allocate and copy line
-		ctx.linlen = ctx.lp->l_used;
+		ctx.linlen = llength(ctx.lp);
 		if ((ctx.einit = ctx.eline = (char*)safe_alloc(ctx.linlen + 1, "execution line buffer", __FILE__, __LINE__)) == NULL) {
 			REPORT_ERROR(ERR_MEMORY, "Out of Memory during macro execution");
 			return FALSE;
 		}
     if (ctx.linlen > 0) {
-        size_t maxlen = sizeof(ctx.eline) - 1;
-        size_t cpy = (size_t)ctx.linlen;
-        if (cpy > maxlen) cpy = maxlen;
-        memcpy(ctx.eline, ctx.lp->l_text, cpy);
-        ctx.eline[cpy] = '\0';
+        /* Extract from gap buffer */
+        for (int i = 0; i < ctx.linlen; i++) {
+            ctx.eline[i] = lgetc(ctx.lp, i);
+        }
+        ctx.eline[ctx.linlen] = '\0';
     } else {
         ctx.eline[0] = '\0';
     }
@@ -758,10 +765,19 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 				linlen = strlen(golabel);
 				ctx->glp = ctx->hlp->l_fp;
 				while (ctx->glp != ctx->hlp) {
-					if (*ctx->glp->l_text == '*' &&
-					    (strncmp(&ctx->glp->l_text[1], golabel, linlen) == 0)) {
-						ctx->lp = ctx->glp;
-						return -1; // Continue to next line
+					char first_char = (llength(ctx->glp) > 0) ? lgetc(ctx->glp, 0) : '\0';
+					if (first_char == '*' && llength(ctx->glp) > linlen) {
+						/* Extract label portion for comparison */
+						char label_buf[NPAT];
+						int extract_len = (linlen < NPAT - 1) ? linlen : NPAT - 1;
+						for (int i = 0; i < extract_len && i + 1 < llength(ctx->glp); i++) {
+							label_buf[i] = lgetc(ctx->glp, i + 1);
+						}
+						label_buf[extract_len] = '\0';
+						if (strncmp(label_buf, golabel, linlen) == 0) {
+							ctx->lp = ctx->glp;
+							return -1; // Continue to next line
+						}
 					}
 					ctx->glp = ctx->glp->l_fp;
 				}

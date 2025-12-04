@@ -1,6 +1,6 @@
 // keymap.c - Hierarchical keymap implementation with O(1) hash table lookup
 
-#include "μemacs/keymap.h"
+#include "keymap.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

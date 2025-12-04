@@ -67,7 +67,6 @@ extern int yanked_size;		/* Size of last yank for yankpop */
 extern char temp_kill_buf[];	/* Temporary kill buffer */
 extern size_t temp_kill_len;	/* Temporary kill buffer length */
 extern struct window *swindow;	/* saved window pointer         */
-extern int cryptflag;		/* currently encrypting?        */
 extern int *kbdptr;		/* current position in keyboard buf */
 extern int *kbdend;		/* ptr to end of the keyboard */
 extern int kbdmode;		/* current keyboard macro mode  */
@@ -100,6 +99,12 @@ extern int column_ruler_enabled;
 extern int column_ruler_column;
 extern int hiline_style;
 extern int ruler_style;
+/* Highlight tuning (percentages and strategy) */
+extern int highlight_intensity_pct;      /* 0..50 (default 12) */
+extern int ruler_intensity_pct;          /* 0..50 (default 15) */
+extern int intersection_intensity_pct;   /* 0..50 (default 18) */
+/* 0=blend toward fg, 1=lighten bg, 2=darken bg */
+extern int highlight_strategy;
 /* Modeline toggles */
 extern int modeline_show_git;
 extern int modeline_show_stats;

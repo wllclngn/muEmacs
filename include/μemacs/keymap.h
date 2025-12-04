@@ -9,6 +9,9 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
+// Key flag constants
+#define SPEC    (1u << 31)    /* special key (function keys, arrows, etc.) */
+
 // Forward declarations
 struct buffer;
 struct window;
@@ -40,6 +43,10 @@ static inline struct key_event key_from_legacy(int legacy_code) {
 // Convert key_event to legacy code for compatibility
 static inline uint32_t key_to_legacy(struct key_event evt) {
 	uint32_t code = evt.code;
+	// If SPEC flag already set (special keys like arrows), return as-is
+	if (code & SPEC) {
+		return code;
+	}
 	if (evt.ctrl) code |= 0x10000000;
 	if (evt.meta) code |= 0x20000000;
 	return code;

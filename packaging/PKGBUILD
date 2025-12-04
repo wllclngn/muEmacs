@@ -1,6 +1,6 @@
 # Maintainer: μEmacs Team <maintainer@example.com>
 pkgname=uemacs
-pkgver=5.0.0
+pkgver=0.0.23
 pkgrel=1
 pkgdesc="Modern minimalist text editor based on Linus Torvalds' original μEmacs"
 arch=('x86_64')

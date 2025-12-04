@@ -13,6 +13,8 @@
 #include "efunc.h"
 #include "line.h"
 #include "string_safe.h"
+#include "memory.h"
+#include "gapbuffer.h"
 
 int tabsize; /* Tab size (0: use real tabs) */
 
@@ -70,9 +72,7 @@ int showcpos(int f, int n)
 	if (curwp->w_dotp == curbp->b_linep) {
 		predlines = numlines;
 		predchars = numchars;
-#if	PKCODE
 		curchar = 0;
-#endif
 	}
 
 	/* Get real column and end-of-line column. */
@@ -129,7 +129,13 @@ int getccol(int bflg)
 	while (i < byte_offset) {
 		unicode_t c;
 
-		i += utf8_to_unicode(dlp->l_text, i, len, &c);
+		char utf8_buf[6];
+		int remaining = len - i;
+		int extract_len = (remaining > 6) ? 6 : remaining;
+		for (int j = 0; j < extract_len; j++) {
+			utf8_buf[j] = lgetc(dlp, i + j);
+		}
+		i += utf8_to_unicode(utf8_buf, 0, extract_len, &c);
 		if (c != ' ' && c != '\t' && bflg)
 			break;
 		if (c == '\t')
@@ -257,7 +263,6 @@ int insert_tab(int f, int n)
 	return linsert(tabsize - (getccol(FALSE) % tabsize), ' ');
 }
 
-#if	AEDIT
 /*
  * change tabs to spaces
  *
@@ -397,7 +402,7 @@ int trim(int f, int n)
 	while (n) {
 		lp = curwp->w_dotp;	/* find current line text */
 		offset = curwp->w_doto;	/* save original offset */
-		length = lp->l_used;	/* find current length */
+		length = llength(lp);	/* find current length */
 
 		/* trim the current line */
 		while (length > offset) {
@@ -406,7 +411,11 @@ int trim(int f, int n)
 				break;
 			length--;
 		}
-		lp->l_used = length;
+		/* Delete trailing whitespace from gap buffer */
+		int old_length = llength(lp);
+		if (length < old_length) {
+			gap_buffer_delete(lp->gb, (size_t)length, (size_t)(old_length - length));
+		}
 
 		/* advance/or back to the next line */
 		forwline(TRUE, inc);
@@ -416,7 +425,6 @@ int trim(int f, int n)
 	thisflag &= ~CFCPCN;	/* flag that this resets the goal column */
 	return TRUE;
 }
-#endif
 
 /*
  * Open up some blank space. The basic plan is to insert a bunch of newlines,
@@ -492,11 +500,17 @@ int cinsert(void)
 	char ichar[NSTRING];	/* buffer to hold indent of last line */
 
 	/* grab a pointer to text to copy indentation from */
-	cptr = &curwp->w_dotp->l_text[0];
+	// Extract current line text from gap buffer
+	struct line *lp = curwp->w_dotp;
+	int line_len = llength(lp);
+	char *line_text = safe_alloc(line_len + 1, "temp line", __FILE__, __LINE__);
+	if (!line_text) return FALSE;
+	gap_buffer_get_text(lp->gb, 0, line_len, line_text, line_len + 1);
+	cptr = &line_text[0];
 
 	/* check for a brace */
 	tptr = curwp->w_doto - 1;
-	bracef = (cptr[tptr] == '{');
+	bracef = (tptr >= 0 && cptr[tptr] == '{');
 
 	/* save the indent of the previous line */
 	i = 0;
@@ -506,6 +520,8 @@ int cinsert(void)
 		++i;
 	}
 	ichar[i] = 0;		/* terminate it */
+	
+	safe_free((void **)&line_text);
 
 	/* put in the newline */
 	if (lnewline() == FALSE)
@@ -839,11 +855,7 @@ int killtext(int f, int n)
  */
 int setemode(int f, int n)
 {
-#if 	PKCODE
 	return adjustmode(TRUE, FALSE);
-#else
-	adjustmode(TRUE, FALSE);
-#endif
 }
 
 /*
@@ -853,11 +865,7 @@ int setemode(int f, int n)
  */
 int delmode(int f, int n)
 {
-#if	PKCODE
 	return adjustmode(FALSE, FALSE);
-#else
-	adjustmode(FALSE, FALSE);
-#endif
 }
 
 /*
@@ -867,11 +875,7 @@ int delmode(int f, int n)
  */
 int setgmode(int f, int n)
 {
-#if	PKCODE
 	return adjustmode(TRUE, TRUE);
-#else
-	adjustmode(TRUE, TRUE);
-#endif
 }
 
 /*
@@ -881,11 +885,7 @@ int setgmode(int f, int n)
  */
 int delgmode(int f, int n)
 {
-#if	PKCODE
 	return adjustmode(FALSE, TRUE);
-#else
-	adjustmode(FALSE, TRUE);
-#endif
 }
 
 /*
@@ -948,16 +948,12 @@ int adjustmode(int kind, int global)
 			if (uflag) {
 				if (global)
 					gfcolor = i;
-#if	PKCODE == 0
 				else
-#endif
 					curwp->w_fcolor = i;
 			} else {
 				if (global)
 					gbcolor = i;
-#if	PKCODE == 0
 				else
-#endif
 					curwp->w_bcolor = i;
 			}
 
@@ -1039,7 +1035,6 @@ int writemsg(int f, int n)
 	return TRUE;
 }
 
-#if	CFENCE
 /*
  * the cursor is moved to a matching fence
  *
@@ -1137,7 +1132,6 @@ int getfence(int f, int n)
 	TTbeep();
 	return FALSE;
 }
-#endif
 
 /*
  * Close fences are matched against their partners, and if

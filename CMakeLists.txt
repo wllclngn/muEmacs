@@ -25,7 +25,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Output directory
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Required Linux headers
 include(CheckIncludeFile)
@@ -54,7 +54,6 @@ set(CORE_SOURCES
     src/core/transactions.c
     src/core/line.c
     src/core/undo.c
-    src/core/undo_persist.c
     src/core/keymap.c
     src/core/globals.c
     src/core/cbuf_dispatch.c
@@ -64,7 +63,6 @@ set(CORE_SOURCES
     src/core/gapbuffer.c
     src/core/window_hash.c
     src/core/plugin.c
-    src/core/sample_plugin.c
 )
 
 # Text processing
@@ -88,7 +86,7 @@ set(IO_SOURCES
     src/io/input.c
     src/io/lock.c
     src/io/pklock.c
-    src/io/crypt.c
+    src/io/encrypt.c
 )
 
 # Configuration and commands
@@ -113,6 +111,7 @@ set(TERMINAL_SOURCES
     src/terminal/drivers/termcap.c
     src/terminal/modern-term.c
     src/terminal/capability.c
+    src/terminal/cleanup.c
     src/terminal/display_ops.c
     src/terminal/winsize.c
     src/terminal/atomic_terminal.c

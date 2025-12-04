@@ -286,7 +286,7 @@ char *gtenv(const char *vname)
 	case EVLASTKEY:
 		return itoa(lastkey);
 	case EVCURCHAR:
-		return (curwp->w_dotp->l_used ==
+		return (llength(curwp->w_dotp) ==
 			curwp->w_doto ? itoa('\n') :
 			itoa(lgetc(curwp->w_dotp, curwp->w_doto)));
 	case EVDISCMD:
@@ -729,7 +729,7 @@ int svar(struct variable_description *var, const char *value)
             {
                 int v = atoi(value);
                 if (v < 0) { v = 0; }
-                if (v > 3) { v = 3; }
+                if (v > 4) { v = 4; } // 4 = reverse
                 hiline_style = v;
                 sgarbf = TRUE;
             }
@@ -738,7 +738,7 @@ int svar(struct variable_description *var, const char *value)
             {
                 int v = atoi(value);
                 if (v < 0) { v = 0; }
-                if (v > 3) { v = 3; }
+                if (v > 4) { v = 4; } // 4 = reverse
                 ruler_style = v;
                 sgarbf = TRUE;
             }
@@ -878,14 +878,17 @@ static const char *internal_getval(char *token)
 			return errorm;
 
 		/* grab the line as an argument */
-		blen = bp->b_dotp->l_used - bp->b_doto;
+		blen = llength(bp->b_dotp) - bp->b_doto;
 		if (blen > NSTRING)
 			blen = NSTRING;
         if (blen > 0) {
             size_t maxlen = NSTRING - 1;
             size_t cpy = (size_t)blen;
             if (cpy > maxlen) cpy = maxlen;
-            memcpy(buf, bp->b_dotp->l_text + bp->b_doto, cpy);
+            /* Extract from gap buffer */
+            for (size_t i = 0; i < cpy; i++) {
+                buf[i] = lgetc(bp->b_dotp, bp->b_doto + i);
+            }
             buf[cpy] = '\0';
         } else {
             buf[0] = '\0';

@@ -3,7 +3,7 @@
  * Replaces O(n) window iteration with hash table for line operations
  */
 
-#include "μemacs/window_hash.h"
+#include "window_hash.h"
 #include "estruct.h"
 #include "edef.h"
 #include "memory.h"

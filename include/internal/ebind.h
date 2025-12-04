@@ -49,6 +49,15 @@ struct key_tab keytab[NBINDS] = {
 	,
 	{CONTROL | 'P', backline}
 	,
+	/* Arrow key bindings - map ESC[A/B/C/D to movement */
+	{SPEC | 'A', backline}		/* Up arrow = Ctrl-P */
+	,
+	{SPEC | 'B', forwline}		/* Down arrow = Ctrl-N */
+	,
+	{SPEC | 'C', forwchar}		/* Right arrow = Ctrl-F */
+	,
+	{SPEC | 'D', backchar}		/* Left arrow = Ctrl-B */
+	,
 	{CONTROL | 'Q', quote}
 	,
 	{CONTROL | 'R', backsearch}
@@ -254,10 +263,7 @@ struct key_tab keytab[NBINDS] = {
 	,
 	{META | 'D', delfword}
 	,
-#if	CRYPT
-	{META | 'E', set_encryption_key}
-	,
-#endif
+	/* META-E removed - CRYPT disabled */
 	{META | 'F', forwword}
 	,
 	{META | 'G', gotoline}
@@ -309,42 +315,6 @@ struct key_tab keytab[NBINDS] = {
 	,
 	{META | 0x7F, delbword}
 	,
-
-
-#if	VT220
-	{SPEC | '1', fisearch}
-	,			/* VT220 keys   */
-	{SPEC | '2', yank}
-	,
-	{SPEC | '3', killregion}
-	,
-	{SPEC | '4', setmark}
-	,
-	{SPEC | '5', backpage}
-	,
-	{SPEC | '6', forwpage}
-	,
-	{SPEC | 'A', backline}
-	,
-	{SPEC | 'B', forwline}
-	,
-	{SPEC | 'C', forwchar}
-	,
-	{SPEC | 'D', backchar}
-	,
-	{SPEC | 'c', metafn}
-	,
-	{SPEC | 'd', backchar}
-	,
-	{SPEC | 'e', forwline}
-	,
-	{SPEC | 'f', gotobob}
-	,
-	{SPEC | 'h', help}
-	,
-	{SPEC | 'i', cex}
-	,
-#endif
 
 	{0x7F, backdel}
 	,

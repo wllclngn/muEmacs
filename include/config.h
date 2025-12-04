@@ -54,7 +54,6 @@
 /* Features always enabled for modern Linux */
 #define UTF8 1
 #define COLOR 1
-#define CRYPT 1
 #define FILOCK 1
 #define MODERN 1
 #define SCROLLCODE 1

@@ -3,6 +3,7 @@
 
 #include "utf8.h"
 #include "c23_compat.h"
+#include "gapbuffer.h"
 
 /*
  * All text is kept in circularly linked lists of "struct line" structures. These
@@ -14,25 +15,25 @@
  * 
  * C23 modernization: Uses flexible array member for cache-efficient text storage.
  */
+
+struct gap_buffer;
+
 struct line {
 	struct line *l_fp;	/* Link to the next line        */
 	struct line *l_bp;	/* Link to the previous line    */
-	int l_size;		/* Allocated size               */
-	int l_used;		/* Used size                    */
+	struct gap_buffer *gb;	/* Gap buffer for O(1) edits    */
 	
 	// Atomic column cache for instant UTF-8 cursor positioning
 	_Atomic int l_column_cache_offset;  /* Last cached byte offset */
 	_Atomic int l_column_cache_column;  /* Display column at offset */
 	_Atomic bool l_column_cache_dirty;  /* Cache needs invalidation */
-	
-	ALIGN_TO(8) char l_text[];	/* C23 flexible array - cache aligned */
 };
 
 #define lforw(lp)       ((lp)->l_fp)
 #define lback(lp)       ((lp)->l_bp)
-#define lgetc(lp, n)    ((lp)->l_text[(n)]&0xFF)
-#define lputc(lp, n, c) ((lp)->l_text[(n)]=(c))
-#define llength(lp)     ((lp)->l_used)
+#define lgetc(lp, n)    gap_buffer_get_char((lp)->gb, (n))
+#define lputc(lp, n, c) do { char _ch = (c); gap_buffer_delete((lp)->gb, (n), 1); gap_buffer_insert((lp)->gb, (n), &_ch, 1); } while(0)
+#define llength(lp)     ((int)gap_buffer_size((lp)->gb))
 
 extern void lfree(struct line *lp);
 extern void lchange(int flag);

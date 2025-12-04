@@ -1,0 +1,57 @@
+μEmacs License
+===============
+
+This software is based on MicroEMACS (μEmacs), originally developed by 
+Dave Conroy and subsequently enhanced by Linus Torvalds and others.
+
+Copyright (c) 1985-1987 Dave Conroy
+Copyright (c) 1991-1993 Linus Torvalds
+Copyright (c) 2025 Will Clingan
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holders nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+
+Historical Note:
+---------------
+MicroEMACS was originally placed in the public domain by Dave Conroy.
+Linus Torvalds' modifications maintained this spirit of open source
+development. This modern C23 implementation by Will Clingan (2025)
+continues that tradition while using a BSD-style license to clarify
+terms for modern distribution and package management requirements.
+
+Contributors:
+-------------
+- Dave Conroy (original μEmacs author, 1985-1987)
+- Linus Torvalds (Linux-focused enhancements, 1991-1993)
+- Petri Kutvonen (maintenance and improvements)
+- Will Clingan (modern C23 implementation, 2025)
+
+For a complete list of contributors and detailed history, see:
+- HISTORY.md
+- docs/DEVELOPMENT.md
+- Git commit history

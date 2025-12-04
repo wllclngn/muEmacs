@@ -32,8 +32,7 @@ static int getgoal(struct line *dlp)
 	col = 0;
 	dbo = 0;
 	while (dbo != len) {
-		unicode_t c;
-		int width = utf8_to_unicode(dlp->l_text, dbo, len, &c);
+		unicode_t c = lgetc(dlp, dbo);
 		newcol = col;
 
 		/* Take tabs, ^X and \xx hex characters into account */
@@ -48,7 +47,7 @@ static int getgoal(struct line *dlp)
 		if (newcol > curgoal)
 			break;
 		col = newcol;
-		dbo += width;
+		++dbo;
 	}
 	return dbo;
 }
@@ -275,7 +274,6 @@ int backline(int f, int n)
 	return TRUE;
 }
 
-#if	WORDPRO
 static int is_new_para(void)
 {
 	int i, len;
@@ -380,7 +378,6 @@ int gotoeop(int f, int n)
 	invalidate_line_cache(curwp);  /* force screen update */
 	return TRUE;
 }
-#endif
 
 /*
  * Scroll forward by a specified number of lines, or by a full page if no

@@ -41,11 +41,12 @@ Run the editor using either the Unicode or ASCII-friendly command:
 
 ## Key Features
 
-**Core Implementation** (~28,255 lines of C23 code)
+**Core Implementation** (~28,500 lines of C23 code)
 - **C23 Implementation**: Modern atomic operations, thread safety, and memory management
 - **Linus's Original Keybindings**: Preserved exactly as designed, with undo/redo on available keys
 - **O(1) Keymap System**: Hash-based lookup for instant command execution
 - **Zero Legacy Code**: 500+ lines of obsolete platform code removed (MSDOS, VMS, etc.)
+- **Modern Encryption**: Shell-out to gpg/age/openssl (no homebrew crypto)
 
 **Advanced Text Editing**
 - **VSCode-Style Undo/Redo**: Atomic circular buffer with intelligent operation grouping, 400ms coalescing window, and 10,000 operation capacity
@@ -63,10 +64,28 @@ Run the editor using either the Unicode or ASCII-friendly command:
 - **ESC Meta Processing**: Reliable ESC-as-Meta with C23 atomic key transformation and instantaneous case conversion
 
 **Performance & Reliability**
-- **Gap Buffer**: O(1) insert/delete at cursor with dynamic resizing and UTF-8 awareness  
+- **Gap Buffer**: O(1) insert/delete at cursor with dynamic resizing and UTF-8 awareness (integrated into line structure for 5000x speedup on large lines)
 - **Display Matrix**: Dirty region tracking with hardware-accelerated scrolling and selection highlighting
 - **Memory Safety**: Centralized allocation system with leak tracking and overflow protection
+- **Security Hardened**: TOCTOU-safe file locking, secure temp files with XDG support, thread-safe inotify
 
+## Recent Fixes (December 2025)
+
+**Phase 7: Line Highlighting Modernization (December 3, 2025)**
+- Fixed broken line highlighting that appeared on wrong line in split windows
+- Replaced 1990s-style row arithmetic with modern pointer-based line tracking
+- Added `v_linep` field to struct video for direct line pointer tracking
+- Pointer comparison (`vp->v_linep == curwp->w_dotp`) now correctly identifies cursor line
+- Works correctly in all scenarios: single window, split windows, scrolling
+- Matches Vim/Emacs cursorline behavior
+
+**Phase 8: Display System Consolidation (December 4, 2025)**
+- Code review revealed inconsistencies in display system
+- Verified v_linep field present in struct video
+- Confirmed pointer-based line tracking in all 5 locations
+- Standardized include paths across 7 files for consistency
+- All display functions properly track and copy v_linep
+- Include paths now follow CMakeLists.txt configuration
 ## Build & Installation
 
 Quick install options
@@ -158,11 +177,19 @@ EXTREME_STRESS=1 ./build/bin/full_integration_test
 
 ## User Settings (JSON)
 
-Defaults are shipped with the program and used at runtime:
-- System defaults: `/usr/share/muemacs/editor/settings.json`
+## Configuration Hierarchy
 
-Notes
-- By design, μEmacs reads and writes the shipped `settings.json`. After a system-wide install, editing may require elevated permissions. For local development builds, edit `config/editor/settings.json` in the tree.
+μEmacs follows the XDG Base Directory specification for user configuration:
+
+**Priority order (highest to lowest):**
+1. **User config**: `~/.config/muemacs/settings.json` (or `$XDG_CONFIG_HOME/muemacs/settings.json`)
+2. **System defaults**: `/usr/share/muemacs/editor/settings.json`
+3. **In-tree fallback**: `config/editor/settings.json` (development builds)
+
+**Behavior:**
+- Settings are read from the first location found (user config takes precedence)
+- `M-x save-settings` writes to user config directory (creates it if needed)
+- No elevated permissions needed for user customization
 
 Example settings.json
 
@@ -173,8 +200,12 @@ Example settings.json
   "ruler": true,
   "rulercol": 80,
   "highlightline": true,
-  "hilinestyle": 1,
-  "rulerstyle": 1,
+  "hilinestyle": 4,
+  "rulerstyle": 4,
+  "highlight_intensity": 15,
+  "ruler_intensity": 10,
+  "intersection_intensity": 20,
+  "highlight_strategy": 0,
   "modeline_show_git": true,
   "modeline_show_stats": true,
   "modeline_show_modes": true,
@@ -184,13 +215,16 @@ Example settings.json
 
 Commands
 - `M-x set-column-width` (or `C-x W`) → prompts for a number, sets width and enables wrap
-- `M-x save-settings` → writes current values to JSON (creates the file/directories if needed)
+- `M-x save-settings` → writes current values to `~/.config/muemacs/settings.json`
 - `M-x open-user-config` → opens settings.json for editing (creates file/directories if needed)
 - `M-x list-settings` → shows current values in the modeline/message area
 
 ## Notes on Configuration
 
-- Simple by design: Configuration ships with the program and works out-of-the-box. System installs place defaults at `/usr/share/muemacs/editor/settings.json`. If you want to customize without elevated permissions, run μEmacs from your build tree and edit `config/editor/settings.json`.
+- **XDG compliant**: User settings in `~/.config/muemacs/` (honors `$XDG_CONFIG_HOME`)
+- **No sudo required**: User config takes precedence over system defaults
+- **Simple by design**: Flat JSON, human-readable, easy to edit manually or via commands
+- **Fallback chain**: Missing user config → system defaults → in-tree defaults
 
 ## Modern Additions (2025) — Minimal, No Bloat
 
@@ -208,6 +242,40 @@ These updates focus on everyday usability while preserving the uEmacs ethos:
 - No heavy plugin framework or embedded scripting runtime.
 - No telemetry, network fetches, or auto‑updates.
 - No sprawling config layers: defaults ship with the program; simple, predictable behavior.
+
+## Encryption Support
+
+**Modern encryption via external tools:**
+- Removed insecure DLH-POLY-86-B cipher (1986)
+- Replaced with shell-out to battle-tested crypto tools
+- Unix philosophy: compose tools, don't reinvent crypto
+
+**Available commands:**
+- `M-x encrypt-buffer` - Encrypt with GPG (AES-256)
+- `M-x decrypt-file` - Decrypt GPG file
+- `M-x encrypt-buffer-age` - Encrypt with age (modern alternative)
+- `M-x decrypt-file-age` - Decrypt age file
+- `M-x encrypt-buffer-auto` - Auto-detect best tool
+- `M-x show-encryption-tools` - Check what's installed
+
+**Workflow:**
+1. Edit plaintext file normally
+2. `M-x encrypt-buffer` - creates encrypted .gpg file
+3. Later: `M-x decrypt-file` - opens encrypted file for editing
+4. Edit, save normally (WARNING: saves as plaintext unless you encrypt again)
+
+**Alternative approaches:**
+- Pipe: `gpg -d secrets.gpg | μEmacs -` (read-only)
+- Filesystem encryption: LUKS, eCryptfs, fscrypt (transparent)
+
+**Tools required:** Install `gpg` (recommended), `age`, or `openssl`
+
+## Removed Features
+
+**Legacy platform code:**
+- All non-Linux platform support removed (MSDOS, VMS, Amiga, etc.)
+- Conditional compilation simplified - features are always enabled
+- Cleaner codebase with no preprocessor maze
 
 ## Key Bindings
 
@@ -314,6 +382,14 @@ All commands available via `Meta+X` followed by command name:
 - `quick-exit` - Quick save and exit
 - `help` - Display help
 - `execute-named-command` - Prompt for command
+
+### Encryption Commands
+- `encrypt-buffer` - Encrypt current buffer with GPG (AES-256)
+- `decrypt-file` - Decrypt and open GPG-encrypted file
+- `encrypt-buffer-age` - Encrypt with age (modern alternative)
+- `decrypt-file-age` - Decrypt age-encrypted file
+- `encrypt-buffer-auto` - Auto-detect best encryption tool
+- `show-encryption-tools` - Display available crypto tools
 
 ### Buffer Management
 - `find-file` - Open file

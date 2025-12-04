@@ -109,38 +109,7 @@ int viewfile(int f, int n)
 	return s;
 }
 
-#if	CRYPT
-static int resetkey(void)
-{				/* reset the encryption key if needed */
-	int s;		/* return status */
-
-	/* turn off the encryption flag */
-	cryptflag = FALSE;
-
-	/* if we are in crypt mode */
-	if (curbp->b_mode & MDCRYPT) {
-		if (curbp->b_key[0] == 0) {
-			s = set_encryption_key(FALSE, 0);
-			if (s != TRUE)
-				return s;
-		}
-
-		/* let others know... */
-		cryptflag = TRUE;
-
-		/* and set up the key to be used! */
-		/* de-encrypt it */
-		myencrypt((char *) NULL, 0);
-		myencrypt(curbp->b_key, strlen(curbp->b_key));
-
-		/* re-encrypt it...seeding it to start */
-		myencrypt((char *) NULL, 0);
-		myencrypt(curbp->b_key, strlen(curbp->b_key));
-	}
-
-	return TRUE;
-}
-#endif
+/* Old CRYPT encryption removed - use encrypt.c with gpg/age/openssl */
 
 /*
  * getfile()
@@ -223,11 +192,7 @@ int readin(const char *fname, int lockfl)
 	int nline;
 	char mesg[NSTRING];
 
-#if	CRYPT
-	s = resetkey();
-	if (s != TRUE)
-		return s;
-#endif
+	/* Old CRYPT removed */
 	bp = curbp;		/* Cheap.               */
 	if ((s = bclear(bp)) != TRUE)	/* Might be old.        */
 		return s;
@@ -533,11 +498,7 @@ int ifile(const char *fname)
 	}
 	mlwrite("(Inserting file)");
 
-#if	CRYPT
-	s = resetkey();
-	if (s != TRUE)
-		return s;
-#endif
+	/* Old CRYPT removed */
 	/* back up a line and save the mark here */
 	curwp->w_dotp = lback(curwp->w_dotp);
 	curwp->w_doto = 0;

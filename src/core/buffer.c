@@ -596,9 +596,7 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 		// Add buffer to hash table for instant O(1) lookup
 		buffer_hash_insert(bp);
 		
-#if	CRYPT
-		bp->b_key[0] = 0;
-#endif
+		/* Old CRYPT removed - encryption now via external tools */
 		lp->l_fp = lp;
 		lp->l_bp = lp;
 	}
@@ -691,12 +689,13 @@ void buffer_get_stats_fast(struct buffer *bp, int *line_count, long *byte_count,
 		lp = bp->b_linep;
 		while ((lp = lforw(lp)) != bp->b_linep) {
 			lines++;
-			bytes += lp->l_used + 1; // +1 for newline
+			int line_len = llength(lp);
+			bytes += line_len + 1; // +1 for newline
 			
 			// Count words in line
 			bool in_word = false;
-			for (int i = 0; i < lp->l_used; i++) {
-				char c = lp->l_text[i];
+			for (int i = 0; i < line_len; i++) {
+				char c = lgetc(lp, i);
 				if (c == ' ' || c == '\t' || c == '\n') {
 					in_word = false;
 				} else if (!in_word) {

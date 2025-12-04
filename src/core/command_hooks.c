@@ -1,6 +1,6 @@
 // command_hooks.c - Command loop hooks implementation
 
-#include "μemacs/command_hooks.h"
+#include "command_hooks.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

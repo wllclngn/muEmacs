@@ -8,7 +8,6 @@
 #include "line.h"
 #include "string_safe.h"
 
-#if	ISRCH
 
 static int echo_char(int c, int col);
 
@@ -476,8 +475,3 @@ void reeat(int c)
 	saved_get_char = term.t_getchar;	/* Save the char get routine          */
 	term.t_getchar = uneat;	/* Replace it with ours               */
 }
-#else
-int isearch(int f, int n)
-{
-}
-#endif

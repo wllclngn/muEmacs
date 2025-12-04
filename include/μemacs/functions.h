@@ -9,6 +9,9 @@
  *	modified by Petri Kutvonen
  */
 
+#ifndef FUNCTIONS_H
+#define FUNCTIONS_H
+
 /* External function declarations. */
 
 /* word.c */
@@ -334,9 +337,9 @@ extern int ernd(void);
 extern int sindex(char *source, char *pattern);
 extern char *xlat(char *source, char *lookup, char *trans);
 
-/* crypt.c */
-extern int set_encryption_key(int f, int n);
-extern void myencrypt(char *bptr, unsigned len);
+/* crypt.c - REMOVED, CRYPT disabled */
+/* extern int set_encryption_key(int f, int n); */
+/* extern void myencrypt(char *bptr, unsigned len); */
 
 /* lock.c */
 extern int lockchk(char *fname);
@@ -348,3 +351,5 @@ extern void lckerror(char *errstr);
 /* pklock.c */
 extern char *dolock(char *fname);
 extern char *undolock(char *fname);
+
+#endif /* FUNCTIONS_H */

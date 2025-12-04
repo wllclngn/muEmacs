@@ -48,6 +48,7 @@ static inline void style_on(int style)
     case 1: sgr_underline_on(); break;
     case 2: sgr_bold_on(); break;
     case 3: sgr_dim_on(); break;
+    case 7: vtputs("\x1b[7m"); break;  /* Reverse video - terminal chooses colors */
     default: break;
     }
 }
@@ -57,6 +58,7 @@ static inline void style_off(int style)
     case 1: sgr_underline_off(); break;
     case 2:
     case 3: sgr_bold_dim_off(); break;
+    case 7: vtputs("\x1b[27m"); break;  /* Turn off reverse video */
     default: break;
     }
 }
@@ -68,6 +70,7 @@ struct video {
 	int v_rfcolor;		/* requested forground color */
 	int v_rbcolor;		/* requested background color */
 	_Atomic uint32_t v_checksum;  /* Fast change detection checksum */
+	struct line *v_linep;		/* Line pointer for this screen row */
 	unicode_t v_text[1];	/* Screen data. */
 };
 
@@ -462,6 +465,11 @@ int update(int force)
 
 	/* update the cursor and flush the buffers */
 	movecursor(currow, curcol - lbound);
+	
+	/* Ensure cursor is visible after display update */
+	extern void terminal_set_cursor_visible(bool visible);
+	terminal_set_cursor_visible(true);
+	
 	TTflush();
 	displaying = FALSE;
 #if SIGWINCH
@@ -630,12 +638,17 @@ static void show_line(struct line *lp)
 	int apply_highlighting = (curwp != NULL && curwp->w_markp != NULL && 
 	                         lp != NULL && lp != curwp->w_bufp->b_linep);
 
-	/* Decide if we should force highlight for this line (cursor row) */
-	int force_line_highlight = (highlight_current_line && vtrow == currow) ? TRUE : FALSE;
+
+
+	/* Get the line text into a buffer */
+	char line_text[4096];
+	if (len > 0) {
+		gap_buffer_get_text(lp->gb, 0, len, line_text, sizeof(line_text));
+	}
 
 	while (i < len) {
 		unicode_t c;
-		int bytes = utf8_to_unicode(lp->l_text, i, len, &c);
+		int bytes = utf8_to_unicode(line_text, i, len, &c);
 		int char_in_selection = apply_highlighting ? in_region(lp, i) : FALSE;
 		
 		/* Apply highlighting by modifying character representation */
@@ -651,7 +664,7 @@ static void show_line(struct line *lp)
 		}
 		if (c < 32 && c != '\t') {
 			// Display other control chars as printable to avoid corruption
-			if (in_selection || force_line_highlight) {
+			if (in_selection) {
 				vtputc_highlighted('^');
 				vtputc_highlighted('@' + c);
 			} else {
@@ -659,7 +672,7 @@ static void show_line(struct line *lp)
 				vtputc('@' + c);
 			}
 		} else {
-			if (in_selection || force_line_highlight) {
+			if (in_selection) {
 				vtputc_highlighted(c);
 			} else {
 				vtputc(c);
@@ -667,6 +680,9 @@ static void show_line(struct line *lp)
 		}
 		i += bytes;
 	}
+	
+	/* For cursor line background: reset AFTER vteeol() is called by caller */
+	/* DON'T reset here - let vteeol() extend the background first */
 }
 
 /*
@@ -690,12 +706,15 @@ static void updone(struct window *wp)
 
 	/* and update the virtual line */
 	vscreen[sline]->v_flag |= VFCHG;
+	vscreen[sline]->v_linep = wp->w_dotp;  /* Track current line */
+		vscreen[sline]->v_linep = lp;  /* Track which line is on this screen row */
 	vscreen[sline]->v_flag &= ~VFREQ;
 	vtmove(sline, 0);
 	show_line(lp);
 	vscreen[sline]->v_rfcolor = wp->w_fcolor;
 	vscreen[sline]->v_rbcolor = wp->w_bcolor;
 	vteeol();
+	
 	/* Apply column ruler overlay if enabled and within screen */
 	if (column_ruler_enabled) {
 		int idx = column_ruler_column - 1;
@@ -723,6 +742,7 @@ static void updall(struct window *wp)
 
 		/* and update the virtual line */
 		vscreen[sline]->v_flag |= VFCHG;
+		vscreen[sline]->v_linep = lp;  /* Track which line is on this screen row */
 		vscreen[sline]->v_flag &= ~VFREQ;
 		vtmove(sline, 0);
 		if (lp != wp->w_bufp->b_linep) {
@@ -1225,25 +1245,13 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 		   the virtual screen array                             */
 		cp3 = &vp1->v_text[term.t_ncol];
 		int current_reverse = req;
+		
         while (cp1 < cp3) {
-            int col = (int)(cp1 - &vp1->v_text[0]);
-            int highlighted_bit = (*cp1 & HIGHLIGHT_BIT) != 0;
-            int ruler_here = (column_ruler_enabled && col == (column_ruler_column - 1));
-            int row_here = (highlight_current_line && row == currow);
-            int target_style = 0;
-            if (highlighted_bit || row_here) target_style = hiline_style;
-            else if (ruler_here) target_style = ruler_style;
-
-            static int active_style = 0;
-            if (target_style != active_style) { style_off(active_style); style_on(target_style); active_style = target_style; }
-
             unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
             TTputc(ch);
             ++ttcol;
             *cp2++ = *cp1++;
         }
-        /* Ensure style is disabled at end of line */
-        style_off(0); style_off(1); style_off(2); style_off(3);
         /* turn rev video off */
         if (rev != req)
             (*term.t_rev) (FALSE);
@@ -1307,26 +1315,12 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 #endif
 
         {
-            int current_reverse = FALSE;
-            static int active_style2 = 0;
             while (cp1 != cp5) {	/* Ordinary. */
-                int col = (int)(cp1 - &vp1->v_text[0]);
-                int highlighted_bit = (*cp1 & HIGHLIGHT_BIT) != 0;
-                int ruler_here = (column_ruler_enabled && col == (column_ruler_column - 1));
-                int row_here = (highlight_current_line && row == currow);
-                int target_style = 0;
-                if (highlighted_bit || row_here) target_style = hiline_style;
-                else if (ruler_here) target_style = ruler_style;
-
-                if (target_style != active_style2) { style_off(active_style2); style_on(target_style); active_style2 = target_style; }
-
                 unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
                 TTputc(ch);
                 ++ttcol;
                 *cp2++ = *cp1++;
             }
-            /* Ensure style is off at end */
-            style_off(active_style2); active_style2 = 0;
         }
 
 	if (cp5 != cp3) {	/* Erase. */
@@ -1334,6 +1328,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 		while (cp1 != cp3)
 			*cp2++ = *cp1++;
 	}
+	
 #if	REVSTA
 	TTrev(FALSE);
 #endif
@@ -1341,6 +1336,9 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	
 	// Update physical screen checksum after copying data
 	video_update_checksum(vp2);
+	
+	/* Copy line pointer to physical screen for next frame */
+	vp2->v_linep = vp1->v_linep;
 	
 	return TRUE;
 #endif

@@ -18,7 +18,7 @@
 #include "util.h"
 #include "error.h"
 #include "file_utils.h"
-#include "μemacs/keymap.h"
+#include "keymap.h"
 
 // Modern keymap system state
 static bool modern_keymaps_initialized = false;
@@ -303,7 +303,6 @@ int unbindchar(int c)
  * into it with view mode
  */
 int desbind(int f, int n)
-#if	APROP
 {
 	buildlist(TRUE, "");
 	return TRUE;
@@ -354,7 +353,6 @@ static void append_bindings_for_map(struct keymap *map, int prefix_flag,
 }
 
 int buildlist(int type, const char *mstring)
-#endif
 {
 	struct window *wp;         /* scanning pointer to windows */
 	struct key_tab *ktp;  /* pointer into the command table */
@@ -411,13 +409,11 @@ int buildlist(int type, const char *mstring)
         SAFE_STRCPY(outseq, nptr->n_name);
 		cpos = strlen(outseq);
 
-#if	APROP
 		/* if we are executing an apropos command..... */
 		if (type == FALSE &&
 		    /* and current string doesn't include the search string */
 		    strinc(outseq, mstring) == FALSE)
 			goto fail;
-#endif
 
 		/* append all modern keymap bindings for this function */
 		append_bindings_for_map(gkm_list, 0, nptr, outseq, &cpos);
@@ -449,7 +445,6 @@ int buildlist(int type, const char *mstring)
 	return TRUE;
 }
 
-#if	APROP
 
 /*
  * does source include sub?
@@ -486,7 +481,6 @@ int strinc(const char *source, const char *sub)
 	}
 	return FALSE;
 }
-#endif
 
 /*
  * get a command key sequence from the keyboard
@@ -706,22 +700,43 @@ char *getfname(fn_t func)
 }
 
 /*
- * match fname to a function in the names table
+ * match fname to a function in the names table using binary search
  * and return any match or NULL if none
  *
  * char *fname;		name to attempt to match
+ * 
+ * Performance: O(log n) - max 8 comparisons for 192 entries
  */
 int (*fncmatch(const char *fname)) (int, int)
 {
-	struct name_bind *ffp;	/* pointer to entry in name binding table */
-
-	/* scan through the table, returning any match */
-	ffp = &names[0];
-	while (ffp->n_func != NULL) {
-		if (strcmp(fname, ffp->n_name) == 0)
-			return ffp->n_func;
-		++ffp;
+	if (!fname || !fname[0]) return NULL;
+	
+	/* Binary search through sorted names table */
+	/* Find table size by scanning for NULL terminator */
+	int left = 0;
+	int right = 0;
+	while (names[right].n_name != NULL) {
+		right++;
 	}
+	right--;  /* Point to last valid entry */
+	
+	while (left <= right) {
+		int mid = left + (right - left) / 2;  /* Avoid overflow */
+		int cmp = strcmp(fname, names[mid].n_name);
+		
+		if (cmp == 0) {
+			/* Found exact match */
+			return names[mid].n_func;
+		} else if (cmp < 0) {
+			/* Search left half */
+			right = mid - 1;
+		} else {
+			/* Search right half */
+			left = mid + 1;
+		}
+	}
+	
+	/* Not found */
 	return NULL;
 }
 

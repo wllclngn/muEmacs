@@ -274,6 +274,14 @@ extern int writeout(const char *fn);
 extern int filename(int f, int n);
 extern int ifile(const char *fname);
 
+/* encrypt.c - external tool encryption */
+extern int encrypt_buffer_gpg(int f, int n);
+extern int decrypt_file_gpg(int f, int n);
+extern int encrypt_buffer_age(int f, int n);
+extern int decrypt_file_age(int f, int n);
+extern int encrypt_buffer_auto(int f, int n);
+extern int show_encryption_tools(int f, int n);
+
 /* fileio.c */
 extern int ffropen(const char *fn);
 extern int ffwopen(const char *fn);
@@ -372,9 +380,9 @@ extern int ernd(void);
 extern int sindex(const char *source, const char *pattern);
 extern char *xlat(char *source, char *lookup, char *trans);
 
-/* crypt.c */
-extern int set_encryption_key(int f, int n);
-extern void myencrypt(char *bptr, unsigned len);
+/* crypt.c - REMOVED, CRYPT disabled */
+/* extern int set_encryption_key(int f, int n); */
+/* extern void myencrypt(char *bptr, unsigned len); */
 
 /* lock.c */
 extern int lockchk(char *fname);

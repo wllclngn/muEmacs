@@ -106,6 +106,9 @@ struct line *lalloc(int used)
 		return NULL;
 	}
 	
+	lp->l_size = (int)initial_capacity;
+	lp->l_used = used;
+	
 	atomic_store(&lp->l_column_cache_offset, 0);
 	atomic_store(&lp->l_column_cache_column, 0);
 	atomic_store(&lp->l_column_cache_dirty, false);
@@ -155,7 +158,10 @@ void lfree(struct line *lp)
 	lp->l_bp->l_fp = lp->l_fp;
 	lp->l_fp->l_bp = lp->l_bp;
 	
-	gap_buffer_destroy(lp->gb);
+	if (lp->gb) {
+		gap_buffer_destroy(lp->gb);
+	}
+	
 	safe_free((void **) &lp);
 }
 
@@ -221,14 +227,9 @@ int lgetchar(unicode_t *uc) {
         return llength(lp) + 1;
     }
 
-    // Use gap buffer to extract UTF-8 sequence
-    char utf8_buf[6];
+    unsigned char *p = (unsigned char *)&lp->l_text[doto];
     int len = llength(lp) - doto;
-    if (len > 6) len = 6;
-    for (int i = 0; i < len; i++) {
-        utf8_buf[i] = lgetc(lp, doto + i);
-    }
-    int char_len = utf8_to_unicode(utf8_buf, 0, len, uc);
+    int char_len = utf8_to_unicode((char *)p, 0, len, uc);
 
     if (char_len == 0) { // Error or end of string
         return doto;
@@ -273,7 +274,11 @@ char *getctext(void) {
     int len = llength(lp);
     if (len >= NSTRING) len = NSTRING - 1;
     if (len > 0) {
-        gap_buffer_get_text(lp->gb, 0, (size_t)len, text, NSTRING);
+        if (lp->gb) {
+            gap_buffer_get_text(lp->gb, 0, (size_t)len, text, NSTRING);
+        } else {
+            memcpy(text, lp->l_text, (size_t)len);
+        }
     }
     text[len] = '\0';
     return text;
@@ -352,31 +357,100 @@ int linsert(int n, int c)
 			} else {
 				// At EOF but buffer not empty - extend last line
 				lp1 = curwp->w_dotp = lp1->l_bp;  // Go to last actual line
-				curwp->w_doto = llength(lp1);      // Position at end of line
+				curwp->w_doto = lp1->l_used;      // Position at end of line
 			}
 			doto = curwp->w_doto;
 		}
 
-		/* Insert into gap buffer */
-		if (gap_buffer_insert(lp1->gb, (size_t)doto, inserted_text, (size_t)n) != GAP_BUFFER_SUCCESS) {
-			SAFE_FREE(inserted_text);
-			perf_end_timing("linsert");
-			return FALSE;
-		}
-		curwp->w_doto += n;
-		
-		wp = wheadp;
-		while (wp != NULL) {
-			if (wp->w_dotp == lp1 && wp->w_doto >= doto && wp != curwp) {
-				wp->w_doto += n;
+		if (lp1->gb) {
+			if (gap_buffer_insert(lp1->gb, (size_t)doto, inserted_text, (size_t)n) != GAP_BUFFER_SUCCESS) {
+				SAFE_FREE(inserted_text);
+				perf_end_timing("linsert");
+				return FALSE;
 			}
-			wp = wp->w_wndp;
+			lp1->l_used = (int)gap_buffer_size(lp1->gb);
+			curwp->w_doto += n;
+			
+			wp = wheadp;
+			while (wp != NULL) {
+				if (wp->w_dotp == lp1 && wp->w_doto >= doto && wp != curwp) {
+					wp->w_doto += n;
+				}
+				wp = wp->w_wndp;
+			}
+			
+			atomic_store(&lp1->l_column_cache_dirty, true);
+		} else {
+			if (lp1->l_used == doto) {
+				if (lp1->l_used + n > lp1->l_size) {
+					if ((lp2 = lalloc(lp1->l_used + n)) == NULL) {
+						perf_end_timing("linsert");
+						return FALSE;
+					}
+					memcpy(lp2->l_text, lp1->l_text, lp1->l_used);
+					memcpy(lp2->l_text + lp1->l_used, inserted_text, n);
+					lp2->l_used = lp1->l_used + n;
+					lp1->l_bp->l_fp = lp2;
+					lp2->l_fp = lp1->l_fp;
+					lp1->l_fp->l_bp = lp2;
+					lp2->l_bp = lp1->l_bp;
+					wp = wheadp;
+					while (wp != NULL) {
+						if (wp->w_linep == lp1) wp->w_linep = lp2;
+						if (wp->w_dotp == lp1) {
+							wp->w_dotp = lp2;
+							wp->w_doto = lp1->l_used + n;
+						}
+						if (wp->w_markp == lp1) wp->w_markp = lp2;
+						wp = wp->w_wndp;
+					}
+					safe_free((void **) &lp1);
+				} else {
+					memcpy(lp1->l_text + lp1->l_used, inserted_text, n);
+					lp1->l_used += n;
+					curwp->w_doto = lp1->l_used;
+				}
+			} else {
+				if (lp1->l_used + n > lp1->l_size) {
+					if ((lp2 = lalloc(lp1->l_used + n)) == NULL) {
+						perf_end_timing("linsert");
+						return FALSE;
+					}
+					memcpy(lp2->l_text, lp1->l_text, doto);
+					memcpy(lp2->l_text + doto, inserted_text, n);
+					memcpy(lp2->l_text + doto + n, lp1->l_text + doto, lp1->l_used - doto);
+					lp2->l_used = lp1->l_used + n;
+					lp1->l_bp->l_fp = lp2;
+					lp2->l_fp = lp1->l_fp;
+					lp1->l_fp->l_bp = lp2;
+					lp2->l_bp = lp1->l_bp;
+					wp = wheadp;
+					while (wp != NULL) {
+						if (wp->w_linep == lp1) wp->w_linep = lp2;
+						if (wp->w_dotp == lp1) {
+							wp->w_dotp = lp2;
+							if (wp->w_doto >= doto) {
+								wp->w_doto += n;
+							}
+						}
+						if (wp->w_markp == lp1) wp->w_markp = lp2;
+						wp = wp->w_wndp;
+					}
+					safe_free((void **) &lp1);
+				} else {
+					memmove(lp1->l_text + doto + n, lp1->l_text + doto, lp1->l_used - doto);
+					memcpy(lp1->l_text + doto, inserted_text, n);
+					lp1->l_used += n;
+					curwp->w_doto += n;
+				}
+			}
 		}
-		
-		atomic_store(&lp1->l_column_cache_dirty, true);
 
 		// Update word/line/char stats incrementally
 		int word_delta = 0;
+		if (n > 0) {
+			// ...existing code...
+		}
 		buffer_update_stats_incremental(curbp, 0, n, word_delta);
 		if (word_delta == 0) buffer_mark_stats_dirty(curbp); // Fallback for complex cases
 
@@ -443,7 +517,7 @@ int ldelete(long n, int kflag)
 		doto = curwp->w_doto;
 		if (dotp == curbp->b_linep)	/* Hit end of buffer.       */
 			break;
-		chunk = llength(dotp) - doto;	/* Size of chunk.       */
+		chunk = dotp->l_used - doto;	/* Size of chunk.       */
 		if (chunk > n)
 			chunk = n;
 		if (chunk == 0) {	/* End of line, merge.  */
@@ -452,35 +526,65 @@ int ldelete(long n, int kflag)
 				goto undo_fail;
 			--n;
 		} else {
-			/* Delete from gap buffer */
-			if (kflag != FALSE) {
-				for (int i = 0; i < chunk; i++) {
-					char ch = gap_buffer_get_char(dotp->gb, (size_t)(doto + i));
-					if (kinsert(ch) == FALSE)
-						goto undo_fail;
+			if (dotp->gb) {
+				if (kflag != FALSE) {
+					for (int i = 0; i < chunk; i++) {
+						char ch = gap_buffer_get_char(dotp->gb, (size_t)(doto + i));
+						if (kinsert(ch) == FALSE)
+							goto undo_fail;
+					}
+				}
+				
+				if (gap_buffer_delete(dotp->gb, (size_t)doto, (size_t)chunk) != GAP_BUFFER_SUCCESS) {
+					goto undo_fail;
+				}
+				dotp->l_used = (int)gap_buffer_size(dotp->gb);
+				
+				wp = wheadp;
+				while (wp != NULL) {
+					if (wp->w_dotp == dotp && wp->w_doto >= doto) {
+						wp->w_doto -= chunk;
+						if (wp->w_doto < doto)
+							wp->w_doto = doto;
+					}
+					if (wp->w_markp == dotp && wp->w_marko >= doto) {
+						wp->w_marko -= chunk;
+						if (wp->w_marko < doto)
+							wp->w_marko = doto;
+					}
+					wp = wp->w_wndp;
+				}
+				
+				atomic_store(&dotp->l_column_cache_dirty, true);
+			} else {
+				cp1 = &dotp->l_text[doto];
+				cp2 = cp1 + chunk;
+				if (kflag != FALSE) {
+					while (cp1 != cp2) {
+						if (kinsert(*cp1) == FALSE)
+							goto undo_fail;
+						++cp1;
+					}
+					cp1 = &dotp->l_text[doto];
+				}
+				while (cp2 != &dotp->l_text[dotp->l_used])
+					*cp1++ = *cp2++;
+				dotp->l_used -= chunk;
+				wp = wheadp;
+				while (wp != NULL) {
+					if (wp->w_dotp == dotp && wp->w_doto >= doto) {
+						wp->w_doto -= chunk;
+						if (wp->w_doto < doto)
+							wp->w_doto = doto;
+					}
+					if (wp->w_markp == dotp && wp->w_marko >= doto) {
+						wp->w_marko -= chunk;
+						if (wp->w_marko < doto)
+							wp->w_marko = doto;
+					}
+					wp = wp->w_wndp;
 				}
 			}
-			
-			if (gap_buffer_delete(dotp->gb, (size_t)doto, (size_t)chunk) != GAP_BUFFER_SUCCESS) {
-				goto undo_fail;
-			}
-			
-			wp = wheadp;
-			while (wp != NULL) {
-				if (wp->w_dotp == dotp && wp->w_doto >= doto) {
-					wp->w_doto -= chunk;
-					if (wp->w_doto < doto)
-						wp->w_doto = doto;
-				}
-				if (wp->w_markp == dotp && wp->w_marko >= doto) {
-					wp->w_marko -= chunk;
-					if (wp->w_marko < doto)
-						wp->w_marko = doto;
-				}
-				wp = wp->w_wndp;
-			}
-			
-			atomic_store(&dotp->l_column_cache_dirty, true);
 			n -= chunk;
 		}
 	}
@@ -492,12 +596,10 @@ int ldelete(long n, int kflag)
 		int left_is_word = 0;
 		int right_is_word = 0;
 		if (doto > 0) {
-			char left_ch = lgetc(dotp, doto - 1);
-			left_is_word = is_word_byte_utf8((const char *)&left_ch);
+			left_is_word = is_word_byte_utf8((const char *)&dotp->l_text[doto - 1]);
 		}
-		if (doto + 1 < llength(dotp)) {
-			char right_ch = lgetc(dotp, doto + 1);
-			right_is_word = is_word_byte_utf8((const char *)&right_ch);
+		if (doto + 1 < dotp->l_used) {
+			right_is_word = is_word_byte_utf8((const char *)&dotp->l_text[doto + 1]);
 		}
 		if (!is_word_byte_utf8((const char *)&deleted_text[0])) {
 			// Deleting whitespace between words merges two words into one
@@ -546,7 +648,7 @@ int ldelnewline(void)
 	lp1 = curwp->w_dotp;
 	lp2 = lp1->l_fp;
 	if (lp2 == curbp->b_linep) {	/* At the buffer end.   */
-		if (llength(lp1) == 0) {	/* Blank line.              */
+		if (lp1->l_used == 0) {	/* Blank line.              */
 			lfree(lp1);
             // Update atomic statistics for blank line deletion
             buffer_update_stats_incremental(curbp, -1, -1, 0); // -1 line, -1 byte (for newline)
@@ -554,34 +656,90 @@ int ldelnewline(void)
         }
 		return TRUE;
 	}
-	
-	/* Merge two lines using gap buffers */
-	size_t lp1_len = gap_buffer_size(lp1->gb);
-	char *temp = safe_alloc(gap_buffer_size(lp2->gb), "merge temp", __FILE__, __LINE__);
-	if (!temp)
-		return FALSE;
+	if (lp1->gb && lp2->gb) {
+		size_t lp1_len = gap_buffer_size(lp1->gb);
+		char *temp = safe_alloc(gap_buffer_size(lp2->gb), "merge temp", __FILE__, __LINE__);
+		if (temp) {
+			gap_buffer_get_text(lp2->gb, 0, gap_buffer_size(lp2->gb), temp, gap_buffer_size(lp2->gb));
+			gap_buffer_insert(lp1->gb, lp1_len, temp, gap_buffer_size(lp2->gb));
+			SAFE_FREE(temp);
+		}
+		lp1->l_used = (int)gap_buffer_size(lp1->gb);
 		
-	gap_buffer_get_text(lp2->gb, 0, gap_buffer_size(lp2->gb), temp, gap_buffer_size(lp2->gb));
-	gap_buffer_insert(lp1->gb, lp1_len, temp, gap_buffer_size(lp2->gb));
-	SAFE_FREE(temp);
-	
+		wp = wheadp;
+		while (wp != NULL) {
+			if (wp->w_linep == lp2)
+				wp->w_linep = lp1;
+			if (wp->w_dotp == lp2) {
+				wp->w_dotp = lp1;
+				wp->w_doto += (int)lp1_len;
+			}
+			if (wp->w_markp == lp2) {
+				wp->w_markp = lp1;
+				wp->w_marko += (int)lp1_len;
+			}
+			wp = wp->w_wndp;
+		}
+		lp1->l_fp = lp2->l_fp;
+		lp2->l_fp->l_bp = lp1;
+		lfree(lp2);
+		return TRUE;
+	} else if (lp2->l_used <= lp1->l_size - lp1->l_used) {
+		cp1 = &lp1->l_text[lp1->l_used];
+		cp2 = &lp2->l_text[0];
+		while (cp2 != &lp2->l_text[lp2->l_used])
+			*cp1++ = *cp2++;
+		wp = wheadp;
+		while (wp != NULL) {
+			if (wp->w_linep == lp2)
+				wp->w_linep = lp1;
+			if (wp->w_dotp == lp2) {
+				wp->w_dotp = lp1;
+				wp->w_doto += lp1->l_used;
+			}
+			if (wp->w_markp == lp2) {
+				wp->w_markp = lp1;
+				wp->w_marko += lp1->l_used;
+			}
+			wp = wp->w_wndp;
+		}
+		lp1->l_used += lp2->l_used;
+		lp1->l_fp = lp2->l_fp;
+		lp2->l_fp->l_bp = lp1;
+		safe_free((void **) &lp2);
+		return TRUE;
+	}
+	if ((lp3 = lalloc(lp1->l_used + lp2->l_used)) == NULL)
+		return FALSE;
+	cp1 = &lp1->l_text[0];
+	cp2 = &lp3->l_text[0];
+	while (cp1 != &lp1->l_text[lp1->l_used])
+		*cp2++ = *cp1++;
+	cp1 = &lp2->l_text[0];
+	while (cp1 != &lp2->l_text[lp2->l_used])
+		*cp2++ = *cp1++;
+	lp1->l_bp->l_fp = lp3;
+	lp3->l_fp = lp2->l_fp;
+	lp2->l_fp->l_bp = lp3;
+	lp3->l_bp = lp1->l_bp;
 	wp = wheadp;
 	while (wp != NULL) {
-		if (wp->w_linep == lp2)
-			wp->w_linep = lp1;
-		if (wp->w_dotp == lp2) {
-			wp->w_dotp = lp1;
-			wp->w_doto += (int)lp1_len;
+		if (wp->w_linep == lp1 || wp->w_linep == lp2)
+			wp->w_linep = lp3;
+		if (wp->w_dotp == lp1)
+			wp->w_dotp = lp3;
+		else if (wp->w_dotp == lp2) {
+			wp->w_dotp = lp3;
+			wp->w_doto += lp1->l_used;
 		}
-		if (wp->w_markp == lp2) {
-			wp->w_markp = lp1;
-			wp->w_marko += (int)lp1_len;
+		if (wp->w_markp == lp1)
+			wp->w_markp = lp3;
+		else if (wp->w_markp == lp2) {
+			wp->w_markp = lp3;
+			wp->w_marko += lp1->l_used;
 		}
 		wp = wp->w_wndp;
 	}
-	lp1->l_fp = lp2->l_fp;
-	lp2->l_fp->l_bp = lp1;
-	lfree(lp2);
     // Update atomic statistics for line merge
     buffer_update_stats_incremental(curbp, -1, -1, 0); // -1 line, -1 byte (for newline)
     buffer_mark_stats_dirty(curbp); // Mark dirty for word count recalculation
@@ -810,6 +968,8 @@ int ldelchar(long n, int kflag) {
 
 int lnewline(void)
 {
+	char *cp1;
+	char *cp2;
 	struct line *lp1;
 	struct line *lp2;
 	int doto;
@@ -823,33 +983,21 @@ int lnewline(void)
 
     undo_record_insert(curbp, getlinenum(curbp, lp1), doto, "\n", 1);
 
-	/* Create new line for first half */
-	if ((lp2 = lalloc(doto)) == NULL)
+	if ((lp2 = lalloc(doto)) == NULL)	/* New first half line      */
 		return FALSE;
-	
-	/* Copy first 'doto' bytes from lp1 to lp2 using gap buffer */
-	if (doto > 0) {
-		char *temp = safe_alloc((size_t)doto, "newline split temp", __FILE__, __LINE__);
-		if (!temp) {
-			lfree(lp2);
-			return FALSE;
-		}
-		gap_buffer_get_text(lp1->gb, 0, (size_t)doto, temp, (size_t)doto);
-		gap_buffer_insert(lp2->gb, 0, temp, (size_t)doto);
-		SAFE_FREE(temp);
-		
-		/* Remove first 'doto' bytes from lp1 */
-		gap_buffer_delete(lp1->gb, 0, (size_t)doto);
-	}
-	
-	/* Link lp2 into list before lp1 */
-	lp2->l_bp = lp1->l_bp;
-	lp1->l_bp = lp2;
-	lp2->l_bp->l_fp = lp2;
-	lp2->l_fp = lp1;
-	
-	/* Fix up window pointers */
-	wp = wheadp;
+	cp1 = &lp1->l_text[0];	/* Shuffle text around  */
+	cp2 = &lp2->l_text[0];
+	while (cp1 != &lp1->l_text[doto])
+		*cp2++ = *cp1++;
+	cp2 = &lp1->l_text[0];
+	while (cp1 != &lp1->l_text[lp1->l_used])
+		*cp2++ = *cp1++;
+	lp1->l_used -= doto;
+lp2->l_bp = lp1->l_bp;
+lp1->l_bp = lp2;
+lp2->l_bp->l_fp = lp2;
+lp2->l_fp = lp1;
+	wp = wheadp;		/* Windows              */
 	while (wp != NULL) {
 		if (wp->w_linep == lp1)
 			wp->w_linep = lp2;
@@ -867,7 +1015,6 @@ int lnewline(void)
 		}
 		wp = wp->w_wndp;
 	}
-	
 	// Update atomic statistics for new line insertion
     buffer_update_stats_incremental(curbp, 1, 1, 0); // +1 line, +1 byte (for newline)
     buffer_mark_stats_dirty(curbp); // Mark dirty for word count recalculation

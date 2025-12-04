@@ -1,6 +1,6 @@
 // gapbuffer.c - Gap buffer implementation for efficient text storage
 
-#include "μemacs/gapbuffer.h"
+#include "gapbuffer.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

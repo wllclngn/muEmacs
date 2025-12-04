@@ -130,11 +130,7 @@ int upperword(int f, int n)
 		}
 		while (inword() != FALSE) {
 			c = lgetc(curwp->w_dotp, curwp->w_doto);
-#if	PKCODE
 			if (islower(c)) {
-#else
-			if (c >= 'a' && c <= 'z') {
-#endif
 				c -= 'a' - 'A';
 				lputc(curwp->w_dotp, curwp->w_doto, c);
 				lchange(WFHARD);
@@ -166,11 +162,7 @@ int lowerword(int f, int n)
 		}
 		while (inword() != FALSE) {
 			c = lgetc(curwp->w_dotp, curwp->w_doto);
-#if	PKCODE
 			if (isupper(c)) {
-#else
-			if (c >= 'A' && c <= 'Z') {
-#endif
 				c += 'a' - 'A';
 				lputc(curwp->w_dotp, curwp->w_doto, c);
 				lchange(WFHARD);
@@ -203,11 +195,7 @@ int capword(int f, int n)
 		}
 		if (inword() != FALSE) {
 			c = lgetc(curwp->w_dotp, curwp->w_doto);
-#if	PKCODE
 			if (islower(c)) {
-#else
-			if (c >= 'a' && c <= 'z') {
-#endif
 				c -= 'a' - 'A';
 				lputc(curwp->w_dotp, curwp->w_doto, c);
 				lchange(WFHARD);
@@ -216,11 +204,7 @@ int capword(int f, int n)
 				return FALSE;
 			while (inword() != FALSE) {
 				c = lgetc(curwp->w_dotp, curwp->w_doto);
-#if	PKCODE
 				if (isupper(c)) {
-#else
-				if (c >= 'A' && c <= 'Z') {
-#endif
 					c += 'a' - 'A';
 					lputc(curwp->w_dotp, curwp->w_doto,
 					      c);
@@ -377,13 +361,7 @@ int inword(void)
 	if (curwp->w_doto == llength(curwp->w_dotp))
 		return FALSE;
 	c = lgetc(curwp->w_dotp, curwp->w_doto);
-#if	PKCODE
 	if (isletter(c))
-#else
-	if (c >= 'a' && c <= 'z')
-		return TRUE;
-	if (c >= 'A' && c <= 'Z')
-#endif
 		return TRUE;
 	if (c >= '0' && c <= '9')
 		return TRUE;
@@ -492,7 +470,6 @@ int backsubword(int f, int n)
 	return TRUE;
 }
 
-#if	WORDPRO
 /*
  * Fill the current paragraph according to the current
  * fill column
@@ -531,7 +508,7 @@ int fillpara(int f, int n)
 
 	/* initialize various info */
 	clength = curwp->w_doto;
-	if (clength && curwp->w_dotp->l_text[0] == TAB)
+	if (clength && lgetc(curwp->w_dotp, 0) == TAB)
 		clength = 8;
 	wordlen = 0;
 	dotflag = FALSE;
@@ -637,7 +614,7 @@ int justpara(int f, int n)
 		curwp->w_doto = leftmarg;
 
 	clength = curwp->w_doto;
-	if (clength && curwp->w_dotp->l_text[0] == TAB)
+	if (clength && lgetc(curwp->w_dotp, 0) == TAB)
 		clength = 8;
 
 	wordlen = 0;
@@ -810,4 +787,3 @@ int wordcount(int f, int n)
 		nwords, nchars, nlines + 1, avgch);
 	return TRUE;
 }
-#endif

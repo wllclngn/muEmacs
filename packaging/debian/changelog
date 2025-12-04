@@ -1,4 +1,4 @@
-uemacs (5.0.0-1) unstable; urgency=medium
+uemacs (0.0.23-1) unstable; urgency=medium
 
   * Initial release of modernized μEmacs
   * Complete architectural overhaul from C89 to C23 standards

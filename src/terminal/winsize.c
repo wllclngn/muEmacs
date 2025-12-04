@@ -22,8 +22,14 @@ void update_terminal_size(void) {
         char *lines = getenv("LINES");
         char *cols = getenv("COLUMNS");
         
-        if (lines) term.t_mrow = term.t_nrow = atoi(lines) - 1;
-        if (cols) term.t_mcol = term.t_ncol = atoi(cols);
+        if (lines) {
+            term.t_mrow = atoi(lines) - 1;
+            term.t_nrow = atoi(lines) - 1;
+        }
+        if (cols) {
+            term.t_mcol = atoi(cols);
+            term.t_ncol = atoi(cols);
+        }
         
         // Last resort defaults
         if (term.t_mrow <= 0) {

@@ -296,7 +296,7 @@ bool nfa_search_forward(const nfa_program_info* prog,
             run_start_lp = lp; run_start_off = off;
             continue;
         }
-        unsigned char b = (unsigned char)lp->l_text[off];
+        unsigned char b = (unsigned char)lgetc(lp, off);
         bool is_nl = false;
 
         /* Step */

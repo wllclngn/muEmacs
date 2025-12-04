@@ -3,7 +3,7 @@
  * Implements atomic terminal state management for μEmacs
  */
 
-#include "μemacs/atomic_terminal.h"
+#include "atomic_terminal.h"
 #include "estruct.h"
 #include "edef.h"
 #include <signal.h>

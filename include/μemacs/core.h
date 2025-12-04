@@ -51,7 +51,7 @@
 #define CONTROL 0x10000000	/* Control flag, or'ed in       */
 #define META    0x20000000	/* Meta flag, or'ed in          */
 #define CTLX    0x40000000	/* ^X flag, or'ed in            */
-#define	SPEC	0x80000000	/* special key (function keys)  */
+/* SPEC defined in keymap.h */
 
 /* Boolean values */
 #ifdef	FALSE
@@ -225,9 +225,6 @@ struct buffer {
 	char b_flag;		/* Flags                        */
 	char b_fname[NFILEN];	/* File name                    */
 	char b_bname[NBUFN];	/* Buffer name                  */
-#if	CRYPT
-	char b_key[NPAT];	/* current encrypted key        */
-#endif
 };
 
 #define BFINVS  0x01		/* Internal invisable buffer    */
@@ -235,7 +232,7 @@ struct buffer {
 #define	BFTRUNC	0x04		/* buffer was truncated when read */
 
 /*	mode flags	*/
-#define	NUMMODES	10	/* # of defined modes           */
+#define	NUMMODES	9	/* # of defined modes           */
 
 #define	MDWRAP	0x0001		/* word wrap                    */
 #define	MDCMOD	0x0002		/* C indentation and fence match */
@@ -244,7 +241,6 @@ struct buffer {
 #define	MDVIEW	0x0010		/* read-only buffer             */
 #define MDOVER	0x0020		/* overwrite mode               */
 #define MDMAGIC	0x0040		/* regular expresions in search */
-#define	MDCRYPT	0x0080		/* encrytion mode active        */
 #define	MDASAVE	0x0100		/* auto-save mode               */
 
 /*

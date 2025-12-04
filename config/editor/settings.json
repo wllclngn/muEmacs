@@ -3,12 +3,11 @@
   "wrap": true,
   "ruler": true,
   "rulercol": 80,
-  "highlightline": false,
-  "hilinestyle": 1,
-  "rulerstyle": 1,
+  "highlightline": true,
+  "hilinestyle": 4,
+  "rulerstyle": 4,
   "modeline_show_git": true,
   "modeline_show_stats": true,
   "modeline_show_modes": true,
   "modeline_show_position": true
 }
-

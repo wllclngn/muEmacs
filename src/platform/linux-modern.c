@@ -25,6 +25,7 @@
 #include "file_utils.h"
 #include "memory.h"
 #include "string_utils.h"
+#include <pthread.h>
 
 /* Function prototypes */
 void handle_external_modification(int wd);
@@ -35,6 +36,7 @@ static int inotify_fd = -1;
 static int watch_descriptors[MAXWATCH];
 static char *watch_files[MAXWATCH];
 static int watch_count = 0;
+static pthread_mutex_t watch_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #define MAXWATCH 32
 #define EVENT_SIZE (sizeof(struct inotify_event))
@@ -58,13 +60,17 @@ int init_file_watch(void) {
 int watch_file(const char *filepath) {
     int wd;
     
+    pthread_mutex_lock(&watch_mutex);
+    
     if (watch_count >= MAXWATCH) {
+        pthread_mutex_unlock(&watch_mutex);
         return FALSE;
     }
     
     wd = inotify_add_watch(inotify_fd, filepath,
                            IN_MODIFY | IN_DELETE_SELF | IN_MOVE_SELF);
     if (wd < 0) {
+        pthread_mutex_unlock(&watch_mutex);
         return FALSE;
     }
     
@@ -72,12 +78,15 @@ int watch_file(const char *filepath) {
     watch_files[watch_count] = safe_strdup(filepath, "watch_file");
     watch_count++;
     
+    pthread_mutex_unlock(&watch_mutex);
     return TRUE;
 }
 
 /* Remove a file from watch list */
 void unwatch_file(const char *filepath) {
     int i;
+    
+    pthread_mutex_lock(&watch_mutex);
     
     for (i = 0; i < watch_count; i++) {
         if (watch_files[i] && strcmp(watch_files[i], filepath) == 0) {
@@ -93,6 +102,8 @@ void unwatch_file(const char *filepath) {
             break;
         }
     }
+    
+    pthread_mutex_unlock(&watch_mutex);
 }
 
 /* Check for file changes */
@@ -102,7 +113,12 @@ void check_file_changes(void) {
     struct timeval tv;
     fd_set rfds;
     
-    if (inotify_fd < 0) return;
+    pthread_mutex_lock(&watch_mutex);
+    
+    if (inotify_fd < 0) {
+        pthread_mutex_unlock(&watch_mutex);
+        return;
+    }
     
     /* Non-blocking check */
     FD_ZERO(&rfds);
@@ -111,10 +127,13 @@ void check_file_changes(void) {
     tv.tv_usec = 0;
     
     if (select(inotify_fd + 1, &rfds, NULL, NULL, &tv) <= 0) {
+        pthread_mutex_unlock(&watch_mutex);
         return;
     }
     
     length = read(inotify_fd, buffer, EVENT_BUF_LEN);
+    pthread_mutex_unlock(&watch_mutex);
+    
     if (length < 0) return;
     
     i = 0;

@@ -94,6 +94,18 @@ static int biteq(int bc, char *cclmap);
 static char *clearbits(void);
 static void setbit(int bc, char *cclmap);
 
+/* Helper: Extract line text into buffer for contiguous access (needed for memcmp/Boyer-Moore) */
+static char search_line_buf[NSTRING];
+static inline const char* get_line_text(struct line *lp) {
+    int len = llength(lp);
+    if (len > NSTRING - 1) len = NSTRING - 1;
+    for (int i = 0; i < len; i++) {
+        search_line_buf[i] = lgetc(lp, i);
+    }
+    search_line_buf[len] = '\0';
+    return search_line_buf;
+}
+
 /*
  * forwsearch -- Search forward.  Get a search string from the user, and
  *	search for the string.  If found, reset the "." to be just after
@@ -650,7 +662,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                 /* fetch byte at start + t */
                 struct line* tmp_lp = probe_lp; int tmp_off = probe_off;
                 unsigned char c;
-                if (tmp_off < llength(tmp_lp)) { c = (unsigned char)tmp_lp->l_text[tmp_off]; tmp_off++; }
+                if (tmp_off < llength(tmp_lp)) { c = (unsigned char)lgetc(tmp_lp, tmp_off); tmp_off++; }
                 else { /* virtual newline */ c = '\n'; tmp_lp = lforw(tmp_lp); tmp_off = 0; }
                 unsigned char cb = (unsigned char)(case_sensitive ? c : LOWER_ASCII(c));
                 if (cb != patn[t]) { ok = 0; break; }
@@ -675,7 +687,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
             ok = 1; int matched = 0;
             for (int t = tr; t < m; ++t) {
                 unsigned char c;
-                if (probe_off < llength(probe_lp)) { c = (unsigned char)probe_lp->l_text[probe_off]; probe_off++; }
+                if (probe_off < llength(probe_lp)) { c = (unsigned char)lgetc(probe_lp, probe_off); probe_off++; }
                 else { c = '\n'; probe_lp = lforw(probe_lp); probe_off = 0; if (probe_lp == curbp->b_linep) { ok = 0; break; } }
                 unsigned char cb = (unsigned char)(case_sensitive ? c : LOWER_ASCII(c));
                 if (cb != patn[t]) { ok = 0; break; }
@@ -766,7 +778,8 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                     int n = llength(lp);
                     if (n > 0) {
                         int start = (lp == curwp->w_dotp) ? off : 0;
-                        int idx = bm_search(&bm, (const unsigned char*)lp->l_text, n, (start < n ? start : n - 1));
+                        const char *line_text = get_line_text(lp);
+                        int idx = bm_search(&bm, (const unsigned char*)line_text, n, (start < n ? start : n - 1));
                         if (idx >= 0) {
                             matchline = lp;
                             matchoff = idx;
@@ -793,7 +806,8 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                     if (n > 0) {
                         int start = (lp == curwp->w_dotp) ? (off - 1) : (n - 1);
                         if (start >= 0) {
-                            int idx = bm_search_reverse(&bm, (const unsigned char*)lp->l_text, n, start);
+                            const char *line_text = get_line_text(lp);
+                            int idx = bm_search_reverse(&bm, (const unsigned char*)line_text, n, start);
                             if (idx >= 0) {
                                 matchline = lp;
                                 matchoff = idx;
@@ -830,7 +844,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                 int n = llength(lp);
                 if (n >= patlen) {
                     int start = (lp == curwp->w_dotp) ? off : 0;
-                    const unsigned char* text = (const unsigned char*)lp->l_text;
+                    const unsigned char* text = (const unsigned char*)get_line_text(lp);
                     for (int i = start; i <= n - patlen; ) {
                         unsigned char c0 = (unsigned char)(case_sensitive ? text[i] : LOWER_ASCII(text[i]));
                         if (c0 == first) {
@@ -860,13 +874,14 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                 if (n >= patlen) {
                     int start = (lp == curwp->w_dotp) ? (off - patlen) : (n - patlen);
                     if (start > n - patlen) start = n - patlen;
+                    const unsigned char *text = (const unsigned char*)get_line_text(lp);
                     for (int i = start; i >= 0; --i) {
-                        unsigned char c0 = (unsigned char)(case_sensitive ? lp->l_text[i] : LOWER_ASCII(lp->l_text[i]));
+                        unsigned char c0 = (unsigned char)(case_sensitive ? text[i] : LOWER_ASCII(text[i]));
                         if (c0 == first) {
-                            if (patlen == 1 || (case_sensitive ? memcmp(lp->l_text + i, patrn, patlen) == 0
-                                                               : (LOWER_ASCII(lp->l_text[i + (patlen>1?1:0)]) == LOWER_ASCII(patrn[1]) &&
-                                                                  (patlen<3 || LOWER_ASCII(lp->l_text[i+2])==LOWER_ASCII(patrn[2])) &&
-                                                                  (patlen<4 || LOWER_ASCII(lp->l_text[i+3])==LOWER_ASCII(patrn[3]))))) {
+                            if (patlen == 1 || (case_sensitive ? memcmp(text + i, patrn, patlen) == 0
+                                                               : (LOWER_ASCII(text[i + (patlen>1?1:0)]) == LOWER_ASCII(patrn[1]) &&
+                                                                  (patlen<3 || LOWER_ASCII(text[i+2])==LOWER_ASCII(patrn[2])) &&
+                                                                  (patlen<4 || LOWER_ASCII(text[i+3])==LOWER_ASCII(patrn[3]))))) {
                                 matchline = lp; matchoff = i;
                                 if (beg_or_end == PTEND) { curwp->w_dotp = lp; curwp->w_doto = i + patlen; }
                                 else { curwp->w_dotp = lp; curwp->w_doto = i; }
@@ -1184,17 +1199,13 @@ static int replaces(int kind, int f, int n)
 			/* And respond appropriately.
 			 */
 			switch (c) {
-#if	PKCODE
 			case 'Y':
-#endif
 			case 'y':	/* yes, substitute */
 			case ' ':
 				savematch();
 				break;
 
-#if	PKCODE
 			case 'N':
-#endif
 			case 'n':	/* no, onword */
 				forwchar(FALSE, 1);
 				continue;
@@ -1203,9 +1214,7 @@ static int replaces(int kind, int f, int n)
 				kind = FALSE;
 				break;
 
-#if	PKCODE
 			case 'U':
-#endif
 			case 'u':	/* undo last and re-prompt */
 
 				/* Restore old position.
@@ -1224,10 +1233,8 @@ static int replaces(int kind, int f, int n)
 				/* Delete the new string.
 				 */
 				backchar(FALSE, rlength);
-#if	PKCODE
 				matchline = curwp->w_dotp;
 				matchoff = curwp->w_doto;
-#endif
 				status = delins(rlength, patmatch, FALSE);
 				if (status != TRUE)
 					return status;
@@ -1259,7 +1266,7 @@ static int replaces(int kind, int f, int n)
 
 			case '?':	/* help me */
 				mlwrite
-				    ("(Y)es, (N)o, (!)Do rest, (U)ndo last, (^G)Abort, (.)Abort back, (?)Help: ");
+				    ("[Y]es, [N]o, [!]Do rest, [U]ndo last, [^G]Abort, [.]Abort back, [?]Help: ");
 				goto qprompt;
 
 			}	/* end of switch */
@@ -1348,11 +1355,7 @@ int expandp(char *srcstr, char *deststr, int maxlength)
 			*deststr++ = '>';
 			maxlength -= 4;
 		}
-#if	PKCODE
 		else if ((c > 0 && c < 0x20) || c == 0x7f)	/* control character */
-#else
-		else if (c < 0x20 || c == 0x7f)	/* control character */
-#endif
 		{
 			*deststr++ = '^';
 			*deststr++ = c ^ 0x40;
@@ -1700,9 +1703,7 @@ static int mceq(int bc, struct magic *mt)
 {
 	int result;
 
-#if	PKCODE
 	bc = bc & 0xFF;
-#endif
 	switch (mt->mc_type & MASKCL) {
 	case LITCHAR:
 		result = eq(bc, mt->u.lchar);
@@ -1828,9 +1829,7 @@ static int cclmake(char **ppatptr, struct magic *mcptr)
  */
 static int biteq(int bc, char *cclmap)
 {
-#if	PKCODE
 	bc = bc & 0xFF;
-#endif
 	if (bc >= HICHAR)
 		return FALSE;
 
@@ -1858,9 +1857,7 @@ static char *clearbits(void)
  */
 static void setbit(int bc, char *cclmap)
 {
-#if	PKCODE
 	bc = bc & 0xFF;
-#endif
 	if (bc < HICHAR)
 		*(cclmap + (bc >> 3)) |= (1U << (bc & 7));
 }

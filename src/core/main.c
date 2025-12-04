@@ -46,10 +46,6 @@ struct main_args {
 	int searchflag;		// search at startup flag
 	int errflag;		// C error processing flag
 	int startflag;		// startup file executed flag
-#if CRYPT
-	int cryptflag;		// encryption flag
-	char ekey[NPAT];	// startup encryption key
-#endif
 	char pat[NPAT];		// search pattern
 	struct buffer *firstbp;	// first buffer pointer
 };
@@ -146,6 +142,13 @@ static void initialize_editor(void)
     edinit("main");		// Buffers, windows
     varinit();		// user variables
     keymap_init_from_legacy();	// Initialize keymaps from legacy bindings
+
+#ifdef DEBUG
+    // Verify names table is sorted for binary search
+    extern void verify_names_sorted(void);
+    verify_names_sorted();
+#endif
+
     // Load user settings from JSON, if present
     settings_load(FALSE, 0);
 }
@@ -166,9 +169,6 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 	args->startflag = FALSE;
 	args->errflag = FALSE;
 	args->firstbp = NULL;
-#if CRYPT
-	args->cryptflag = FALSE;
-#endif
 
 	// Parse the command line
 	for (carg = 1; carg < argc; ++carg) {
@@ -188,12 +188,6 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 				args->gotoflag = TRUE;
 				args->gline = atoi(&argv[carg][2]);
 				break;
-#if CRYPT
-			case 'k': case 'K':
-				args->cryptflag = TRUE;
-                safe_strcpy(args->ekey, &argv[carg][2], NPAT);
-				break;
-#endif
 			case 'n': case 'N':
 				nullflag = TRUE;
 				break;
@@ -230,14 +224,7 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 			// Set the modes appropriately
 			if (args->viewflag)
 				bp->b_mode |= MDVIEW;
-#if CRYPT
-			if (args->cryptflag) {
-				bp->b_mode |= MDCRYPT;
-				myencrypt((char *) NULL, 0);
-				myencrypt(args->ekey, strlen(args->ekey));
-                safe_strcpy(bp->b_key, args->ekey, NPAT);
-			}
-#endif
+			/* Old CRYPT removed - use encrypt.c */
 		}
 	}
 
@@ -504,7 +491,7 @@ int execute(int c, int f, int n)
 		   and next char is not a tab or we are at a tab stop,
 		   delete a char forword                        */
 		if (curwp->w_bufp->b_mode & MDOVER &&
-		    curwp->w_doto < curwp->w_dotp->l_used &&
+		    curwp->w_doto < llength(curwp->w_dotp) &&
 		    (lgetc(curwp->w_dotp, curwp->w_doto) != '\t' ||
 		     (curwp->w_doto) % 8 == 7))
 			ldelchar(1, FALSE);

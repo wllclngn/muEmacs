@@ -19,13 +19,9 @@
 #include "wrapper.h"
 #include "file_utils.h"
 #include "string_safe.h"
-#include "μemacs/keymap.h"
+#include "keymap.h"
 
-#if	PKCODE
 #define	COMPLC	1
-#else
-#define COMPLC	0
-#endif
 
 /* C23 Atomic key processing structures */
 static _Atomic uint64_t meta_key_generation = 0;
@@ -65,7 +61,7 @@ int mlyesno(const char *prompt)
 	for (;;) {
 		/* build and prompt the user */
 		safe_strcpy(buf, prompt, NPAT);
-		safe_strcat(buf, " (y/n)? ", NPAT);
+		safe_strcat(buf, " [Y/N]? ", NPAT);
 		mlwrite(buf);
 
         /* get the response from terminal layer to avoid stdio/raw mismatch */
@@ -311,6 +307,10 @@ static struct {
     .match_idx = 0
 };
 
+// Swallow one unmodified digit right after a focus-in event (ESC [ I)
+// to avoid stray digits from desktop shortcuts (e.g., Super+2).
+static bool ignore_next_unmodified_digit = false;
+
 static int get_utf8_character_atomic(void)
 {
 
@@ -363,44 +363,69 @@ static int get_utf8_character_atomic(void)
     int first_byte = TTgetc();
     if (first_byte < 0) return first_byte;
 
-    // Detect bracketed paste start: ESC [ 200 ~
+    // Detect focus events and bracketed paste start without blocking
     if (first_byte == 0x1B) {
+        int avail = typahead();
+        if (avail <= 0) {
+            return first_byte; // Bare ESC for now
+        }
         int b1 = TTgetc();
         if (b1 == '[') {
-            int b2 = TTgetc();
-            int b3 = TTgetc();
-            int b4 = TTgetc();
-            if (b2 == '2' && b3 == '0' && b4 == '0') {
-                int b5 = TTgetc();
-                if (b5 == '~') {
-                    // Enter paste mode; consume start sequence and return next content byte
-                    paste.paste_mode = true;
-                    paste.match_idx = 0;
-                    paste.pend_len = paste.pend_pos = 0;
+            avail = typahead();
+            if (avail > 0) {
+                int b2 = TTgetc();
+                if (b2 == 'I') { // Focus in
+                    ignore_next_unmodified_digit = true;
                     return get_utf8_character_atomic();
+                } else if (b2 == 'O') { // Focus out
+                    return get_utf8_character_atomic();
+                } else if (b2 == '2') {
+                    // Possible bracketed paste start: ESC [ 200~
+                    avail = typahead();
+                    if (avail >= 3) {
+                        int b3 = TTgetc();
+                        int b4 = TTgetc();
+                        int b5 = TTgetc();
+                        if (b3 == '0' && b4 == '0' && b5 == '~') {
+                            paste.paste_mode = true;
+                            paste.match_idx = 0;
+                            paste.pend_len = paste.pend_pos = 0;
+                            return get_utf8_character_atomic();
+                        }
+                        // Not actually paste; queue consumed bytes to replay
+                        paste.pending[0] = (unsigned char)'[';
+                        paste.pending[1] = (unsigned char)'2';
+                        paste.pending[2] = (unsigned char)b3;
+                        paste.pending[3] = (unsigned char)b4;
+                        paste.pending[4] = (unsigned char)b5;
+                        paste.pend_len = 5;
+                        paste.pend_pos = 0;
+                        return first_byte;
+                    } else {
+                        // Not enough lookahead; defer decision
+                        paste.pending[0] = (unsigned char)'[';
+                        paste.pending[1] = (unsigned char)'2';
+                        paste.pend_len = 2;
+                        paste.pend_pos = 0;
+                        return first_byte;
+                    }
                 } else {
-                    // Not actually 200~; queue looked-ahead bytes
+                    // Unknown CSI: queue '[' and this byte
                     paste.pending[0] = (unsigned char)'[';
                     paste.pending[1] = (unsigned char)b2;
-                    paste.pending[2] = (unsigned char)b3;
-                    paste.pending[3] = (unsigned char)b4;
-                    paste.pending[4] = (unsigned char)b5;
-                    paste.pend_len = 5;
+                    paste.pend_len = 2;
                     paste.pend_pos = 0;
                     return first_byte;
                 }
             } else {
-                // Not paste sequence; queue what we consumed
+                // No lookahead available; treat as ESC then replay '[' later
                 paste.pending[0] = (unsigned char)'[';
-                paste.pending[1] = (unsigned char)b2;
-                paste.pending[2] = (unsigned char)b3;
-                paste.pending[3] = (unsigned char)b4;
-                paste.pend_len = 4;
+                paste.pend_len = 1;
                 paste.pend_pos = 0;
                 return first_byte;
             }
         } else {
-            // Not CSI; push back single lookahead
+            // Not CSI; push back the single lookahead
             paste.pending[0] = (unsigned char)b1;
             paste.pend_len = 1;
             paste.pend_pos = 0;
@@ -469,6 +494,7 @@ void input_reset_parser_state(void)
     paste.end_seq[3] = '0';
     paste.end_seq[4] = '1';
     paste.end_seq[5] = '~';
+    ignore_next_unmodified_digit = false;
 }
 /*	tgetc:	Get a key from the terminal driver, resolve any keyboard
 		macro action					*/
@@ -487,10 +513,8 @@ int tgetc(void)
 		/* at the end of last repitition? */
 		if (--kbdrep < 1) {
 			kbdmode = STOP;
-#if	VISMAC == 0
-			/* force a screen update after all is done */
+			/* force a screen update after all is done (VISMAC disabled) */
 			update(FALSE);
-#endif
 		} else {
 
 			/* reset the macro to the begining for the next rep */
@@ -499,9 +523,18 @@ int tgetc(void)
 		}
 	}
 
-	/* fetch a character from the terminal driver, resolve macros */
-	/* Use UTF-8 atomic collector to avoid sequence interleaving */
-	c = get_utf8_character_atomic();
+    /* fetch a character from the terminal driver, resolve macros */
+    /* Use UTF-8 atomic collector to avoid sequence interleaving */
+    c = get_utf8_character_atomic();
+
+    /* Swallow one stray unmodified digit immediately after focus-in */
+    if (ignore_next_unmodified_digit) {
+        if (c >= '0' && c <= '9') {
+            ignore_next_unmodified_digit = false;
+            return tgetc();
+        }
+        ignore_next_unmodified_digit = false;
+    }
 	
 	/* Validate character to prevent corruption during fast typing */
 	if (c < 0 || c > 0x10FFFF) {
@@ -615,6 +648,42 @@ int decode_key_from_bytes(const unsigned char *buf, size_t len,
     if (!buf || !out) return FALSE;
     if (consumed) *consumed = 0;
     struct key_event evt = {0};
+    // Swallow xterm focus events (CSI I/O) entirely
+    if (len >= 3 && buf[0] == 0x1B && buf[1] == '[' &&
+        (buf[2] == 'I' || buf[2] == 'O')) {
+        if (buf[2] == 'I') {
+            ignore_next_unmodified_digit = true;
+        }
+        if (consumed) *consumed = 3;
+        return FALSE;
+    }
+    
+    // Handle standard CSI sequences (arrow keys, function keys, etc.)
+    if (len >= 3 && buf[0] == 0x1B && buf[1] == '[') {
+        unsigned char final = buf[2];
+        // Arrow keys: ESC[A (up), ESC[B (down), ESC[C (right), ESC[D (left)
+        if (final == 'A' || final == 'B' || final == 'C' || final == 'D') {
+            evt.code = SPEC | final;  // SPEC flag marks special keys
+            if (consumed) *consumed = 3;
+            *out = evt;
+            return TRUE;
+        }
+        // Home/End: ESC[H, ESC[F
+        if (final == 'H' || final == 'F') {
+            evt.code = SPEC | final;
+            if (consumed) *consumed = 3;
+            *out = evt;
+            return TRUE;
+        }
+        // Insert/Delete/PgUp/PgDn: ESC[<digit>~
+        if (len >= 4 && buf[2] >= '1' && buf[2] <= '6' && buf[3] == '~') {
+            evt.code = SPEC | buf[2];
+            if (consumed) *consumed = 4;
+            *out = evt;
+            return TRUE;
+        }
+    }
+    
     if (len >= 3 && buf[0] == 0x1B && buf[1] == '[') {
         size_t i = 2;
         long codepoint = 0;
@@ -675,55 +744,51 @@ int decode_key_from_bytes(const unsigned char *buf, size_t len,
 /* C23 atomic key processing - matches Linus's get1key() behavior exactly */
 int get1key(void)
 {
-	// Atomic key retrieval - thread-safe terminal access  
-	int c = tgetc();
-
-    // Attempt to parse Kitty CSI u sequences starting with ESC '[' digits ';' digits 'u'
-    if (c == 0x1B) { // ESC
-        int next = tgetc();
-        if (next == '[') {
-            // Parse <codepoint> ; <mods> u
-            long codepoint = 0;
-			long mods = 0;
-			int ch;
-			// read digits for codepoint
-			while ((ch = tgetc()) >= '0' && ch <= '9') {
-				codepoint = codepoint * 10 + (ch - '0');
-			}
-			if (ch == ';') {
-				// read digits for mods
-				while ((ch = tgetc()) >= '0' && ch <= '9') {
-					mods = mods * 10 + (ch - '0');
-				}
-				if (ch == 'u') {
-					// Map to legacy code: ctrl/meta bits when representable
-					int out = (int)codepoint;
-					// Map Alt -> META (bit 3 per Kitty spec: 2=Shift, 4=Alt, 8=Ctrl)
-					if (mods & 8) { // Ctrl
-						// If ASCII letter, map to CONTROL|'X'
-						if (out >= 'A' && out <= 'Z') {
-							out = CONTROL | out;
-						} else if (out >= 'a' && out <= 'z') {
-							out = CONTROL | (out - 32);
-						} else {
-							// Non-letters: best effort, leave as is
-						}
+	// Use unified key decoding with buffering to handle all escape sequences
+	unsigned char buf[8] = {0};
+	size_t len = 0;
+	
+	buf[len++] = (unsigned char)tgetc();
+	
+	// If we got ESC, we MUST wait for potential sequence completion
+	// This is critical - escape sequences arrive as multiple bytes
+	if (buf[0] == 0x1B && len < sizeof(buf)) {
+		// Read next byte directly - tgetc() blocks until data arrives
+		// Modern terminals send escape sequences atomically
+		buf[len++] = (unsigned char)tgetc();
+		
+		// If ESC[, this is definitely a CSI sequence - read the rest
+		if (buf[1] == '[' && len < sizeof(buf)) {
+			// CSI sequences need the final byte
+			buf[len++] = (unsigned char)tgetc();
+			
+			// For parameterized sequences (digits), keep reading
+			if (len < sizeof(buf) && (buf[2] >= '0' && buf[2] <= '9')) {
+				while (typahead() > 0 && len < sizeof(buf)) {
+					buf[len++] = (unsigned char)tgetc();
+					// Stop at final byte (letter or '~')
+					if ((buf[len-1] >= 'A' && buf[len-1] <= 'Z') ||
+						(buf[len-1] >= 'a' && buf[len-1] <= 'z') ||
+						buf[len-1] == '~') {
+						break;
 					}
-					if (mods & 4) { // Alt/Meta
-						out |= META;
-					}
-					// Shift is ignored as we don't encode it in legacy mapping
-					return out;
 				}
 			}
-			// Fallback: unrecognized sequence -> return ESC as control '['
-			return (int)(CONTROL | '[');
-		} else {
-			// Not CSI, treat ESC as control '['
-			return (int)(CONTROL | '[');
 		}
 	}
-
+	
+	// Try to decode the buffered sequence
+	struct key_event evt = {0};
+	size_t consumed = 0;
+	
+	if (decode_key_from_bytes(buf, len, &evt, &consumed)) {
+		uint32_t result = key_to_legacy(evt);
+		return (int)result;
+	}
+	
+	// Fallback for single byte input
+	int c = (int)buf[0];
+	
 	/* C23 atomic control character conversion - matches Linus exactly */
 	if (c >= 0x00 && c <= 0x1F) {
 		// Atomic bit manipulation for control codes (including ESC → CONTROL|'[')
@@ -736,26 +801,56 @@ int get1key(void)
 /* C23 atomic Meta command processing - matches Linus's getcmd() behavior */
 int getcmd(void)
 {
-    // Unified key_event decoding using a small buffered read
-    unsigned char buf[6] = {0};
+    // Unified key_event decoding using intelligent buffering
+    unsigned char buf[8] = {0};
     size_t len = 0;
+    
+    // Read first byte
     buf[len++] = (unsigned char)tgetc();
-    if (buf[0] == 0x1B) {
+    
+    // If ESC, MUST wait for sequence completion
+    if (buf[0] == 0x1B && len < sizeof(buf)) {
+        // Read next byte directly - tgetc() blocks until data arrives
+        // This is correct behavior: escape sequences are atomic from terminal
         buf[len++] = (unsigned char)tgetc();
-        if (buf[1] == '[') {
-            // Try to gather enough to recognize CSI u
-            for (int i = 0; i < 3 && len < sizeof(buf); i++) {
-                buf[len++] = (unsigned char)tgetc();
+        
+        // If ESC[, read CSI sequence completely
+        if (buf[1] == '[' && len < sizeof(buf)) {
+            // CSI needs the final byte
+            buf[len++] = (unsigned char)tgetc();
+                
+            // For parameterized sequences (digits), keep reading
+            if (len < sizeof(buf) && (buf[2] >= '0' && buf[2] <= '9')) {
+                while (typahead() > 0 && len < sizeof(buf)) {
+                    buf[len++] = (unsigned char)tgetc();
+                    // Stop at final byte
+                    if ((buf[len-1] >= 'A' && buf[len-1] <= 'Z') ||
+                        (buf[len-1] >= 'a' && buf[len-1] <= 'z') ||
+                        buf[len-1] == '~') {
+                        break;
+                    }
+                }
             }
         }
     }
+    
     struct key_event evt = {0};
     size_t consumed = 0;
     if (!decode_key_from_bytes(buf, len, &evt, &consumed)) {
         // Fallback for edge cases
         return get1key();
     }
-    return (int)key_to_legacy(evt);
+    
+    uint32_t result = key_to_legacy(evt);
+    
+    // If a focus-in was just received, ignore one bare digit
+    if (ignore_next_unmodified_digit && !evt.ctrl && !evt.meta &&
+        evt.code >= '0' && evt.code <= '9') {
+        ignore_next_unmodified_digit = false;
+        return getcmd();
+    }
+    ignore_next_unmodified_digit = false;
+    return (int)result;
 }
 
 
@@ -799,11 +894,7 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 		c = get1key();
 
 		/* If it is a <ret>, change it to a <NL> */
-#if	PKCODE
 		if (c == (CONTROL | 0x4d) && !quotef)
-#else
-		if (c == (CONTROL | 0x4d))
-#endif
 			c = CONTROL | 0x40 | '\n';
 
 		/* if they hit the line terminate, wrap it up */

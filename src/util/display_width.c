@@ -9,6 +9,8 @@
 #include <stdatomic.h>
 #include "display_width.h"
 #include "line.h"
+#include "memory.h"
+#include "gapbuffer.h"
 
 static int wcwidth_initialized = 0;
 
@@ -102,9 +104,16 @@ int calculate_display_column_cached(struct line *lp, int byte_offset, int tab_wi
         int column = cached_column;
         int i = cached_offset;
         
-        while (i < byte_offset && i < lp->l_used && lp->l_text[i]) {
+        while (i < byte_offset && i < llength(lp)) {
             unicode_t c;
-            int bytes = utf8_to_unicode(lp->l_text, i, lp->l_used, &c);
+            // Extract UTF-8 using gap buffer
+            char utf8_seq[6];
+            int remaining = llength(lp) - i;
+            int extract_len = (remaining > 6) ? 6 : remaining;
+            for (int j = 0; j < extract_len; j++) {
+                utf8_seq[j] = lgetc(lp, i + j);
+            }
+            int bytes = utf8_to_unicode(utf8_seq, 0, extract_len, &c);
             
             if (bytes <= 0) break; // Invalid UTF-8, stop
             
@@ -127,7 +136,14 @@ int calculate_display_column_cached(struct line *lp, int byte_offset, int tab_wi
         return column;
     } else {
         // Cache miss - calculate from scratch and update cache
-        int column = calculate_display_column(lp->l_text, byte_offset, tab_width);
+        // Extract text from gap buffer for column calculation
+        char *line_text = safe_alloc(llength(lp) + 1, "display width temp", __FILE__, __LINE__);
+        int column = 0;
+        if (line_text) {
+            gap_buffer_get_text(lp->gb, 0, llength(lp), line_text, llength(lp) + 1);
+            column = calculate_display_column(line_text, byte_offset, tab_width);
+            safe_free((void **)&line_text);
+        }
         
         // Update cache atomically
         atomic_store(&lp->l_column_cache_offset, byte_offset);

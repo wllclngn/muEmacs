@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <pwd.h>
 #include "string_utils.h"
 
 #define MAXLOCK 512
@@ -39,54 +40,73 @@ char *dolock(char *fname)
     SAFE_STRCPY(lname, fname);
     SAFE_STRCAT(lname, ".lock~");
 
-	/* check that we are not being cheated, qname must point to     */
-	/* a regular file - even this code leaves a small window of     */
-	/* vulnerability but it is rather hard to exploit it            */
-
-#if defined(S_IFLNK)
-	if (lstat(lname, &sbuf) == 0)
-#else
-	if (stat(lname, &sbuf) == 0)
-#endif
-#if defined(S_ISREG)
-		if (!S_ISREG(sbuf.st_mode))
-#else
-		if (!(((sbuf.st_mode) & 070000) == 0))	/* SysV R2 */
-#endif
-			return "LOCK ERROR: not a regular file";
-
+	/* Atomic create-or-fail with O_EXCL to prevent TOCTOU race */
 	mask = umask(0);
-	fd = open(lname, O_RDWR | O_CREAT, 0666);
+	fd = open(lname, O_RDWR | O_CREAT | O_EXCL, 0666);
 	umask(mask);
+	
 	if (fd < 0) {
+		if (errno == EEXIST) {
+			/* Lock already exists - read owner */
+			fd = open(lname, O_RDONLY);
+			if (fd < 0) {
+				if (errno == EACCES)
+					return NULL;
+#ifdef EROFS
+				if (errno == EROFS)
+					return NULL;
+#endif
+				return "LOCK ERROR: cannot access lock file";
+			}
+			
+			/* Verify it's a regular file (post-open, safe from symlink attacks) */
+			if (fstat(fd, &sbuf) == 0) {
+#if defined(S_ISREG)
+				if (!S_ISREG(sbuf.st_mode)) {
+#else
+				if (!(((sbuf.st_mode) & 070000) == 0)) {
+#endif
+					close(fd);
+					return "LOCK ERROR: lock file is not regular";
+				}
+			}
+			
+			n = read(fd, locker, MAXNAME);
+			close(fd);
+			locker[n > MAXNAME ? MAXNAME : n] = 0;
+			return locker;
+		}
+		
+		/* Other errors */
 		if (errno == EACCES)
 			return NULL;
 #ifdef EROFS
 		if (errno == EROFS)
 			return NULL;
 #endif
-		return "LOCK ERROR: cannot access lock file";
+		return "LOCK ERROR: cannot create lock file";
 	}
-	if ((n = read(fd, locker, MAXNAME)) < 1) {
-		lseek(fd, 0, SEEK_SET);
-        cuserid(locker);
-        safe_strcat(locker, "@", MAXNAME);
-        {
-            size_t off = strlen(locker);
-            if (off < MAXNAME - 1) {
-                gethostname(locker + off, (int)(MAXNAME - off - 1));
-                locker[MAXNAME - 1] = '\0';
-            }
-        }
-		ssize_t written = write(fd, locker, strlen(locker));
-		if (written < 0) {
-			/* Write failed, but we still proceed */
-		}
-		close(fd);
-		return NULL;
+	
+	/* Lock created successfully - write owner info */
+	struct passwd *pw = getpwuid(getuid());
+	if (pw && pw->pw_name) {
+		safe_strcpy(locker, pw->pw_name, MAXNAME);
+	} else {
+		safe_strcpy(locker, "unknown", MAXNAME);
 	}
-	locker[n > MAXNAME ? MAXNAME : n] = 0;
-	return locker;
+	
+	safe_strcat(locker, "@", MAXNAME);
+	size_t off = strlen(locker);
+	if (off < MAXNAME - 1) {
+		gethostname(locker + off, (int)(MAXNAME - off - 1));
+		locker[MAXNAME - 1] = '\0';
+	}
+	
+	ssize_t written = write(fd, locker, strlen(locker));
+	(void)written;
+	close(fd);
+	
+	return NULL;
 }
 
 

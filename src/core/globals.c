@@ -14,13 +14,13 @@ bool revexist = false;		/* does reverse video exist?    */
 bool flickcode = false;		/* do flicker supression?       */
 char *modename[] = {		/* name of modes                */
 	"WRAP", "CMODE", "SPELL", "EXACT", "VIEW", "OVER",
-	"MAGIC", "CRYPT", "ASAVE", "UTF-8"
+	"MAGIC", "ASAVE", "UTF-8"
 };
 char *mode2name[] = {		/* name of modes                */
 	"Wrap", "Cmode", "Spell", "Exact", "View", "Over",
-	"Magic", "Crypt", "Asave", "utf-8"
+	"Magic", "Asave", "utf-8"
 };
-char modecode[] = "WCSEVOMYAU";	/* letters to represent modes   */
+char modecode[] = "WCSEVOMAU";	/* letters to represent modes   */
 int gmode = 0;			/* global editor mode           */
 int gflags = GFREAD;		/* global control flag          */
 
@@ -77,7 +77,6 @@ int yanked_size = 0;		/* Size of last yank for yankpop */
 char temp_kill_buf[8192];
 size_t temp_kill_len = 0;
 struct window *swindow = NULL;	/* saved window pointer                 */
-int cryptflag = FALSE;		/* currently encrypting?                */
 int *kbdptr;			/* current position in keyboard buf */
 int *kbdend = &kbdm[0];		/* ptr to end of the keyboard */
 int kbdmode = STOP;		/* current keyboard macro mode  */
@@ -97,20 +96,23 @@ int saveflag = 0;		/* Flags, saved with the $target var */
 char *fline = NULL;		/* dynamic return line */
 int flen = 0;			/* current length of fline */
 int rval = 0;			/* return value of a subprocess */
-#if	PKCODE
 int nullflag = FALSE;		/* accept null characters */
 int justflag = FALSE;		/* justify, don't fill */
-#endif
 int overlap = 0;		/* line overlap in forw/back page */
 int scrollcount = 1;		/* number of lines to scroll */
 _Atomic int edit_transaction_depth = 0; /* transactional editing depth */
 
 /* Display preferences (user configurable) */
-int highlight_current_line = 0;     /* Highlight cursor row (reverse video) */
+int highlight_current_line = 0;     /* Highlight cursor row (DISABLED - causing memory issues) */
 int column_ruler_enabled = 0;       /* Enable vertical column ruler */
 int column_ruler_column = 80;       /* Ruler target column (1-based) */
-int hiline_style = 1;               /* 0 none, 1 underline, 2 bold, 3 dim */
+int hiline_style = 7;               /* 0 none, 1 underline, 2 bold, 3 dim, 7 reverse (terminal-native highlight) */
 int ruler_style = 1;                /* 0 none, 1 underline, 2 bold, 3 dim */
+/* Highlight tuning defaults */
+int highlight_intensity_pct = 15;      /* Cursorline blend percent (VISIBLE) */
+int ruler_intensity_pct = 15;          /* Ruler blend percent */
+int intersection_intensity_pct = 18;   /* Intersection blend percent */
+int highlight_strategy = 0;            /* 0=blend, 1=lighten, 2=darken */
 
 /* Modeline visibility toggles (user configurable via JSON) */
 int modeline_show_git = 1;

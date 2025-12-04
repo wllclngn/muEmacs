@@ -239,8 +239,17 @@ bool create_backup(const char* filename) {
 FILE* safe_temp_file(char* temp_name, size_t name_size) {
     CHECK_PTR_RET_NULL(temp_name);
     
+    /* Try XDG_RUNTIME_DIR first, then TMPDIR, finally /tmp */
+    const char *tmpdir = getenv("XDG_RUNTIME_DIR");
+    if (!tmpdir || !tmpdir[0]) {
+        tmpdir = getenv("TMPDIR");
+    }
+    if (!tmpdir || !tmpdir[0]) {
+        tmpdir = "/tmp";
+    }
+    
     /* Create template for temporary file */
-    safe_snprintf(temp_name, name_size, "/tmp/uemacs_XXXXXX");
+    safe_snprintf(temp_name, name_size, "%s/uemacs_XXXXXX", tmpdir);
     
     int fd = mkstemp(temp_name);
     if (fd < 0) {

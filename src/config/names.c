@@ -14,9 +14,7 @@ struct name_bind names[] = {
 	{"abort-command", ctrlg},
 	{"add-mode", setemode},
 	{"add-global-mode", setgmode},
-#if	APROP
 	{"apropos", apro},
-#endif
 	{"backward-character", backchar},
 	{"begin-macro", ctlxlp},
 	{"beginning-of-file", gotobob},
@@ -34,9 +32,7 @@ struct name_bind names[] = {
 	{"clear-and-redraw", redraw},
 	{"clear-message-line", clrmes},
 	{"copy-region", copyregion},
-#if	WORDPRO
 	{"count-words", wordcount},
-#endif
 	{"ctlx-prefix", cex},
 	{"delete-blank-lines", deblank},
 	{"delete-buffer", killbuffer},
@@ -50,16 +46,17 @@ struct name_bind names[] = {
 	{"delete-window", delwind},
 	{"describe-bindings", desbind},
 	{"describe-key", deskey},
-#if	AEDIT
 	{"detab-line", detab},
-#endif
 	{"duplicate-line", duplicate_line},
+	{"decrypt-file", decrypt_file_gpg},
+	{"decrypt-file-age", decrypt_file_age},
+	{"encrypt-buffer", encrypt_buffer_gpg},
+	{"encrypt-buffer-age", encrypt_buffer_age},
+	{"encrypt-buffer-auto", encrypt_buffer_auto},
 	{"end-macro", ctlxrp},
 	{"end-of-file", gotoeob},
 	{"end-of-line", gotoeol},
-#if	AEDIT
 	{"entab-line", entab},
-#endif
 	{"exchange-point-and-mark", swapmark},
 	{"execute-buffer", execbuf},
 	{"execute-command-line", execcmd},
@@ -111,16 +108,12 @@ struct name_bind names[] = {
 #endif
 	{"execute-program", execprg},
 	{"exit-emacs", quit},
-#if	WORDPRO
 	{"fill-paragraph", fillpara},
-#endif
 	{"filter-buffer", filter_buffer},
 	{"find-file", filefind},
 	{"forward-character", forwchar},
 	{"goto-line", gotoline},
-#if	CFENCE
 	{"goto-matching-fence", getfence},
-#endif
 	{"grow-window", enlargewind},
 	{"handle-tab", insert_tab},
 	{"hunt-forward", forwhunt},
@@ -130,18 +123,14 @@ struct name_bind names[] = {
     {"enable-help-prefix", help_prefix_enable},
     {"disable-help-prefix", help_prefix_disable},
 	{"i-shell", spawncli},
-#if	ISRCH
 	{"incremental-search", fisearch},
-#endif
 	{"insert-file", insfile},
 	{"insert-space", insspace},
 	{"insert-string", istring},
-#if	WORDPRO
 #if	PKCODE
 	{"justify-paragraph", justpara},
 #endif
 	{"kill-paragraph", killpara},
-#endif
 	{"kill-region", killregion},
 	{"kill-to-end-of-line", killtext},
 	{"list-buffers", listbuffers},
@@ -156,9 +145,7 @@ struct name_bind names[] = {
 	{"next-buffer", nextbuffer},
 	{"next-line", forwline},
 	{"next-page", forwpage},
-#if	WORDPRO
 	{"next-paragraph", gotoeop},
-#endif
 	{"next-window", nextwind},
 	{"next-word", forwword},
 	{"next-subword", forwsubword},
@@ -168,9 +155,7 @@ struct name_bind names[] = {
 	{"pipe-command", pipecmd},
 	{"previous-line", backline},
 	{"previous-page", backpage},
-#if	WORDPRO
 	{"previous-paragraph", gotobop},
-#endif
 	{"previous-window", prevwind},
 	{"previous-word", backword},
 	{"previous-subword", backsubword},
@@ -184,9 +169,7 @@ struct name_bind names[] = {
 	{"resize-window", resize},
 	{"restore-window", restwnd},
 	{"replace-string", sreplace},
-#if	ISRCH
 	{"reverse-incremental-search", risearch},
-#endif
 #if	PROC
 	{"run", execproc},
 #endif
@@ -205,9 +188,7 @@ struct name_bind names[] = {
     {"save-settings", save_settings_cmd},
     {"open-user-config", open_user_config_cmd},
     {"list-settings", list_settings_cmd},
-#if	CRYPT
-	{"set-encryption-key", set_encryption_key},
-#endif
+	{"show-encryption-tools", show_encryption_tools},
 	{"set-mark", setmark},
 	{"shell-command", spawn},
 	{"shrink-window", shrinkwind},
@@ -218,9 +199,7 @@ struct name_bind names[] = {
 #endif
 	{"suspend-emacs", bktoshell},
 	{"transpose-characters", twiddle},
-#if	AEDIT
 	{"trim-line", trim},
-#endif
 	{"unbind-key", unbindkey},
 	{"undo", undo_cmd},
 	{"universal-argument", unarg},
@@ -236,3 +215,22 @@ struct name_bind names[] = {
 
 	{"", NULL}
 };
+
+/* Compile-time verification that names table has minimum size */
+static_assert(
+	sizeof(names) > 2 * sizeof(struct name_bind),
+	"names table must have at least 2 entries"
+);
+
+#ifdef DEBUG
+/* Runtime verification that names table is sorted (call once at startup) */
+void verify_names_sorted(void) {
+	for (size_t i = 1; names[i].n_name != NULL; i++) {
+		if (strcmp(names[i-1].n_name, names[i].n_name) >= 0) {
+			fprintf(stderr, "ERROR: names[] not sorted at index %zu: '%s' >= '%s'\n",
+				i, names[i-1].n_name, names[i].n_name);
+			abort();
+		}
+	}
+}
+#endif

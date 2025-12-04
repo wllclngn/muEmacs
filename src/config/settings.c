@@ -11,21 +11,69 @@
 #include "efunc.h"
 #include "string_safe.h"
 
-// Project-contained JSON settings, no fallbacks.
-// Single in-tree location (absolute, compiled at configure time):
-//   UEMACS_SOURCE_EDITOR_DIR/settings.json
+// Settings loader with XDG Base Directory support
+// Priority order:
+//   1. User config: ~/.config/muemacs/settings.json (XDG_CONFIG_HOME)
+//   2. System installed: UEMACS_DATA_DIR/editor/settings.json
+//   3. In-tree fallback: UEMACS_SOURCE_EDITOR_DIR/settings.json
 
-static const char* settings_dir(void) { return UEMACS_SOURCE_EDITOR_DIR; }
+static char user_config_path[512] = {0};
+static char user_config_dir[512] = {0};
 
-static const char* settings_file(void) { return UEMACS_SOURCE_EDITOR_DIR "/settings.json"; }
+// Get XDG config directory or fallback to ~/.config
+static const char* get_user_config_dir(void) {
+    if (user_config_dir[0] != '\0') {
+        return user_config_dir;
+    }
+    
+    const char* xdg_config = getenv("XDG_CONFIG_HOME");
+    if (xdg_config && xdg_config[0] != '\0') {
+        snprintf(user_config_dir, sizeof(user_config_dir), "%s/muemacs", xdg_config);
+    } else {
+        const char* home = getenv("HOME");
+        if (home) {
+            snprintf(user_config_dir, sizeof(user_config_dir), "%s/.config/muemacs", home);
+        } else {
+            user_config_dir[0] = '\0';
+        }
+    }
+    return user_config_dir;
+}
+
+// Get user config file path
+static const char* get_user_config_file(void) {
+    if (user_config_path[0] != '\0') {
+        return user_config_path;
+    }
+    
+    const char* dir = get_user_config_dir();
+    if (dir[0] != '\0') {
+        snprintf(user_config_path, sizeof(user_config_path), "%s/settings.json", dir);
+    }
+    return user_config_path;
+}
+
+static const char* settings_dir(void) { return UEMACS_DATA_DIR "/editor"; }
+
+static const char* settings_file(void) { return UEMACS_DATA_DIR "/editor/settings.json"; }
 
 // No write-directory probing; writes go to project file.
 
-static const char* bundled_settings_source_file(void) {
-    return UEMACS_SOURCE_EDITOR_DIR "/settings.json";
-}
+static const char* bundled_settings_source_file(void) { return UEMACS_SOURCE_EDITOR_DIR "/settings.json"; }
 
 static FILE* open_settings_fp(void) {
+    // Try user config first (highest priority)
+    const char* user_config = get_user_config_file();
+    if (user_config[0] != '\0') {
+        FILE* fp = fopen(user_config, "r");
+        if (fp) return fp;
+    }
+    
+    // Try system installed config
+    FILE* fp = fopen(UEMACS_DATA_DIR "/editor/settings.json", "r");
+    if (fp) return fp;
+    
+    // Fallback to in-tree config
     return fopen(UEMACS_SOURCE_EDITOR_DIR "/settings.json", "r");
 }
 
@@ -36,8 +84,16 @@ static int ensure_dir_abs(const char* dir) {
 }
 
 static void ensure_settings_dir(void) {
-    /* Ensure the single project settings directory exists */
-    (void)ensure_dir_abs(UEMACS_SOURCE_EDITOR_DIR);
+    // Try to create user config directory first (XDG)
+    const char* user_dir = get_user_config_dir();
+    if (user_dir[0] != '\0' && ensure_dir_abs(user_dir)) {
+        return; // User config dir created successfully
+    }
+    
+    /* Prefer installed data dir; if not writable, fallback to project tree */
+    if (!ensure_dir_abs(UEMACS_DATA_DIR "/editor")) {
+        (void)ensure_dir_abs(UEMACS_SOURCE_EDITOR_DIR);
+    }
 }
 
 // Tiny JSON scanner for flat key:value pairs we recognize
@@ -113,14 +169,57 @@ int settings_load(int f, int n) {
     }
     if (json_int(buf, "\"hilinestyle\"", &hls)) {
         if (hls < 0) { hls = 0; }
-        if (hls > 3) { hls = 3; }
+        if (hls > 4) { hls = 4; } // 4 = reverse (Vim-like)
         hiline_style = hls;
         sgarbf = TRUE;
     }
     if (json_int(buf, "\"rulerstyle\"", &rls)) {
         if (rls < 0) { rls = 0; }
-        if (rls > 3) { rls = 3; }
+        if (rls > 4) { rls = 4; } // 4 = reverse (Vim-like)
         ruler_style = rls;
+        sgarbf = TRUE;
+    }
+
+    // Highlight tuning (optional)
+    int hip=-1, rip=-1, iip=-1, hst=-1;
+    if (json_int(buf, "\"highlight_intensity\"", &hip)) {
+        if (hip < 0) {
+            hip = 0;
+        }
+        if (hip > 50) {
+            hip = 50;
+        }
+        highlight_intensity_pct = hip;
+        sgarbf = TRUE;
+    }
+    if (json_int(buf, "\"ruler_intensity\"", &rip)) {
+        if (rip < 0) {
+            rip = 0;
+        }
+        if (rip > 50) {
+            rip = 50;
+        }
+        ruler_intensity_pct = rip;
+        sgarbf = TRUE;
+    }
+    if (json_int(buf, "\"intersection_intensity\"", &iip)) {
+        if (iip < 0) {
+            iip = 0;
+        }
+        if (iip > 50) {
+            iip = 50;
+        }
+        intersection_intensity_pct = iip;
+        sgarbf = TRUE;
+    }
+    if (json_int(buf, "\"highlight_strategy\"", &hst)) {
+        if (hst < 0) {
+            hst = 0;
+        }
+        if (hst > 2) {
+            hst = 2;
+        }
+        highlight_strategy = hst;
         sgarbf = TRUE;
     }
 
@@ -138,10 +237,33 @@ int settings_load(int f, int n) {
 int save_settings_cmd(int f, int n) {
     (void)f; (void)n;
     ensure_settings_dir();
-    /* Only write to the project settings file */
-    const char* path = UEMACS_SOURCE_EDITOR_DIR "/settings.json";
-    FILE* fp = fopen(path, "w");
-    if (!fp) { mlwrite("(Could not save settings: %s)", strerror(errno)); return FALSE; }
+    
+    // Try to save to user config first (highest priority)
+    const char* user_config = get_user_config_file();
+    const char* path = NULL;
+    FILE* fp = NULL;
+    
+    if (user_config[0] != '\0') {
+        fp = fopen(user_config, "w");
+        if (fp) {
+            path = user_config;
+        }
+    }
+    
+    // Fallback to installed data dir or project file
+    if (!fp) {
+        path = UEMACS_DATA_DIR "/editor/settings.json";
+        fp = fopen(path, "w");
+    }
+    if (!fp) {
+        path = UEMACS_SOURCE_EDITOR_DIR "/settings.json";
+        fp = fopen(path, "w");
+    }
+    
+    if (!fp) { 
+        mlwrite("(Could not save settings: %s)", strerror(errno)); 
+        return FALSE; 
+    }
     int wrap = (curbp && (curbp->b_mode & MDWRAP)) ? 1 : 0;
     int col = (fillcol > 0 ? fillcol : 80);
     fprintf(fp, "{\n");
@@ -152,6 +274,10 @@ int save_settings_cmd(int f, int n) {
     fprintf(fp, "  \"highlightline\": %s,\n", highlight_current_line ? "true" : "false");
     fprintf(fp, "  \"hilinestyle\": %d,\n", hiline_style);
     fprintf(fp, "  \"rulerstyle\": %d,\n", ruler_style);
+    fprintf(fp, "  \"highlight_intensity\": %d,\n", highlight_intensity_pct);
+    fprintf(fp, "  \"ruler_intensity\": %d,\n", ruler_intensity_pct);
+    fprintf(fp, "  \"intersection_intensity\": %d,\n", intersection_intensity_pct);
+    fprintf(fp, "  \"highlight_strategy\": %d,\n", highlight_strategy);
     fprintf(fp, "  \"modeline_show_git\": %s,\n", modeline_show_git ? "true" : "false");
     fprintf(fp, "  \"modeline_show_stats\": %s,\n", modeline_show_stats ? "true" : "false");
     fprintf(fp, "  \"modeline_show_modes\": %s,\n", modeline_show_modes ? "true" : "false");

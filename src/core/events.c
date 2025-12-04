@@ -1,6 +1,6 @@
 // events.c - Event-driven architecture implementation
 
-#include "μemacs/events.h"
+#include "events.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

@@ -7,6 +7,7 @@
 #include <wchar.h>
 #include <locale.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include "display_width.h"
 #include "line.h"
 #include "memory.h"

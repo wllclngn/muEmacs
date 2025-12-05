@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 
 /* Make global definitions not external. */
 #define	maindef
@@ -150,7 +151,7 @@ static void initialize_editor(void)
 #endif
 
     // Load user settings from JSON, if present
-    settings_load(FALSE, 0);
+    settings_load(false, 0);
 }
 
 // Parse command line arguments
@@ -158,67 +159,67 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 {
 	int carg;
 	struct buffer *bp;
-	int firstfile = TRUE;
+	int firstfile = true;
 	char bname[NBUFN];
 	
 	// Initialize args structure
-	args->viewflag = FALSE;
-	args->gotoflag = FALSE;
+	args->viewflag = false;
+	args->gotoflag = false;
 	args->gline = 0;
-	args->searchflag = FALSE;
-	args->startflag = FALSE;
-	args->errflag = FALSE;
-	args->firstbp = NULL;
+	args->searchflag = false;
+	args->startflag = false;
+	args->errflag = false;
+	args->firstbp = nullptr;
 
 	// Parse the command line
 	for (carg = 1; carg < argc; ++carg) {
 		if (argv[carg][0] == '+') {
-			args->gotoflag = TRUE;
+			args->gotoflag = true;
 			args->gline = atoi(&argv[carg][1]);
 		} else
 		if (argv[carg][0] == '-') {
 			switch (argv[carg][1]) {
 			case 'a': case 'A':
-				args->errflag = TRUE;
+				args->errflag = true;
 				break;
 			case 'e': case 'E':
-				args->viewflag = FALSE;
+				args->viewflag = false;
 				break;
 			case 'g': case 'G':
-				args->gotoflag = TRUE;
+				args->gotoflag = true;
 				args->gline = atoi(&argv[carg][2]);
 				break;
 			case 'n': case 'N':
-				nullflag = TRUE;
+				nullflag = true;
 				break;
 			case 'r': case 'R':
-				restflag = TRUE;
+				restflag = true;
 				break;
 			case 's': case 'S':
-				args->searchflag = TRUE;
+				args->searchflag = true;
                 safe_strcpy(args->pat, &argv[carg][2], NPAT);
 				break;
 			case 'v': case 'V':
-				args->viewflag = TRUE;
+				args->viewflag = true;
 				break;
 			default:
 				break;
 			}
 		} else if (argv[carg][0] == '@') {
 			// Process Startup macros
-			if (startup(&argv[carg][1]) == TRUE)
-				args->startflag = TRUE;
+			if (startup(&argv[carg][1]) == true)
+				args->startflag = true;
 		} else {
 			// Process an input file
 			makename(bname, argv[carg]);
 			unqname(bname);
 
-			bp = bfind(bname, TRUE, 0);
+			bp = bfind(bname, true, 0);
             safe_strcpy(bp->b_fname, argv[carg], NFILEN);
-			bp->b_active = FALSE;
+			bp->b_active = false;
 			if (firstfile) {
 				args->firstbp = bp;
-				firstfile = FALSE;
+				firstfile = false;
 			}
 
 			// Set the modes appropriately
@@ -241,20 +242,20 @@ static void process_input_files(struct main_args *args, struct main_state *state
 
 	// if we are C error parsing... run it!
 	if (args->errflag) {
-		if (startup("error.cmd") == TRUE)
-			args->startflag = TRUE;
+		if (startup("error.cmd") == true)
+			args->startflag = true;
 	}
 
 	// if invoked with no other startup files, run the system startup file here
-	if (args->startflag == FALSE) {
+	if (args->startflag == false) {
 		startup("");
-		args->startflag = TRUE;
+		args->startflag = true;
 	}
-	discmd = TRUE;		// P.K.
+	discmd = true;		// P.K.
 
 	// if there are any files to read, read the first one!
-	bp = bfind("main", FALSE, 0);
-	if (args->firstbp != NULL && (gflags & GFREAD)) {
+	bp = bfind("main", false, 0);
+	if (args->firstbp != nullptr && (gflags & GFREAD)) {
 		swbuffer(args->firstbp);
 		zotbuf(bp);
 	} else {
@@ -263,16 +264,16 @@ static void process_input_files(struct main_args *args, struct main_state *state
 
 	// Deal with startup gotos and searches
 	if (args->gotoflag && args->searchflag) {
-		update(FALSE);
+		update(false);
 		mlwrite("(Can not search and goto at the same time!)");
 	} else if (args->gotoflag) {
-		if (gotoline(TRUE, args->gline) == FALSE) {
-			update(FALSE);
+		if (gotoline(true, args->gline) == false) {
+			update(false);
 			mlwrite("(Bogus goto argument)");
 		}
 	} else if (args->searchflag) {
-		if (forwhunt(FALSE, 0) == FALSE)
-			update(FALSE);
+		if (forwhunt(false, 0) == false)
+			update(false);
 	}
 }
 
@@ -285,7 +286,7 @@ static int main_editor_loop(struct main_args *args, struct main_state *state)
 loop:
 	// Execute the "command" macro...normally null.
 	state->saveflag = lastflag;  // Preserve lastflag through this.
-	execute(META | SPEC | 'C', FALSE, 1);
+	execute(META | SPEC | 'C', false, 1);
 	lastflag = state->saveflag;
 
 	// Check for pending signals first
@@ -295,22 +296,22 @@ loop:
 #endif
 
 	// Fix up the screen
-	update(FALSE);
+	update(false);
 
 	// get the next command from the keyboard (C23 atomic processing)
 	state->c = getcmd();
 	// if there is something on the command line, clear it
-	if (mpresf != FALSE) {
+	if (mpresf != false) {
 		mlerase();
-		update(FALSE);
+		update(false);
 	}
-	state->f = FALSE;
+	state->f = false;
 	state->n = 1;
 
     // do META-# processing if needed
     state->basec = state->c & ~META;	// strip meta char off if there
     if ((state->c & META) && ((state->basec >= '0' && state->basec <= '9') || state->basec == '-')) {
-        state->f = TRUE;	// there is a # arg
+        state->f = true;	// there is a # arg
         state->n = 0;		// start with a zero default
         state->mflag = 1;	// current minus flag
         state->c = state->basec;	// strip the META
@@ -342,7 +343,7 @@ loop:
 
     // do ^U repeat argument processing
     if (state->c == reptc) {	// ^U, start argument
-        state->f = TRUE;
+        state->f = true;
         state->n = 4;		// with argument of 4
         state->mflag = 0;	// that can be discarded.
         mlwrite("Arg: 4");
@@ -398,7 +399,7 @@ loop:
 	execute(state->c, state->f, state->n);
 	goto loop;
 	
-	return TRUE;
+	return true;
 }
 
 
@@ -412,23 +413,23 @@ void edinit(char *bname)
 	struct buffer *bp;
 	struct window *wp;
 
-	bp = bfind(bname, TRUE, 0);	/* First buffer         */
-	blistp = bfind("*List*", TRUE, BFINVS);	/* Buffer list buffer   */
+	bp = bfind(bname, true, 0);	/* First buffer         */
+	blistp = bfind("*List*", true, BFINVS);	/* Buffer list buffer   */
 	wp = (struct window *)safe_alloc(sizeof(struct window), "first window", __FILE__, __LINE__);	/* First window         */
-	if (bp == NULL || wp == NULL || blistp == NULL) {
+	if (bp == nullptr || wp == nullptr || blistp == nullptr) {
 		REPORT_ERROR(ERR_MEMORY, "Failed to initialize core editor structures");
 		exit(1);
 	}
 	curbp = bp;		/* Make this current    */
 	wheadp = wp;
 	curwp = wp;
-	wp->w_wndp = NULL;	/* Initialize window    */
+	wp->w_wndp = nullptr;	/* Initialize window    */
 	wp->w_bufp = bp;
 	bp->b_nwnd = 1;		/* Displayed.           */
 	wp->w_linep = bp->b_linep;
 	wp->w_dotp = bp->b_linep;
 	wp->w_doto = 0;
-	wp->w_markp = NULL;
+	wp->w_markp = nullptr;
 	wp->w_marko = 0;
 	wp->w_toprow = 0;
 #if	COLOR
@@ -456,7 +457,7 @@ int execute(int c, int f, int n)
 	/* C23 atomic function binding lookup - O(1) hash-based with memory ordering */
 	execfunc = getbind(c);  // Already uses atomic keymap lookups internally
 	
-	if (execfunc != NULL) {
+	if (execfunc != nullptr) {
 		// Atomic flag management for command state
 		atomic_store_explicit((_Atomic int*)&thisflag, 0, memory_order_relaxed);
 		
@@ -476,14 +477,14 @@ int execute(int c, int f, int n)
 	 * and we are not read-only, perform word wrap.
 	 */
 	if (c == ' ' && (curwp->w_bufp->b_mode & MDWRAP) && fillcol > 0 &&
-	    n >= 0 && getccol(FALSE) > fillcol &&
-	    (curwp->w_bufp->b_mode & MDVIEW) == FALSE)
-		execute(META | SPEC | 'W', FALSE, 1);
+	    n >= 0 && getccol(false) > fillcol &&
+	    (curwp->w_bufp->b_mode & MDVIEW) == false)
+		execute(META | SPEC | 'W', false, 1);
 
 	if ((c >= 0x20 && c <= 0x7E) || (c >= 0xA0 && c <= 0x10FFFF)) {	/* Self inserting.      */
 		if (n <= 0) {	/* Fenceposts.          */
 			lastflag = 0;
-			return n < 0 ? FALSE : TRUE;
+			return n < 0 ? false : true;
 		}
 		thisflag = 0;	/* For the future.      */
 
@@ -494,7 +495,7 @@ int execute(int c, int f, int n)
 		    curwp->w_doto < llength(curwp->w_dotp) &&
 		    (lgetc(curwp->w_dotp, curwp->w_doto) != '\t' ||
 		     (curwp->w_doto) % 8 == 7))
-			ldelchar(1, FALSE);
+			ldelchar(1, false);
 
 		/* do the appropriate insertion */
 		if (c == '}' && (curbp->b_mode & MDCMOD) != 0)
@@ -520,8 +521,8 @@ int execute(int c, int f, int n)
 		if (curbp->b_mode & MDASAVE)
 			if (--gacount == 0) {
 				/* and save the file if needed */
-				upscreen(FALSE, 0);
-				filesave(FALSE, 0);
+				upscreen(false, 0);
+				filesave(false, 0);
 				gacount = gasave;
 			}
 
@@ -531,7 +532,7 @@ int execute(int c, int f, int n)
 	TTbeep();
 	mlwrite("(Key not bound)");	/* complain             */
 	lastflag = 0;		/* Fake last flags.     */
-	return FALSE;
+	return false;
 }
 
 /*
@@ -547,13 +548,13 @@ int quickexit(int f, int n)
 	oldcb = curbp;		/* save in case we fail */
 
 	bp = bheadp;
-	while (bp != NULL) {
+	while (bp != nullptr) {
 		if ((bp->b_flag & BFCHG) != 0	/* Changed.             */
 		    && (bp->b_flag & BFTRUNC) == 0	/* Not truncated P.K.   */
 		    && (bp->b_flag & BFINVS) == 0) {	/* Real.                */
 			curbp = bp;	/* make that buffer cur */
 			mlwrite("(Saving %s)", bp->b_fname);
-			if ((status = filesave(f, n)) != TRUE) {
+			if ((status = filesave(f, n)) != true) {
 				curbp = oldcb;	/* restore curbp */
 				return status;
 			}
@@ -561,7 +562,7 @@ int quickexit(int f, int n)
 		bp = bp->b_bufp;	/* on to the next buffer */
 	}
 	quit(f, n);		/* conditionally quit   */
-	return TRUE;
+	return true;
 }
 
 // Global flags for async-signal-safe emergency exit handling
@@ -581,8 +582,8 @@ void check_emergency_exit(void)
 {
 	if (emergency_exit_flag) {
 		emergency_exit_flag = 0;
-		quickexit(FALSE, 0);
-		quit(TRUE, 0);
+		quickexit(false, 0);
+		quit(true, 0);
 	}
 }
 
@@ -594,11 +595,11 @@ int quit(int f, int n)
 {
 	int s;
 
-	if (f != FALSE		/* Argument forces it.  */
-	    || anycb() == FALSE	/* All buffers clean.   */
+	if (f != false		/* Argument forces it.  */
+	    || anycb() == false	/* All buffers clean.   */
 	    /* User says it's OK.   */
 	    || (s =
-		mlyesno("Modified buffers exist. Leave anyway")) == TRUE) {
+		mlyesno("Modified buffers exist. Leave anyway")) == true) {
 /* Session saving removed - keeping exit clean and simple */
 		vttidy();
 		if (f)
@@ -619,13 +620,13 @@ int ctlxlp(int f, int n)
 {
 	if (kbdmode != STOP) {
 		mlwrite("%%Macro already active");
-		return FALSE;
+		return false;
 	}
 	mlwrite("(Start macro)");
 	kbdptr = &kbdm[0];
 	kbdend = kbdptr;
 	kbdmode = RECORD;
-	return TRUE;
+	return true;
 }
 
 /*
@@ -636,32 +637,32 @@ int ctlxrp(int f, int n)
 {
 	if (kbdmode == STOP) {
 		mlwrite("%%Macro not active");
-		return FALSE;
+		return false;
 	}
 	if (kbdmode == RECORD) {
 		mlwrite("(End macro)");
 		kbdmode = STOP;
 	}
-	return TRUE;
+	return true;
 }
 
 /*
  * Execute a macro.
  * The command argument is the number of times to loop. Quit as soon as a
- * command gets an error. Return TRUE if all ok, else FALSE.
+ * command gets an error. Return true if all ok, else false.
  */
 int ctlxe(int f, int n)
 {
 	if (kbdmode != STOP) {
 		mlwrite("%%Macro already active");
-		return FALSE;
+		return false;
 	}
 	if (n <= 0)
-		return TRUE;
+		return true;
 	kbdrep = n;		/* remember how many times to execute */
 	kbdmode = PLAY;		/* start us in play mode */
 	kbdptr = &kbdm[0];	/*    at the beginning */
-	return TRUE;
+	return true;
 }
 
 /*
@@ -685,20 +686,20 @@ int rdonly(void)
 {
 	TTbeep();
 	mlwrite("(Key illegal in VIEW mode)");
-	return FALSE;
+	return false;
 }
 
 int resterr(void)
 {
 	TTbeep();
 	mlwrite("(That command is RESTRICTED)");
-	return FALSE;
+	return false;
 }
 
 /* user function that does NOTHING */
 int nullproc(int f, int n)
 {
-	return TRUE;
+	return true;
 }
 
 /* dummy function for binding to meta prefix */
@@ -716,7 +717,7 @@ int metafn(int f, int n)
 		struct keymap_entry *entry = keymap_lookup(mkm, c);
 		if (entry && !entry->is_prefix) {
 			execfunc = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
-			if (execfunc != NULL) {
+			if (execfunc != nullptr) {
 				return (*execfunc)(f, n);
 			}
 		}
@@ -724,7 +725,7 @@ int metafn(int f, int n)
 	
 	/* command not found - report error */
 	mlwrite("(Key not bound)");
-	return FALSE;
+	return false;
 }
 
 /* dummy function for binding to control-x prefix */
@@ -742,7 +743,7 @@ int cex(int f, int n)
 		struct keymap_entry *entry = keymap_lookup(ckm, c);
 		if (entry && !entry->is_prefix) {
 			execfunc = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
-			if (execfunc != NULL) {
+			if (execfunc != nullptr) {
 				return (*execfunc)(f, n);
 			}
 		}
@@ -750,13 +751,13 @@ int cex(int f, int n)
 	
 	/* command not found - report error */
 	mlwrite("(Key not bound)");
-	return FALSE;
+	return false;
 }
 
 /* dummy function for binding to universal-argument */
 int unarg(int f, int n)
 {
-	return TRUE;
+	return true;
 }
 
 /*****		Compiler specific Library functions	****/

@@ -31,13 +31,13 @@ int test_plugin_isolation() {
     void failing_hook(uemacs_event_t event, void* context) {
         (void)event; (void)context;
         // Simulate a plugin error (should not crash editor)
-        int* p = NULL; *p = 42;
+        int* p = nullptr; *p = 42;
     }
-    assert(uemacs_register_hook(UEMACS_EVENT_ON_COMMAND, failing_hook, NULL));
+    assert(uemacs_register_hook(UEMACS_EVENT_ON_COMMAND, failing_hook, nullptr));
     // Should not crash, but may segfault if not isolated (for real isolation, use try/catch or signal handler)
     // For now, just demonstrate registration
     uemacs_invoke_hooks(UEMACS_EVENT_ON_COMMAND);
-    assert(uemacs_unregister_hook(UEMACS_EVENT_ON_COMMAND, failing_hook, NULL));
+    assert(uemacs_unregister_hook(UEMACS_EVENT_ON_COMMAND, failing_hook, nullptr));
     PHASE_END("PLUGIN: ISOLATION", 1);
     return 1;
 }

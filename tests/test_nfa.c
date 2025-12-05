@@ -22,14 +22,14 @@ static struct line* make_buffer(void) {
     struct line* l1 = lalloc(3); memcpy(l1->l_text, "foo", 3); l1->l_used = 3;
     struct line* l2 = lalloc(3); memcpy(l2->l_text, "bar", 3); l2->l_used = 3;
     l1->l_fp = l2; l2->l_bp = l1;
-    l1->l_bp = l2->l_fp = NULL;
+    l1->l_bp = l2->l_fp = nullptr;
     return l1;
 }
 #else
 // Helper: stub for when NFA is disabled
 static void* make_buffer(void) {
     printf("[SKIP] make_buffer called but NFA disabled\n");
-    return NULL;
+    return nullptr;
 }
 #endif
 
@@ -38,7 +38,7 @@ void test_anchor_start() {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("^foo", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
 }
@@ -53,7 +53,7 @@ void test_anchor_end() {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("bar$", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l->l_fp, 0, 0, &mlp, &moff));
     assert(mlp == l->l_fp && moff == 0);
 }
@@ -71,7 +71,7 @@ NFA_FUNC(test_cross_line, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("foo", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
     assert(nfa_search_forward(&nfa, l->l_fp, 0, 0, &mlp, &moff));
@@ -82,7 +82,7 @@ NFA_FUNC(test_class_and_closure, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("f[o]+", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
 })
@@ -91,7 +91,7 @@ NFA_FUNC(test_case_fold, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("FOO", 0, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
 })
@@ -100,7 +100,7 @@ NFA_FUNC(test_empty_pattern, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
 })
@@ -109,7 +109,7 @@ NFA_FUNC(test_anchors_only, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("^$", 1, &nfa));
     struct line* l = lalloc(0); l->l_used = 0;
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
 })
@@ -118,7 +118,7 @@ NFA_FUNC(test_negated_class, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("[^a]oo", 1, &nfa));
     struct line* l = lalloc(3); memcpy(l->l_text, "foo", 3); l->l_used = 3;
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     l->l_text[0] = 'b';
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
@@ -129,7 +129,7 @@ NFA_FUNC(test_zero_length_match, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("^", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff));
     assert(mlp == l && moff == 0);
 })
@@ -138,7 +138,7 @@ NFA_FUNC(test_multiline_anchor, {
     struct nfa_program_info nfa = {0};
     assert(nfa_compile("^bar$", 1, &nfa));
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     assert(nfa_search_forward(&nfa, l->l_fp, 0, 0, &mlp, &moff));
     assert(mlp == l->l_fp && moff == 0);
 })

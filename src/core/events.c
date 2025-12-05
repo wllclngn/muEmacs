@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <time.h>
 #include <errno.h>
 #include <sys/time.h>
@@ -13,7 +14,7 @@
 #include "memory.h"
 
 // Global event system and statistics
-struct event_system *global_event_system = NULL;
+struct event_system *global_event_system = nullptr;
 struct event_stats global_event_stats = {0};
 
 // Event type names for debugging
@@ -58,7 +59,7 @@ int event_system_init(size_t max_queue_size) {
     memset(global_event_system->handlers, 0, sizeof(global_event_system->handlers));
     
     // Initialize timer system
-    global_event_system->timers = NULL;
+    global_event_system->timers = nullptr;
     atomic_init(&global_event_system->timer_id_seq, 1);
     
     // Initialize state
@@ -92,7 +93,7 @@ void event_system_shutdown(void) {
             SAFE_FREE(handler);
             handler = next;
         }
-        global_event_system->handlers[i] = NULL;
+        global_event_system->handlers[i] = nullptr;
     }
     
     // Free timers
@@ -102,7 +103,7 @@ void event_system_shutdown(void) {
         SAFE_FREE(timer);
         timer = next;
     }
-    global_event_system->timers = NULL;
+    global_event_system->timers = nullptr;
     
     SAFE_FREE(global_event_system);
 }
@@ -110,14 +111,14 @@ void event_system_shutdown(void) {
 // Create new event
 struct event *event_create(event_type_t type, event_priority_t priority) {
     struct event *evt = safe_alloc(sizeof(struct event), "event", __FILE__, __LINE__);
-    if (!evt) return NULL;
+    if (!evt) return nullptr;
     
     evt->type = type;
     evt->priority = priority;
     evt->timestamp_ns = get_current_time_ns();
     evt->sequence = atomic_fetch_add(&global_event_system->queue.sequence, 1);
     evt->consumed = false;
-    evt->next = NULL;
+    evt->next = nullptr;
     
     memset(&evt->data, 0, sizeof(evt->data));
     
@@ -181,7 +182,7 @@ int event_queue_push(struct event *evt) {
 
 // Pop event from queue (highest priority first)
 struct event *event_queue_pop(void) {
-    if (!global_event_system) return NULL;
+    if (!global_event_system) return nullptr;
     
     // Check priorities from highest to lowest
     for (int priority = EVENT_PRIORITY_CRITICAL; priority >= EVENT_PRIORITY_LOW; priority--) {
@@ -189,15 +190,15 @@ struct event *event_queue_pop(void) {
         if (evt) {
             global_event_system->queue.head[priority] = evt->next;
             if (!evt->next) {
-                global_event_system->queue.tail[priority] = NULL;
+                global_event_system->queue.tail[priority] = nullptr;
             }
-            evt->next = NULL;
+            evt->next = nullptr;
             atomic_fetch_sub(&global_event_system->queue.count, 1);
             return evt;
         }
     }
     
-    return NULL;
+    return nullptr;
 }
 
 // Clear event queue
@@ -205,7 +206,7 @@ void event_queue_clear(void) {
     if (!global_event_system) return;
     
     struct event *evt;
-    while ((evt = event_queue_pop()) != NULL) {
+    while ((evt = event_queue_pop()) != nullptr) {
         event_destroy(evt);
     }
 }

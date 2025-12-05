@@ -50,9 +50,9 @@ int test_atomic_stats_updates() {
 
     // Delete a char and check bytes change (words heuristic may not change)
     curwp->w_dotp = lforw(curbp->b_linep); curwp->w_doto = 0; // line 1
-    long before_bytes = 0; buffer_get_stats_fast(curbp, NULL, &before_bytes, NULL);
-    ldelete(1, FALSE);
-    long after_bytes = 0; buffer_get_stats_fast(curbp, NULL, &after_bytes, NULL);
+    long before_bytes = 0; buffer_get_stats_fast(curbp, nullptr, &before_bytes, nullptr);
+    ldelete(1, false);
+    long after_bytes = 0; buffer_get_stats_fast(curbp, nullptr, &after_bytes, nullptr);
     if (!(after_bytes == before_bytes - 1)) {
         ok = 0; printf("[%sFAIL%s] byte count did not decrement\n", RED, RESET);
     }

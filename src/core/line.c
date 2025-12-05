@@ -87,7 +87,7 @@ static long getlinenum(struct buffer *bp, struct line *lp) {
 /*
  * This routine allocates a block of memory large enough to hold a struct line
  * containing "used" characters. The block is always rounded up a bit. Return
- * a pointer to the new block, or NULL if there isn't any memory left. Print a
+ * a pointer to the new block, or nullptr if there isn't any memory left. Print a
  * message in the message line if no space.
  */
 struct line *lalloc(int used)
@@ -96,14 +96,14 @@ struct line *lalloc(int used)
 
 	lp = (struct line *)safe_alloc(sizeof(struct line), "line buffer", __FILE__, __LINE__);
 	if (!lp) {
-		return NULL;
+		return nullptr;
 	}
 	
 	size_t initial_capacity = (used > 0) ? (size_t)used : GAP_BUFFER_MIN_SIZE;
 	lp->gb = gap_buffer_create(initial_capacity);
 	if (!lp->gb) {
 		safe_free((void **)&lp);
-		return NULL;
+		return nullptr;
 	}
 	
 	atomic_store(&lp->l_column_cache_offset, 0);
@@ -125,7 +125,7 @@ void lfree(struct line *lp)
 	struct window *wp;
 
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_linep == lp)
 			wp->w_linep = lp->l_fp;
 		if (wp->w_dotp == lp) {
@@ -139,7 +139,7 @@ void lfree(struct line *lp)
 		wp = wp->w_wndp;
 	}
 	bp = bheadp;
-	while (bp != NULL) {
+	while (bp != nullptr) {
 		if (bp->b_nwnd == 0) {
 			if (bp->b_dotp == lp) {
 				bp->b_dotp = lp->l_fp;
@@ -177,7 +177,7 @@ void lchange(int flag)
 	}
 	flag |= WFMODE;	/* Always update mode lines for instant status */
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_bufp == curbp)
 			wp->w_flag |= flag;
 		wp = wp->w_wndp;
@@ -185,31 +185,31 @@ void lchange(int flag)
 }
 
 int linsert_str(const char *str) {
-    if (!str) return FALSE;
+    if (!str) return false;
     const char *ptr = str;
     while (*ptr) {
         if (*ptr == '\n') {
-            if (!lnewline()) return FALSE;
+            if (!lnewline()) return false;
         } else {
-            if (!linsert(1, *ptr)) return FALSE;
+            if (!linsert(1, *ptr)) return false;
         }
         ptr++;
     }
-    return TRUE;
+    return true;
 }
 
 int linstr(const char *str) {
-    if (!str) return FALSE;
+    if (!str) return false;
     const char *ptr = str;
     while (*ptr) {
         if (*ptr == '\n') {
-            if (!lnewline()) return FALSE;
+            if (!lnewline()) return false;
         } else {
-            if (!linsert(1, *ptr)) return FALSE;
+            if (!linsert(1, *ptr)) return false;
         }
         ptr++;
     }
-    return TRUE;
+    return true;
 }
 
 int lgetchar(unicode_t *uc) {
@@ -239,20 +239,20 @@ int lgetchar(unicode_t *uc) {
 
 int insspace(int f, int n) {
     if (n < 0)
-        return FALSE;
+        return false;
     if (n == 0)
-        return TRUE;
+        return true;
     return linsert(n, ' ');
 }
 
 int lover(char *ostr) {
     int len = strlen(ostr);
-    if (len == 0) return TRUE;
+    if (len == 0) return true;
 
     if (curwp->w_doto + len <= llength(curwp->w_dotp)) {
-        ldelete(len, FALSE);
+        ldelete(len, false);
     } else {
-        ldelete(llength(curwp->w_dotp) - curwp->w_doto, FALSE);
+        ldelete(llength(curwp->w_dotp) - curwp->w_doto, false);
     }
 
     return linstr(ostr);
@@ -262,7 +262,7 @@ int putctext(const char *iline) {
     int i;
 
     curwp->w_doto = 0;
-    ldelete(llength(curwp->w_dotp), FALSE);
+    ldelete(llength(curwp->w_dotp), false);
 
     return linstr(iline);
 }
@@ -285,8 +285,8 @@ char *getctext(void) {
  * hard case, the line has to be reallocated. When the window list is updated,
  * take special care; I screwed it up once. You always update dot in the
  * current window. You update mark, and a dot in another window, if it is
- * greater than the place where you did the insert. Return TRUE if all is
- * well, and FALSE on errors.
+ * greater than the place where you did the insert. Return true if all is
+ * well, and false on errors.
  */
 int linsert(int n, int c)
 {
@@ -320,9 +320,9 @@ int linsert(int n, int c)
 		doto = curwp->w_doto;
 
 		inserted_text = safe_alloc((size_t)n + 1, "undo insert buffer", __FILE__, __LINE__);
-		if (inserted_text == NULL) {
+		if (inserted_text == nullptr) {
 			perf_end_timing("linsert");
-			return FALSE;
+			return false;
 		}
 		for (i = 0; i < n; ++i) inserted_text[i] = c;
 		inserted_text[n] = '\0';
@@ -331,17 +331,17 @@ int linsert(int n, int c)
 			if (lp1->l_fp == lp1) {
 				// Empty buffer - create first line
 				struct line *first = lalloc(0);
-				if (first == NULL) {
+				if (first == nullptr) {
 					SAFE_FREE(inserted_text);
 					perf_end_timing("linsert");
-					return FALSE;
+					return false;
 				}
 				first->l_bp = lp1;
 				first->l_fp = lp1->l_fp;
 				lp1->l_fp->l_bp = first;
 				lp1->l_fp = first;
 				wp = wheadp;
-				while (wp != NULL) {
+				while (wp != nullptr) {
 					if (wp->w_linep == lp1) wp->w_linep = first;
 					if (wp->w_dotp == lp1) wp->w_dotp = first;
 					if (wp->w_markp == lp1) wp->w_markp = first;
@@ -361,12 +361,12 @@ int linsert(int n, int c)
 		if (gap_buffer_insert(lp1->gb, (size_t)doto, inserted_text, (size_t)n) != GAP_BUFFER_SUCCESS) {
 			SAFE_FREE(inserted_text);
 			perf_end_timing("linsert");
-			return FALSE;
+			return false;
 		}
 		curwp->w_doto += n;
 		
 		wp = wheadp;
-		while (wp != NULL) {
+		while (wp != nullptr) {
 			if (wp->w_dotp == lp1 && wp->w_doto >= doto && wp != curwp) {
 				wp->w_doto += n;
 			}
@@ -386,15 +386,15 @@ int linsert(int n, int c)
 		// Cursor advancement is now handled in each insertion path above
 
 		perf_end_timing("linsert");
-		return TRUE;
+		return true;
 	}
 }
 
 /*
  * Delete "n" bytes, starting at dot. It understands how do deal
- * with end of lines, etc. It returns TRUE if all of the characters were
- * deleted, and FALSE if they were not (because dot ran into the end of the
- * buffer. The "kflag" is TRUE if the text should be put in the kill buffer.
+ * with end of lines, etc. It returns true if all of the characters were
+ * deleted, and false if they were not (because dot ran into the end of the
+ * buffer. The "kflag" is true if the text should be put in the kill buffer.
  */
 int ldelete(long n, int kflag)
 {
@@ -410,16 +410,16 @@ int ldelete(long n, int kflag)
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
 	if (n < 0)
-		return FALSE;
+		return false;
 	if (n == 0)
-		return TRUE;
+		return true;
 
     /* Capture state for undo */
     dotp = curwp->w_dotp;
     doto = curwp->w_doto;
     lnum = getlinenum(curbp, dotp);
     deleted_text = safe_alloc((size_t)n + 1, "undo delete buffer", __FILE__, __LINE__);
-    if (deleted_text == NULL) return FALSE;
+    if (deleted_text == nullptr) return false;
 
     // Collect text that will be deleted
     long collected_len = 0;
@@ -447,16 +447,16 @@ int ldelete(long n, int kflag)
 		if (chunk > n)
 			chunk = n;
 		if (chunk == 0) {	/* End of line, merge.  */
-			if (ldelnewline() == FALSE
-			    || (kflag != FALSE && kinsert('\n') == FALSE))
+			if (ldelnewline() == false
+			    || (kflag != false && kinsert('\n') == false))
 				goto undo_fail;
 			--n;
 		} else {
 			/* Delete from gap buffer */
-			if (kflag != FALSE) {
+			if (kflag != false) {
 				for (int i = 0; i < chunk; i++) {
 					char ch = gap_buffer_get_char(dotp->gb, (size_t)(doto + i));
-					if (kinsert(ch) == FALSE)
+					if (kinsert(ch) == false)
 						goto undo_fail;
 				}
 			}
@@ -466,7 +466,7 @@ int ldelete(long n, int kflag)
 			}
 			
 			wp = wheadp;
-			while (wp != NULL) {
+			while (wp != nullptr) {
 				if (wp->w_dotp == dotp && wp->w_doto >= doto) {
 					wp->w_doto -= chunk;
 					if (wp->w_doto < doto)
@@ -512,7 +512,7 @@ int ldelete(long n, int kflag)
 
 	undo_record_delete(curbp, lnum, doto, deleted_text, collected_len);
 	/* If this was a kill, also update the system clipboard with the exact text */
-	if (kflag != FALSE && collected_len > 0) {
+	if (kflag != false && collected_len > 0) {
 		set_clipboard(deleted_text);
 	}
     SAFE_FREE(deleted_text);
@@ -520,16 +520,16 @@ int ldelete(long n, int kflag)
 
 undo_fail:
     SAFE_FREE(deleted_text);
-    return FALSE;
+    return false;
 }
 
 /*
  * Delete a newline. Join the current line with the next line. If the next line
- * is the magic header line always return TRUE; merging the last line with the
+ * is the magic header line always return true; merging the last line with the
  * header line can be thought of as always being a successful operation, even
  * if nothing is done, and this makes the kill buffer work "right". Easy cases
  * can be done by shuffling data around. Hard cases require that lines be moved
- * about in memory. Return FALSE on error and TRUE if all looks ok. Called by
+ * about in memory. Return false on error and true if all looks ok. Called by
  * "ldelete" only.
  */
 int ldelnewline(void)
@@ -552,21 +552,21 @@ int ldelnewline(void)
             buffer_update_stats_incremental(curbp, -1, -1, 0); // -1 line, -1 byte (for newline)
             buffer_mark_stats_dirty(curbp); // Mark dirty for word count recalculation
         }
-		return TRUE;
+		return true;
 	}
 	
 	/* Merge two lines using gap buffers */
 	size_t lp1_len = gap_buffer_size(lp1->gb);
 	char *temp = safe_alloc(gap_buffer_size(lp2->gb), "merge temp", __FILE__, __LINE__);
 	if (!temp)
-		return FALSE;
+		return false;
 		
 	gap_buffer_get_text(lp2->gb, 0, gap_buffer_size(lp2->gb), temp, gap_buffer_size(lp2->gb));
 	gap_buffer_insert(lp1->gb, lp1_len, temp, gap_buffer_size(lp2->gb));
 	SAFE_FREE(temp);
 	
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_linep == lp2)
 			wp->w_linep = lp1;
 		if (wp->w_dotp == lp2) {
@@ -588,7 +588,7 @@ int ldelnewline(void)
 
 	safe_free((void **) &lp1);
 	safe_free((void **) &lp2);
-	return TRUE;
+	return true;
 }
 
 /*
@@ -616,14 +616,14 @@ int kinsert(int c)
 {
 	/* Bounds check - prevent buffer overflow */
 	if (temp_kill_len >= 8191) {  /* Leave space for null terminator */
-		return FALSE;  /* Buffer full */
+		return false;  /* Buffer full */
 	}
 
 	/* Add character to temp buffer */
 	temp_kill_buf[temp_kill_len++] = c;
 	
 	
-	return TRUE;
+	return true;
 }
 
 
@@ -639,11 +639,11 @@ int yank(int f, int n)
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
 	if (n < 0)
-		return FALSE;
+		return false;
 		
 	/* make sure there is something to yank */
 	if (temp_kill_len == 0)
-		return TRUE;	/* not an error, just nothing */
+		return true;	/* not an error, just nothing */
 
 	/* for each time.... */
 	while (n--) {
@@ -651,11 +651,11 @@ int yank(int f, int n)
 		for (size_t i = 0; i < temp_kill_len; i++) {
 			c = temp_kill_buf[i];
 			if (c == '\n') {
-				if (lnewline() == FALSE)
-					return FALSE;
+				if (lnewline() == false)
+					return false;
 			} else {
-				if (linsert(1, c) == FALSE)
-					return FALSE;
+				if (linsert(1, c) == false)
+					return false;
 			}
 		}
 	}
@@ -664,7 +664,7 @@ int yank(int f, int n)
 	thisflag |= CFYANK;
 	yanked_size = (int)temp_kill_len;
 	
-	return TRUE;
+	return true;
 }
 
 /* Yank directly from the system clipboard into the buffer */
@@ -676,20 +676,20 @@ int yank_clipboard(int f, int n)
 		return rdonly();
 	if (!get_clipboard(buf, (int)sizeof(buf))) {
 		mlwrite("(clipboard empty)");
-		return TRUE; /* not an error */
+		return true; /* not an error */
 	}
 	const char *p = buf;
 	while (*p) {
 		if (*p == '\n') {
-			if (lnewline() == FALSE) return FALSE;
+			if (lnewline() == false) return false;
 		} else {
-			if (linsert(1, (unsigned char)*p) == FALSE) return FALSE;
+			if (linsert(1, (unsigned char)*p) == false) return false;
 		}
 		++p;
 	}
 	thisflag |= CFYANK;
 	yanked_size = (int)strlen(buf);
-	return TRUE;
+	return true;
 }
 
 /* 
@@ -731,7 +731,7 @@ static const char *kill_ring_get(size_t index, size_t *out_len) {
 	// Check if entry is valid with acquire semantics
 	if (!atomic_load_explicit(&entry->valid, memory_order_acquire)) {
 		if (out_len) *out_len = 0;
-		return NULL;
+		return nullptr;
 	}
 	
 	// Get length with acquire semantics (pairs with release in kill_ring_add)
@@ -751,19 +751,19 @@ int yankpop(int f, int n) {
 	if (curbp->b_mode & MDVIEW)
 		return rdonly();
 	
-	if (n < 0) return FALSE;
+	if (n < 0) return false;
 	
 	// Verify previous command was yank or yankpop
 	if (!(lastflag & CFYANK)) {
 		mlwrite("Previous command was not a yank");
-		return FALSE;
+		return false;
 	}
 	
 	// Check if kill ring has content
 	size_t count = atomic_load_explicit(&g_kill_ring.count, memory_order_acquire);
 	if (count == 0) {
 		mlwrite("Kill ring is empty");  
-		return FALSE;
+		return false;
 	}
 	
 	// Move to previous entry in kill ring
@@ -774,23 +774,23 @@ int yankpop(int f, int n) {
 	text = kill_ring_get(prev_yank, &text_len);
 	if (!text || text_len == 0) {
 		mlwrite("No previous kill");
-		return FALSE;
+		return false;
 	}
 	
 	// Delete previously yanked text (stored size)
 	// Note: Uses approximate size tracking; edge cases with multi-line yanks
 	// may have minor discrepancies. This is acceptable for typical usage.
-	if (ldelete(yanked_size, FALSE) == FALSE) {
-		return FALSE;
+	if (ldelete(yanked_size, false) == false) {
+		return false;
 	}
 	
 	// Insert new text from kill ring
 	for (size_t i = 0; i < text_len; i++) {
 		char c = text[i];
 		if (c == '\n') {
-			if (lnewline() == FALSE) return FALSE;
+			if (lnewline() == false) return false;
 		} else {
-			if (linsert(1, c) == FALSE) return FALSE;
+			if (linsert(1, c) == false) return false;
 		}
 	}
 	
@@ -801,7 +801,7 @@ int yankpop(int f, int n) {
 	// Set flag for chaining yankpop commands
 	thisflag |= CFYANK;
 	
-	return TRUE;
+	return true;
 }
 
 int ldelchar(long n, int kflag) {
@@ -824,15 +824,15 @@ int lnewline(void)
     undo_record_insert(curbp, getlinenum(curbp, lp1), doto, "\n", 1);
 
 	/* Create new line for first half */
-	if ((lp2 = lalloc(doto)) == NULL)
-		return FALSE;
+	if ((lp2 = lalloc(doto)) == nullptr)
+		return false;
 	
 	/* Copy first 'doto' bytes from lp1 to lp2 using gap buffer */
 	if (doto > 0) {
 		char *temp = safe_alloc((size_t)doto, "newline split temp", __FILE__, __LINE__);
 		if (!temp) {
 			lfree(lp2);
-			return FALSE;
+			return false;
 		}
 		gap_buffer_get_text(lp1->gb, 0, (size_t)doto, temp, (size_t)doto);
 		gap_buffer_insert(lp2->gb, 0, temp, (size_t)doto);
@@ -850,7 +850,7 @@ int lnewline(void)
 	
 	/* Fix up window pointers */
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_linep == lp1)
 			wp->w_linep = lp2;
 		if (wp->w_dotp == lp1) {
@@ -872,5 +872,5 @@ int lnewline(void)
     buffer_update_stats_incremental(curbp, 1, 1, 0); // +1 line, +1 byte (for newline)
     buffer_mark_stats_dirty(curbp); // Mark dirty for word count recalculation
 
-	return TRUE;
+	return true;
 }

@@ -58,6 +58,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include "string_safe.h"
 
 #include "estruct.h"
@@ -115,7 +116,7 @@ static inline const char* get_line_text(struct line *lp) {
  */
 int forwsearch(int f, int n)
 {
-	int status = TRUE;
+	int status = true;
 
 	/* If n is negative, search backwards.
 	 * Otherwise proceed by asking for the search string.
@@ -124,12 +125,12 @@ int forwsearch(int f, int n)
 		return backsearch(f, -n);
 
 	/* Ask the user for the text of a pattern.  If the
-	 * response is TRUE (responses other than FALSE are
+	 * response is true (responses other than false are
 	 * possible), search for the pattern for as long as
 	 * n is positive (n == 0 will go through once, which
 	 * is just fine).
 	 */
-	if ((status = readpattern("Search", &pat[0], TRUE)) == TRUE) {
+	if ((status = readpattern("Search", &pat[0], true)) == true) {
 		do {
 #if	MAGIC
 			if ((magical
@@ -144,7 +145,7 @@ int forwsearch(int f, int n)
 		/* Save away the match, or complain
 		 * if not there.
 		 */
-		if (status == TRUE)
+		if (status == true)
 			savematch();
 		else
 			mlwrite("Not found");
@@ -161,7 +162,7 @@ int forwsearch(int f, int n)
  */
 int forwhunt(int f, int n)
 {
-	int status = TRUE;
+	int status = true;
 
 	if (n < 0)		/* search backwards */
 		return backhunt(f, -n);
@@ -171,13 +172,13 @@ int forwhunt(int f, int n)
 	 */
 	if (pat[0] == '\0') {
 		mlwrite("No pattern set");
-		return FALSE;
+		return false;
 	}
 #if	MAGIC
 	if ((curwp->w_bufp->b_mode & MDMAGIC) != 0 &&
 	    mcpat[0].mc_type == MCNIL) {
 		if (!mcstr())
-			return FALSE;
+			return false;
 	}
 #endif
 
@@ -197,7 +198,7 @@ int forwhunt(int f, int n)
 	/* Save away the match, or complain
 	 * if not there.
 	 */
-	if (status == TRUE)
+	if (status == true)
 		savematch();
 	else
 		mlwrite("Not found");
@@ -215,7 +216,7 @@ int forwhunt(int f, int n)
  */
 int backsearch(int f, int n)
 {
-	int status = TRUE;
+	int status = true;
 
 	/* If n is negative, search forwards.
 	 * Otherwise proceed by asking for the search string.
@@ -224,13 +225,13 @@ int backsearch(int f, int n)
 		return forwsearch(f, -n);
 
 	/* Ask the user for the text of a pattern.  If the
-	 * response is TRUE (responses other than FALSE are
+	 * response is true (responses other than false are
 	 * possible), search for the pattern for as long as
 	 * n is positive (n == 0 will go through once, which
 	 * is just fine).
 	 */
 	if ((status =
-	     readpattern("Reverse search", &pat[0], TRUE)) == TRUE) {
+	     readpattern("Reverse search", &pat[0], true)) == true) {
 		do {
 #if	MAGIC
 			if ((magical
@@ -245,7 +246,7 @@ int backsearch(int f, int n)
 		/* Save away the match, or complain
 		 * if not there.
 		 */
-		if (status == TRUE)
+		if (status == true)
 			savematch();
 		else
 			mlwrite("Not found");
@@ -263,7 +264,7 @@ int backsearch(int f, int n)
  */
 int backhunt(int f, int n)
 {
-	int status = TRUE;
+	int status = true;
 
 	if (n < 0)
 		return forwhunt(f, -n);
@@ -273,13 +274,13 @@ int backhunt(int f, int n)
 	 */
 	if (tap[0] == '\0') {
 		mlwrite("No pattern set");
-		return FALSE;
+		return false;
 	}
 #if	MAGIC
 	if ((curwp->w_bufp->b_mode & MDMAGIC) != 0 &&
 	    tapcm[0].mc_type == MCNIL) {
 		if (!mcstr())
-			return FALSE;
+			return false;
 	}
 #endif
 
@@ -299,7 +300,7 @@ int backhunt(int f, int n)
 	/* Save away the match, or complain
 	 * if not there.
 	 */
-	if (status == TRUE)
+	if (status == true)
 		savematch();
 	else
 		mlwrite("Not found");
@@ -365,7 +366,7 @@ int mcscanner(struct magic *mcpatrn, int direct, int beg_or_end)
 			}
 
 			curwp->w_flag |= WFMOVE;	/* flag that we have moved */
-			return TRUE;
+			return true;
 		}
 
 		/* Advance the cursor.
@@ -373,7 +374,7 @@ int mcscanner(struct magic *mcpatrn, int direct, int beg_or_end)
 		nextch(&curline, &curoff, direct);
 	}
 
-	return FALSE;		/* We could not find a match. */
+	return false;		/* We could not find a match. */
 }
 
 /*
@@ -410,13 +411,13 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 	 */
 	if (mcptr->mc_type == BOL) {
 		if (curoff != 0)
-			return FALSE;
+			return false;
 		mcptr++;
 	}
 
 	if (mcptr->mc_type == EOL) {
 		if (curoff != llength(curline))
-			return FALSE;
+			return false;
 		mcptr++;
 	}
 
@@ -454,7 +455,7 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 				}
 
 				if (nchars-- == 0)
-					return FALSE;
+					return false;
 			}
 		} else {	/* Not closure. */
 
@@ -480,7 +481,7 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 						   direct ^ REVERSE);
 					goto success;
 				} else
-					return FALSE;
+					return false;
 			}
 
 			if (mcptr->mc_type == EOL) {
@@ -489,14 +490,14 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 						   direct ^ REVERSE);
 					goto success;
 				} else
-					return FALSE;
+					return false;
 			}
 
 			/* Neither BOL nor EOL, so go through
 			 * the meta-character equal function.
 			 */
 			if (!mceq(c, mcptr))
-				return FALSE;
+				return false;
 		}
 
 		/* Increment the length counter and
@@ -513,7 +514,7 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 	*pcwline = curline;
 	*pcwoff = curoff;
 
-	return TRUE;
+	return true;
 }
 #endif
 
@@ -547,7 +548,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
 
     /* Precompute basic pattern properties */
     int patlen = strlen(patrn);
-    bool pat_has_nl = (strchr(patrn, '\n') != NULL) || (strchr(patrn, '\r') != NULL);
+    bool pat_has_nl = (strchr(patrn, '\n') != nullptr) || (strchr(patrn, '\r') != nullptr);
     bool case_sensitive = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
 
     /* local ASCII lower helper to avoid <ctype.h> collisions */
@@ -569,25 +570,25 @@ int scanner(const char *patrn, int direct, int beg_or_end)
             bool cs = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
             nfa_program_info nfa = {0};
             if (nfa_compile(patrn, cs, &nfa)) {
-                struct line* mlp = NULL; int moff = 0;
+                struct line* mlp = nullptr; int moff = 0;
                 if (direct == FORWARD) {
                     if (nfa_search_forward(&nfa, curwp->w_dotp, curwp->w_doto,
                                            beg_or_end, &mlp, &moff)) {
                         matchline = mlp; matchoff = moff;
                         curwp->w_dotp = mlp; curwp->w_doto = moff;
                         curwp->w_flag |= WFMOVE;
-                        return TRUE;
+                        return true;
                     }
                 } else {
                     /* Reverse: forward scan from start of buffer to last <= current */
                     struct line* lp = lforw(curbp->b_linep);
                     int off = 0;
-                    struct line* last_lp = NULL; int last_off = 0;
+                    struct line* last_lp = nullptr; int last_off = 0;
                     while (lp != curbp->b_linep) {
-                        struct line* t_lp = NULL; int t_off = 0;
+                        struct line* t_lp = nullptr; int t_off = 0;
                         if (nfa_search_forward(&nfa, lp, off, beg_or_end, &t_lp, &t_off)) {
                             /* Accept if <= current position */
-                            if (t_lp == curwp->w_dotp ? (t_off <= curwp->w_doto) : (t_lp != NULL)) {
+                            if (t_lp == curwp->w_dotp ? (t_off <= curwp->w_doto) : (t_lp != nullptr)) {
                                 last_lp = t_lp; last_off = t_off;
                                 /* continue scanning from next char */
                                 lp = t_lp; off = t_off + 1;
@@ -602,7 +603,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                         matchline = last_lp; matchoff = last_off;
                         curwp->w_dotp = last_lp; curwp->w_doto = last_off;
                         curwp->w_flag |= WFMOVE;
-                        return TRUE;
+                        return true;
                     }
                 }
             }
@@ -614,7 +615,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
     bool two_way_enabled = !(tw_env && strcmp(tw_env, "0") == 0);
     if (two_way_enabled && pat_has_nl && direct == FORWARD) {
         /* Two-Way requires random access; provide via probe pointer advancement. */
-        if (patlen <= 0 || patlen > BM_MAX_PATTERN) return FALSE;
+        if (patlen <= 0 || patlen > BM_MAX_PATTERN) return false;
         int m = patlen;
         unsigned char patn[BM_MAX_PATTERN];
         for (int i = 0; i < m; ++i) patn[i] = (unsigned char)(case_sensitive ? patrn[i] : LOWER_ASCII(patrn[i]));
@@ -673,7 +674,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                 int shift = per;
                 /* advance start by shift */
                 while (shift--) {
-                    if (start_off < llength(start_lp)) start_off++; else { start_lp = lforw(start_lp); start_off = 0; if (start_lp == curbp->b_linep) return FALSE; }
+                    if (start_off < llength(start_lp)) start_off++; else { start_lp = lforw(start_lp); start_off = 0; if (start_lp == curbp->b_linep) return false; }
                 }
                 memory = 0; continue;
             }
@@ -682,7 +683,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
             probe_lp = start_lp; probe_off = start_off;
             /* advance to crit */
             for (int t = 0; t < crit; ++t) {
-                if (probe_off < llength(probe_lp)) probe_off++; else { probe_lp = lforw(probe_lp); probe_off = 0; if (probe_lp == curbp->b_linep) return FALSE; }
+                if (probe_off < llength(probe_lp)) probe_off++; else { probe_lp = lforw(probe_lp); probe_off = 0; if (probe_lp == curbp->b_linep) return false; }
             }
             ok = 1; int matched = 0;
             for (int t = tr; t < m; ++t) {
@@ -697,12 +698,12 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                 /* Match found: set positions */
                 if (beg_or_end == PTEND) { matchline = probe_lp; matchoff = probe_off; curwp->w_dotp = probe_lp; curwp->w_doto = probe_off; }
                 else { matchline = start_lp; matchoff = start_off; curwp->w_dotp = start_lp; curwp->w_doto = start_off; }
-                curwp->w_flag |= WFMOVE; return TRUE;
+                curwp->w_flag |= WFMOVE; return true;
             }
             /* shift by period and set memory */
             int shift = per;
             while (shift--) {
-                if (start_off < llength(start_lp)) start_off++; else { start_lp = lforw(start_lp); start_off = 0; if (start_lp == curbp->b_linep) return FALSE; }
+                if (start_off < llength(start_lp)) start_off++; else { start_lp = lforw(start_lp); start_off = 0; if (start_lp == curbp->b_linep) return false; }
             }
             memory = (matched > 0) ? matched : 0;
         }
@@ -711,8 +712,8 @@ int scanner(const char *patrn, int direct, int beg_or_end)
     /* Reverse cross-line literal: scan forward and remember the last match <= cursor */
     if (pat_has_nl && direct == REVERSE) {
         struct line* start_line = lforw(curbp->b_linep);
-        struct line* last_lp = NULL; int last_off = 0;
-        struct line* last_end_lp = NULL; int last_end_off = 0;
+        struct line* last_lp = nullptr; int last_off = 0;
+        struct line* last_end_lp = nullptr; int last_end_off = 0;
         bool reached_cursor_line = false;
 
         while (start_line != curbp->b_linep) {
@@ -759,10 +760,10 @@ int scanner(const char *patrn, int direct, int beg_or_end)
             }
             matchline = curwp->w_dotp; matchoff = curwp->w_doto;
             curwp->w_flag |= WFMOVE;
-            return TRUE;
+            return true;
         }
 
-        return FALSE;
+        return false;
     }
 
     /* Fast path: Boyer–Moore within single lines when pattern is simple and reasonably long.
@@ -792,7 +793,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                             }
                             curwp->w_flag |= WFMOVE;
                             bm_free(&bm);
-                            return TRUE;
+                            return true;
                         }
                     }
                     lp = lforw(lp);
@@ -820,13 +821,13 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                                 }
                                 curwp->w_flag |= WFMOVE;
                                 bm_free(&bm);
-                                return TRUE;
+                                return true;
                             }
                         }
                     }
                     /* Move to previous line */
                     struct line *prev = lback(lp);
-                    if (prev == NULL) break;
+                    if (prev == nullptr) break;
                     lp = prev;
                 }
             }
@@ -855,7 +856,7 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                                 matchline = lp; matchoff = i;
                                 if (beg_or_end == PTEND) { curwp->w_dotp = lp; curwp->w_doto = i + patlen; }
                                 else { curwp->w_dotp = lp; curwp->w_doto = i; }
-                                curwp->w_flag |= WFMOVE; return TRUE;
+                                curwp->w_flag |= WFMOVE; return true;
                             }
                         }
                         /* advance by 1; memchr could accelerate, but keep portable */
@@ -885,14 +886,14 @@ int scanner(const char *patrn, int direct, int beg_or_end)
                                 matchline = lp; matchoff = i;
                                 if (beg_or_end == PTEND) { curwp->w_dotp = lp; curwp->w_doto = i + patlen; }
                                 else { curwp->w_dotp = lp; curwp->w_doto = i; }
-                                curwp->w_flag |= WFMOVE; return TRUE;
+                                curwp->w_flag |= WFMOVE; return true;
                             }
                         }
                     }
                 }
                 /* Move to previous line */
                 struct line *prev = lback(lp);
-                if (prev == NULL) break;
+                if (prev == nullptr) break;
                 lp = prev;
             }
         }
@@ -941,13 +942,13 @@ int scanner(const char *patrn, int direct, int beg_or_end)
 			}
 
 			curwp->w_flag |= WFMOVE;	/* Flag that we have moved. */
-			return TRUE;
+			return true;
 
 		}
 	      fail:;		/* continue to search */
 	}
 
-	return FALSE;		/* We could not find a match */
+	return false;		/* We could not find a match */
 }
 
 /*
@@ -993,7 +994,7 @@ static int readpattern(char *prompt, char *apat, int srch)
 	 * Then, if it's the search string, make a reversed pattern.
 	 * *Then*, make the meta-pattern, if we are defined that way.
 	 */
-	if ((status = mlreplyt(tpat, tpat, NPAT, metac)) == TRUE) {
+	if ((status = mlreplyt(tpat, tpat, NPAT, metac)) == true) {
         safe_strcpy(apat, tpat, NPAT);
 		if (srch) {	/* If we are doing the search string. */
 			/* Reverse string copy, and remember
@@ -1013,8 +1014,8 @@ static int readpattern(char *prompt, char *apat, int srch)
 		} else
 			status = srch ? mcstr() : rmcstr();
 #endif
-	} else if (status == FALSE && apat[0] != 0)	/* Old one */
-		status = TRUE;
+	} else if (status == false && apat[0] != 0)	/* Old one */
+		status = true;
 
 	return status;
 }
@@ -1032,12 +1033,12 @@ void savematch(void)
 	/* Free any existing match string, then
 	 * attempt to allocate a new one.
 	 */
-	if (patmatch != NULL)
+	if (patmatch != nullptr)
 		SAFE_FREE(patmatch);
 
 	ptr = patmatch = (char*)safe_alloc(matchlen + 1, "pattern match buffer", __FILE__, __LINE__);
 
-	if (ptr != NULL) {
+	if (ptr != nullptr) {
 		curoff = matchoff;
 		curline = matchline;
 
@@ -1071,7 +1072,7 @@ void rvstrcpy(char *rvstr, char *str)
  */
 int sreplace(int f, int n)
 {
-	return replaces(FALSE, f, n);
+	return replaces(false, f, n);
 }
 
 /*
@@ -1082,7 +1083,7 @@ int sreplace(int f, int n)
  */
 int qreplace(int f, int n)
 {
-	return replaces(TRUE, f, n);
+	return replaces(true, f, n);
 }
 
 /*
@@ -1114,19 +1115,19 @@ static int replaces(int kind, int f, int n)
 	/* Check for negative repetitions.
 	 */
 	if (f && n < 0)
-		return FALSE;
+		return false;
 
 	/* Ask the user for the text of a pattern.
 	 */
 	if ((status = readpattern((kind ==
-				   FALSE ? "Replace" : "Query replace"),
-				  &pat[0], TRUE))
-	    != TRUE)
+				   false ? "Replace" : "Query replace"),
+				  &pat[0], true))
+	    != true)
 		return status;
 
 	/* Ask for the replacement string.
 	 */
-	if ((status = readpattern("with", &rpat[0], FALSE)) == ABORT)
+	if ((status = readpattern("with", &rpat[0], false)) == ABORT)
 		return status;
 
 	/* Find the length of the replacement string.
@@ -1137,7 +1138,7 @@ static int replaces(int kind, int f, int n)
 	 * replace on the last line.
 	 */
 	nlflag = (pat[matchlen - 1] == '\n');
-	nlrepl = FALSE;
+	nlrepl = false;
 
 	if (kind) {
 		/* Build query replace question string.
@@ -1150,7 +1151,7 @@ static int replaces(int kind, int f, int n)
 
 		/* Initialize last replaced pointers.
 		 */
-		lastline = NULL;
+		lastline = nullptr;
 		lastoff = 0;
 	}
 
@@ -1162,8 +1163,8 @@ static int replaces(int kind, int f, int n)
 	numsub = 0;
 	nummatch = 0;
 
-	while ((f == FALSE || n > nummatch) &&
-	       (nlflag == FALSE || nlrepl == FALSE)) {
+	while ((f == false || n > nummatch) &&
+	       (nlflag == false || nlrepl == false)) {
 		/* Search for the pattern.
 		 * If we search with a regular expression,
 		 * matchlen is reset to the true length of
@@ -1192,7 +1193,7 @@ static int replaces(int kind, int f, int n)
 		      pprompt:mlwrite(&tpat[0], &pat[0],
 				&rpat[0]);
 		      qprompt:
-			update(TRUE);	/* show the proposed place to change */
+			update(true);	/* show the proposed place to change */
 			c = tgetc();	/* and input */
 			mlwrite("");	/* and clear it */
 
@@ -1207,11 +1208,11 @@ static int replaces(int kind, int f, int n)
 
 			case 'N':
 			case 'n':	/* no, onword */
-				forwchar(FALSE, 1);
+				forwchar(false, 1);
 				continue;
 
 			case '!':	/* yes/stop asking */
-				kind = FALSE;
+				kind = false;
 				break;
 
 			case 'U':
@@ -1219,7 +1220,7 @@ static int replaces(int kind, int f, int n)
 
 				/* Restore old position.
 				 */
-				if (lastline == NULL) {
+				if (lastline == nullptr) {
 					/* There is nothing to undo.
 					 */
 					TTbeep();
@@ -1227,16 +1228,16 @@ static int replaces(int kind, int f, int n)
 				}
 				curwp->w_dotp = lastline;
 				curwp->w_doto = lastoff;
-				lastline = NULL;
+				lastline = nullptr;
 				lastoff = 0;
 
 				/* Delete the new string.
 				 */
-				backchar(FALSE, rlength);
+				backchar(false, rlength);
 				matchline = curwp->w_dotp;
 				matchoff = curwp->w_doto;
-				status = delins(rlength, patmatch, FALSE);
-				if (status != TRUE)
+				status = delins(rlength, patmatch, false);
+				if (status != true)
 					return status;
 
 				/* Record one less substitution,
@@ -1244,7 +1245,7 @@ static int replaces(int kind, int f, int n)
 				 * reprompt.
 				 */
 				--numsub;
-				backchar(FALSE, mlenold);
+				backchar(false, mlenold);
 				matchline = curwp->w_dotp;
 				matchoff = curwp->w_doto;
 				goto pprompt;
@@ -1258,7 +1259,7 @@ static int replaces(int kind, int f, int n)
 
 			case BELL:	/* abort! and stay */
 				mlwrite("Aborted!");
-				return FALSE;
+				return false;
 
 			default:	/* bitch and beep */
 				TTbeep();
@@ -1277,8 +1278,8 @@ static int replaces(int kind, int f, int n)
 		 * Delete the sucker, and insert its
 		 * replacement.
 		 */
-		status = delins(matchlen, &rpat[0], TRUE);
-		if (status != TRUE)
+		status = delins(matchlen, &rpat[0], true);
+		if (status != true)
 			return status;
 
 		/* Save our position, since we may
@@ -1295,7 +1296,7 @@ static int replaces(int kind, int f, int n)
 	/* And report the results.
 	 */
 	mlwrite("%d substitutions", numsub);
-	return TRUE;
+	return true;
 }
 
 /*
@@ -1313,14 +1314,14 @@ int delins(int dlength, char *instr, int use_meta)
 	/* Zap what we gotta,
 	 * and insert its replacement.
 	 */
-	if ((status = ldelete((long) dlength, FALSE)) != TRUE)
+	if ((status = ldelete((long) dlength, false)) != true)
 		mlwrite("%%ERROR while deleting");
 	else
 #if	MAGIC
 	if ((rmagical && use_meta) &&
 		    (curwp->w_bufp->b_mode & MDMAGIC) != 0) {
 		rmcptr = &rmcpat[0];
-		while (rmcptr->mc_type != MCNIL && status == TRUE) {
+		while (rmcptr->mc_type != MCNIL && status == true) {
 			if (rmcptr->mc_type == LITCHAR)
 				status = linstr(rmcptr->rstr);
 			else
@@ -1374,11 +1375,11 @@ int expandp(char *srcstr, char *deststr, int maxlength)
 		if (maxlength < 4) {
 			*deststr++ = '$';
 			*deststr = '\0';
-			return FALSE;
+			return false;
 		}
 	}
 	*deststr = '\0';
-	return TRUE;
+	return true;
 }
 
 /*
@@ -1460,8 +1461,8 @@ static int mcstr(void)
 	char *patptr;
 	int mj;
 	int pchr;
-	int status = TRUE;
-	int does_closure = FALSE;
+	int status = true;
+	int does_closure = false;
 
 	/* If we had metacharacters in the struct magic array previously,
 	 * free up any bitmaps that may have been allocated.
@@ -1469,7 +1470,7 @@ static int mcstr(void)
 	if (magical)
 		mcclear();
 
-	magical = FALSE;
+	magical = false;
 	mj = 0;
 	mcptr = &mcpat[0];
 	patptr = &pat[0];
@@ -1478,29 +1479,29 @@ static int mcstr(void)
 		switch (pchr) {
 		case MC_CCL:
 			status = cclmake(&patptr, mcptr);
-			magical = TRUE;
-			does_closure = TRUE;
+			magical = true;
+			does_closure = true;
 			break;
 		case MC_BOL:
 			if (mj != 0)
 				goto litcase;
 
 			mcptr->mc_type = BOL;
-			magical = TRUE;
-			does_closure = FALSE;
+			magical = true;
+			does_closure = false;
 			break;
 		case MC_EOL:
 			if (*(patptr + 1) != '\0')
 				goto litcase;
 
 			mcptr->mc_type = EOL;
-			magical = TRUE;
-			does_closure = FALSE;
+			magical = true;
+			does_closure = false;
 			break;
 		case MC_ANY:
 			mcptr->mc_type = ANY;
-			magical = TRUE;
-			does_closure = TRUE;
+			magical = true;
+			does_closure = true;
 			break;
 		case MC_CLOSURE:
 			/* Does the closure symbol mean closure here?
@@ -1512,8 +1513,8 @@ static int mcstr(void)
 			mj--;
 			mcptr--;
 			mcptr->mc_type |= CLOSURE;
-			magical = TRUE;
-			does_closure = FALSE;
+			magical = true;
+			does_closure = false;
 			break;
 
 			/* Note: no break between MC_ESC case and the default.
@@ -1521,7 +1522,7 @@ static int mcstr(void)
 		case MC_ESC:
 			if (*(patptr + 1) != '\0') {
 				pchr = *++patptr;
-				magical = TRUE;
+				magical = true;
 			}
 			[[fallthrough]];
 		default:
@@ -1572,15 +1573,15 @@ static int rmcstr(void)
 {
 	struct magic_replacement *rmcptr;
 	char *patptr;
-	int status = TRUE;
+	int status = true;
 	int mj;
 
 	patptr = &rpat[0];
 	rmcptr = &rmcpat[0];
 	mj = 0;
-	rmagical = FALSE;
+	rmagical = false;
 
-	while (*patptr && status == TRUE) {
+	while (*patptr && status == true) {
 		switch (*patptr) {
 		case MC_DITTO:
 
@@ -1593,9 +1594,9 @@ static int rmcstr(void)
 			if (mj != 0) {
 				rmcptr->mc_type = LITCHAR;
 				if ((rmcptr->rstr =
-				     (char*)safe_alloc(mj + 1, "replace string", __FILE__, __LINE__)) == NULL) {
+				     (char*)safe_alloc(mj + 1, "replace string", __FILE__, __LINE__)) == nullptr) {
 					mlwrite("%%Out of memory");
-					status = FALSE;
+					status = false;
 					break;
 				}
                 if (mj > 0) memcpy(rmcptr->rstr, patptr - mj, (size_t)mj);
@@ -1605,7 +1606,7 @@ static int rmcstr(void)
 			}
 			rmcptr->mc_type = DITTO;
 			rmcptr++;
-			rmagical = TRUE;
+			rmagical = true;
 			break;
 
 		case MC_ESC:
@@ -1615,9 +1616,9 @@ static int rmcstr(void)
 			 * of one, because we have to count the
 			 * current character.
 			 */
-			if ((rmcptr->rstr = (char*)safe_alloc(mj + 2, "replace escape string", __FILE__, __LINE__)) == NULL) {
+			if ((rmcptr->rstr = (char*)safe_alloc(mj + 2, "replace escape string", __FILE__, __LINE__)) == nullptr) {
 				mlwrite("%%Out of memory");
-				status = FALSE;
+				status = false;
 				break;
 			}
 
@@ -1634,7 +1635,7 @@ static int rmcstr(void)
 
 			rmcptr++;
 			mj = 0;
-			rmagical = TRUE;
+			rmagical = true;
 			break;
 
 		default:
@@ -1645,9 +1646,9 @@ static int rmcstr(void)
 
 	if (rmagical && mj > 0) {
 		rmcptr->mc_type = LITCHAR;
-		if ((rmcptr->rstr = (char*)safe_alloc(mj + 1, "replace literal string", __FILE__, __LINE__)) == NULL) {
+		if ((rmcptr->rstr = (char*)safe_alloc(mj + 1, "replace literal string", __FILE__, __LINE__)) == nullptr) {
 			mlwrite("%%Out of memory.");
-			status = FALSE;
+			status = false;
 		}
         if (mj > 0) memcpy(rmcptr->rstr, patptr - mj, (size_t)mj);
         rmcptr->rstr[mj] = '\0';
@@ -1733,7 +1734,7 @@ static int mceq(int bc, struct magic *mt)
 
 	default:
 		mlwrite("mceq: what is %d?", mt->mc_type);
-		result = FALSE;
+		result = false;
 		break;
 
 	}			/* End of switch. */
@@ -1754,9 +1755,9 @@ static int cclmake(char **ppatptr, struct magic *mcptr)
 	char *patptr;
 	int pchr, ochr;
 
-	if ((bmap = clearbits()) == NULL) {
+	if ((bmap = clearbits()) == nullptr) {
 		mlwrite("%%Out of memory");
-		return FALSE;
+		return false;
 	}
 
 	mcptr->u.cclmap = bmap;
@@ -1776,7 +1777,7 @@ static int cclmake(char **ppatptr, struct magic *mcptr)
 
 	if ((ochr = *patptr) == MC_ECCL) {
 		mlwrite("%%No characters in character class");
-		return FALSE;
+		return false;
 	} else {
 		if (ochr == MC_ESC)
 			ochr = *++patptr;
@@ -1819,9 +1820,9 @@ static int cclmake(char **ppatptr, struct magic *mcptr)
 	if (ochr == '\0') {
 		mlwrite("%%Character class not ended");
 		SAFE_FREE(bmap);
-		return FALSE;
+		return false;
 	}
-	return TRUE;
+	return true;
 }
 
 /*
@@ -1831,9 +1832,9 @@ static int biteq(int bc, char *cclmap)
 {
 	bc = bc & 0xFF;
 	if (bc >= HICHAR)
-		return FALSE;
+		return false;
 
-	return (*(cclmap + (bc >> 3)) & (1U << (bc & 7))) ? TRUE : FALSE;
+	return (*(cclmap + (bc >> 3)) & (1U << (bc & 7))) ? true : false;
 }
 
 /*
@@ -1845,7 +1846,7 @@ static char *clearbits(void)
         char *cclmap;
 	int i;
 
-	if ((cclmap = cclstart = (char *)safe_alloc(HIBYTE, "character class map", __FILE__, __LINE__)) != NULL) {
+	if ((cclmap = cclstart = (char *)safe_alloc(HIBYTE, "character class map", __FILE__, __LINE__)) != nullptr) {
 		for (i = 0; i < HIBYTE; i++)
 			*cclmap++ = 0;
 	}

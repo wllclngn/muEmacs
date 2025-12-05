@@ -36,7 +36,7 @@ int test_extreme_text_operations(void) {
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     int F = stress_factor();
     long insert_target = 1000000L * F;
@@ -77,7 +77,7 @@ int test_extreme_text_operations(void) {
     long del_target = 500000L * F;
     printf("Testing EXTREME deletion stress (%ld deletions)...\n", del_target);
     for (long i = 0; i < del_target; i++) {
-        if (!ldelete(1, FALSE)) {
+        if (!ldelete(1, false)) {
             break; // Hit end of buffer
         }
         if (i % (50000 * F) == 0) {
@@ -85,7 +85,7 @@ int test_extreme_text_operations(void) {
         }
     }
     
-    gettimeofday(&end, NULL);
+    gettimeofday(&end, nullptr);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
     printf("[%s%s%s] EXTREME text operations completed in %.2f seconds\n", 
@@ -107,7 +107,7 @@ int test_extreme_memory_stress(void) {
     for (int i = 0; i < 50; i++) {
         char bufname[32];
         snprintf(bufname, sizeof(bufname), "stress-buffer-%d", i);
-        stress_buffers[i] = bfind(bufname, TRUE, 0);
+        stress_buffers[i] = bfind(bufname, true, 0);
         
         if (!stress_buffers[i]) {
             printf("[%sFAIL%s] Failed to create buffer %d\n", RED, RESET, i);
@@ -160,7 +160,7 @@ int test_extreme_concurrent_stress(void) {
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     // Simulate rapid concurrent-like operations
     for (int cycle = 0; cycle < 1000; cycle++) {
@@ -175,7 +175,7 @@ int test_extreme_concurrent_stress(void) {
             if (curwp->w_doto > 0) curwp->w_doto--;
             
             // Delete
-            ldelete(1, FALSE);
+            ldelete(1, false);
             
             // Create new line occasionally
             if (op % 20 == 0) {
@@ -188,7 +188,7 @@ int test_extreme_concurrent_stress(void) {
         }
     }
     
-    gettimeofday(&end, NULL);
+    gettimeofday(&end, nullptr);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
     printf("[%sSUCCESS%s] EXTREME concurrent stress completed in %.2f seconds\n", 
@@ -208,7 +208,7 @@ int test_extreme_file_size_stress(void) {
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     curwp->w_dotp = curbp->b_linep;
     curwp->w_doto = 0;
@@ -260,7 +260,7 @@ int test_extreme_file_size_stress(void) {
     }
     
 cleanup:
-    gettimeofday(&end, NULL);
+    gettimeofday(&end, nullptr);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
     printf("[%s%s%s] EXTREME file size stress completed in %.2f seconds\n", 

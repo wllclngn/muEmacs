@@ -6,6 +6,7 @@
 
 #include "internal/plugin.h"
 #include <stddef.h>
+#include <stdbool.h>
 
 #define MAX_HOOKS_PER_EVENT 8
 
@@ -32,8 +33,8 @@ bool uemacs_unregister_hook(uemacs_event_t event, uemacs_hook_fn fn, void* conte
     if (event < 0 || event >= UEMACS_EVENT_COUNT || !fn) return false;
     for (int i = 0; i < MAX_HOOKS_PER_EVENT; ++i) {
         if (hooks[event][i].fn == fn && hooks[event][i].context == context) {
-            hooks[event][i].fn = NULL;
-            hooks[event][i].context = NULL;
+            hooks[event][i].fn = nullptr;
+            hooks[event][i].context = nullptr;
             return true;
         }
     }

@@ -9,6 +9,7 @@
 #include "string_utils.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>

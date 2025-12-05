@@ -81,7 +81,7 @@ void ttopen(void)
 	setbuffer(stdout, &tobuf[0], TBUFSIZ);
 
 	kbdflgs = fcntl(0, F_GETFL, 0);
-	kbdpoll = FALSE;
+	kbdpoll = false;
 
 	/* Setup terminal capabilities and optimizations */
 	terminal_caps_t caps = detect_terminal_capabilities();
@@ -140,7 +140,7 @@ void ttflush(void)
 		status = fflush(stdout);
 	}
 	
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 	
 	if (status < 0)
 		exit(15);
@@ -163,7 +163,7 @@ int ttgetc(void) {
     int n = read(0, &byte, 1);
 
     pthread_mutex_unlock(&input_mutex);
-    pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+    pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 
     if (n <= 0) {
         // Return EOF indicator (Ctrl-D traditionally) or error

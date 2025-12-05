@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -41,28 +42,28 @@ int spawncli([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTflush();
 	TTclose();		/* stty to old settings */
 	TTkclose();		/* Close "keyboard" */
-	if ((cp = getenv("SHELL")) != NULL && *cp != '\0') {
+	if ((cp = getenv("SHELL")) != nullptr && *cp != '\0') {
 		pid_t pid = fork();
 		if (pid == 0) {
 			// Child process
-			execl(cp, cp, (char *)NULL);
+			execl(cp, cp, (char *)nullptr);
 			// If execl fails, try /bin/sh
-			execl("/bin/sh", "sh", (char *)NULL);
+			execl("/bin/sh", "sh", (char *)nullptr);
 			_exit(127); // exec failed
 		} else if (pid > 0) {
 			// Parent process
-			waitpid(pid, NULL, 0);
+			waitpid(pid, nullptr, 0);
 		}
 	} else {
 		pid_t pid = fork();
 		if (pid == 0) {
-			execl("/bin/sh", "sh", (char *)NULL);
+			execl("/bin/sh", "sh", (char *)nullptr);
 			_exit(127);
 		} else if (pid > 0) {
-			waitpid(pid, NULL, 0);
+			waitpid(pid, nullptr, 0);
 		}
 	}
-	sgarbf = TRUE;
+	sgarbf = true;
 	sleep(2);
 	TTopen();
 	TTkopen();
@@ -76,21 +77,21 @@ int spawncli([[maybe_unused]] int f, [[maybe_unused]] int n)
 	chg_height = term.t_nrow + 1;
 	term.t_nrow = term.t_ncol = 0;
 #endif
-	return TRUE;
+	return true;
 }
 
 int bktoshell([[maybe_unused]] int f, [[maybe_unused]] int n)
 {				/* suspend MicroEMACS and wait to wake up */
 	vttidy();
 	kill(0, SIGTSTP);
-	return TRUE;
+	return true;
 }
 
 void rtfrmshell(void)
 {
 	TTopen();
 	curwp->w_flag = WFHARD;
-	sgarbf = TRUE;
+	sgarbf = true;
 }
 
 /*
@@ -107,7 +108,7 @@ int spawn([[maybe_unused]] int f, [[maybe_unused]] int n)
 	if (restflag)
 		return resterr();
 
-	if ((s = mlreply("!", line, NLINE)) != TRUE)
+	if ((s = mlreply("!", line, NLINE)) != true)
 		return s;
 	TTflush();
 	TTclose();		/* stty to old modes    */
@@ -116,24 +117,24 @@ int spawn([[maybe_unused]] int f, [[maybe_unused]] int n)
 	// Safe command execution using sh -c
 	pid_t pid = fork();
 	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)NULL);
+		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
 		_exit(127);
 	} else if (pid > 0) {
-		waitpid(pid, NULL, 0);
+		waitpid(pid, nullptr, 0);
 	}
 	
 	fflush(stdout);		/* to be sure P.K.      */
 	TTopen();
 
-	if (clexec == FALSE) {
+	if (clexec == false) {
 		mlputs("(End)");	/* Pause.               */
 		TTflush();
 		while ((s = tgetc()) != '\r' && s != ' ');
 		mlputs("\r\n");
 	}
 	TTkopen();
-	sgarbf = TRUE;
-	return TRUE;
+	sgarbf = true;
+	return true;
 }
 
 /*
@@ -150,7 +151,7 @@ int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
 	if (restflag)
 		return resterr();
 
-	if ((s = mlreply("!", line, NLINE)) != TRUE)
+	if ((s = mlreply("!", line, NLINE)) != true)
 		return s;
 	TTputc('\n');		/* Already have '\r'    */
 	TTflush();
@@ -160,10 +161,10 @@ int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
 	// Safe command execution using sh -c
 	pid_t pid = fork();
 	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)NULL);
+		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
 		_exit(127);
 	} else if (pid > 0) {
-		waitpid(pid, NULL, 0);
+		waitpid(pid, nullptr, 0);
 	}
 	
 	fflush(stdout);		/* to be sure P.K.      */
@@ -171,8 +172,8 @@ int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
 	mlputs("(End)");	/* Pause.               */
 	TTflush();
 	while ((s = tgetc()) != '\r' && s != ' ');
-	sgarbf = TRUE;
-	return TRUE;
+	sgarbf = true;
+	return true;
 }
 
 /*
@@ -194,26 +195,26 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 		return resterr();
 
 	/* get the command to pipe in */
-	if ((s = mlreply("@", line, NLINE)) != TRUE)
+	if ((s = mlreply("@", line, NLINE)) != true)
 		return s;
 
 	/* get rid of the command output buffer if it exists */
-	if ((bp = bfind(bname, FALSE, 0)) != FALSE) {
+	if ((bp = bfind(bname, false, 0)) != false) {
 		/* try to make sure we are off screen */
 		wp = wheadp;
-		while (wp != NULL) {
+		while (wp != nullptr) {
 			if (wp->w_bufp == bp) {
 				if (wp == curwp)
-					delwind(FALSE, 1);
+					delwind(false, 1);
 				else
-					onlywind(FALSE, 1);
+					onlywind(false, 1);
 				break;
 			}
 			wp = wp->w_wndp;
 		}
-		if (zotbuf(bp) != TRUE)
+		if (zotbuf(bp) != true)
 
-			return FALSE;
+			return false;
 	}
 
 	TTflush();
@@ -225,40 +226,40 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 	// Safe command execution with output redirection
 	pid_t pid = fork();
 	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)NULL);
+		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
 		_exit(127);
 	} else if (pid > 0) {
-		waitpid(pid, NULL, 0);
+		waitpid(pid, nullptr, 0);
 	}
 	
 	TTopen();
 	TTkopen();
 	TTflush();
-	sgarbf = TRUE;
-	s = TRUE;
+	sgarbf = true;
+	s = true;
 
-	if (s != TRUE)
+	if (s != true)
 		return s;
 
 	/* split the current window to make room for the command output */
-	if (splitwind(FALSE, 1) == FALSE)
-		return FALSE;
+	if (splitwind(false, 1) == false)
+		return false;
 
 	/* and read the stuff in */
-	if (getfile(filnam, FALSE) == FALSE)
-		return FALSE;
+	if (getfile(filnam, false) == false)
+		return false;
 
 	/* make this window in VIEW mode, update all mode lines */
 	curwp->w_bufp->b_mode |= MDVIEW;
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		wp->w_flag |= WFMODE;
 		wp = wp->w_wndp;
 	}
 
 	/* and get rid of the temporary file */
 	unlink(filnam);
-	return TRUE;
+	return true;
 }
 
 /*
@@ -284,7 +285,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 		return rdonly();	/* we are in read only mode     */
 
 	/* get the filter name and its args */
-	if ((s = mlreply("#", line, NLINE)) != TRUE)
+	if ((s = mlreply("#", line, NLINE)) != true)
 		return s;
 
 	/* setup the proper file names */
@@ -293,10 +294,10 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 	safe_strcpy(bp->b_fname, bname1, NFILEN);	/* set it to our new one */
 
 	/* write it out, checking for errors */
-	if (writeout(filnam1) != TRUE) {
+	if (writeout(filnam1) != true) {
 		mlwrite("(Cannot write filter file)");
 		safe_strcpy(bp->b_fname, tmpnam, NFILEN);
-		return FALSE;
+		return false;
 	}
 
 	TTputc('\n');		/* Already have '\r'    */
@@ -308,20 +309,20 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 	// Safe command execution with I/O redirection
 	pid_t pid = fork();
 	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)NULL);
+		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
 		_exit(127);
 	} else if (pid > 0) {
-		waitpid(pid, NULL, 0);
+		waitpid(pid, nullptr, 0);
 	}
 	
 	TTopen();
 	TTkopen();
 	TTflush();
-	sgarbf = TRUE;
-	s = TRUE;
+	sgarbf = true;
+	s = true;
 
 	/* on failure, escape gracefully */
-	if (s != TRUE || (readin(filnam2, FALSE) == FALSE)) {
+	if (s != true || (readin(filnam2, false) == false)) {
 		mlwrite("(Execution failed)");
 		safe_strcpy(bp->b_fname, tmpnam, NFILEN);
 		unlink(filnam1);
@@ -336,5 +337,5 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 	/* and get rid of the temporary file */
 	unlink(filnam1);
 	unlink(filnam2);
-	return TRUE;
+	return true;
 }

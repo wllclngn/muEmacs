@@ -25,7 +25,7 @@ int main(void) {
     for (int i=0;i<iters;i++) {
         uint32_t k = (uint32_t)('A' + (i % 26));
         struct keymap_entry *e = keymap_lookup(g, k);
-        sum += (e!=NULL);
+        sum += (e!=nullptr);
     }
     uint64_t end = now_ns();
     double ms = (end - start)/1e6;

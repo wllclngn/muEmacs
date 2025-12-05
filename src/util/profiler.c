@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -33,12 +34,12 @@ typedef struct perf_counters {
 } perf_counters_t;
 
 static perf_counters_t perf_stats = {0};
-static int perf_enabled = FALSE;
+static int perf_enabled = false;
 
 void perf_init(void) {
     memset(&perf_stats, 0, sizeof(perf_stats));
     clock_gettime(CLOCK_MONOTONIC, &perf_stats.start_time);
-    perf_enabled = TRUE;
+    perf_enabled = true;
 }
 
 void perf_shutdown(void) {
@@ -48,7 +49,7 @@ void perf_shutdown(void) {
         SAFE_FREE(timer);
         timer = next;
     }
-    perf_enabled = FALSE;
+    perf_enabled = false;
 }
 
 void perf_count_allocation(uint64_t size) {

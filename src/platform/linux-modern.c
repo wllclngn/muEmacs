@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -46,14 +47,14 @@ static pthread_mutex_t watch_mutex = PTHREAD_MUTEX_INITIALIZER;
 int init_file_watch(void) {
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd < 0) {
-        return FALSE;
+        return false;
     }
     
     memset(watch_descriptors, -1, sizeof(watch_descriptors));
     memset(watch_files, 0, sizeof(watch_files));
     watch_count = 0;
     
-    return TRUE;
+    return true;
 }
 
 /* Add a file to watch list */
@@ -64,14 +65,14 @@ int watch_file(const char *filepath) {
     
     if (watch_count >= MAXWATCH) {
         pthread_mutex_unlock(&watch_mutex);
-        return FALSE;
+        return false;
     }
     
     wd = inotify_add_watch(inotify_fd, filepath,
                            IN_MODIFY | IN_DELETE_SELF | IN_MOVE_SELF);
     if (wd < 0) {
         pthread_mutex_unlock(&watch_mutex);
-        return FALSE;
+        return false;
     }
     
     watch_descriptors[watch_count] = wd;
@@ -79,7 +80,7 @@ int watch_file(const char *filepath) {
     watch_count++;
     
     pthread_mutex_unlock(&watch_mutex);
-    return TRUE;
+    return true;
 }
 
 /* Remove a file from watch list */
@@ -126,7 +127,7 @@ void check_file_changes(void) {
     tv.tv_sec = 0;
     tv.tv_usec = 0;
     
-    if (select(inotify_fd + 1, &rfds, NULL, NULL, &tv) <= 0) {
+    if (select(inotify_fd + 1, &rfds, nullptr, nullptr, &tv) <= 0) {
         pthread_mutex_unlock(&watch_mutex);
         return;
     }
@@ -161,7 +162,7 @@ void handle_external_modification(int wd) {
     for (i = 0; i < watch_count; i++) {
         if (watch_descriptors[i] == wd) {
             /* Find the buffer for this file */
-            for (bp = bheadp; bp != NULL; bp = bp->b_bufp) {
+            for (bp = bheadp; bp != nullptr; bp = bp->b_bufp) {
                 if (strcmp(bp->b_fname, watch_files[i]) == 0) {
                     /* Mark buffer as externally modified */
                     mlwrite("WARNING: %s modified externally!", bp->b_fname);
@@ -181,7 +182,7 @@ void handle_file_deletion(int wd) {
     
     for (i = 0; i < watch_count; i++) {
         if (watch_descriptors[i] == wd) {
-            for (bp = bheadp; bp != NULL; bp = bp->b_bufp) {
+            for (bp = bheadp; bp != nullptr; bp = bp->b_bufp) {
                 if (strcmp(bp->b_fname, watch_files[i]) == 0) {
                     mlwrite("WARNING: %s was deleted!", bp->b_fname);
                     break;
@@ -227,7 +228,7 @@ int get_clipboard(char *buf, int maxlen) {
     pid_t pid;
     int len = 0;
     
-    if (pipe(pipefd) == -1) return FALSE;
+    if (pipe(pipefd) == -1) return false;
     
     pid = fork();
     if (pid == 0) {
@@ -237,9 +238,9 @@ int get_clipboard(char *buf, int maxlen) {
         close(pipefd[1]);
         
         // Try xclip first (using PATH)
-        execlp("xclip", "xclip", "-selection", "clipboard", "-o", (char *)NULL);
+        execlp("xclip", "xclip", "-selection", "clipboard", "-o", (char *)nullptr);
         // If xclip fails, try xsel (using PATH)
-        execlp("xsel", "xsel", "--clipboard", "--output", (char *)NULL);
+        execlp("xsel", "xsel", "--clipboard", "--output", (char *)nullptr);
         _exit(127);
     } else if (pid > 0) {
         // Parent process
@@ -258,13 +259,13 @@ int get_clipboard(char *buf, int maxlen) {
             fclose(fp);
         }
         
-        waitpid(pid, NULL, 0);
+        waitpid(pid, nullptr, 0);
         close(pipefd[0]);
     } else {
         // Fork failed
         close(pipefd[0]);
         close(pipefd[1]);
-        return FALSE;
+        return false;
     }
     
     return len > 0;
@@ -275,7 +276,7 @@ int set_clipboard(const char *text) {
     int pipefd[2];
     pid_t pid;
     
-    if (pipe(pipefd) == -1) return FALSE;
+    if (pipe(pipefd) == -1) return false;
     
     pid = fork();
     if (pid == 0) {
@@ -285,9 +286,9 @@ int set_clipboard(const char *text) {
         close(pipefd[0]);
         
         // Try xclip first (using PATH)
-        execlp("xclip", "xclip", "-selection", "clipboard", (char *)NULL);
+        execlp("xclip", "xclip", "-selection", "clipboard", (char *)nullptr);
         // If xclip fails, try xsel (using PATH)
-        execlp("xsel", "xsel", "--clipboard", "--input", (char *)NULL);
+        execlp("xsel", "xsel", "--clipboard", "--input", (char *)nullptr);
         _exit(127);
     } else if (pid > 0) {
         // Parent process
@@ -297,14 +298,14 @@ int set_clipboard(const char *text) {
 	(void)bytes_written;
         close(pipefd[1]);
         
-        waitpid(pid, NULL, 0);
+        waitpid(pid, nullptr, 0);
     } else {
         // Fork failed
         close(pipefd[0]);
         close(pipefd[1]);
-        return FALSE;
+        return false;
     }
-    return TRUE;
+    return true;
 }
 
 /* Get Git branch for current file using safe execution */
@@ -313,7 +314,7 @@ int get_git_branch(char *branch, int maxlen) {
     pid_t pid;
     const char *dir = curbp->b_fname[0] ? curbp->b_fname : ".";
     
-    if (pipe(pipefd) == -1) return FALSE;
+    if (pipe(pipefd) == -1) return false;
     
     pid = fork();
     if (pid == 0) {
@@ -324,7 +325,7 @@ int get_git_branch(char *branch, int maxlen) {
         
         // Change to directory safely
         if (chdir(dir) == 0) {
-            execl("/usr/bin/git", "git", "symbolic-ref", "--short", "HEAD", (char *)NULL);
+            execl("/usr/bin/git", "git", "symbolic-ref", "--short", "HEAD", (char *)nullptr);
         }
         _exit(127);
     } else if (pid > 0) {
@@ -336,22 +337,22 @@ int get_git_branch(char *branch, int maxlen) {
             // Remove trailing newline
             branch[strcspn(branch, "\n")] = '\0';
             fclose(fp);
-            waitpid(pid, NULL, 0);
+            waitpid(pid, nullptr, 0);
             close(pipefd[0]);
-            return TRUE;
+            return true;
         }
         
         if (fp) fclose(fp);
-        waitpid(pid, NULL, 0);
+        waitpid(pid, nullptr, 0);
         close(pipefd[0]);
     } else {
         // Fork failed
         close(pipefd[0]);
         close(pipefd[1]);
-        return FALSE;
+        return false;
     }
     
-    return FALSE;
+    return false;
 }
 
 /* Check if file has uncommitted changes */
@@ -360,9 +361,9 @@ int git_file_modified(void) {
     pid_t pid;
     char result[128];
     
-    if (!curbp->b_fname[0]) return FALSE;
+    if (!curbp->b_fname[0]) return false;
     
-    if (pipe(pipefd) == -1) return FALSE;
+    if (pipe(pipefd) == -1) return false;
     
     pid = fork();
     if (pid == 0) {
@@ -378,7 +379,7 @@ int git_file_modified(void) {
             close(null_fd);
         }
         
-        execl("/usr/bin/git", "git", "status", "--porcelain", curbp->b_fname, (char *)NULL);
+        execl("/usr/bin/git", "git", "status", "--porcelain", curbp->b_fname, (char *)nullptr);
         _exit(127);
     } else if (pid > 0) {
         // Parent process
@@ -387,22 +388,22 @@ int git_file_modified(void) {
         FILE *fp = fdopen(pipefd[0], "r");
         if (fp && safe_fread_line(result, sizeof(result), fp) > 0) {
             fclose(fp);
-            waitpid(pid, NULL, 0);
+            waitpid(pid, nullptr, 0);
             close(pipefd[0]);
-            return TRUE; /* File is modified */
+            return true; /* File is modified */
         }
         
         if (fp) fclose(fp);
-        waitpid(pid, NULL, 0);
+        waitpid(pid, nullptr, 0);
         close(pipefd[0]);
     } else {
         // Fork failed
         close(pipefd[0]);
         close(pipefd[1]);
-        return FALSE;
+        return false;
     }
     
-    return FALSE;
+    return false;
 }
 
 /* Get system load average */

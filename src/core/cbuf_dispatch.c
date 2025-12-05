@@ -15,7 +15,7 @@ static int cbuf_dispatch(int f, int n, int buffer_num)
 {
     // Bounds check
     if (buffer_num < 1 || buffer_num > 40) {
-        return FALSE;
+        return false;
     }
     
     // Call existing cbuf implementation  

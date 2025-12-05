@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -55,27 +56,27 @@ int help(int f, int n)
 				   into it with view mode                 */
 	struct window *wp;	/* scaning pointer to windows */
 	struct buffer *bp;	/* buffer pointer to help */
-	const char *fname = NULL;	/* ptr to file returned by flook() */
+	const char *fname = nullptr;	/* ptr to file returned by flook() */
 
 	/* first check if we are already here */
-	bp = bfind("emacs.hlp", FALSE, BFINVS);
+	bp = bfind("emacs.hlp", false, BFINVS);
 
-	if (bp == NULL) {
-		fname = flook(pathname[1], FALSE);
-		if (fname == NULL) {
+	if (bp == nullptr) {
+		fname = flook(pathname[1], false);
+		if (fname == nullptr) {
 			REPORT_ERROR(ERR_FILE_NOT_FOUND, "Help file is not online");
-			return FALSE;
+			return false;
 		}
 	}
 
 	/* split the current window to make room for the help stuff */
-	if (splitwind(FALSE, 1) == FALSE)
-		return FALSE;
+	if (splitwind(false, 1) == false)
+		return false;
 
-	if (bp == NULL) {
+	if (bp == nullptr) {
 		/* and read the stuff in */
-		if (getfile(fname, FALSE) == FALSE)
-			return FALSE;
+		if (getfile(fname, false) == false)
+			return false;
 	} else
 		swbuffer(bp);
 
@@ -83,11 +84,11 @@ int help(int f, int n)
 	curwp->w_bufp->b_mode |= MDVIEW;
 	curwp->w_bufp->b_flag |= BFINVS;
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		wp->w_flag |= WFMODE;
 		wp = wp->w_wndp;
 	}
-	return TRUE;
+	return true;
 }
 
 int deskey(int f, int n)
@@ -101,19 +102,19 @@ int deskey(int f, int n)
 
 	/* get the command sequence to describe
 	   change it to something we can print as well */
-	cmdstr(c = getckey(FALSE), &outseq[0]);
+	cmdstr(c = getckey(false), &outseq[0]);
 
 	/* and dump it out */
 	ostring(outseq);
 	ostring(" ");
 
 	/* find the right ->function */
-	if ((ptr = getfname(getbind(c))) == NULL)
+	if ((ptr = getfname(getbind(c))) == nullptr)
 		ptr = "Not Bound";
 
 	/* output the command sequence */
 	ostring(ptr);
-	return TRUE;
+	return true;
 }
 
 /*
@@ -135,9 +136,9 @@ int bindtokey(int f, int n)
 
 	/* get the function name to bind it to */
 	kfunc = getname();
-	if (kfunc == NULL) {
+	if (kfunc == nullptr) {
 		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "No such function");
-		return FALSE;
+		return false;
 	}
 	ostring(" ");
 
@@ -157,8 +158,8 @@ int bindtokey(int f, int n)
 
 		/* search for an existing binding for the prefix key */
 		ktp = &keytab[0];
-		found = FALSE;
-		while (ktp->k_fp != NULL) {
+		found = false;
+		while (ktp->k_fp != nullptr) {
 			if (ktp->k_fp == kfunc)
 				unbindchar(ktp->k_code);
 			++ktp;
@@ -177,10 +178,10 @@ int bindtokey(int f, int n)
 
 	/* search the table to see if it exists */
 	ktp = &keytab[0];
-	found = FALSE;
-	while (ktp->k_fp != NULL) {
+	found = false;
+	while (ktp->k_fp != nullptr) {
 		if (ktp->k_code == (int)c) {
-			found = TRUE;
+			found = true;
 			break;
 		}
 		++ktp;
@@ -192,28 +193,28 @@ int bindtokey(int f, int n)
 		/* if we run out of binding room, bitch */
 		if (ktp >= &keytab[NBINDS]) {
 			REPORT_ERROR(ERR_MEMORY, "Binding table FULL!");
-			return FALSE;
+			return false;
 		}
 
 		ktp->k_code = c;	/* add keycode */
 		ktp->k_fp = kfunc;	/* and the function pointer */
 		++ktp;		/* and make sure the next is null */
 		ktp->k_code = 0;
-		ktp->k_fp = NULL;
+		ktp->k_fp = nullptr;
 	}
     /* Also update modern keymaps to keep runtime in sync */
     ensure_modern_keymaps();
-    struct keymap *dst = NULL;
+    struct keymap *dst = nullptr;
     uint32_t mkey = 0;
     legacy_to_modern_map((int)c, &dst, &mkey);
     if (dst) {
         if (!keymap_bind(dst, mkey, kfunc)) {
             mlwrite("Failed to bind key in modern keymap");
-            return FALSE;
+            return false;
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 /*
@@ -231,7 +232,7 @@ int unbindkey(int f, int n)
 	mlwrite(": unbind-key ");
 
 	/* get the command sequence to unbind */
-	c = getckey(FALSE);	/* get a command sequence */
+	c = getckey(false);	/* get a command sequence */
 
 	/* change it to something we can print as well */
 	cmdstr(c, &outseq[0]);
@@ -240,19 +241,19 @@ int unbindkey(int f, int n)
 	ostring(outseq);
 
 	/* if it isn't bound, bitch */
-    if (unbindchar(c) == FALSE) {
+    if (unbindchar(c) == false) {
         REPORT_ERROR(ERR_COMMAND_UNKNOWN, "Key not bound");
-        return FALSE;
+        return false;
     }
     /* Keep modern keymaps in sync */
     ensure_modern_keymaps();
-    struct keymap *dst = NULL;
+    struct keymap *dst = nullptr;
     uint32_t mkey = 0;
     legacy_to_modern_map(c, &dst, &mkey);
     if (dst) {
         keymap_unbind(dst, mkey);
     }
-    return TRUE;
+    return true;
 }
 
 
@@ -269,10 +270,10 @@ int unbindchar(int c)
 
 	/* search the table to see if the key exists */
 	ktp = &keytab[0];
-	found = FALSE;
-	while (ktp->k_fp != NULL) {
+	found = false;
+	while (ktp->k_fp != nullptr) {
 		if (ktp->k_code == c) {
-			found = TRUE;
+			found = true;
 			break;
 		}
 		++ktp;
@@ -280,11 +281,11 @@ int unbindchar(int c)
 
 	/* if it isn't bound, bitch */
 	if (!found)
-		return FALSE;
+		return false;
 
 	/* save the pointer and scan to the end of the table */
 	sktp = ktp;
-	while (ktp->k_fp != NULL)
+	while (ktp->k_fp != nullptr)
 		++ktp;
 	--ktp;			/* backup to the last legit entry */
 
@@ -294,8 +295,8 @@ int unbindchar(int c)
 
 	/* null out the last one */
 	ktp->k_code = 0;
-	ktp->k_fp = NULL;
-	return TRUE;
+	ktp->k_fp = nullptr;
+	return true;
 }
 
 /* describe bindings
@@ -304,8 +305,8 @@ int unbindchar(int c)
  */
 int desbind(int f, int n)
 {
-	buildlist(TRUE, "");
-	return TRUE;
+	buildlist(true, "");
+	return true;
 }
 
 int apro(int f, int n)
@@ -314,10 +315,10 @@ int apro(int f, int n)
 	int status;		/* status return */
 
 	status = mlreply("Apropos string: ", mstring, NSTRING - 1);
-	if (status != TRUE)
+	if (status != true)
 		return status;
 
-	return buildlist(FALSE, mstring);
+	return buildlist(false, mstring);
 }
 
 /*
@@ -343,7 +344,7 @@ static void append_bindings_for_map(struct keymap *map, int prefix_flag,
                     if (prefix_flag) code |= prefix_flag;
                     cmdstr(code, &outseq[*cpos]);
                     SAFE_STRCAT(outseq, "\n");
-                    if (linstr(outseq) != TRUE) return;
+                    if (linstr(outseq) != true) return;
                     *cpos = 0; /* reset line */
                 }
             }
@@ -362,14 +363,14 @@ int buildlist(int type, const char *mstring)
 	char outseq[80];      /* output buffer for keystroke sequence */
 
 	/* split the current window to make room for the binding list */
-	if (splitwind(FALSE, 1) == FALSE)
-		return FALSE;
+	if (splitwind(false, 1) == false)
+		return false;
 
 	/* and get a buffer for it */
-	bp = bfind("*Binding list*", TRUE, 0);
-	if (bp == NULL || bclear(bp) == FALSE) {
+	bp = bfind("*Binding list*", true, 0);
+	if (bp == nullptr || bclear(bp) == false) {
 		REPORT_ERROR(ERR_BUFFER_INVALID, "Can not display binding list");
-		return FALSE;
+		return false;
 	}
 
 	/* let us know this is in progress */
@@ -393,7 +394,7 @@ int buildlist(int type, const char *mstring)
 	wp->w_flag = WFHARD | WFFORCE;
 	wp->w_dotp = bp->b_dotp;
 	wp->w_doto = bp->b_doto;
-	wp->w_markp = NULL;
+	wp->w_markp = nullptr;
 	wp->w_marko = 0;
 
 	/* build the contents of this window, inserting it line by line */
@@ -403,16 +404,16 @@ int buildlist(int type, const char *mstring)
 	struct keymap *mkm_list = atomic_load_explicit(&meta_keymap, memory_order_acquire);
 
 	nptr = &names[0];
-	while (nptr->n_func != NULL) {
+	while (nptr->n_func != nullptr) {
 
 		/* add in the command name */
         SAFE_STRCPY(outseq, nptr->n_name);
 		cpos = strlen(outseq);
 
 		/* if we are executing an apropos command..... */
-		if (type == FALSE &&
+		if (type == false &&
 		    /* and current string doesn't include the search string */
-		    strinc(outseq, mstring) == FALSE)
+		    strinc(outseq, mstring) == false)
 			goto fail;
 
 		/* append all modern keymap bindings for this function */
@@ -424,8 +425,8 @@ int buildlist(int type, const char *mstring)
 		if (cpos > 0) {
 			outseq[cpos++] = '\n';
 			outseq[cpos] = 0;
-			if (linstr(outseq) != TRUE)
-				return FALSE;
+			if (linstr(outseq) != true)
+				return false;
 		}
 
 	      fail:		/* and on to the next name */
@@ -437,12 +438,12 @@ int buildlist(int type, const char *mstring)
 	wp->w_dotp = lforw(bp->b_linep);	/* back to the beginning */
 	wp->w_doto = 0;
 	wp = wheadp;		/* and update ALL mode lines */
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		wp->w_flag |= WFMODE;
 		wp = wp->w_wndp;
 	}
 	mlwrite("");		/* clear the mode line */
-	return TRUE;
+	return true;
 }
 
 
@@ -474,12 +475,12 @@ int strinc(const char *source, const char *sub)
 
 		/* yes, return a success */
 		if (*tp == 0)
-			return TRUE;
+			return true;
 
 		/* no, onward */
 		sp++;
 	}
-	return FALSE;
+	return false;
 }
 
 /*
@@ -517,13 +518,13 @@ int startup(const char *sfname)
 
 	/* look up the startup file */
 	if (*sfname != 0)
-		fname = flook(sfname, TRUE);
+		fname = flook(sfname, true);
 	else
-		fname = flook(pathname[0], TRUE);
+		fname = flook(pathname[0], true);
 
 	/* if it isn't around, don't sweat it */
-	if (fname == NULL)
-		return TRUE;
+	if (fname == nullptr)
+		return true;
 
 	/* otherwise, execute the sucker */
 	return dofile(fname);
@@ -549,7 +550,7 @@ const char *flook(const char *fname, int hflag)
 
 	if (hflag) {
 		home = getenv("HOME");
-		if (home != NULL) {
+		if (home != nullptr) {
 			/* build home dir file spec */
             SAFE_STRCPY(fspec, home);
             SAFE_STRCAT(fspec, "/");
@@ -572,7 +573,7 @@ const char *flook(const char *fname, int hflag)
 #if	ENVFUNC
 	/* get the PATH variable */
 	path = getenv("PATH");
-	if (path != NULL)
+	if (path != nullptr)
 		while (*path) {
 
 			/* build next possible file spec */
@@ -609,7 +610,7 @@ const char *flook(const char *fname, int hflag)
 		}
 	}
 
-	return NULL;		/* no such luck */
+	return nullptr;		/* no such luck */
 }
 
 /*
@@ -672,12 +673,12 @@ int (*getbind(int c))(int, int)
     // Fallback: legacy table (ensures defaults like M-? and C-x C-c)
     {
         struct key_tab *ktp = &keytab[0];
-        while (ktp->k_fp != NULL) {
+        while (ktp->k_fp != nullptr) {
             if (ktp->k_code == c) return ktp->k_fp;
             ++ktp;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /*
@@ -691,17 +692,17 @@ char *getfname(fn_t func)
 
 	/* skim through the table, looking for a match */
 	nptr = &names[0];
-	while (nptr->n_func != NULL) {
+	while (nptr->n_func != nullptr) {
 		if (nptr->n_func == func)
 			return nptr->n_name;
 		++nptr;
 	}
-	return NULL;
+	return nullptr;
 }
 
 /*
  * match fname to a function in the names table using binary search
- * and return any match or NULL if none
+ * and return any match or nullptr if none
  *
  * char *fname;		name to attempt to match
  * 
@@ -709,13 +710,13 @@ char *getfname(fn_t func)
  */
 int (*fncmatch(const char *fname)) (int, int)
 {
-	if (!fname || !fname[0]) return NULL;
+	if (!fname || !fname[0]) return nullptr;
 	
 	/* Binary search through sorted names table */
-	/* Find table size by scanning for NULL terminator */
+	/* Find table size by scanning for nullptr terminator */
 	int left = 0;
 	int right = 0;
-	while (names[right].n_name != NULL) {
+	while (names[right].n_name != nullptr) {
 		right++;
 	}
 	right--;  /* Point to last valid entry */
@@ -737,7 +738,7 @@ int (*fncmatch(const char *fname)) (int, int)
 	}
 	
 	/* Not found */
-	return NULL;
+	return nullptr;
 }
 
 /*
@@ -805,7 +806,7 @@ char *transbind(const char *skey)
 	char *bindname;
 
 	bindname = getfname(getbind(stock(skey)));
-	if (bindname == NULL)
+	if (bindname == nullptr)
 		bindname = "ERROR";
 
 	return bindname;

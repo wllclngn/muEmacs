@@ -18,7 +18,7 @@ static void init_editor_minimal(const char* name) {
 }
 
 static double now_sec(void) {
-    struct timeval tv; gettimeofday(&tv, NULL);
+    struct timeval tv; gettimeofday(&tv, nullptr);
     return tv.tv_sec + tv.tv_usec / 1e6;
 }
 

@@ -65,7 +65,7 @@ int test_large_file_handling(void) {
     
     // Test 2: Sequential access performance using standard FILE I/O
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     FILE* test_fp = fopen(large_file, "r");
     if (test_fp) {
@@ -89,7 +89,7 @@ int test_large_file_handling(void) {
         
         fclose(test_fp);
         
-        gettimeofday(&end, NULL);
+        gettimeofday(&end, nullptr);
         double read_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
         
         // Should read 100 lines from large file reasonably quickly
@@ -159,10 +159,10 @@ int test_file_encoding_detection(void) {
         fclose(f);
         
         // Test BOM detection
-        if (fopen((char*)utf8_bom_file, "r") != NULL) {
+        if (fopen((char*)utf8_bom_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
-            if (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
+            if (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
                 // Content should not include BOM bytes
                 if ((unsigned char)line_buf[0] == 0xEF) {
                     printf("[%sFAIL%s] UTF-8 BOM not properly stripped\n", RED, RESET);
@@ -192,12 +192,12 @@ int test_file_encoding_detection(void) {
         fprintf(f, "Another Unix\n");
         fclose(f);
         
-        if (fopen((char*)mixed_endings_file, "r") != NULL) {
+        if (fopen((char*)mixed_endings_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
             int line_count = 0;
             
-            while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
+            while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
                 line_count++;
                 // Verify line endings are normalized
                 size_t len = strlen(line_buf);
@@ -228,12 +228,12 @@ int test_file_encoding_detection(void) {
         fprintf(f, "\nValid end\n");
         fclose(f);
         
-        if (fopen((char*)invalid_utf8_file, "r") != NULL) {
+        if (fopen((char*)invalid_utf8_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
             int valid_lines = 0;
             
-            while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
+            while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
                 if (strlen(line_buf) > 0) valid_lines++;
             }
             
@@ -334,7 +334,7 @@ int test_file_locking_mechanisms(void) {
             usleep(100000); // Wait for child to acquire lock
             
             struct timeval start, end;
-            gettimeofday(&start, NULL);
+            gettimeofday(&start, nullptr);
             
             int fd = open(lock_test_file, O_RDWR);
             if (fd >= 0) {
@@ -346,7 +346,7 @@ int test_file_locking_mechanisms(void) {
                 
                 // This should block until child releases lock
                 if (fcntl(fd, F_SETLKW, &lock) == 0) {
-                    gettimeofday(&end, NULL);
+                    gettimeofday(&end, nullptr);
                     double wait_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
                     
                     // Should have waited approximately 2 seconds
@@ -392,12 +392,12 @@ int test_encryption_decryption_robustness(void) {
         struct stat st;
         if (stat(crypt_test_file, &st) == 0 && st.st_size > 0) {
             // File should be readable
-            if (fopen((char*)crypt_test_file, "r") != NULL) {
+            if (fopen((char*)crypt_test_file, "r") != nullptr) {
                 char line_buf[512];
                 int eol_type;
                 size_t total_read = 0;
                 
-                while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
+                while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
                     total_read += strlen(line_buf);
                 }
                 
@@ -426,7 +426,7 @@ int test_encryption_decryption_robustness(void) {
         fclose(f);
         
         // Should handle corrupted encryption gracefully
-        if (fopen((char*)crypt_test_file, "r") != NULL) {
+        if (fopen((char*)crypt_test_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
             // Should either decrypt with fallback or error gracefully
@@ -484,7 +484,7 @@ int test_backup_recovery_systems(void) {
         fclose(f);
         
         // Simulate editing that would trigger backup
-        if (readin((char*)original_file, 0) == TRUE) {
+        if (readin((char*)original_file, 0) == true) {
             // Backup should be created before modifications
             struct stat orig_stat, backup_stat;
             
@@ -587,7 +587,7 @@ int test_permission_handling(void) {
         // Make file read-only
         if (chmod(readonly_file, S_IRUSR | S_IRGRP | S_IROTH) == 0) {
             // Test reading from read-only file
-            if (fopen((char*)readonly_file, "r") != NULL) {
+            if (fopen((char*)readonly_file, "r") != nullptr) {
                 char line_buf[256];
                 int eol_type;
                 if (fgets(line_buf, sizeof(line_buf), &eol_type) != FIOSUC) {
@@ -601,7 +601,7 @@ int test_permission_handling(void) {
             }
             
             // Test writing to read-only file (should fail gracefully)
-            if (fopen((char*)readonly_file, "w") != NULL) {
+            if (fopen((char*)readonly_file, "w") != nullptr) {
                 printf("[%sFAIL%s] Read-only file opened for writing\n", RED, RESET);
                 ok = 0;
                 fclose();
@@ -621,7 +621,7 @@ int test_permission_handling(void) {
         snprintf(test_file_in_nowrite, sizeof(test_file_in_nowrite), "%s/test.txt", nowrite_dir);
         
         // Should fail to create file in no-write directory
-        if (fopen(test_file_in_nowrite, "w") != NULL) {
+        if (fopen(test_file_in_nowrite, "w") != nullptr) {
             printf("[%sFAIL%s] Created file in no-write directory\n", RED, RESET);
             ok = 0;
             fclose();
@@ -673,9 +673,9 @@ int test_network_file_operations(void) {
         
         // Test file access with simulated network delay
         struct timeval start, end;
-        gettimeofday(&start, NULL);
+        gettimeofday(&start, nullptr);
         
-        if (fopen((char*)slow_file, "r") != NULL) {
+        if (fopen((char*)slow_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
             
@@ -692,7 +692,7 @@ int test_network_file_operations(void) {
             fclose();
         }
         
-        gettimeofday(&end, NULL);
+        gettimeofday(&end, nullptr);
         double access_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
         
         // Should complete within reasonable time for local file
@@ -712,18 +712,18 @@ int test_network_file_operations(void) {
         fclose(f);
         
         // Simulate network interruption by removing file mid-operation
-        if (fopen((char*)disconnected_file, "r") != NULL) {
+        if (fopen((char*)disconnected_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
             
             // Read first line successfully
-            if (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
+            if (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
                 // Simulate disconnection
                 unlink(disconnected_file);
                 
                 // Try to read more (should handle disconnection gracefully)
                 int result = fgets(line_buf, sizeof(line_buf), &eol_type);
-                if (result != NULL) {
+                if (result != nullptr) {
                     // Unexpected success after disconnection
                     printf("[%sWARNING%s] Read succeeded after file removal\n", YELLOW, RESET);
                 }
@@ -746,14 +746,14 @@ int test_network_file_operations(void) {
         
         // Test streaming read performance
         struct timeval start, end;
-        gettimeofday(&start, NULL);
+        gettimeofday(&start, nullptr);
         
-        if (fopen((char*)large_network_file, "r") != NULL) {
+        if (fopen((char*)large_network_file, "r") != nullptr) {
             char line_buf[256];
             int eol_type;
             int lines_read = 0;
             
-            while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
+            while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
                 lines_read++;
                 // Simulate processing delay
                 if (lines_read % 1000 == 0) {
@@ -772,7 +772,7 @@ int test_network_file_operations(void) {
             ok = 0;
         }
         
-        gettimeofday(&end, NULL);
+        gettimeofday(&end, nullptr);
         double transfer_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
         
         // Should handle large file efficiently

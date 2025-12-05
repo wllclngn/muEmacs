@@ -325,7 +325,7 @@ struct key_tab keytab[NBINDS] = {
 	{ SPEC | META | 'R', nullproc },	/*  on file read */
 	{ SPEC | META | 'X', nullproc },	/*  on window change P.K. */
 
-	{0, NULL}
+	{0, nullptr}
 };
 
 #endif  /* EBIND_H_ */

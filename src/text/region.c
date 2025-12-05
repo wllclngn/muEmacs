@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -20,8 +21,8 @@ extern int set_clipboard(const char *text);
 /* Clear the visual selection mark */
 static void clear_selection(void)
 {
-	if (curwp != NULL) {
-		curwp->w_markp = NULL;
+	if (curwp != nullptr) {
+		curwp->w_markp = nullptr;
 		curwp->w_marko = 0;
 		/* Force screen update to clear highlighting */
 		curwp->w_flag |= WFHARD;
@@ -41,7 +42,7 @@ int killregion(int f, int n)
 
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	if ((s = getregion(&region)) != TRUE)
+	if ((s = getregion(&region)) != true)
 		return s;
 	if ((lastflag & CFKILL) == 0)	/* This is a kill type  */
 		kdelete();	/* command, so do magic */
@@ -49,7 +50,7 @@ int killregion(int f, int n)
 	curwp->w_dotp = region.r_linep;
 	curwp->w_doto = region.r_offset;
 	clear_selection();	/* Clear visual selection after cut */
-	return ldelete(region.r_size, TRUE);
+	return ldelete(region.r_size, true);
 }
 
 /*
@@ -65,11 +66,11 @@ int copyregion(int f, int n)
 	int s;
 	struct region region;
 	/* For system clipboard aggregation */
-	char *cb = NULL;
+	char *cb = nullptr;
 	long cb_len = 0;
 	long cb_cap = 0;
 
-	if ((s = getregion(&region)) != TRUE)
+	if ((s = getregion(&region)) != true)
 		return s;
 	if ((lastflag & CFKILL) == 0)	/* Kill type command.   */
 		kdelete();
@@ -80,18 +81,18 @@ int copyregion(int f, int n)
 	if (region.r_size > 0) {
 		cb_cap = region.r_size + 1; /* include NUL */
 		cb = safe_alloc((size_t)cb_cap, "copyregion clipboard", __FILE__, __LINE__);
-		if (!cb) return FALSE;
+		if (!cb) return false;
 	}
 	while (region.r_size--) {
 		if (loffs == llength(linep)) {	/* End of line.         */
-			if ((s = kinsert('\n')) != TRUE)
+			if ((s = kinsert('\n')) != true)
 				goto copy_fail;
 			if (cb && cb_len < cb_cap - 1) cb[cb_len++] = '\n';
 			linep = lforw(linep);
 			loffs = 0;
 		} else {	/* Middle of line.      */
 			int ch = lgetc(linep, loffs);
-			if ((s = kinsert(ch)) != TRUE)
+			if ((s = kinsert(ch)) != true)
 				goto copy_fail;
 			if (cb && cb_len < cb_cap - 1) cb[cb_len++] = (char)ch;
 			++loffs;
@@ -105,7 +106,7 @@ int copyregion(int f, int n)
 	}
 	mlwrite("(region copied)");
 	clear_selection();	/* Clear visual selection after copy */
-	return TRUE;
+	return true;
 
 copy_fail:
 	if (cb) SAFE_FREE(cb);
@@ -130,7 +131,7 @@ int lowerregion(int f, int n)
 
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	if ((s = getregion(&region)) != TRUE)
+	if ((s = getregion(&region)) != true)
 		return s;
 	lchange(WFHARD);
 	linep = region.r_linep;
@@ -146,7 +147,7 @@ int lowerregion(int f, int n)
 			++loffs;
 		}
 	}
-	return TRUE;
+	return true;
 }
 
 /*
@@ -167,7 +168,7 @@ int upperregion(int f, int n)
 
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	if ((s = getregion(&region)) != TRUE)
+	if ((s = getregion(&region)) != true)
 		return s;
 	lchange(WFHARD);
 	linep = region.r_linep;
@@ -183,7 +184,7 @@ int upperregion(int f, int n)
 			++loffs;
 		}
 	}
-	return TRUE;
+	return true;
 }
 
 /*
@@ -204,9 +205,9 @@ int getregion(struct region *rp)
 	long fsize;
 	long bsize;
 
-	if (curwp->w_markp == NULL) {
+	if (curwp->w_markp == nullptr) {
 		mlwrite("No mark set in this window");
-		return FALSE;
+		return false;
 	}
 	if (curwp->w_dotp == curwp->w_markp) {
 		rp->r_linep = curwp->w_dotp;
@@ -219,7 +220,7 @@ int getregion(struct region *rp)
 			rp->r_size =
 			    (long) (curwp->w_doto - curwp->w_marko);
 		}
-		return TRUE;
+		return true;
 	}
 	blp = curwp->w_dotp;
 	bsize = (long) curwp->w_doto;
@@ -232,7 +233,7 @@ int getregion(struct region *rp)
 				rp->r_linep = curwp->w_dotp;
 				rp->r_offset = curwp->w_doto;
 				rp->r_size = fsize + curwp->w_marko;
-				return TRUE;
+				return true;
 			}
 			fsize += llength(flp) + 1;
 		}
@@ -243,10 +244,10 @@ int getregion(struct region *rp)
 				rp->r_linep = blp;
 				rp->r_offset = curwp->w_marko;
 				rp->r_size = bsize - curwp->w_marko;
-				return TRUE;
+				return true;
 			}
 		}
 	}
 	mlwrite("Bug: lost mark");
-	return FALSE;
+	return false;
 }

@@ -6,7 +6,7 @@
 
 int fillcol = 72;		/* Current fill column          */
 int kbdm[NKBDM];		/* Macro                        */
-const char *restrict execstr = NULL;		/* pointer to string to execute */
+const char *restrict execstr = nullptr;		/* pointer to string to execute */
 char golabel[NPAT] = "";	/* current line to go to        */
 int execlevel = 0;		/* execution IF level           */
 bool eolexist = true;		/* does clear to EOL exist      */
@@ -34,13 +34,13 @@ int gfcolor = 7;		/* global forgrnd color (white) */
 int gbcolor = 0;		/* global backgrnd color (black) */
 int gasave = 256;		/* global ASAVE size            */
 int gacount = 256;		/* count until next ASAVE       */
-int sgarbf = TRUE;		/* TRUE if screen is garbage    */
-int mpresf = FALSE;		/* TRUE if message in last line */
-int clexec = FALSE;		/* command line execution flag  */
-int mstore = FALSE;		/* storing text to macro flag   */
-int discmd = TRUE;		/* display command flag         */
-int disinp = TRUE;		/* display input characters     */
-struct buffer *bstore = NULL;	/* buffer to store macro text to */
+int sgarbf = true;		/* true if screen is garbage    */
+int mpresf = false;		/* true if message in last line */
+int clexec = false;		/* command line execution flag  */
+int mstore = false;		/* storing text to macro flag   */
+int discmd = true;		/* display command flag         */
+int disinp = true;		/* display input characters     */
+struct buffer *bstore = nullptr;	/* buffer to store macro text to */
 int vtrow = 0;			/* Row location of SW cursor */
 int vtcol = 0;			/* Column location of SW cursor */
 int ttrow = HUGE;		/* Row location of HW cursor */
@@ -76,28 +76,28 @@ int yanked_size = 0;		/* Size of last yank for yankpop */
 /* Temporary kill buffer for unified kill system */
 char temp_kill_buf[8192];
 size_t temp_kill_len = 0;
-struct window *swindow = NULL;	/* saved window pointer                 */
+struct window *swindow = nullptr;	/* saved window pointer                 */
 int *kbdptr;			/* current position in keyboard buf */
 int *kbdend = &kbdm[0];		/* ptr to end of the keyboard */
 int kbdmode = STOP;		/* current keyboard macro mode  */
-_Atomic(struct keymap *) current_keymap = NULL;	/* current keymap - C23 atomic */
+_Atomic(struct keymap *) current_keymap = nullptr;	/* current keymap - C23 atomic */
 int kbdrep = 0;			/* number of repetitions        */
-int restflag = FALSE;		/* restricted use?              */
+int restflag = false;		/* restricted use?              */
 int lastkey = 0;		/* last keystoke                */
 int seed = 0;			/* random number seed           */
 long envram = 0l;		/* # of bytes current in use by malloc */
-int macbug = FALSE;		/* macro debuging flag          */
+int macbug = false;		/* macro debuging flag          */
 char errorm[] = "ERROR";	/* error literal                */
-char truem[] = "TRUE";		/* true literal                 */
-char falsem[] = "FALSE";	/* false litereal               */
-int cmdstatus = TRUE;		/* last command status          */
+char truem[] = "true";		/* true literal                 */
+char falsem[] = "false";	/* false litereal               */
+int cmdstatus = true;		/* last command status          */
 char palstr[49] = "";		/* palette string               */
 int saveflag = 0;		/* Flags, saved with the $target var */
-char *fline = NULL;		/* dynamic return line */
+char *fline = nullptr;		/* dynamic return line */
 int flen = 0;			/* current length of fline */
 int rval = 0;			/* return value of a subprocess */
-int nullflag = FALSE;		/* accept null characters */
-int justflag = FALSE;		/* justify, don't fill */
+int nullflag = false;		/* accept null characters */
+int justflag = false;		/* justify, don't fill */
 int overlap = 0;		/* line overlap in forw/back page */
 int scrollcount = 1;		/* number of lines to scroll */
 _Atomic int edit_transaction_depth = 0; /* transactional editing depth */
@@ -106,7 +106,7 @@ _Atomic int edit_transaction_depth = 0; /* transactional editing depth */
 int highlight_current_line = 0;     /* Highlight cursor row (DISABLED - causing memory issues) */
 int column_ruler_enabled = 0;       /* Enable vertical column ruler */
 int column_ruler_column = 80;       /* Ruler target column (1-based) */
-int hiline_style = 7;               /* 0 none, 1 underline, 2 bold, 3 dim, 7 reverse (terminal-native highlight) */
+int hiline_style = 4;               /* 0 none, 1 underline, 2 bold, 3 dim, 4 background */
 int ruler_style = 1;                /* 0 none, 1 underline, 2 bold, 3 dim */
 /* Highlight tuning defaults */
 int highlight_intensity_pct = 15;      /* Cursorline blend percent (VISIBLE) */
@@ -147,8 +147,8 @@ char rpat[NPAT];		/* replacement pattern          */
  */
 unsigned int matchlen = 0;
 unsigned int mlenold = 0;
-char *patmatch = NULL;
-struct line *matchline = NULL;
+char *patmatch = nullptr;
+struct line *matchline = nullptr;
 int matchoff = 0;
 
 /* directive name table:

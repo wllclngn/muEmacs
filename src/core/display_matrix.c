@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <time.h>
 #include "estruct.h"
 #include "edef.h"
@@ -13,7 +14,7 @@
 #include "utf8.h"
 
 // Global display matrix and statistics
-struct display_matrix *global_display_matrix = NULL;
+struct display_matrix *global_display_matrix = nullptr;
 struct display_matrix_stats display_matrix_global_stats = {0};
 
 // Initialize display matrix
@@ -54,7 +55,7 @@ int display_matrix_init(int initial_rows, int initial_cols) {
     global_display_matrix->capacity_cols = initial_cols;
     
     // Initialize dirty tracking
-    global_display_matrix->dirty_regions = NULL;
+    global_display_matrix->dirty_regions = nullptr;
     global_display_matrix->full_redraw_pending = true;
     atomic_init(&global_display_matrix->generation, 0);
     
@@ -200,7 +201,7 @@ void display_matrix_set_cell(int row, int col, uint32_t codepoint,
 struct display_cell *display_matrix_get_cell(int row, int col) {
     if (!global_display_matrix || row < 0 || row >= global_display_matrix->rows ||
         col < 0 || col >= global_display_matrix->cols) {
-        return NULL;
+        return nullptr;
     }
     
     return &global_display_matrix->cells[row * global_display_matrix->cols + col];

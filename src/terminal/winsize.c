@@ -47,5 +47,5 @@ void update_terminal_size(void) {
 void handle_winch(int sig) {
     (void)sig;
     update_terminal_size();
-    sgarbf = TRUE;  // Force screen redraw
+    sgarbf = true;  // Force screen redraw
 }

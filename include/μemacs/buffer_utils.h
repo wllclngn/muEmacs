@@ -10,7 +10,7 @@
 
 // Modern C23 buffer iteration - eliminates redundant loop patterns
 #define FOR_EACH_BUFFER(bp) \
-    for (struct buffer *bp = bheadp; bp != NULL; bp = bp->b_bufp)
+    for (struct buffer *bp = bheadp; bp != nullptr; bp = bp->b_bufp)
 
 #define FOR_EACH_LINE_IN_BUFFER(lp, bp) \
     for (struct line *lp = lforw((bp)->b_linep); lp != (bp)->b_linep; lp = lforw(lp))
@@ -19,7 +19,7 @@
     for (struct line *lp = lback((bp)->b_linep); lp != (bp)->b_linep; lp = lback(lp))
 
 #define FOR_EACH_WINDOW(wp) \
-    for (struct window *wp = wheadp; wp != NULL; wp = wp->w_wndp)
+    for (struct window *wp = wheadp; wp != nullptr; wp = wp->w_wndp)
 
 // Buffer utility functions - consolidates common patterns
 struct buffer* find_buffer_by_name(const char* name);

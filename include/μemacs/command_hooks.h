@@ -59,7 +59,7 @@ struct command_hook {
     void *context;                          // User context data
     
     // Command filtering
-    command_fn target_cmd;                  // Specific command (NULL = all commands)
+    command_fn target_cmd;                  // Specific command (nullptr = all commands)
     char *command_pattern;                  // Command name pattern (optional)
     
     struct command_hook *next;              // Hook chain linkage
@@ -197,13 +197,13 @@ void hook_validate_chains(void);
 
 // Hook registration macros for convenience
 #define HOOK_REGISTER_PRE(fn, cmd, name) \
-    hook_register_pre(fn, HOOK_DEFAULT_PRIORITY, cmd, name, NULL)
+    hook_register_pre(fn, HOOK_DEFAULT_PRIORITY, cmd, name, nullptr)
 
 #define HOOK_REGISTER_POST(fn, cmd, name) \
-    hook_register_post(fn, HOOK_DEFAULT_PRIORITY, cmd, name, NULL)
+    hook_register_post(fn, HOOK_DEFAULT_PRIORITY, cmd, name, nullptr)
 
 #define HOOK_REGISTER_ERROR(fn, cmd, name) \
-    hook_register_error(fn, HOOK_DEFAULT_PRIORITY, cmd, name, NULL)
+    hook_register_error(fn, HOOK_DEFAULT_PRIORITY, cmd, name, nullptr)
 
 // Error codes
 #define HOOK_SUCCESS            0

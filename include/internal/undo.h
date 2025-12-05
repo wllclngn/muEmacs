@@ -20,7 +20,7 @@ enum edit_type {
 /**
  * @brief Creates and initializes a new undo stack.
  * 
- * @return A pointer to the newly created atomic_undo_stack, or NULL on failure.
+ * @return A pointer to the newly created atomic_undo_stack, or nullptr on failure.
  */
 struct atomic_undo_stack *undo_stack_create(void);
 

@@ -26,7 +26,7 @@ int writing_mode_enable(int f, int n)
     curbp->b_mode |= MDWRAP;
     upmode();
     mlwrite("Writing mode enabled: wrap at %d", fillcol);
-    return TRUE;
+    return true;
 }
 
 /* Disable writing mode: restore previous fill column and wrap flag if saved. */
@@ -46,6 +46,6 @@ int writing_mode_disable(int f, int n)
     }
     upmode();
     mlwrite("Writing mode disabled");
-    return TRUE;
+    return true;
 }
 

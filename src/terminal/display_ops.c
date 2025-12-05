@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -101,7 +102,7 @@ void display_status_line(struct buffer* bp, struct window* wp, int row) {
     char temp[256];
     terminal_caps_t caps = get_terminal_capabilities();
     char gitbuf[128]; gitbuf[0] = '\0';
-    git_status_request_async(NULL);
+    git_status_request_async(nullptr);
     (void)git_status_get_cached(gitbuf, sizeof(gitbuf));
     
     // Move to status line position
@@ -186,7 +187,7 @@ void display_status_line(struct buffer* bp, struct window* wp, int row) {
     display_status_section(temp, UTF8_DOT);
     
     // Column position
-    snprintf(temp, sizeof(temp), "C%d", getccol(FALSE));
+    snprintf(temp, sizeof(temp), "C%d", getccol(false));
     buffer_append(temp);
     
     // Pad to full width

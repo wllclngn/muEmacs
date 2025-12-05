@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <time.h>
 #include "estruct.h"
 #include "edef.h"
@@ -12,7 +13,7 @@
 #include "string_utils.h"
 
 // Global hook system and statistics
-struct hook_system *global_hook_system = NULL;
+struct hook_system *global_hook_system = nullptr;
 struct hook_stats global_hook_stats = {0};
 
 // Phase names for debugging
@@ -36,7 +37,7 @@ int hook_system_init(void) {
     
     // Initialize hook chains
     for (int phase = 0; phase < HOOK_PHASE_MAX; phase++) {
-        global_hook_system->chains[phase].head = NULL;
+        global_hook_system->chains[phase].head = nullptr;
         global_hook_system->chains[phase].count = 0;
         atomic_init(&global_hook_system->chains[phase].executions, 0);
         atomic_init(&global_hook_system->chains[phase].total_time_ns, 0);
@@ -68,7 +69,7 @@ void hook_system_shutdown(void) {
             SAFE_FREE(hook);
             hook = next;
         }
-        global_hook_system->chains[phase].head = NULL;
+        global_hook_system->chains[phase].head = nullptr;
         global_hook_system->chains[phase].count = 0;
     }
     
@@ -79,7 +80,7 @@ void hook_system_shutdown(void) {
 struct command_context *command_context_create(command_fn cmd, int f, int n) {
     struct command_context *ctx = safe_alloc(sizeof(struct command_context),
                                             "command context", __FILE__, __LINE__);
-    if (!ctx) return NULL;
+    if (!ctx) return nullptr;
     
     ctx->cmd = cmd;
     ctx->f = f;
@@ -95,7 +96,7 @@ struct command_context *command_context_create(command_fn cmd, int f, int n) {
     
     ctx->error_code = 0;
     ctx->error_message[0] = '\0';
-    ctx->hook_data = NULL;
+    ctx->hook_data = nullptr;
     
     return ctx;
 }
@@ -152,10 +153,10 @@ uint32_t hook_register_pre(command_hook_fn hook, int priority, command_fn target
     new_hook->phase = HOOK_PHASE_PRE;
     new_hook->priority = priority;
     new_hook->active = true;
-    new_hook->name = name ? safe_strdup(name, "pre hook name") : NULL;
+    new_hook->name = name ? safe_strdup(name, "pre hook name") : nullptr;
     new_hook->context = context;
     new_hook->target_cmd = target_cmd;
-    new_hook->command_pattern = NULL;
+    new_hook->command_pattern = nullptr;
     
     // Insert into pre-hook chain sorted by priority
     struct hook_chain *chain = &global_hook_system->chains[HOOK_PHASE_PRE];
@@ -187,10 +188,10 @@ uint32_t hook_register_post(post_command_hook_fn hook, int priority, command_fn 
     new_hook->phase = HOOK_PHASE_POST;
     new_hook->priority = priority;
     new_hook->active = true;
-    new_hook->name = name ? safe_strdup(name, "post hook name") : NULL;
+    new_hook->name = name ? safe_strdup(name, "post hook name") : nullptr;
     new_hook->context = context;
     new_hook->target_cmd = target_cmd;
-    new_hook->command_pattern = NULL;
+    new_hook->command_pattern = nullptr;
     
     // Insert into post-hook chain sorted by priority
     struct hook_chain *chain = &global_hook_system->chains[HOOK_PHASE_POST];
@@ -318,10 +319,10 @@ int command_execute_with_hooks(command_fn cmd, int f, int n) {
     
     if (pre_result == HOOK_ABORT) {
         command_context_destroy(ctx);
-        return FALSE; // Command aborted
+        return false; // Command aborted
     } else if (pre_result == HOOK_HANDLED) {
         command_context_destroy(ctx);
-        return TRUE; // Command handled by hook
+        return true; // Command handled by hook
     }
     
     // Execute the actual command
@@ -329,7 +330,7 @@ int command_execute_with_hooks(command_fn cmd, int f, int n) {
     if (pre_result == HOOK_CONTINUE) {
         command_result = cmd(f, n);
     } else {
-        command_result = FALSE; // Hook error
+        command_result = false; // Hook error
     }
     
     ctx->result = command_result;
@@ -348,7 +349,7 @@ int command_execute_with_hooks(command_fn cmd, int f, int n) {
 
 // Execute command without hooks
 int command_execute_simple(command_fn cmd, int f, int n) {
-    if (!cmd) return FALSE;
+    if (!cmd) return false;
     return cmd(f, n);
 }
 

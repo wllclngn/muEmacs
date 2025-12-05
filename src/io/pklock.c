@@ -25,7 +25,7 @@
 
 /**********************
  *
- * if successful, returns NULL  
+ * if successful, returns nullptr  
  * if file locked, returns username of person locking the file
  * if other error, returns "LOCK ERROR: explanation"
  *
@@ -51,10 +51,10 @@ char *dolock(char *fname)
 			fd = open(lname, O_RDONLY);
 			if (fd < 0) {
 				if (errno == EACCES)
-					return NULL;
+					return nullptr;
 #ifdef EROFS
 				if (errno == EROFS)
-					return NULL;
+					return nullptr;
 #endif
 				return "LOCK ERROR: cannot access lock file";
 			}
@@ -79,10 +79,10 @@ char *dolock(char *fname)
 		
 		/* Other errors */
 		if (errno == EACCES)
-			return NULL;
+			return nullptr;
 #ifdef EROFS
 		if (errno == EROFS)
-			return NULL;
+			return nullptr;
 #endif
 		return "LOCK ERROR: cannot create lock file";
 	}
@@ -106,7 +106,7 @@ char *dolock(char *fname)
 	(void)written;
 	close(fd);
 	
-	return NULL;
+	return nullptr;
 }
 
 
@@ -114,7 +114,7 @@ char *dolock(char *fname)
  *
  * undolock -- unlock the file fname
  *
- * if successful, returns NULL
+ * if successful, returns nullptr
  * if other error, returns "LOCK ERROR: explanation"
  *
  *********************/
@@ -127,12 +127,12 @@ char *undolock(char *fname)
     SAFE_STRCAT(lname, ".lock~");
 	if (unlink(lname) != 0) {
 		if (errno == EACCES || errno == ENOENT)
-			return NULL;
+			return nullptr;
 #ifdef EROFS
 		if (errno == EROFS)
-			return NULL;
+			return nullptr;
 #endif
 		return "LOCK ERROR: cannot remove lock file";
 	}
-	return NULL;
+	return nullptr;
 }

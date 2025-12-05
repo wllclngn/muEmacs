@@ -27,7 +27,7 @@ typedef struct alloc_record {
     struct alloc_record* next;
 } alloc_record_t;
 
-static alloc_record_t* allocation_list = NULL;
+static alloc_record_t* allocation_list = nullptr;
 static size_t total_allocated = 0;
 static size_t peak_allocated = 0;
 static size_t allocation_count = 0;
@@ -81,14 +81,14 @@ void* safe_alloc(size_t size, const char* context, const char* file, int line) {
     
     if (size > SIZE_MAX / 2) {
         mlwrite("(ALLOCATION TOO LARGE: %s)", context ? context : "unknown");
-        return NULL;
+        return nullptr;
     }
     
     /* Use calloc for zero-initialized memory */
     void* ptr = calloc(1, size);
     if (!ptr) {
         mlwrite("(OUT OF MEMORY: %s - %zu bytes)", context ? context : "unknown", size);
-        return NULL;
+        return nullptr;
     }
     
     track_allocation(ptr, size, context, file, line);
@@ -102,12 +102,12 @@ void* safe_realloc(void* old_ptr, size_t new_size, const char* context) {
             untrack_allocation(old_ptr);
             free(old_ptr);
         }
-        return NULL;
+        return nullptr;
     }
     
     if (new_size > SIZE_MAX / 2) {
         mlwrite("(REALLOCATION TOO LARGE: %s)", context ? context : "unknown");
-        return NULL;
+        return nullptr;
     }
 
     // Untrack the old pointer before reallocating
@@ -122,7 +122,7 @@ void* safe_realloc(void* old_ptr, size_t new_size, const char* context) {
         if (old_ptr) {
             track_allocation(old_ptr, 0, "realloc-fail", __FILE__, __LINE__); // Size is unknown here, but it's better to track it
         }
-        return NULL;
+        return nullptr;
     }
     
     track_allocation(new_ptr, new_size, context, __FILE__, __LINE__);
@@ -136,7 +136,7 @@ void safe_free(void** ptr) {
     
     untrack_allocation(*ptr);
     free(*ptr);
-    *ptr = NULL;  /* Prevent double-free */
+    *ptr = nullptr;  /* Prevent double-free */
 }
 
 /* Allocation report for debugging */
@@ -175,7 +175,7 @@ void memory_cleanup(void) {
 
 /* Safe string duplication */
 char* safe_strdup(const char* str, const char* context) {
-    if (!str) return NULL;
+    if (!str) return nullptr;
     
     size_t len = strlen(str) + 1;
     char* dup = (char*)safe_alloc(len, context, __FILE__, __LINE__);

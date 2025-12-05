@@ -49,7 +49,7 @@ static inline uint32_t atomic_meta_transform(int key_code)
 }
 
 /*
- * Ask a yes or no question in the message line. Return either TRUE, FALSE, or
+ * Ask a yes or no question in the message line. Return either true, false, or
  * ABORT. The ABORT status is returned if the user bumps out of the question
  * with a ^G. Used any time a confirmation is required.
  */
@@ -72,10 +72,10 @@ int mlyesno(const char *prompt)
 			return ABORT;
 
         if (c == 'y' || c == 'Y')
-            return TRUE;
+            return true;
 
         if (c == 'n' || c == 'N')
-            return FALSE;
+            return false;
     }
 }
 
@@ -143,13 +143,13 @@ fn_t getname(void)
 
 	/* if we are executing a command line get the next arg and match it */
 	if (clexec) {
-		if (macarg(buf) != TRUE)
-			return NULL;
+		if (macarg(buf) != true)
+			return nullptr;
 		return fncmatch(&buf[0]);
 	}
 
 	/* build a name string from the keyboard */
-	while (TRUE) {
+	while (true) {
 		c = tgetc();
 
 		/* if we are at the end, just match it */
@@ -160,9 +160,9 @@ fn_t getname(void)
 			return fncmatch(&buf[0]);
 
 		} else if (c == ectoc(abortc)) {	/* Bell, abort */
-			ctrlg(FALSE, 0);
+			ctrlg(false, 0);
 			TTflush();
-			return NULL;
+			return nullptr;
 
 		} else if (c == 0x7F || c == 0x08) {	/* rubout/erase */
 			if (cpos != 0) {
@@ -190,11 +190,11 @@ fn_t getname(void)
 			/* attempt a completion */
 			buf[cpos] = 0;	/* terminate it for us */
 			ffp = &names[0];	/* scan for matches */
-			while (ffp->n_func != NULL) {
+			while (ffp->n_func != nullptr) {
 				if (strncmp(buf, ffp->n_name, strlen(buf))
 				    == 0) {
 					/* a possible match! More than one? */
-					if ((ffp + 1)->n_func == NULL ||
+					if ((ffp + 1)->n_func == nullptr ||
 					    (strncmp
 					     (buf, (ffp + 1)->n_name,
 					      strlen(buf)) != 0)) {
@@ -212,7 +212,7 @@ fn_t getname(void)
 						lffp = (ffp + 1);
 						while ((lffp +
 							1)->n_func !=
-						       NULL) {
+						       nullptr) {
 							if (strncmp
 							    (buf,
 							     (lffp +
@@ -224,7 +224,7 @@ fn_t getname(void)
 						}
 
 						/* and now, attempt to partial complete the string, char at a time */
-						while (TRUE) {
+						while (true) {
 							/* add the next char in */
 							buf[cpos] =
 							    ffp->
@@ -514,7 +514,7 @@ int tgetc(void)
 		if (--kbdrep < 1) {
 			kbdmode = STOP;
 			/* force a screen update after all is done (VISMAC disabled) */
-			update(FALSE);
+			update(false);
 		} else {
 
 			/* reset the macro to the begining for the next rep */
@@ -599,28 +599,28 @@ static int buffered_getc(void)
 }
 
 /* Public helper: parse Kitty CSI u sequence from a string for tests/tools
- * Expected form: "\x1b[<codepoint>;<mods>u". Returns TRUE on success. */
+ * Expected form: "\x1b[<codepoint>;<mods>u". Returns true on success. */
 int parse_kitty_csi_u(const char *seq, int *out_key)
 {
-    if (!seq || !out_key) return FALSE;
+    if (!seq || !out_key) return false;
     const unsigned char *p = (const unsigned char *)seq;
-    if (*p++ != 0x1B) return FALSE;      /* ESC */
-    if (*p++ != '[') return FALSE;       /* CSI */
+    if (*p++ != 0x1B) return false;      /* ESC */
+    if (*p++ != '[') return false;       /* CSI */
 
     long codepoint = 0;
     long mods = 0;
-    if (!(*p >= '0' && *p <= '9')) return FALSE;
+    if (!(*p >= '0' && *p <= '9')) return false;
     while (*p >= '0' && *p <= '9') {
         codepoint = codepoint * 10 + (*p - '0');
         p++;
     }
-    if (*p++ != ';') return FALSE;
-    if (!(*p >= '0' && *p <= '9')) return FALSE;
+    if (*p++ != ';') return false;
+    if (!(*p >= '0' && *p <= '9')) return false;
     while (*p >= '0' && *p <= '9') {
         mods = mods * 10 + (*p - '0');
         p++;
     }
-    if (*p++ != 'u') return FALSE;
+    if (*p++ != 'u') return false;
 
     int out = (int)codepoint;
     /* Ctrl (bit 3 in Kitty is 8) */
@@ -638,14 +638,14 @@ int parse_kitty_csi_u(const char *seq, int *out_key)
         out |= META;
     }
     *out_key = out;
-    return TRUE;
+    return true;
 }
 
 /* Pure decoder for ESC/CSI u into key_event for unit tests */
 int decode_key_from_bytes(const unsigned char *buf, size_t len,
                           struct key_event *out, size_t *consumed)
 {
-    if (!buf || !out) return FALSE;
+    if (!buf || !out) return false;
     if (consumed) *consumed = 0;
     struct key_event evt = {0};
     // Swallow xterm focus events (CSI I/O) entirely
@@ -655,7 +655,7 @@ int decode_key_from_bytes(const unsigned char *buf, size_t len,
             ignore_next_unmodified_digit = true;
         }
         if (consumed) *consumed = 3;
-        return FALSE;
+        return false;
     }
     
     // Handle standard CSI sequences (arrow keys, function keys, etc.)
@@ -666,21 +666,21 @@ int decode_key_from_bytes(const unsigned char *buf, size_t len,
             evt.code = SPEC | final;  // SPEC flag marks special keys
             if (consumed) *consumed = 3;
             *out = evt;
-            return TRUE;
+            return true;
         }
         // Home/End: ESC[H, ESC[F
         if (final == 'H' || final == 'F') {
             evt.code = SPEC | final;
             if (consumed) *consumed = 3;
             *out = evt;
-            return TRUE;
+            return true;
         }
         // Insert/Delete/PgUp/PgDn: ESC[<digit>~
         if (len >= 4 && buf[2] >= '1' && buf[2] <= '6' && buf[3] == '~') {
             evt.code = SPEC | buf[2];
             if (consumed) *consumed = 4;
             *out = evt;
-            return TRUE;
+            return true;
         }
     }
     
@@ -706,7 +706,7 @@ int decode_key_from_bytes(const unsigned char *buf, size_t len,
                     evt.meta = (mods & 4) ? 1 : 0;
                     if (consumed) *consumed = i;
                     *out = evt;
-                    return TRUE;
+                    return true;
                 }
             }
         }
@@ -723,22 +723,22 @@ int decode_key_from_bytes(const unsigned char *buf, size_t len,
         }
         if (consumed) *consumed = 2;
         *out = evt;
-        return TRUE;
+        return true;
     }
     if (len >= 1 && buf[0] <= 0x1F) {
         evt.ctrl = 1;
         evt.code = (uint32_t)(buf[0] + '@');
         if (consumed) *consumed = 1;
         *out = evt;
-        return TRUE;
+        return true;
     }
     if (len >= 1) {
         evt.code = buf[0];
         if (consumed) *consumed = 1;
         *out = evt;
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 /* C23 atomic key processing - matches Linus's get1key() behavior exactly */
@@ -868,7 +868,7 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 	int ffile, ocpos, nskip = 0, didtry = 0;
 #if	UNIX
 	static char tmp[] = "/tmp/meXXXXXX";
-	FILE *tmpf = NULL;
+	FILE *tmpf = nullptr;
 #endif
 	ffile = (strcmp(prompt, "Find file: ") == 0
 		 || strcmp(prompt, "View file: ") == 0
@@ -879,7 +879,7 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 #endif
 
 	cpos = 0;
-	quotef = FALSE;
+	quotef = false;
 
 	/* prompt the user for the input string */
 	mlwrite(prompt);
@@ -898,29 +898,29 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 			c = CONTROL | 0x40 | '\n';
 
 		/* if they hit the line terminate, wrap it up */
-		if (c == eolchar && quotef == FALSE) {
+		if (c == eolchar && quotef == false) {
 			buf[cpos++] = 0;
 
 			/* clear the message line */
 			mlwrite("");
 			TTflush();
 
-			/* if we default the buffer, return FALSE */
+			/* if we default the buffer, return false */
 			if (buf[0] == 0)
-				return FALSE;
+				return false;
 
-			return TRUE;
+			return true;
 		}
 
 		/* change from command form back to character form */
 		c = ectoc(c);
 
-		if (c == ectoc(abortc) && quotef == FALSE) {
+		if (c == ectoc(abortc) && quotef == false) {
 			/* Abort the input? */
-			ctrlg(FALSE, 0);
+			ctrlg(false, 0);
 			TTflush();
 			return ABORT;
-		} else if ((c == 0x7F || c == 0x08) && quotef == FALSE) {
+		} else if ((c == 0x7F || c == 0x08) && quotef == false) {
 			/* rubout/erase */
 			if (cpos != 0) {
 				outstring("\b \b");
@@ -938,7 +938,7 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 				TTflush();
 			}
 
-		} else if (c == 0x15 && quotef == FALSE) {
+		} else if (c == 0x15 && quotef == false) {
 			/* C-U, kill */
 			while (cpos != 0) {
 				outstring("\b \b");
@@ -956,7 +956,7 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 			TTflush();
 
 #if	COMPLC
-		} else if ((c == 0x09 || c == ' ') && quotef == FALSE
+		} else if ((c == 0x09 || c == ' ') && quotef == false
 			   && ffile) {
 			/* TAB, complete file name */
 			char ffbuf[255];
@@ -983,7 +983,7 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 			if (nskip < 0) {
 				buf[ocpos] = 0;
 #if	UNIX
-				if (tmpf != NULL)
+				if (tmpf != nullptr)
 					safe_fclose(&tmpf);
 				safe_strcpy(tmp, "/tmp/meXXXXXX", sizeof(tmp));
 				safe_strcpy(ffbuf, "echo ", sizeof(ffbuf));
@@ -998,10 +998,10 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 				// Safe command execution using sh -c
 				pid_t pid = fork();
 				if (pid == 0) {
-					execl("/bin/sh", "sh", "-c", ffbuf, (char *)NULL);
+					execl("/bin/sh", "sh", "-c", ffbuf, (char *)nullptr);
 					_exit(127);
 				} else if (pid > 0) {
-					waitpid(pid, NULL, 0);
+					waitpid(pid, nullptr, 0);
 				}
 				tmpf = safe_fopen(tmp, FILE_READ);
 #endif
@@ -1056,10 +1056,10 @@ int getstring(const char *prompt, char *buf, int nbuf, int eolchar)
 #endif
 #endif
 
-		} else if ((c == quotec || c == 0x16) && quotef == FALSE) {
-			quotef = TRUE;
+		} else if ((c == quotec || c == 0x16) && quotef == false) {
+			quotef = true;
 		} else {
-			quotef = FALSE;
+			quotef = false;
 			if (cpos < nbuf - 1) {
 				buf[cpos++] = c;
 

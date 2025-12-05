@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
@@ -14,10 +15,10 @@
 extern struct key_tab keytab[];
 
 // C23 atomic global keymaps - instantaneous access
-_Atomic(struct keymap *) global_keymap = NULL;
-_Atomic(struct keymap *) ctlx_keymap = NULL;
-_Atomic(struct keymap *) help_keymap = NULL;
-_Atomic(struct keymap *) meta_keymap = NULL;
+_Atomic(struct keymap *) global_keymap = nullptr;
+_Atomic(struct keymap *) ctlx_keymap = nullptr;
+_Atomic(struct keymap *) help_keymap = nullptr;
+_Atomic(struct keymap *) meta_keymap = nullptr;
 
 // Hook lists
 struct hook_list pre_command_hooks = {0};
@@ -40,13 +41,13 @@ static inline uint32_t hash_key(uint32_t key) {
 // Create a new keymap
 struct keymap *keymap_create(const char *name) {
 	struct keymap *km = safe_alloc(sizeof(struct keymap), "keymap", __FILE__, __LINE__);
-	if (!km) return NULL;
+	if (!km) return nullptr;
 	
 	if (name) {
 		km->name = safe_strdup(name, "keymap name");
 		if (!km->name) {
 			SAFE_FREE(km);
-			return NULL;
+			return nullptr;
 		}
 	}
 	
@@ -59,10 +60,10 @@ void keymap_destroy(struct keymap *km) {
 	if (!km) return;
 	
     // Null global pointers if this is one of the global keymaps to prevent use-after-free
-    if (km == global_keymap) global_keymap = NULL;
-    if (km == ctlx_keymap) ctlx_keymap = NULL;
-    if (km == help_keymap) help_keymap = NULL;
-    if (km == meta_keymap) meta_keymap = NULL;
+    if (km == global_keymap) global_keymap = nullptr;
+    if (km == ctlx_keymap) ctlx_keymap = nullptr;
+    if (km == help_keymap) help_keymap = nullptr;
+    if (km == meta_keymap) meta_keymap = nullptr;
 	
 	// Free all hash table entries
 	for (int i = 0; i < KEYMAP_HASH_SIZE; i++) {
@@ -80,7 +81,7 @@ void keymap_destroy(struct keymap *km) {
 
 // Bind a key to a command - O(1) average case
 int keymap_bind(struct keymap *km, uint32_t key, command_fn cmd) {
-	if (!km || !cmd) return FALSE;
+	if (!km || !cmd) return false;
 	
 	uint32_t hash = hash_key(key);
 	struct keymap_entry *entry = km->table[hash];
@@ -92,14 +93,14 @@ int keymap_bind(struct keymap *km, uint32_t key, command_fn cmd) {
 			entry->binding.cmd = cmd;
 			entry->is_prefix = 0;
 			atomic_fetch_add(&km->generation, 1);
-			return TRUE;
+			return true;
 		}
 		entry = entry->next;
 	}
 	
 	// Create new entry
 	entry = safe_alloc(sizeof(struct keymap_entry), "keymap entry", __FILE__, __LINE__);
-	if (!entry) return FALSE;
+	if (!entry) return false;
 	
 	entry->key = key;
 	entry->binding.cmd = cmd;
@@ -115,12 +116,12 @@ int keymap_bind(struct keymap *km, uint32_t key, command_fn cmd) {
 		atomic_fetch_add(&keymap_global_stats.collisions, 1);
 	}
 	
-	return TRUE;
+	return true;
 }
 
 // Bind a key to a prefix keymap
 int keymap_bind_prefix(struct keymap *km, uint32_t key, struct keymap *prefix) {
-	if (!km || !prefix) return FALSE;
+	if (!km || !prefix) return false;
 	
 	uint32_t hash = hash_key(key);
 	struct keymap_entry *entry = km->table[hash];
@@ -132,14 +133,14 @@ int keymap_bind_prefix(struct keymap *km, uint32_t key, struct keymap *prefix) {
 			entry->binding.map = prefix;
 			entry->is_prefix = 1;
 			atomic_fetch_add(&km->generation, 1);
-			return TRUE;
+			return true;
 		}
 		entry = entry->next;
 	}
 	
 	// Create new entry
 	entry = safe_alloc(sizeof(struct keymap_entry), "keymap entry", __FILE__, __LINE__);
-	if (!entry) return FALSE;
+	if (!entry) return false;
 	
 	entry->key = key;
 	entry->binding.map = prefix;
@@ -150,12 +151,12 @@ int keymap_bind_prefix(struct keymap *km, uint32_t key, struct keymap *prefix) {
 	km->binding_count++;
 	atomic_fetch_add(&km->generation, 1);
 	
-	return TRUE;
+	return true;
 }
 
 // Lookup a key binding - O(1) average case
 struct keymap_entry *keymap_lookup(struct keymap *km, uint32_t key) {
-	if (!km) return NULL;
+	if (!km) return nullptr;
 	
 	atomic_fetch_add(&keymap_global_stats.lookups, 1);
 	
@@ -171,7 +172,7 @@ struct keymap_entry *keymap_lookup(struct keymap *km, uint32_t key) {
 	}
 	
 	atomic_fetch_add(&keymap_global_stats.misses, 1);
-	return NULL;
+	return nullptr;
 }
 
 // Lookup with inheritance chain
@@ -181,16 +182,16 @@ struct keymap_entry *keymap_lookup_chain(struct keymap *km, uint32_t key) {
 		if (entry) return entry;
 		km = km->parent;
 	}
-	return NULL;
+	return nullptr;
 }
 
 // Remove a key binding
 int keymap_unbind(struct keymap *km, uint32_t key) {
-	if (!km) return FALSE;
+	if (!km) return false;
 	
 	uint32_t hash = hash_key(key);
 	struct keymap_entry *entry = km->table[hash];
-	struct keymap_entry *prev = NULL;
+	struct keymap_entry *prev = nullptr;
 	
 	while (entry) {
 		if (entry->key == key) {
@@ -202,13 +203,13 @@ int keymap_unbind(struct keymap *km, uint32_t key) {
 			SAFE_FREE(entry);
 			km->binding_count--;
 			atomic_fetch_add(&km->generation, 1);
-			return TRUE;
+			return true;
 		}
 		prev = entry;
 		entry = entry->next;
 	}
 	
-	return FALSE;
+	return false;
 }
 
 // Initialize keymaps from legacy keytab
@@ -240,7 +241,7 @@ void keymap_init_from_legacy(void) {
     extern struct key_tab keytab[];
     struct key_tab *ktp = &keytab[0];
     
-    while (ktp->k_fp != NULL) {
+    while (ktp->k_fp != nullptr) {
         uint32_t code = ktp->k_code;
         
         // Route to appropriate keymap based on prefix - C23 atomic loads
@@ -301,27 +302,27 @@ int help_prefix_enable(int f, int n) {
     (void)f; (void)n;
     struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
     struct keymap *hkm = atomic_load_explicit(&help_keymap, memory_order_acquire);
-    if (!gkm || !hkm) return FALSE;
-    if (!keymap_bind_prefix(gkm, CONTROL | 'H', hkm)) return FALSE;
+    if (!gkm || !hkm) return false;
+    if (!keymap_bind_prefix(gkm, CONTROL | 'H', hkm)) return false;
     mlwrite("Help prefix enabled on C-h (Backspace overridden)");
-    return TRUE;
+    return true;
 }
 
 // Runtime toggle: disable help prefix on C-h and restore Backspace behavior
 int help_prefix_disable(int f, int n) {
     (void)f; (void)n;
     struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
-    if (!gkm) return FALSE;
+    if (!gkm) return false;
     keymap_unbind(gkm, CONTROL | 'H');
     // Restore traditional Backspace binding
-    if (!keymap_bind(gkm, CONTROL | 'H', backdel)) return FALSE;
+    if (!keymap_bind(gkm, CONTROL | 'H', backdel)) return false;
     mlwrite("Help prefix disabled on C-h (Backspace restored)");
-    return TRUE;
+    return true;
 }
 
 // Legacy compatibility: get binding for old-style key code
 struct keymap_entry *keymap_get_binding(int legacy_code) {
-	struct keymap_entry *entry = NULL;
+	struct keymap_entry *entry = nullptr;
 	
 	// Check for prefix keymaps first
     if (legacy_code & CTLX) {
@@ -342,24 +343,24 @@ struct keymap_entry *keymap_get_binding(int legacy_code) {
 
 // Hook management
 int hook_add(struct hook_list *list, command_hook hook) {
-	if (!list || !hook) return FALSE;
+	if (!list || !hook) return false;
 	
 	// Resize if needed
 	if (list->count >= list->capacity) {
 		size_t new_capacity = list->capacity ? list->capacity * 2 : 4;
 		command_hook *new_hooks = safe_realloc(list->hooks, 
 										  new_capacity * sizeof(command_hook), "command hooks");
-		if (!new_hooks) return FALSE;
+		if (!new_hooks) return false;
 		list->hooks = new_hooks;
 		list->capacity = new_capacity;
 	}
 	
 	list->hooks[list->count++] = hook;
-	return TRUE;
+	return true;
 }
 
 int hook_remove(struct hook_list *list, command_hook hook) {
-	if (!list || !hook) return FALSE;
+	if (!list || !hook) return false;
 	
 	for (size_t i = 0; i < list->count; i++) {
 		if (list->hooks[i] == hook) {
@@ -367,19 +368,19 @@ int hook_remove(struct hook_list *list, command_hook hook) {
 			memmove(&list->hooks[i], &list->hooks[i + 1],
 					(list->count - i - 1) * sizeof(command_hook));
 			list->count--;
-			return TRUE;
+			return true;
 		}
 	}
 	
-	return FALSE;
+	return false;
 }
 
 int hook_run_pre(command_fn cmd, int f, int n) {
 	for (size_t i = 0; i < pre_command_hooks.count; i++) {
 		int result = pre_command_hooks.hooks[i](cmd, f, n);
-		if (result != TRUE) return result;
+		if (result != true) return result;
 	}
-	return TRUE;
+	return true;
 }
 
 int hook_run_post(command_fn cmd, int f, int n, int result) {
@@ -433,5 +434,5 @@ int keymap_stats_cmd(int f, int n) {
     double hit_rate = (lookups > 0) ? ((double)hits / (double)lookups) * 100.0 : 0.0;
     mlwrite("Keymap stats: lookups=%zu hits=%zu misses=%zu collisions=%zu hit-rate=%.2f%%",
             lookups, hits, misses, collisions, hit_rate);
-    return TRUE;
+    return true;
 }

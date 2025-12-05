@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -60,17 +61,17 @@ const char *gtfun(char *fname)
 
 	/* if needed, retrieve the first argument */
 	if (funcs[fnum].f_type >= MONAMIC) {
-		if ((status = macarg(arg1)) != TRUE)
+		if ((status = macarg(arg1)) != true)
 			return errorm;
 
 		/* if needed, retrieve the second argument */
 		if (funcs[fnum].f_type >= DYNAMIC) {
-			if ((status = macarg(arg2)) != TRUE)
+			if ((status = macarg(arg2)) != true)
 				return errorm;
 
 			/* if needed, retrieve the third argument */
 			if (funcs[fnum].f_type >= TRINAMIC)
-				if ((status = macarg(arg3)) != TRUE)
+				if ((status = macarg(arg3)) != true)
 					return errorm;
 		}
 	}
@@ -124,7 +125,7 @@ const char *gtfun(char *fname)
             return result;
         }
 	case UFNOT:
-		return ltos(stol(arg1) == FALSE);
+		return ltos(stol(arg1) == false);
 	case UFEQUAL:
 		return ltos(atoi(arg1) == atoi(arg2));
 	case UFLESS:
@@ -172,7 +173,7 @@ const char *gtfun(char *fname)
 	case UFENV:
 #if	ENVFUNC
 		tsp = getenv(arg1);
-		return tsp == NULL ? "" : tsp;
+		return tsp == nullptr ? "" : tsp;
 #else
 		return "";
 #endif
@@ -181,8 +182,8 @@ const char *gtfun(char *fname)
 	case UFEXIST:
 		return ltos(fexist(arg1));
 	case UFFIND:
-		tsp = flook(arg1, TRUE);
-		return tsp == NULL ? "" : tsp;
+		tsp = flook(arg1, true);
+		return tsp == nullptr ? "" : tsp;
 	case UFBAND:
 		return itoa(atoi(arg1) & atoi(arg2));
 	case UFBOR:
@@ -242,7 +243,7 @@ char *gtenv(const char *vname)
 	{
 		char *ename = getenv(vname);
 
-		if (ename != NULL)
+		if (ename != nullptr)
 			return ename;
 		else
 			return errorm;
@@ -258,7 +259,7 @@ char *gtenv(const char *vname)
 	case EVPAGELEN:
 		return itoa(term.t_nrow + 1);
 	case EVCURCOL:
-		return itoa(getccol(FALSE));
+		return itoa(getccol(false));
 	case EVCURLINE:
 		return itoa(getcline());
 	case EVRAM:
@@ -311,7 +312,7 @@ char *gtenv(const char *vname)
 	case EVREPLACE:
 		return rpat;
 	case EVMATCH:
-		return (patmatch == NULL) ? "" : patmatch;
+		return (patmatch == nullptr) ? "" : patmatch;
 	case EVKILL:
 		return getkill();
 	case EVCMODE:
@@ -342,7 +343,7 @@ char *gtenv(const char *vname)
 		return itoa(scrollcount);
 #if SCROLLCODE
 	case EVSCROLL:
-		return ltos(term.t_scroll != NULL);
+		return ltos(term.t_scroll != nullptr);
 #else
 	case EVSCROLL:
 		return ltos(0);
@@ -397,9 +398,9 @@ int setvar(int f, int n)
 	char value[NSTRING];	/* value to set variable to */
 
 	/* first get the variable to set.. */
-	if (clexec == FALSE) {
+	if (clexec == false) {
 		status = mlreply("Variable to set: ", &var[0], NVSIZE);
-		if (status != TRUE)
+		if (status != true)
 			return status;
 	} else {		/* macro line argument */
 		/* grab token and skip it */
@@ -412,15 +413,15 @@ int setvar(int f, int n)
 	/* if its not legal....bitch */
 	if (vd.v_type == -1) {
 		REPORT_ERROR(ERR_SYNTAX_ERROR, var);
-		return FALSE;
+		return false;
 	}
 
 	/* get the value for that variable */
-    if (f == TRUE)
+    if (f == true)
         safe_strcpy(value, itoa(n), sizeof(value));
 	else {
 		status = mlreply("Value: ", &value[0], NSTRING);
-		if (status != TRUE)
+		if (status != true)
 			return status;
 	}
 
@@ -428,7 +429,7 @@ int setvar(int f, int n)
 	status = svar(&vd, value);
 
 #if	DEBUGM
-    /* if $debug == TRUE, every assignment will echo a statement here. */
+    /* if $debug == true, every assignment will echo a statement here. */
 
     if (macbug) {
         char dbg[NSTRING];
@@ -464,12 +465,12 @@ int setvar(int f, int n)
 
         /* write out the debug line */
         mlforce(dbg);
-        update(TRUE);
+        update(true);
 
         /* and get the keystroke to hold the output */
         if (get1key() == abortc) {
             mlforce("(Macro aborted)");
-            status = FALSE;
+            status = false;
         }
     }
 #endif
@@ -556,15 +557,15 @@ int svar(struct variable_description *var, const char *value)
 	vtype = var->v_type;
 
 	/* and set the appropriate value */
-	status = TRUE;
+	status = true;
 	switch (vtype) {
 	case TKVAR:		/* set a user variable */
-		if (uv[vnum].u_value != NULL)
+		if (uv[vnum].u_value != nullptr)
             SAFE_FREE(uv[vnum].u_value);
         sp = (char*)safe_alloc(strlen(value) + 1, "user variable value", __FILE__, __LINE__);
-        if (sp == NULL) {
+        if (sp == nullptr) {
             REPORT_ERROR(ERR_MEMORY, "Failed to allocate memory for user variable value");
-            return FALSE;
+            return false;
         }
         {
             size_t len = strlen(value);
@@ -574,19 +575,19 @@ int svar(struct variable_description *var, const char *value)
         break;
 
 	case TKENV:		/* set an environment variable */
-		status = TRUE;	/* by default */
+		status = true;	/* by default */
 		switch (vnum) {
 		case EVFILLCOL:
 			fillcol = atoi(value);
 			break;
 		case EVPAGELEN:
-			status = newsize(TRUE, atoi(value));
+			status = newsize(true, atoi(value));
 			break;
 		case EVCURCOL:
 			status = setccol(atoi(value));
 			break;
 		case EVCURLINE:
-			status = gotoline(TRUE, atoi(value));
+			status = gotoline(true, atoi(value));
 			break;
 		case EVRAM:
 			break;
@@ -594,7 +595,7 @@ int svar(struct variable_description *var, const char *value)
 			flickcode = stol(value);
 			break;
 		case EVCURWIDTH:
-			status = newwidth(TRUE, atoi(value));
+			status = newwidth(true, atoi(value));
 			break;
         case EVCBUFNAME:
             safe_strcpy(curbp->b_bname, value, NBUFN);
@@ -623,13 +624,13 @@ int svar(struct variable_description *var, const char *value)
 			lastkey = atoi(value);
 			break;
 		case EVCURCHAR:
-			ldelchar(1, FALSE);	/* delete 1 char */
+			ldelchar(1, false);	/* delete 1 char */
 			c = atoi(value);
 			if (c == '\n')
 				lnewline();
 			else
 				linsert(1, c);
-			backchar(FALSE, 1);
+			backchar(false, 1);
 			break;
 		case EVDISCMD:
 			discmd = stol(value);
@@ -645,10 +646,10 @@ int svar(struct variable_description *var, const char *value)
 			disinp = stol(value);
 			break;
 		case EVWLINE:
-			status = resize(TRUE, atoi(value));
+			status = resize(true, atoi(value));
 			break;
 		case EVCWLINE:
-			status = forwline(TRUE, atoi(value) - getwpos());
+			status = forwline(true, atoi(value) - getwpos());
 			break;
 		case EVTARGET:
 			curgoal = atoi(value);
@@ -705,16 +706,16 @@ int svar(struct variable_description *var, const char *value)
 		case EVSCROLL:
 #if SCROLLCODE
 			if (!stol(value))
-				term.t_scroll = NULL;
+				term.t_scroll = nullptr;
 #endif
 			break;
 		case EVHILINE:
 			highlight_current_line = stol(value) ? 1 : 0;
-			sgarbf = TRUE; /* force full redraw */
+			sgarbf = true; /* force full redraw */
 			break;
 		case EVRULER:
 			column_ruler_enabled = stol(value) ? 1 : 0;
-			sgarbf = TRUE;
+			sgarbf = true;
 			break;
 		case EVRULERCOL:
 			{
@@ -722,7 +723,7 @@ int svar(struct variable_description *var, const char *value)
 				if (col < 1) col = 1;
 				if (col > 500) col = 500;
 				column_ruler_column = col;
-				sgarbf = TRUE;
+				sgarbf = true;
 			}
 			break;
         case EVHILINESTYLE:
@@ -731,7 +732,7 @@ int svar(struct variable_description *var, const char *value)
                 if (v < 0) { v = 0; }
                 if (v > 4) { v = 4; } // 4 = reverse
                 hiline_style = v;
-                sgarbf = TRUE;
+                sgarbf = true;
             }
             break;
         case EVRULERSTYLE:
@@ -740,7 +741,7 @@ int svar(struct variable_description *var, const char *value)
                 if (v < 0) { v = 0; }
                 if (v > 4) { v = 4; } // 4 = reverse
                 ruler_style = v;
-                sgarbf = TRUE;
+                sgarbf = true;
             }
             break;
 		}
@@ -851,7 +852,7 @@ static const char *internal_getval(char *token)
 	case TKARG:		/* interactive argument */
 		getval(token+1, token, -1);
 		distmp = discmd;	/* echo it always! */
-		discmd = TRUE;
+		discmd = true;
 		status = getstring(token, buf, NSTRING, ctoec('\n'));
 		discmd = distmp;
 		if (status == ABORT)
@@ -862,8 +863,8 @@ static const char *internal_getval(char *token)
 
 		/* grab the right buffer */
 		getval(token+1, token, -1);
-		bp = bfind(token, FALSE, 0);
-		if (bp == NULL)
+		bp = bfind(token, false, 0);
+		if (bp == nullptr)
 			return errorm;
 
 		/* if the buffer is displayed, get the window
@@ -945,9 +946,9 @@ int stol(const char *val)
 {
 	/* check for logical values */
 	if (val[0] == 'F')
-		return FALSE;
+		return false;
 	if (val[0] == 'T')
-		return TRUE;
+		return true;
 
 	/* check for numeric truth (!= 0) */
 	return (atoi(val) != 0);

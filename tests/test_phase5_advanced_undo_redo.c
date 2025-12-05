@@ -28,7 +28,7 @@ int test_phase5_advanced_undo_redo() {
     
     // Non-interactive unit tests for undo/redo core
     {
-        struct buffer *bp = bfind("undo-unit", TRUE, 0);
+        struct buffer *bp = bfind("undo-unit", true, 0);
         if (!bp) {
             printf("[%sFAIL%s] Could not create test buffer\n", RED, RESET);
             result = 0;
@@ -71,9 +71,9 @@ int test_phase5_advanced_undo_redo() {
             }
 
             // 5U-2: Grouped inserts undo as one (timing-based; usually merges under 400ms)
-            gotobob(TRUE, 1);
+            gotobob(true, 1);
             // Clear existing text completely
-            ldelete(llength(curwp->w_dotp), FALSE);
+            ldelete(llength(curwp->w_dotp), false);
 
             const char *a = "A"; const char *b = "B";
             linsert_str(a);

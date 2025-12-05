@@ -16,6 +16,7 @@
 #include <curses.h>
 #include <term.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "string_safe.h"
 
 #include "estruct.h"
@@ -97,7 +98,7 @@ struct terminal term = {
 	tcapbcol
 #endif
 #if     SCROLLCODE
-	    , NULL		/* set dynamically at open time */
+	    , nullptr		/* set dynamically at open time */
 #endif
 };
 
@@ -112,7 +113,7 @@ static void tcapopen(void)
 #if PKCODE && USE_BROKEN_OPTIMIZATION
 	if (!term_init_ok) {
 #endif
-        if ((tv_stype = getenv("TERM")) == NULL) {
+        if ((tv_stype = getenv("TERM")) == nullptr) {
             mlwrite("Environment variable TERM not defined!");
             exit(1);
         }
@@ -160,23 +161,23 @@ static void tcapopen(void)
 		UP = tgetstr("up", &p);
 		SE = tgetstr("se", &p);
 		SO = tgetstr("so", &p);
-		if (SO != NULL)
-			revexist = TRUE;
+		if (SO != nullptr)
+			revexist = true;
 		if (tgetnum("sg") > 0) {	/* can reverse be used? P.K. */
-			revexist = FALSE;
-			SE = NULL;
-			SO = NULL;
+			revexist = false;
+			SE = nullptr;
+			SO = nullptr;
 		}
 		TI = tgetstr("ti", &p);	/* terminal init and exit */
 		TE = tgetstr("te", &p);
 
-        if (CL == NULL || CM == NULL || UP == NULL) {
+        if (CL == nullptr || CM == nullptr || UP == nullptr) {
             mlwrite("Incomplete termcap entry");
             exit(1);
         }
 
-		if (CE == NULL)	/* will we be able to use clear to EOL? */
-			eolexist = FALSE;
+		if (CE == nullptr)	/* will we be able to use clear to EOL? */
+			eolexist = false;
 #if SCROLLCODE
 		CS = tgetstr("cs", &p);
 		SF = tgetstr("sf", &p);
@@ -185,13 +186,13 @@ static void tcapopen(void)
 		AL = tgetstr("al", &p);
 
 		if (CS && SR) {
-			if (SF == NULL)	/* assume '\n' scrolls forward */
+			if (SF == nullptr)	/* assume '\n' scrolls forward */
 				SF = "\n";
 			term.t_scroll = tcapscroll_reg;
 		} else if (DL && AL) {
 			term.t_scroll = tcapscroll_delins;
 		} else {
-			term.t_scroll = NULL;
+			term.t_scroll = nullptr;
 		}
 #endif
 
@@ -224,7 +225,7 @@ static void tcapkopen(void)
 	ttflush();
 	ttrow = 999;
 	ttcol = 999;
-	sgarbf = TRUE;
+	sgarbf = true;
     safe_strcpy(sres, "NORMAL", NBUFN);
 }
 
@@ -247,7 +248,7 @@ static void tcapmove(int row, int col)
 	putpad(tgoto(CM, col, row));
 	
 	// Restore signal handling after atomic cursor movement
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 }
 
 static void tcapeeol(void)
@@ -262,7 +263,7 @@ static void tcapeeol(void)
 	
 	putpad(CE);
 	
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 }
 
 static void tcapeeop(void)
@@ -277,13 +278,13 @@ static void tcapeeop(void)
 	
 	putpad(CL);
 	
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 }
 
 /*
  * Change reverse video status
  *
- * @state: FALSE = normal video, TRUE = reverse video.
+ * @state: false = normal video, true = reverse video.
  */
 static void tcaprev(int state)
 {
@@ -304,11 +305,11 @@ static void tcaprev(int state)
 		ttputc('m');
 		
 		// Then send standout mode (reverse video)
-		if (SO != NULL)
+		if (SO != nullptr)
 			putpad(SO);
 	} else {
 		// Reset standout mode
-		if (SE != NULL)
+		if (SE != nullptr)
 			putpad(SE);
 		
 		// Reset only bold, preserve colors - use ESC[22m instead of ESC[0m
@@ -320,13 +321,13 @@ static void tcaprev(int state)
 	}
 	
 	// Restore signal handling after atomic escape sequence
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 }
 
 /* Change screen resolution. */
 static int tcapcres(const char *res)
 {
-	return TRUE;
+	return true;
 }
 
 #if SCROLLCODE

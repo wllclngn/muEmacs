@@ -69,10 +69,10 @@ int main(int argc, char* argv[]) {
         "./bin/muEmacs",
         "./build/bin/muEmacs",
         "../build/bin/muEmacs",
-        NULL
+        nullptr
     };
 
-    for (int i = 0; binary_paths[i] != NULL; i++) {
+    for (int i = 0; binary_paths[i] != nullptr; i++) {
         if (access(binary_paths[i], X_OK) == 0) {
             uemacs_path = binary_paths[i];
             break;
@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
     }
 
     struct timeval start_time, end_time;
-    gettimeofday(&start_time, NULL);
+    gettimeofday(&start_time, nullptr);
 
     int all_phases_passed = 1;
 
@@ -275,7 +275,7 @@ int main(int argc, char* argv[]) {
 
     // Mouse interactions are disabled (keyboard-only)
 
-    gettimeofday(&end_time, NULL);
+    gettimeofday(&end_time, nullptr);
     double total_time = (end_time.tv_sec - start_time.tv_sec) +
                        (end_time.tv_usec - start_time.tv_usec) / 1000000.0;
 

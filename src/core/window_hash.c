@@ -8,6 +8,7 @@
 #include "edef.h"
 #include "memory.h"
 #include <string.h>
+#include <stdbool.h>
 
 /* Global hash table instance */
 static struct window_hash_table window_hash_global = {0};
@@ -77,7 +78,7 @@ void window_hash_remove(struct window *wp, struct line *lp)
     
     uint32_t hash = hash_line_ptr(lp);
     struct window_hash_entry *entry = window_hash_global.buckets[hash];
-    struct window_hash_entry *prev = NULL;
+    struct window_hash_entry *prev = nullptr;
     
     /* Search collision chain */
     while (entry) {
@@ -104,7 +105,7 @@ void window_hash_remove(struct window *wp, struct line *lp)
 /* Find all windows for a line - O(1) average case */
 struct window **window_hash_find_by_line(struct line *lp, int *count)
 {
-    if (!lp || !count) return NULL;
+    if (!lp || !count) return nullptr;
     
     *count = 0;
     uint32_t hash = hash_line_ptr(lp);
@@ -122,12 +123,12 @@ struct window **window_hash_find_by_line(struct line *lp, int *count)
         scan = atomic_load_explicit(&scan->next, memory_order_acquire);
     }
     
-    if (window_count == 0) return NULL;
+    if (window_count == 0) return nullptr;
     
     /* Allocate result array */
     struct window **windows = safe_alloc(window_count * sizeof(struct window*),
                                         "window lookup result", __FILE__, __LINE__);
-    if (!windows) return NULL;
+    if (!windows) return nullptr;
     
     /* Populate result array */
     int index = 0;
@@ -163,7 +164,7 @@ void window_hash_clear_window(struct window *wp)
     /* Scan all buckets for this window */
     for (int i = 0; i < WINDOW_HASH_SIZE; i++) {
         struct window_hash_entry *entry = window_hash_global.buckets[i];
-        struct window_hash_entry *prev = NULL;
+        struct window_hash_entry *prev = nullptr;
         
         while (entry) {
             struct window_hash_entry *next_entry = atomic_load_explicit(&entry->next, memory_order_acquire);
@@ -212,7 +213,7 @@ void window_hash_cleanup(void)
             SAFE_FREE(entry);
             entry = next_entry;
         }
-        window_hash_global.buckets[i] = NULL;
+        window_hash_global.buckets[i] = nullptr;
     }
     
     atomic_store_explicit(&hash_initialized, false, memory_order_release);

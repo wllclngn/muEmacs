@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "internal/estruct.h"
 #include "internal/edef.h"
@@ -22,7 +23,7 @@ static void init_editor_minimal(const char* name) {
 }
 
 static double now_sec(void) {
-    struct timeval tv; gettimeofday(&tv, NULL);
+    struct timeval tv; gettimeofday(&tv, nullptr);
     return tv.tv_sec + tv.tv_usec / 1e6;
 }
 
@@ -47,7 +48,7 @@ int main(void) {
     const int iters = 200;
     double t0 = now_sec();
     for (int i = 0; i < iters; ++i) {
-        update(TRUE);
+        update(true);
     }
     double t1 = now_sec();
 

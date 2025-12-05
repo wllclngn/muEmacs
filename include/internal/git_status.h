@@ -9,7 +9,7 @@
 void git_status_init(void);
 
 // Request asynchronous update if stale; returns immediately.
-// If cwd is NULL, uses current working directory.
+// If cwd is nullptr, uses current working directory.
 void git_status_request_async(const char* cwd);
 
 // Copy cached status into out buffer.

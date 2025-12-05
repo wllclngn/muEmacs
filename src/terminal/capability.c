@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -364,11 +365,11 @@ void compute_theme_highlight_bg(int kind, uint8_t *r, uint8_t *g, uint8_t *b, bo
         if (is_truecolor) *is_truecolor = true;
         return;
     }
-    // Fallback: theme detection failed - use pure black background with subtle highlight
-    // RGB(30,30,30) is subtle but visible on black backgrounds
-    if (r) *r = 30;
-    if (g) *g = 30;
-    if (b) *b = 30;
+    // Fallback: theme detection failed - use a VISIBLE gray
+    // RGB(70,70,70) is clearly visible on black backgrounds
+    if (r) *r = 70;
+    if (g) *g = 70;
+    if (b) *b = 70;
     if (is_truecolor) *is_truecolor = true;
 }
 
@@ -412,7 +413,6 @@ static void detect_theme_colors(terminal_caps_t* caps)
         uint8_t r=0,g=0,b=0;
         if (parse_osc_color(resp, &r, &g, &b)) {
             caps->fg_r = r; caps->fg_g = g; caps->fg_b = b; fg_ok = true;
-            fprintf(stderr, "[DEBUG] Detected FG: #%02x%02x%02x\n", r, g, b);
         }
     }
     // Default background
@@ -421,9 +421,7 @@ static void detect_theme_colors(terminal_caps_t* caps)
         uint8_t r=0,g=0,b=0;
         if (parse_osc_color(resp, &r, &g, &b)) {
             caps->bg_r = r; caps->bg_g = g; caps->bg_b = b; bg_ok = true;
-            fprintf(stderr, "[DEBUG] Detected BG: #%02x%02x%02x\n", r, g, b);
         }
     }
     caps->theme_colors_known = (fg_ok && bg_ok);
-    fprintf(stderr, "[DEBUG] Theme colors known: %s\n", caps->theme_colors_known ? "YES" : "NO");
 }

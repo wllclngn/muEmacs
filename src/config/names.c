@@ -213,7 +213,7 @@ struct name_bind names[] = {
 {"yank-pop", yankpop},
 	{"yank-clipboard", yank_clipboard},
 
-	{"", NULL}
+	{"", nullptr}
 };
 
 /* Compile-time verification that names table has minimum size */
@@ -225,7 +225,7 @@ static_assert(
 #ifdef DEBUG
 /* Runtime verification that names table is sorted (call once at startup) */
 void verify_names_sorted(void) {
-	for (size_t i = 1; names[i].n_name != NULL; i++) {
+	for (size_t i = 1; names[i].n_name != nullptr; i++) {
 		if (strcmp(names[i-1].n_name, names[i].n_name) >= 0) {
 			fprintf(stderr, "ERROR: names[] not sorted at index %zu: '%s' >= '%s'\n",
 				i, names[i-1].n_name, names[i].n_name);

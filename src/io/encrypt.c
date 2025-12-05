@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -28,7 +29,7 @@ static const char* detect_crypto_tool(void) {
     if (command_exists("gpg")) return "gpg";
     if (command_exists("age")) return "age";
     if (command_exists("openssl")) return "openssl";
-    return NULL;
+    return nullptr;
 }
 
 /*
@@ -45,19 +46,19 @@ int encrypt_buffer_gpg(int f, int n) {
     
     if (!command_exists("gpg")) {
         mlwrite("GPG not found. Install gnupg package.");
-        return FALSE;
+        return false;
     }
     
     /* Save current buffer first */
-    if (filesave(FALSE, 0) != TRUE) {
+    if (filesave(false, 0) != true) {
         mlwrite("Failed to save buffer before encryption");
-        return FALSE;
+        return false;
     }
     
     /* Generate output filename */
     if (strlen(curbp->b_fname) > NFILEN - 5) {
         mlwrite("Filename too long for .gpg suffix");
-        return FALSE;
+        return false;
     }
     snprintf(outfile, sizeof(outfile), "%s.gpg", curbp->b_fname);
     
@@ -74,14 +75,14 @@ int encrypt_buffer_gpg(int f, int n) {
     
     TTopen();
     TTkopen();
-    sgarbf = TRUE;
+    sgarbf = true;
     
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         mlwrite("Encrypted: %s", outfile);
-        return TRUE;
+        return true;
     } else {
         mlwrite("GPG encryption failed");
-        return FALSE;
+        return false;
     }
 }
 
@@ -98,12 +99,12 @@ int decrypt_file_gpg(int f, int n) {
     
     /* Get filename to decrypt */
     status = mlreply("Decrypt file: ", fname, NFILEN);
-    if (status != TRUE)
+    if (status != true)
         return status;
     
     if (!command_exists("gpg")) {
         mlwrite("GPG not found. Install gnupg package.");
-        return FALSE;
+        return false;
     }
     
     /* Create secure temp file for decrypted content */
@@ -114,7 +115,7 @@ int decrypt_file_gpg(int f, int n) {
     int fd = mkstemp(tmpfile);
     if (fd < 0) {
         mlwrite("Failed to create temp file");
-        return FALSE;
+        return false;
     }
     close(fd);
     
@@ -130,11 +131,11 @@ int decrypt_file_gpg(int f, int n) {
     
     TTopen();
     TTkopen();
-    sgarbf = TRUE;
+    sgarbf = true;
     
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         /* Open the decrypted temp file */
-        status = getfile(tmpfile, TRUE);
+        status = getfile(tmpfile, true);
         
         /* Set buffer name to original encrypted filename */
         safe_strcpy(curbp->b_fname, fname, NFILEN);
@@ -142,7 +143,7 @@ int decrypt_file_gpg(int f, int n) {
         /* Delete temp file */
         unlink(tmpfile);
         
-        if (status == TRUE) {
+        if (status == true) {
             mlwrite("Decrypted: %s (WARNING: save will overwrite encrypted file!)", fname);
             curbp->b_flag |= BFCHG;  /* Mark as changed */
         }
@@ -150,7 +151,7 @@ int decrypt_file_gpg(int f, int n) {
     } else {
         unlink(tmpfile);
         mlwrite("GPG decryption failed (wrong password?)");
-        return FALSE;
+        return false;
     }
 }
 
@@ -168,17 +169,17 @@ int encrypt_buffer_age(int f, int n) {
     
     if (!command_exists("age")) {
         mlwrite("age not found. Install with: cargo install age or your package manager.");
-        return FALSE;
+        return false;
     }
     
-    if (filesave(FALSE, 0) != TRUE) {
+    if (filesave(false, 0) != true) {
         mlwrite("Failed to save buffer before encryption");
-        return FALSE;
+        return false;
     }
     
     if (strlen(curbp->b_fname) > NFILEN - 5) {
         mlwrite("Filename too long for .age suffix");
-        return FALSE;
+        return false;
     }
     snprintf(outfile, sizeof(outfile), "%s.age", curbp->b_fname);
     snprintf(cmd, sizeof(cmd), "age -p -o %s %s", outfile, curbp->b_fname);
@@ -192,14 +193,14 @@ int encrypt_buffer_age(int f, int n) {
     
     TTopen();
     TTkopen();
-    sgarbf = TRUE;
+    sgarbf = true;
     
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         mlwrite("Encrypted: %s", outfile);
-        return TRUE;
+        return true;
     } else {
         mlwrite("age encryption failed");
-        return FALSE;
+        return false;
     }
 }
 
@@ -214,12 +215,12 @@ int decrypt_file_age(int f, int n) {
     int status;
     
     status = mlreply("Decrypt age file: ", fname, NFILEN);
-    if (status != TRUE)
+    if (status != true)
         return status;
     
     if (!command_exists("age")) {
         mlwrite("age not found. Install with: cargo install age or your package manager.");
-        return FALSE;
+        return false;
     }
     
     const char *tmpdir = getenv("XDG_RUNTIME_DIR");
@@ -229,7 +230,7 @@ int decrypt_file_age(int f, int n) {
     int fd = mkstemp(tmpfile);
     if (fd < 0) {
         mlwrite("Failed to create temp file");
-        return FALSE;
+        return false;
     }
     close(fd);
     
@@ -244,14 +245,14 @@ int decrypt_file_age(int f, int n) {
     
     TTopen();
     TTkopen();
-    sgarbf = TRUE;
+    sgarbf = true;
     
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        status = getfile(tmpfile, TRUE);
+        status = getfile(tmpfile, true);
         safe_strcpy(curbp->b_fname, fname, NFILEN);
         unlink(tmpfile);
         
-        if (status == TRUE) {
+        if (status == true) {
             mlwrite("Decrypted: %s", fname);
             curbp->b_flag |= BFCHG;
         }
@@ -259,7 +260,7 @@ int decrypt_file_age(int f, int n) {
     } else {
         unlink(tmpfile);
         mlwrite("age decryption failed");
-        return FALSE;
+        return false;
     }
 }
 
@@ -272,7 +273,7 @@ int encrypt_buffer_auto(int f, int n) {
     
     if (!tool) {
         mlwrite("No encryption tool found. Install gpg, age, or openssl.");
-        return FALSE;
+        return false;
     }
     
     if (strcmp(tool, "gpg") == 0) {
@@ -282,7 +283,7 @@ int encrypt_buffer_auto(int f, int n) {
     }
     
     mlwrite("Encryption tool detection failed");
-    return FALSE;
+    return false;
 }
 
 /*
@@ -314,5 +315,5 @@ int show_encryption_tools(int f, int n) {
         mlwrite("%s", msg);
     }
     
-    return TRUE;
+    return true;
 }

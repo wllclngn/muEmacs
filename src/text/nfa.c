@@ -8,6 +8,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 
 
 #include "estruct.h"
@@ -267,7 +268,7 @@ bool nfa_search_forward(const nfa_program_info* prog,
     int run_start_off = off;
     bool at_bol = (off == 0);
     bool have_match = false;
-    struct line* m_lp = NULL; int m_off = 0; /* match boundary to report */
+    struct line* m_lp = nullptr; int m_off = 0; /* match boundary to report */
 
     /* seed epsilon-closure at start */
     list_clear(&cur);

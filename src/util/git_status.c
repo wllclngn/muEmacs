@@ -24,7 +24,7 @@ static void* updater(void* arg) {
     // Use popen; blocking here is acceptable (background thread)
     FILE* fp = popen("git rev-parse --abbrev-ref HEAD 2>/dev/null", "r");
     if (fp) {
-        if (fgets(branch, (int)sizeof(branch), fp) != NULL) {
+        if (fgets(branch, (int)sizeof(branch), fp) != nullptr) {
             // strip newline
             size_t len = strlen(branch);
             if (len && (branch[len-1] == '\n' || branch[len-1] == '\r')) branch[len-1] = '\0';
@@ -36,7 +36,7 @@ static void* updater(void* arg) {
         fp = popen("git status --porcelain -uno 2>/dev/null | head -n1", "r");
         if (fp) {
             char line[8];
-            if (fgets(line, (int)sizeof(line), fp) != NULL) {
+            if (fgets(line, (int)sizeof(line), fp) != nullptr) {
                 is_dirty = 1;
             }
             pclose(fp);
@@ -49,10 +49,10 @@ static void* updater(void* arg) {
     } else {
         snprintf(cached, sizeof(cached), "git:%s%s", branch, is_dirty ? "*" : "");
     }
-    last_update = time(NULL);
+    last_update = time(nullptr);
     in_progress = 0;
     pthread_mutex_unlock(&lock);
-    return NULL;
+    return nullptr;
 }
 
 void git_status_init(void) {
@@ -64,7 +64,7 @@ void git_status_init(void) {
 void git_status_request_async(const char* cwd) {
     (void)cwd; // current impl ignores cwd and uses process CWD
     if (!enabled) return;
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
 
     pthread_mutex_lock(&lock);
     int should_start = (!in_progress && (now - last_update >= 2)); // throttle 2s
@@ -76,7 +76,7 @@ void git_status_request_async(const char* cwd) {
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        if (pthread_create(&th, &attr, updater, NULL) != 0) {
+        if (pthread_create(&th, &attr, updater, nullptr) != 0) {
             pthread_mutex_lock(&lock);
             in_progress = 0; // failed to spawn
             pthread_mutex_unlock(&lock);

@@ -84,15 +84,15 @@ static_assert((META & SPEC) == 0, "META and SPEC flags must not overlap");
 static_assert((CTLX & SPEC) == 0, "CTLX and SPEC flags must not overlap");
 
 /* Boolean values */
-#ifdef	FALSE
-#undef	FALSE
+#ifdef	false
+#undef	false
 #endif
-#ifdef	TRUE
-#undef	TRUE
+#ifdef	true
+#undef	true
 #endif
 
-#define FALSE   0		/* False, no, bad, etc.         */
-#define TRUE    1		/* True, yes, good, etc.        */
+// #define FALSE   0		/* False, no, bad, etc.         */  /* Removed: Using <stdbool.h> instead */
+// #define TRUE    1		/* True, yes, good, etc.        */  /* Removed: Using <stdbool.h> instead */
 #define ABORT   2		/* Death, ^G, abort, etc.       */
 #define	FAILED	3		/* not-quite fatal false return */
 

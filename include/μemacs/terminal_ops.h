@@ -77,7 +77,7 @@ static inline void tt_rev(int state)
 
 static inline int tt_rez(const char* resolution)
 {
-    return term.t_rez ? term.t_rez((char*)resolution) : TRUE;
+    return term.t_rez ? term.t_rez((char*)resolution) : true;
 }
 
 #if COLOR

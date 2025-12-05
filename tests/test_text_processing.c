@@ -51,11 +51,11 @@ int test_magic_regex_engine(void) {
         int expected = basic_tests[i].should_match;
         
         // Basic simulation - in real implementation would use NFA engine
-        int matches = (strstr(text, "hello") != NULL && strstr(pattern, "hello") != NULL) ||
-                     (strstr(text, "world") != NULL && strstr(pattern, "world") != NULL) ||
-                     (strstr(text, "color") != NULL && strstr(pattern, "colou") != NULL) ||
-                     (strstr(pattern, "[aeiou]") != NULL && strpbrk(text, "aeiou") != NULL) ||
-                     (strstr(pattern, "ab") != NULL && strstr(text, "ab") != NULL);
+        int matches = (strstr(text, "hello") != nullptr && strstr(pattern, "hello") != nullptr) ||
+                     (strstr(text, "world") != nullptr && strstr(pattern, "world") != nullptr) ||
+                     (strstr(text, "color") != nullptr && strstr(pattern, "colou") != nullptr) ||
+                     (strstr(pattern, "[aeiou]") != nullptr && strpbrk(text, "aeiou") != nullptr) ||
+                     (strstr(pattern, "ab") != nullptr && strstr(text, "ab") != nullptr);
         
         if ((matches && expected) || (!matches && !expected)) {
             basic_passed++;
@@ -90,7 +90,7 @@ int test_magic_regex_engine(void) {
     const char* backref_text = "hello hello world";
     
     // Simplified backreference detection
-    if (strstr(backref_text, "hello hello") != NULL) {
+    if (strstr(backref_text, "hello hello") != nullptr) {
         printf("[%sSUCCESS%s] Backreference pattern matching functional\n", GREEN, RESET);
     } else {
         printf("[%sFAIL%s] Backreference pattern matching failed\n", RED, RESET);
@@ -334,7 +334,7 @@ int test_multi_buffer_operations(void) {
     for (int i = 0; i < active_buffers; i++) {
         if (buffers[i].data) {
             free(buffers[i].data);
-            buffers[i].data = NULL;
+            buffers[i].data = nullptr;
             cleaned_buffers++;
         }
     }
@@ -374,9 +374,9 @@ int test_line_ending_handling(void) {
     int detected_formats = 0;
     for (int i = 0; i < 4; i++) {
         const char* text = tests[i].sample;
-        int has_lf = strstr(text, "\n") != NULL;
-        int has_crlf = strstr(text, "\r\n") != NULL;
-        int has_cr = strstr(text, "\r") != NULL;
+        int has_lf = strstr(text, "\n") != nullptr;
+        int has_crlf = strstr(text, "\r\n") != nullptr;
+        int has_cr = strstr(text, "\r") != nullptr;
         
         int detected_type = LE_LF;
         if (has_crlf) detected_type = LE_CRLF;

@@ -6,6 +6,7 @@
 #include "internal/nfa.h"
 #include "test_boyer_moore.h"
 #include <string.h>
+#include <stdbool.h>
 #include <time.h>
 
 static void init_editor_minimal(const char* name) {
@@ -384,7 +385,7 @@ int test_case_insensitive_search() {
     
     // Assume case sensitivity is controlled by a global flag
     extern int case_sensitive_search; // May not exist, this is conceptual
-    // case_sensitive_search = TRUE;
+    // case_sensitive_search = true;
     
     int found = scanner(pat, FORWARD, PTBEG);
     if (found) {

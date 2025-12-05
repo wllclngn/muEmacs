@@ -44,7 +44,7 @@ int test_memory_exhaustion_scenarios(void) {
     printf("Testing large allocation failure handling...\n");
     size_t huge_size = SIZE_MAX / 2;  // Large but not overflow-causing size
     void *huge_ptr = malloc(huge_size);
-    if (huge_ptr == NULL) {
+    if (huge_ptr == nullptr) {
         printf("[%sSUCCESS%s] Large allocation properly failed\n", GREEN, RESET);
         passed++;
     } else {
@@ -62,7 +62,7 @@ int test_memory_exhaustion_scenarios(void) {
     
     for (int i = 0; i < 10000; i++) {
         ptrs[i] = malloc(chunk_size);
-        if (ptrs[i] == NULL) {
+        if (ptrs[i] == nullptr) {
             break;
         }
         alloc_count++;
@@ -93,7 +93,7 @@ int test_memory_exhaustion_scenarios(void) {
     void *small_ptr = malloc(1024);
     if (small_ptr) {
         void *failed_realloc = realloc(small_ptr, SIZE_MAX / 2);
-        if (failed_realloc == NULL) {
+        if (failed_realloc == nullptr) {
             printf("[%sSUCCESS%s] Realloc properly failed on huge size\n", GREEN, RESET);
             passed++;
             free(small_ptr); // Original pointer still valid
@@ -193,7 +193,7 @@ int test_corrupted_file_handling(void) {
         // Remove read permissions
         if (chmod(protected_file, 0000) == 0) {
             f = fopen(protected_file, "r");
-            if (f == NULL && errno == EACCES) {
+            if (f == nullptr && errno == EACCES) {
                 printf("[%sSUCCESS%s] Permission denied properly detected\n", GREEN, RESET);
                 passed++;
             } else {
@@ -397,18 +397,18 @@ int test_malicious_input_protection(void) {
     total++;
     printf("Testing Unicode exploit protection...\n");
     const char *unicode_tests[] = {
-        "\xC0\x80",           // Overlong NULL
-        "\xE0\x80\x80",       // Overlong NULL (3-byte)
-        "\xF0\x80\x80\x80",   // Overlong NULL (4-byte)
+        "\xC0\x80",           // Overlong nullptr
+        "\xE0\x80\x80",       // Overlong nullptr (3-byte)
+        "\xF0\x80\x80\x80",   // Overlong nullptr (4-byte)
         "\xED\xA0\x80",       // High surrogate (invalid in UTF-8)
         "\xED\xB0\x80",       // Low surrogate (invalid in UTF-8)
         "\xFF\xFE",           // BOM-like sequence
-        "\x00\x41",           // Embedded NULL
-        NULL
+        "\x00\x41",           // Embedded nullptr
+        nullptr
     };
     
     int unicode_handled = 0;
-    for (int i = 0; unicode_tests[i] != NULL; i++) {
+    for (int i = 0; unicode_tests[i] != nullptr; i++) {
         // Just test that we can process these without crashing
         size_t len = strlen(unicode_tests[i]);
         if (len >= 0) { // Basic validation that string functions work
@@ -432,11 +432,11 @@ int test_malicious_input_protection(void) {
         "%n%n%n%n%n%n%n%n%n%n",
         "%.1000000s",
         "%*.*s",
-        NULL
+        nullptr
     };
     
     int format_safe = 0;
-    for (int i = 0; format_attacks[i] != NULL; i++) {
+    for (int i = 0; format_attacks[i] != nullptr; i++) {
         // Test safe handling of format strings
         char buffer[1024];
         // Use snprintf with controlled format to avoid actual format string vulnerability
@@ -466,7 +466,7 @@ int test_system_call_failures(void) {
     printf("Testing malloc failure scenarios...\n");
     // Test with reasonable size that might fail under memory pressure
     void *ptr = malloc(SIZE_MAX / 4);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         printf("[%sSUCCESS%s] Large malloc properly failed\n", GREEN, RESET);
         passed++;
     } else {

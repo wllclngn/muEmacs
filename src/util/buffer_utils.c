@@ -15,25 +15,25 @@
 
 // Buffer utility functions - consolidates common patterns
 struct buffer* find_buffer_by_name(const char* name) {
-    if (!name) return NULL;
+    if (!name) return nullptr;
     
     FOR_EACH_BUFFER(bp) {
         if (strcmp(bp->b_bname, name) == 0) {
             return bp;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 struct buffer* find_buffer_by_filename(const char* filename) {
-    if (!filename) return NULL;
+    if (!filename) return nullptr;
     
     FOR_EACH_BUFFER(bp) {
         if (strcmp(bp->b_fname, filename) == 0) {
             return bp;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 bool buffer_is_modified(struct buffer* bp) {
@@ -94,7 +94,7 @@ bool line_is_whitespace_only(struct line* lp) {
 }
 
 struct line* find_line_number(struct buffer* bp, int line_num) {
-    if (!bp || line_num < 1) return NULL;
+    if (!bp || line_num < 1) return nullptr;
     
     int current_line = 1;
     FOR_EACH_LINE_IN_BUFFER(lp, bp) {
@@ -103,7 +103,7 @@ struct line* find_line_number(struct buffer* bp, int line_num) {
         }
         current_line++;
     }
-    return NULL;
+    return nullptr;
 }
 
 int get_line_number(struct buffer* bp, struct line* target_lp) {
@@ -121,14 +121,14 @@ int get_line_number(struct buffer* bp, struct line* target_lp) {
 
 // Window utility functions
 struct window* find_window_for_buffer(struct buffer* bp) {
-    if (!bp) return NULL;
+    if (!bp) return nullptr;
     
     FOR_EACH_WINDOW(wp) {
         if (wp->w_bufp == bp) {
             return wp;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void update_all_windows_for_buffer(struct buffer* bp) {

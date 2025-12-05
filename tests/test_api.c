@@ -44,7 +44,7 @@ int test_api_insert_delete() {
     // Delete last two characters deterministically
     struct line* lp = curwp->w_dotp; // first real line where we inserted
     curwp->w_doto = (before >= 2) ? (before - 2) : 0;
-    if (!ldelete(2, FALSE)) {
+    if (!ldelete(2, false)) {
         printf("[%sFAIL%s] delete failed\n", RED, RESET);
         ok = 0;
     }
@@ -84,7 +84,7 @@ int test_api_magic_basic() {
         printf("[%sFAIL%s] NFA compile failed for h.*o\n", RED, RESET);
         ok = 0;
     } else {
-        struct line* mlp = NULL; int moff = 0;
+        struct line* mlp = nullptr; int moff = 0;
         if (!nfa_search_forward(&prog, curwp->w_dotp, curwp->w_doto, PTEND, &mlp, &moff)) {
             printf("[%sFAIL%s] NFA did not match h.*o\n", RED, RESET);
             ok = 0;
@@ -316,7 +316,7 @@ int test_api_search_nomatch_and_long() {
     const char* text = "hello world";
     for (const char* p = text; *p; ++p) linsert(1, *p);
 
-    // No-match should return FALSE and leave point unchanged
+    // No-match should return false and leave point unchanged
     struct line* before_lp = curwp->w_dotp; int before_off = curwp->w_doto;
     if (scanner("xyz", FORWARD, PTBEG)) {
         printf("[%sFAIL%s] unexpected match for 'xyz'\n", RED, RESET);
@@ -331,7 +331,7 @@ int test_api_search_nomatch_and_long() {
     char longpat[300];
     for (int i = 0; i < 299; ++i) longpat[i] = 'a';
     longpat[299] = '\0';
-    // Ensure it returns FALSE (since not present)
+    // Ensure it returns false (since not present)
     curwp->w_dotp = lforw(curbp->b_linep); curwp->w_doto = 0;
     if (scanner(longpat, FORWARD, PTBEG)) {
         printf("[%sFAIL%s] unexpected match for long pattern\n", RED, RESET);

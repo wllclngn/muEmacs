@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 #include <errno.h>
 
@@ -114,7 +115,7 @@ static int json_int(const char* s, const char* key, int* out) {
     p = strchr(p, ':');
     if (!p) return 0;
     while (*p == ':' || *p == ' ' || *p == '\t') p++;
-    char* end = NULL;
+    char* end = nullptr;
     long v = strtol(p, &end, 10);
     if (end == p) return 0;
     *out = (int)v;
@@ -126,14 +127,14 @@ int settings_load(int f, int n) {
     FILE* fp = open_settings_fp();
     if (!fp) {
         // No settings file present; run with defaults and do not create anything.
-        return TRUE;
+        return true;
     }
     fseek(fp, 0, SEEK_END);
     long sz = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    if (sz <= 0 || sz > 1<<20) { fclose(fp); return TRUE; }
+    if (sz <= 0 || sz > 1<<20) { fclose(fp); return true; }
     char* buf = (char*)malloc((size_t)sz + 1);
-    if (!buf) { fclose(fp); return TRUE; }
+    if (!buf) { fclose(fp); return true; }
     size_t rd = fread(buf, 1, (size_t)sz, fp);
     (void)rd;
     buf[sz] = '\0';
@@ -141,15 +142,15 @@ int settings_load(int f, int n) {
 
     int col = 0; int wrap = -1;
     if (json_int(buf, "\"column_width\"", &col) && col > 0) {
-        writing_mode_enable(TRUE, col);
+        writing_mode_enable(true, col);
     }
     if (json_bool(buf, "\"wrap\"", &wrap)) {
         if (wrap == 0) {
             // disable word wrap if currently enabled
             if (curbp) curbp->b_mode &= ~MDWRAP;
         } else {
-            if (col > 0) writing_mode_enable(TRUE, col);
-            else writing_mode_enable(TRUE, (fillcol > 0 ? fillcol : 80));
+            if (col > 0) writing_mode_enable(true, col);
+            else writing_mode_enable(true, (fillcol > 0 ? fillcol : 80));
         }
     }
 
@@ -157,27 +158,27 @@ int settings_load(int f, int n) {
     int ruler = -1, rcol = 0, hll = -1, hls = -1, rls = -1;
     if (json_bool(buf, "\"ruler\"", &ruler)) {
         column_ruler_enabled = ruler ? 1 : 0;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_int(buf, "\"rulercol\"", &rcol) && rcol > 0) {
         column_ruler_column = rcol;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_bool(buf, "\"highlightline\"", &hll)) {
         highlight_current_line = hll ? 1 : 0;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_int(buf, "\"hilinestyle\"", &hls)) {
         if (hls < 0) { hls = 0; }
         if (hls > 4) { hls = 4; } // 4 = reverse (Vim-like)
         hiline_style = hls;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_int(buf, "\"rulerstyle\"", &rls)) {
         if (rls < 0) { rls = 0; }
         if (rls > 4) { rls = 4; } // 4 = reverse (Vim-like)
         ruler_style = rls;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
 
     // Highlight tuning (optional)
@@ -190,7 +191,7 @@ int settings_load(int f, int n) {
             hip = 50;
         }
         highlight_intensity_pct = hip;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_int(buf, "\"ruler_intensity\"", &rip)) {
         if (rip < 0) {
@@ -200,7 +201,7 @@ int settings_load(int f, int n) {
             rip = 50;
         }
         ruler_intensity_pct = rip;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_int(buf, "\"intersection_intensity\"", &iip)) {
         if (iip < 0) {
@@ -210,7 +211,7 @@ int settings_load(int f, int n) {
             iip = 50;
         }
         intersection_intensity_pct = iip;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
     if (json_int(buf, "\"highlight_strategy\"", &hst)) {
         if (hst < 0) {
@@ -220,7 +221,7 @@ int settings_load(int f, int n) {
             hst = 2;
         }
         highlight_strategy = hst;
-        sgarbf = TRUE;
+        sgarbf = true;
     }
 
     // Modeline toggles
@@ -231,7 +232,7 @@ int settings_load(int f, int n) {
     if (json_bool(buf, "\"modeline_show_position\"", &mp)) modeline_show_position = mp ? 1 : 0;
 
     free(buf);
-    return TRUE;
+    return true;
 }
 
 int save_settings_cmd(int f, int n) {
@@ -240,8 +241,8 @@ int save_settings_cmd(int f, int n) {
     
     // Try to save to user config first (highest priority)
     const char* user_config = get_user_config_file();
-    const char* path = NULL;
-    FILE* fp = NULL;
+    const char* path = nullptr;
+    FILE* fp = nullptr;
     
     if (user_config[0] != '\0') {
         fp = fopen(user_config, "w");
@@ -262,7 +263,7 @@ int save_settings_cmd(int f, int n) {
     
     if (!fp) { 
         mlwrite("(Could not save settings: %s)", strerror(errno)); 
-        return FALSE; 
+        return false; 
     }
     int wrap = (curbp && (curbp->b_mode & MDWRAP)) ? 1 : 0;
     int col = (fillcol > 0 ? fillcol : 80);
@@ -285,7 +286,7 @@ int save_settings_cmd(int f, int n) {
     fprintf(fp, "}\n");
     fclose(fp);
     mlwrite("(Settings saved to %s)", path);
-    return TRUE;
+    return true;
 }
 
 int open_user_config_cmd(int f, int n) {
@@ -297,21 +298,21 @@ int open_user_config_cmd(int f, int n) {
     if (fp) fclose(fp);
 
     // Open the file into a new buffer
-    struct buffer* bp = bfind("settings.json", TRUE, 0);
-    if (!bp) return FALSE;
+    struct buffer* bp = bfind("settings.json", true, 0);
+    if (!bp) return false;
     safe_strcpy(bp->b_fname, path, NFILEN);
     swbuffer(bp);
     bclear(bp);
-    readin(path, FALSE);
+    readin(path, false);
     mlwrite("(Opened %s)", path);
-    return TRUE;
+    return true;
 }
 
 int list_settings_cmd(int f, int n) {
     (void)f; (void)n;
     int wrap = (curbp && (curbp->b_mode & MDWRAP)) ? 1 : 0;
     mlwrite("Settings: column_width=%d wrap=%s", (fillcol>0?fillcol:0), wrap?"on":"off");
-    return TRUE;
+    return true;
 }
 
 int set_column_width_cmd(int f, int n) {
@@ -319,11 +320,11 @@ int set_column_width_cmd(int f, int n) {
     if (!f) {
         char buf[16] = {0};
         int s = mlreply("Column width: ", buf, (int)sizeof(buf));
-        if (s != TRUE) return (s == ABORT) ? FALSE : TRUE;
+        if (s != true) return (s == ABORT) ? false : true;
         col = atoi(buf);
     }
     if (col < 1) col = 1;
     if (col > 10000) col = 10000;
-    writing_mode_enable(TRUE, col);
-    return TRUE;
+    writing_mode_enable(true, col);
+    return true;
 }

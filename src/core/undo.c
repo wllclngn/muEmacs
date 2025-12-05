@@ -124,12 +124,12 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
 // Creates and initializes a new undo stack for a buffer.
 struct atomic_undo_stack *undo_stack_create(void) {
     struct atomic_undo_stack *stack = safe_alloc(sizeof(struct atomic_undo_stack), "undo stack", __FILE__, __LINE__);
-    if (!stack) return NULL;
+    if (!stack) return nullptr;
 
     stack->operations = safe_alloc(UNDO_INITIAL_CAPACITY * sizeof(struct undo_operation), "undo operations array", __FILE__, __LINE__);
     if (!stack->operations) {
         SAFE_FREE(stack);
-        return NULL;
+        return nullptr;
     }
 
     atomic_store(&stack->capacity, UNDO_INITIAL_CAPACITY);
@@ -340,25 +340,25 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
 
 // Performs an undo operation on the given buffer.
 int undo_operation(struct buffer *bp) {
-    if (!bp || !bp->b_undo_stack) return FALSE;
+    if (!bp || !bp->b_undo_stack) return false;
     struct atomic_undo_stack *stack = bp->b_undo_stack;
 
-    if (atomic_load(&stack->in_operation)) return FALSE;
+    if (atomic_load(&stack->in_operation)) return false;
     
     int undo_ptr = atomic_load(&stack->undo_ptr);
     if (undo_ptr == -1 || undo_ptr == (atomic_load(&stack->tail) - 1 + atomic_load(&stack->capacity)) % atomic_load(&stack->capacity)) {
-        return FALSE; // Nothing to undo
+        return false; // Nothing to undo
     }
 
     struct undo_operation *op = &stack->operations[undo_ptr];
     atomic_store(&stack->in_operation, true);
 
-    gotoline(TRUE, op->dot_l);
+    gotoline(true, op->dot_l);
     curwp->w_doto = op->dot_o;
 
     bool success = false;
     if (op->type == EDIT_INSERT) {
-        success = ldelete(op->text_length, FALSE);
+        success = ldelete(op->text_length, false);
     } else if (op->type == EDIT_DELETE) {
         success = linsert_str(op->text_data);
     }
@@ -374,10 +374,10 @@ int undo_operation(struct buffer *bp) {
             struct undo_operation *pop = &stack->operations[prev];
             if (pop->group_id != gid) break;
             // apply previous op in group
-            gotoline(TRUE, pop->dot_l);
+            gotoline(true, pop->dot_l);
             curwp->w_doto = pop->dot_o;
             if (pop->type == EDIT_INSERT) {
-                if (!ldelete(pop->text_length, FALSE)) break;
+                if (!ldelete(pop->text_length, false)) break;
             } else if (pop->type == EDIT_DELETE) {
                 if (!linsert_str(pop->text_data)) break;
             } else {
@@ -401,15 +401,15 @@ int undo_operation(struct buffer *bp) {
     
     curwp->w_flag |= WFHARD;
     atomic_store(&stack->in_operation, false);
-    return success ? TRUE : FALSE;
+    return success ? true : false;
 }
 
 // Performs a redo operation on the given buffer.
 int redo_operation(struct buffer *bp) {
-    if (!bp || !bp->b_undo_stack) return FALSE;
+    if (!bp || !bp->b_undo_stack) return false;
     struct atomic_undo_stack *stack = bp->b_undo_stack;
 
-    if (atomic_load(&stack->in_operation)) return FALSE;
+    if (atomic_load(&stack->in_operation)) return false;
 
     int undo_ptr = atomic_load(&stack->undo_ptr);
     int capacity = atomic_load(&stack->capacity);
@@ -424,20 +424,20 @@ int redo_operation(struct buffer *bp) {
     }
 
     if (redo_ptr == head) {
-        return FALSE; // Nothing to redo
+        return false; // Nothing to redo
     }
 
     struct undo_operation *op = &stack->operations[redo_ptr];
     atomic_store(&stack->in_operation, true);
 
-    gotoline(TRUE, op->dot_l);
+    gotoline(true, op->dot_l);
     curwp->w_doto = op->dot_o;
 
     bool success = false;
     if (op->type == EDIT_INSERT) {
         success = linsert_str(op->text_data);
     } else if (op->type == EDIT_DELETE) {
-        success = ldelete(op->text_length, FALSE);
+        success = ldelete(op->text_length, false);
     }
 
     if (success) {
@@ -450,12 +450,12 @@ int redo_operation(struct buffer *bp) {
             if (next == atomic_load(&stack->head)) break;
             struct undo_operation *nop = &stack->operations[next];
             if (nop->group_id != gid) break;
-            gotoline(TRUE, nop->dot_l);
+            gotoline(true, nop->dot_l);
             curwp->w_doto = nop->dot_o;
             if (nop->type == EDIT_INSERT) {
                 if (!linsert_str(nop->text_data)) break;
             } else if (nop->type == EDIT_DELETE) {
-                if (!ldelete(nop->text_length, FALSE)) break;
+                if (!ldelete(nop->text_length, false)) break;
             } else {
                 break;
             }
@@ -475,17 +475,17 @@ int redo_operation(struct buffer *bp) {
 
     curwp->w_flag |= WFHARD;
     atomic_store(&stack->in_operation, false);
-    return success ? TRUE : FALSE;
+    return success ? true : false;
 }
 
 // Command entry points for key bindings
 int undo_cmd(int f, int n) {
-    if (!curbp) return FALSE;
+    if (!curbp) return false;
     return undo_operation(curbp);
 }
 
 int redo_cmd(int f, int n) {
-    if (!curbp) return FALSE;
+    if (!curbp) return false;
     return redo_operation(curbp);
 }
 

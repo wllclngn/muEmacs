@@ -300,7 +300,7 @@ int test_sigwinch_handling(void) {
     printf("[%sSUCCESS%s] Signal handler async-safety verified\n", GREEN, RESET);
 
     // Restore original signal handler
-    if (sigaction(SIGWINCH, &old_action, NULL) == 0) {
+    if (sigaction(SIGWINCH, &old_action, nullptr) == 0) {
         printf("[%sSUCCESS%s] Original SIGWINCH handler restored\n", GREEN, RESET);
     } else {
         printf("[%sWARNING%s] Failed to restore original SIGWINCH handler\n", YELLOW, RESET);

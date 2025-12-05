@@ -36,7 +36,7 @@ int test_poe_gutenberg_wrap(void)
     }
 
     // Read file into current buffer
-    if (!readin(path, FALSE)) {
+    if (!readin(path, false)) {
         printf("[%sFAIL%s] readin failed for %s\n", RED, RESET, path);
         ok = 0;
         PHASE_END("POE: WRAP", ok);
@@ -44,7 +44,7 @@ int test_poe_gutenberg_wrap(void)
     }
 
     // Enable writing mode at column 80 (also turns on wrap)
-    writing_mode_enable(TRUE, 80);
+    writing_mode_enable(true, 80);
 
     // Find first non-empty paragraph
     struct line* lp = lforw(curbp->b_linep);
@@ -67,7 +67,7 @@ int test_poe_gutenberg_wrap(void)
     // Place point within the paragraph and fill it
     curwp->w_dotp = start;
     curwp->w_doto = 0;
-    if (!fillpara(FALSE, 1)) {
+    if (!fillpara(false, 1)) {
         printf("[%sFAIL%s] fill-paragraph failed\n", RED, RESET);
         ok = 0;
     } else {

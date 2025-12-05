@@ -1,5 +1,5 @@
 pkgname=muemacs
-pkgver=0.0.23
+pkgver=0.0.0
 pkgrel=1
 pkgdesc="Modern Linux terminal text editor (μEmacs)"
 arch=('x86_64')

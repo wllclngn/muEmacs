@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
@@ -35,7 +36,7 @@ FILE* safe_fopen(const char* filename, file_mode_t mode) {
     
     if (mode >= sizeof(file_mode_strings) / sizeof(file_mode_strings[0])) {
         REPORT_ERROR(ERR_SYNTAX_ERROR, "Invalid file mode");
-        return NULL;
+        return nullptr;
     }
     
     FILE* fp = fopen(filename, file_mode_strings[mode]);
@@ -61,11 +62,11 @@ FILE* safe_fopen(const char* filename, file_mode_t mode) {
 /* Safe file closing that nullifies pointer */
 bool safe_fclose(FILE** fp) {
     if (!fp || !*fp) {
-        return true;  /* Already closed or NULL */
+        return true;  /* Already closed or nullptr */
     }
     
     int result = fclose(*fp);
-    *fp = NULL;  /* Prevent double close */
+    *fp = nullptr;  /* Prevent double close */
     
     if (result != 0) {
         REPORT_ERROR(ERR_FILE_WRITE, "Close failed");
@@ -157,20 +158,20 @@ char* safe_read_file(const char* filename, size_t* file_size) {
     CHECK_PTR_RET_NULL(filename);
     
     FILE* fp = safe_fopen(filename, FILE_READ);
-    if (!fp) return NULL;
+    if (!fp) return nullptr;
     
     /* Get file size */
     size_t size = get_file_size(filename);
     if (size == 0) {
         safe_fclose(&fp);
-        return NULL;
+        return nullptr;
     }
     
     /* Allocate buffer with space for null terminator */
     char* buffer = SAFE_ALLOC_SIZED(char, size + 1, "file buffer");
     if (!buffer) {
         safe_fclose(&fp);
-        return NULL;
+        return nullptr;
     }
     
     /* Read file contents */
@@ -180,7 +181,7 @@ char* safe_read_file(const char* filename, size_t* file_size) {
     if (bytes_read != size && !feof(fp)) {
         REPORT_ERROR(ERR_FILE_READ, filename);
         SAFE_FREE(buffer);
-        return NULL;
+        return nullptr;
     }
     
     buffer[bytes_read] = '\0';  /* Null terminate */
@@ -254,7 +255,7 @@ FILE* safe_temp_file(char* temp_name, size_t name_size) {
     int fd = mkstemp(temp_name);
     if (fd < 0) {
         REPORT_ERROR(ERR_FILE_WRITE, "Cannot create temporary file");
-        return NULL;
+        return nullptr;
     }
     
     FILE* fp = fdopen(fd, "w+");
@@ -262,7 +263,7 @@ FILE* safe_temp_file(char* temp_name, size_t name_size) {
         close(fd);
         unlink(temp_name);
         REPORT_ERROR(ERR_FILE_WRITE, "Cannot open temporary file");
-        return NULL;
+        return nullptr;
     }
     
     return fp;

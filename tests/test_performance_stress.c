@@ -20,7 +20,7 @@
 // Performance timing utilities
 static double get_time_ms(void) {
     struct timeval tv;
-    gettimeofday(&tv, NULL);
+    gettimeofday(&tv, nullptr);
     return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
 }
 
@@ -208,7 +208,7 @@ int test_memory_intensive_operations(void) {
         int frag_allocated = 0;
         
         // Allocate random-sized blocks
-        srand((unsigned int)time(NULL));
+        srand((unsigned int)time(nullptr));
         for (int i = 0; i < frag_iterations; i++) {
             size_t size = 128 + (rand() % 8192); // 128B to 8KB
             frag_ptrs[i] = malloc(size);
@@ -221,7 +221,7 @@ int test_memory_intensive_operations(void) {
                     int free_idx = rand() % i;
                     if (frag_ptrs[free_idx]) {
                         free(frag_ptrs[free_idx]);
-                        frag_ptrs[free_idx] = NULL;
+                        frag_ptrs[free_idx] = nullptr;
                     }
                 }
             }
@@ -398,7 +398,7 @@ static void* buffer_worker_thread(void* arg) {
         usleep(1);
     }
     
-    return NULL;
+    return nullptr;
 }
 
 int test_concurrent_buffer_operations(void) {
@@ -432,7 +432,7 @@ int test_concurrent_buffer_operations(void) {
             thread_data[i].shared_buffer = shared_buffer;
             thread_data[i].buffer_size = shared_buffer_size;
             
-            if (pthread_create(&threads[i], NULL, buffer_worker_thread, &thread_data[i]) != 0) {
+            if (pthread_create(&threads[i], nullptr, buffer_worker_thread, &thread_data[i]) != 0) {
                 printf("[%sFAIL%s] Failed to create thread %d\n", RED, RESET, i);
                 total--; // Don't count this test
                 break;
@@ -441,7 +441,7 @@ int test_concurrent_buffer_operations(void) {
         
         // Wait for all threads to complete
         for (int i = 0; i < thread_count; i++) {
-            pthread_join(threads[i], NULL);
+            pthread_join(threads[i], nullptr);
         }
         
         double end_time = get_time_ms();
@@ -485,7 +485,7 @@ int test_search_performance_stress(void) {
         // Fill with random text
         const char *chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 \n";
         size_t chars_len = strlen(chars);
-        srand((unsigned int)time(NULL));
+        srand((unsigned int)time(nullptr));
         
         for (size_t i = 0; i < text_size - 1; i++) {
             large_text[i] = chars[rand() % chars_len];
@@ -510,7 +510,7 @@ int test_search_performance_stress(void) {
         
         for (int iter = 0; iter < search_iterations; iter++) {
             char *search_pos = large_text;
-            while ((search_pos = strstr(search_pos, pattern)) != NULL) {
+            while ((search_pos = strstr(search_pos, pattern)) != nullptr) {
                 found_count++;
                 search_pos += pattern_len;
             }
@@ -547,7 +547,7 @@ int test_search_performance_stress(void) {
         "test.email@sub.domain.com",
         "bad@format@email.com",
         "good@email.net",
-        NULL
+        nullptr
     };
     
     // Simple email pattern matching (not real regex, but performance simulation)
@@ -556,7 +556,7 @@ int test_search_performance_stress(void) {
     const int regex_iterations = 10000;
     
     for (int iter = 0; iter < regex_iterations; iter++) {
-        for (int i = 0; test_strings[i] != NULL; i++) {
+        for (int i = 0; test_strings[i] != nullptr; i++) {
             const char *str = test_strings[i];
             // Simple email validation: contains @ and . after @
             char *at_pos = strchr(str, '@');
@@ -602,8 +602,8 @@ int test_undo_redo_stress(void) {
     const int undo_operations = 10000;
     const size_t avg_operation_size = 512;
     
-    undo_entry_t *undo_head = NULL;
-    undo_entry_t *undo_tail = NULL;
+    undo_entry_t *undo_head = nullptr;
+    undo_entry_t *undo_tail = nullptr;
     int undo_count = 0;
     
     double start_time = get_time_ms();
@@ -617,7 +617,7 @@ int test_undo_redo_stress(void) {
             if (entry->data) {
                 memset(entry->data, 'A' + (i % 26), entry->size);
                 entry->operation_type = i % 4; // Insert, delete, replace, format
-                entry->next = NULL;
+                entry->next = nullptr;
                 entry->prev = undo_tail;
                 
                 if (undo_tail) {
@@ -719,7 +719,7 @@ int test_syntax_highlighting_stress(void) {
     
     if (source_code) {
         size_t pos = 0;
-        srand((unsigned int)time(NULL));
+        srand((unsigned int)time(nullptr));
         
         for (int line = 0; line < lines_count && pos < total_size - 200; line++) {
             int template_idx = rand() % template_count;
@@ -747,7 +747,7 @@ int test_syntax_highlighting_stress(void) {
         } token_type_t;
         
         const char *keywords[] = {"int", "if", "else", "return", "include", 
-                                 "define", "printf", "for", "while", NULL};
+                                 "define", "printf", "for", "while", nullptr};
         
         int token_counts[7] = {0}; // Count for each token type
         char *current = source_code;

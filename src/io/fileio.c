@@ -22,19 +22,19 @@ static int eofflag;			/* end-of-file flag */
  */
 int ffropen(const char *fn)
 {
-	if ((ffp = safe_fopen(fn, FILE_READ)) == NULL)
+	if ((ffp = safe_fopen(fn, FILE_READ)) == nullptr)
 		return FIOFNF;
-	eofflag = FALSE;
+	eofflag = false;
 	return FIOSUC;
 }
 
 /*
- * Open a file for writing. Return TRUE if all is well, and FALSE on error
+ * Open a file for writing. Return true if all is well, and false on error
  * (cannot create).
  */
 int ffwopen(const char *fn)
 {
-	if ((ffp = safe_fopen(fn, FILE_WRITE)) == NULL) {
+	if ((ffp = safe_fopen(fn, FILE_WRITE)) == nullptr) {
 		REPORT_ERROR(ERR_FILE_WRITE, fn);
 		return FIOERR;
 	}
@@ -49,9 +49,9 @@ int ffclose(void)
 	/* free this since we do not need it anymore */
 	if (fline) {
 		SAFE_FREE(fline);
-		fline = NULL;
+		fline = nullptr;
 	}
-	eofflag = FALSE;
+	eofflag = false;
 
 
 	if (!safe_fclose(&ffp)) {
@@ -102,12 +102,12 @@ int ffgetline(void)
 	/* dump fline if it ended up too big */
 	if (flen > NSTRING) {
 		SAFE_FREE(fline);
-		fline = NULL;
+		fline = nullptr;
 	}
 
 	/* if we don't have an fline, allocate one */
-	if (fline == NULL)
-		if ((fline = (char*)safe_alloc(flen = NSTRING, "file line buffer", __FILE__, __LINE__)) == NULL) {
+	if (fline == nullptr)
+		if ((fline = (char*)safe_alloc(flen = NSTRING, "file line buffer", __FILE__, __LINE__)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "Failed to allocate file line buffer");
 			return FIOMEM;
 		}
@@ -140,7 +140,7 @@ int ffgetline(void)
 			/* if it's longer, get more room */
 			if (i >= flen) {
 				if ((tmpline =
-				     (char*)safe_alloc(flen + NSTRING, "expanded line buffer", __FILE__, __LINE__)) == NULL)
+				     (char*)safe_alloc(flen + NSTRING, "expanded line buffer", __FILE__, __LINE__)) == nullptr)
 					return FIOMEM;
                 if (flen > 0) {
                     size_t maxlen = NSTRING - 1;
@@ -167,7 +167,7 @@ int ffgetline(void)
 		}
 
 		if (i != 0)
-			eofflag = TRUE;
+			eofflag = true;
 		else
 			return FIOEOF;
 	}
@@ -185,5 +185,5 @@ int ffgetline(void)
  */
 int fexist(const char *fname)
 {
-	return file_exists(fname) ? TRUE : FALSE;
+	return file_exists(fname) ? true : false;
 }

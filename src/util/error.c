@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <time.h>
 
 #include "estruct.h"
@@ -52,7 +53,7 @@ void set_error_context(const char* function, const char* file, int line) {
     current_context.function = function;
     current_context.file = file;
     current_context.line = line;
-    current_context.timestamp = time(NULL);
+    current_context.timestamp = time(nullptr);
 }
 
 /* Get error message string */
@@ -127,7 +128,7 @@ bool report_null_pointer_error(const char* pointer_name) {
 }
 
 /* Error logging to file (optional debug feature) */
-static FILE* error_log_file = NULL;
+static FILE* error_log_file = nullptr;
 
 bool enable_error_logging(const char* log_filename) {
     if (error_log_file) {
@@ -135,7 +136,7 @@ bool enable_error_logging(const char* log_filename) {
     }
     
     error_log_file = safe_fopen(log_filename, FILE_APPEND);
-    return error_log_file != NULL;
+    return error_log_file != nullptr;
 }
 
 void disable_error_logging(void) {
@@ -148,7 +149,7 @@ void disable_error_logging(void) {
 static void log_error(error_code_t code, const char* context) {
     if (!error_log_file) return;
     
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
     struct tm* tm_info = localtime(&now);
     char timestamp[32];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);

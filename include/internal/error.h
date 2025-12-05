@@ -61,7 +61,7 @@ void handle_assertion_failure(const char* expr, const char* file, int line, cons
 
 #define CHECK_PTR_RET(ptr, retval) CHECK_PTR(ptr, return retval)
 #define CHECK_PTR_RET_FALSE(ptr) CHECK_PTR_RET(ptr, false)
-#define CHECK_PTR_RET_NULL(ptr) CHECK_PTR_RET(ptr, NULL)
+#define CHECK_PTR_RET_NULL(ptr) CHECK_PTR_RET(ptr, nullptr)
 
 /* Safe assertion macro */
 #ifdef DEBUG
@@ -76,7 +76,7 @@ void handle_assertion_failure(const char* expr, const char* file, int line, cons
     do { if (condition) return REPORT_ERROR(error_code, context); } while(0)
 
 #define RETURN_NULL_IF_ERROR(condition, error_code, context) \
-    do { if (condition) { REPORT_ERROR(error_code, context); return NULL; } } while(0)
+    do { if (condition) { REPORT_ERROR(error_code, context); return nullptr; } } while(0)
 
 #define RETURN_FALSE_IF_ERROR(condition, error_code, context) \
     do { if (condition) { REPORT_ERROR(error_code, context); return false; } } while(0)

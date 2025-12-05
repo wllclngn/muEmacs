@@ -15,6 +15,7 @@
 #include <time.h>
 #include <locale.h>
 #include <string.h>
+#include <stdbool.h>
 #include <signal.h>
 #include <pthread.h>
 
@@ -83,7 +84,7 @@ struct video {
 static struct video **vscreen;		/* Virtual screen. */
 static struct video **pscreen;		/* Physical screen. */
 
-static int displaying = TRUE;
+static int displaying = true;
 
 /* Fast checksum calculation for change detection optimization */
 static uint32_t video_checksum(unicode_t *text, int len)
@@ -158,7 +159,7 @@ void vtinit(void)
 
     TTopen();		/* open the screen */
     TTkopen();		/* open the keyboard */
-    TTrev(FALSE);
+    TTrev(false);
     /* Initialize terminal optimizations/capabilities (truecolor, paste) after TTopen */
     display_init_optimization();
 	vscreen = (struct video**)safe_alloc(term.t_mrow * sizeof(struct video *), "vscreen", __FILE__, __LINE__);
@@ -357,8 +358,8 @@ static void vteeol(void)
  */
 int upscreen(int f, int n)
 {
-	update(TRUE);
-	return TRUE;
+	update(true);
+	return true;
 }
 
 static int scrflags;
@@ -381,7 +382,7 @@ int update(int force)
 	// Defer updates during edit transactions unless explicitly forced
 	if (!force && atomic_load(&edit_transaction_depth) > 0) {
 		perf_end_timing("update");
-		return TRUE;
+		return true;
 	}
 
 	// Minimize signal masking to reduce latency: block only SIGWINCH
@@ -393,25 +394,25 @@ int update(int force)
 	pthread_sigmask(SIG_BLOCK, &mask, &oldmask);
 
 #if	VISMAC == 0
-	if (force == FALSE && kbdmode == PLAY) {
-		pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	if (force == false && kbdmode == PLAY) {
+		pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 		perf_end_timing("update");
-		return TRUE;
+		return true;
 	}
 #endif
 
-	displaying = TRUE;
+	displaying = true;
 
 	/* first, propagate mode line changes to all instances of
 	   a buffer displayed in more than one window */
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_flag & WFMODE) {
 			if (wp->w_bufp->b_nwnd > 1) {
 				/* make sure all previous windows have this */
 				struct window *owp;
 				owp = wheadp;
-				while (owp != NULL) {
+				while (owp != nullptr) {
 					if (owp->w_bufp == wp->w_bufp)
 						owp->w_flag |= WFMODE;
 					owp = owp->w_wndp;
@@ -423,7 +424,7 @@ int update(int force)
 
 	/* update any windows that need refreshing */
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_flag) {
 			/* if the window has changed, service it */
 			reframe(wp);	/* check the framing */
@@ -457,7 +458,7 @@ int update(int force)
 	upddex();
 
 	/* if screen is garbage, re-plot it */
-	if (sgarbf != FALSE)
+	if (sgarbf != false)
 		updgar();
 
 	/* update the virtual screen to the physical screen */
@@ -471,16 +472,16 @@ int update(int force)
 	terminal_set_cursor_visible(true);
 	
 	TTflush();
-	displaying = FALSE;
+	displaying = false;
 #if SIGWINCH
 	while (chg_width || chg_height)
 		newscreensize(chg_height, chg_width);
 #endif
 	
 	// Restore signal handling after display update
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 	perf_end_timing("update");
-	return TRUE;
+	return true;
 }
 
 /*
@@ -512,11 +513,11 @@ static int reframe(struct window *wp)
 				if (i < 0 || i == wp->w_ntrows) {
 					/* if the terminal can't help, then
 					   we're simply outside */
-					if (term.t_scroll == NULL)
+					if (term.t_scroll == nullptr)
 						i = wp->w_force;
 					break;
 				}
-				return TRUE;
+				return true;
 			}
 
 			/* if we are at the end of the file, reframe */
@@ -560,7 +561,7 @@ static int reframe(struct window *wp)
 	wp->w_linep = lp;
 	wp->w_flag |= WFHARD;
 	wp->w_flag &= ~WFFORCE;
-	return TRUE;
+	return true;
 }
 
 /* Check if a character position is within the marked region */
@@ -573,13 +574,13 @@ static int in_region(struct line *lp, int pos)
 	int doto = wp->w_doto;
 	
 	/* No mark set or same position - no selection */
-	if (markp == NULL || (markp == dotp && marko == doto))
-		return FALSE;
+	if (markp == nullptr || (markp == dotp && marko == doto))
+		return false;
 	
 	/* For single-line selections, handle directly */
 	if (markp == dotp) {
 		/* Same line - only highlight between mark and cursor */
-		if (lp != markp) return FALSE; /* Wrong line entirely */
+		if (lp != markp) return false; /* Wrong line entirely */
 		
 		int start_pos = (marko < doto) ? marko : doto;
 		int end_pos = (marko < doto) ? doto : marko;
@@ -589,16 +590,16 @@ static int in_region(struct line *lp, int pos)
 	/* Multi-line selection - determine line order */
 	struct line *start_line, *end_line;
 	int start_pos, end_pos;
-	int mark_before_cursor = FALSE;
+	int mark_before_cursor = false;
 	
 	/* Find which line comes first in buffer order */
 	struct line *scan = wp->w_bufp->b_linep;
 	while ((scan = lforw(scan)) != wp->w_bufp->b_linep) {
 		if (scan == markp) {
-			mark_before_cursor = TRUE;
+			mark_before_cursor = true;
 			break;
 		} else if (scan == dotp) {
-			mark_before_cursor = FALSE;
+			mark_before_cursor = false;
 			break;
 		}
 	}
@@ -622,21 +623,21 @@ static int in_region(struct line *lp, int pos)
 		while ((between_scan = lforw(between_scan)) != wp->w_bufp->b_linep && 
 		       between_scan != end_line) {
 			if (between_scan == lp)
-				return TRUE;
+				return true;
 		}
-		return FALSE;
+		return false;
 	}
 }
 
 static void show_line(struct line *lp)
 {
 	int i = 0, len = llength(lp);
-	int in_selection = FALSE;
+	int in_selection = false;
 	
 	/* Only apply selection highlighting to content lines in the current window */
 	/* Also ensure this line belongs to the current window's buffer */
-	int apply_highlighting = (curwp != NULL && curwp->w_markp != NULL && 
-	                         lp != NULL && lp != curwp->w_bufp->b_linep);
+	int apply_highlighting = (curwp != nullptr && curwp->w_markp != nullptr && 
+	                         lp != nullptr && lp != curwp->w_bufp->b_linep);
 
 
 
@@ -649,7 +650,7 @@ static void show_line(struct line *lp)
 	while (i < len) {
 		unicode_t c;
 		int bytes = utf8_to_unicode(line_text, i, len, &c);
-		int char_in_selection = apply_highlighting ? in_region(lp, i) : FALSE;
+		int char_in_selection = apply_highlighting ? in_region(lp, i) : false;
 		
 		/* Apply highlighting by modifying character representation */
 		if (char_in_selection != in_selection) {
@@ -711,6 +712,15 @@ static void updone(struct window *wp)
 	vscreen[sline]->v_flag &= ~VFREQ;
 	vtmove(sline, 0);
 	show_line(lp);
+	
+	/* Apply cursor line highlighting if enabled */
+	if (highlight_current_line && vscreen[sline]->v_linep == wp->w_dotp) {
+		/* Mark entire line for highlighting */
+		for (int i = 0; i < term.t_ncol; i++) {
+			vscreen[sline]->v_text[i] |= HIGHLIGHT_BIT;
+		}
+	}
+	
 	vscreen[sline]->v_rfcolor = wp->w_fcolor;
 	vscreen[sline]->v_rbcolor = wp->w_bcolor;
 	vteeol();
@@ -748,7 +758,23 @@ static void updall(struct window *wp)
 		if (lp != wp->w_bufp->b_linep) {
 			/* if we are not at the end */
 			show_line(lp);
+			
+			/* Apply cursor line highlighting if enabled */
+			if (highlight_current_line && vscreen[sline]->v_linep == wp->w_dotp) {
+				/* Mark entire line for highlighting */
+				for (int i = 0; i < term.t_ncol; i++) {
+					vscreen[sline]->v_text[i] |= HIGHLIGHT_BIT;
+				}
+			}
 			lp = lforw(lp);
+		}
+		
+		/* Apply cursor line highlighting if enabled */
+		if (highlight_current_line && vscreen[sline]->v_linep == wp->w_dotp) {
+			/* Mark entire line for highlighting */
+			for (int i = 0; i < term.t_ncol; i++) {
+				vscreen[sline]->v_text[i] |= HIGHLIGHT_BIT;
+			}
 		}
 
 		/* on to the next one */
@@ -847,7 +873,7 @@ void upddex(void)
 
 	wp = wheadp;
 
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		lp = wp->w_linep;
 		i = wp->w_toprow;
 
@@ -898,8 +924,8 @@ void updgar(void)
 
 	movecursor(0, 0);	/* Erase the screen. */
 	(*term.t_eeop) ();
-	sgarbf = FALSE;		/* Erase-page clears */
-	mpresf = FALSE;		/* the message area. */
+	sgarbf = false;		/* Erase-page clears */
+	mpresf = false;		/* the message area. */
 	mlerase();		/* needs to be cleared if colored */
 }
 
@@ -915,9 +941,9 @@ int updupd(int force)
 	int i;
 
 	if (scrflags & WFKILLS)
-		scrolls(FALSE);
+		scrolls(false);
 	if (scrflags & WFINS)
-		scrolls(TRUE);
+		scrolls(true);
 	scrflags = 0;
 
 	for (i = 0; i < term.t_nrow; ++i) {
@@ -936,7 +962,7 @@ int updupd(int force)
 			}
 		}
 	}
-	return TRUE;
+	return true;
 }
 
 #if SCROLLCODE
@@ -956,7 +982,7 @@ static int scrolls(int inserts)
 	int from, to;
 
 	if (!term.t_scroll)	/* no way to scroll */
-		return FALSE;
+		return false;
 
 	rows = term.t_nrow;
 	cols = term.t_ncol;
@@ -970,7 +996,7 @@ static int scrolls(int inserts)
 	}
 
 	if (first < 0)
-		return FALSE;	/* no text changes */
+		return false;	/* no text changes */
 
 	vpv = vscreen[first];
 	vpp = pscreen[first];
@@ -1034,7 +1060,7 @@ static int scrolls(int inserts)
 			to = target;
 		}
 		if (2 * count < abs(from - to))
-			return FALSE;
+			return false;
 		scrscroll(from, to, count);
 		for (i = 0; i < count; i++) {
 			vpp = pscreen[to + i];
@@ -1065,9 +1091,9 @@ static int scrolls(int inserts)
 			vscreen[i]->v_flag |= VFCHG;
 		}
 #endif
-		return TRUE;
+		return true;
 	}
-	return FALSE;
+	return false;
 }
 
 /* move the "count" lines starting at "from" to "to" */
@@ -1078,7 +1104,7 @@ static void scrscroll(int from, int to, int count)
 }
 
 /*
- * return TRUE on text match
+ * return true on text match
  *
  * int vrow, prow;		virtual, physical rows
  */
@@ -1244,17 +1270,32 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 		/* scan through the line and dump it to the screen and
 		   the virtual screen array                             */
 		cp3 = &vp1->v_text[term.t_ncol];
-		int current_reverse = req;
 		
         while (cp1 < cp3) {
-            unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
-            TTputc(ch);
+            unicode_t ch = *cp1;
+            int highlighted = (ch & HIGHLIGHT_BIT) != 0;
+            ch &= ~HIGHLIGHT_BIT;  /* Strip highlight bit */
+            
+            /* Apply highlight styling based on hiline_style */
+            if (highlighted && hiline_style != 0) {
+                /* Style 7 = reverse video (default) */
+                if (hiline_style == 7) {
+                    (*term.t_rev)(true);
+                    TTputc(ch);
+                    (*term.t_rev)(false);
+                } else {
+                    /* Other styles would go here - for now just output normally */
+                    TTputc(ch);
+                }
+            } else {
+                TTputc(ch);
+            }
             ++ttcol;
             *cp2++ = *cp1++;
         }
         /* turn rev video off */
         if (rev != req)
-            (*term.t_rev) (FALSE);
+            (*term.t_rev) (false);
 
 		/* update the needed flags */
 		vp1->v_flag &= ~VFCHG;
@@ -1264,7 +1305,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 			vp1->v_flag &= ~VFREV;
 		vp1->v_fcolor = vp1->v_rfcolor;
 		vp1->v_bcolor = vp1->v_rbcolor;
-		return TRUE;
+		return true;
 	}
 #endif
 
@@ -1283,11 +1324,11 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	/* if both lines are the same, no update needs to be done */
 	if (cp1 == &vp1->v_text[term.t_ncol]) {
 		vp1->v_flag &= ~VFCHG;	/* flag this line is changed */
-		return TRUE;
+		return true;
 	}
 
 	/* find out if there is a match on the right */
-	nbflag = FALSE;
+	nbflag = false;
 	cp3 = &vp1->v_text[term.t_ncol];
 	cp4 = &vp2->v_text[term.t_ncol];
 
@@ -1295,13 +1336,13 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 		--cp3;
 		--cp4;
 		if (cp3[0] != ' ')	/* Note if any nonblank */
-			nbflag = TRUE;	/* in right match. */
+			nbflag = true;	/* in right match. */
 	}
 
 	cp5 = cp3;
 
 	/* Erase to EOL ? */
-	if (nbflag == FALSE && eolexist == TRUE && (req != TRUE)) {
+	if (nbflag == false && eolexist == true && (req != true)) {
 		while (cp5 != cp1 && cp5[-1] == ' ')
 			--cp5;
 
@@ -1316,8 +1357,24 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 
         {
             while (cp1 != cp5) {	/* Ordinary. */
-                unicode_t ch = *cp1 & ~HIGHLIGHT_BIT;
-                TTputc(ch);
+                unicode_t ch = *cp1;
+                int highlighted = (ch & HIGHLIGHT_BIT) != 0;
+                ch &= ~HIGHLIGHT_BIT;  /* Strip highlight bit */
+                
+                /* Apply highlight styling based on hiline_style */
+                if (highlighted && hiline_style != 0) {
+                    /* Style 7 = reverse video (default) */
+                    if (hiline_style == 7) {
+                        (*term.t_rev)(true);
+                        TTputc(ch);
+                        (*term.t_rev)(false);
+                    } else {
+                        /* Other styles would go here - for now just output normally */
+                        TTputc(ch);
+                    }
+                } else {
+                    TTputc(ch);
+                }
                 ++ttcol;
                 *cp2++ = *cp1++;
             }
@@ -1330,7 +1387,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	}
 	
 #if	REVSTA
-	TTrev(FALSE);
+	TTrev(false);
 #endif
 	vp1->v_flag &= ~VFCHG;	/* flag this line as updated */
 	
@@ -1340,7 +1397,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	/* Copy line pointer to physical screen for next frame */
 	vp2->v_linep = vp1->v_linep;
 	
-	return TRUE;
+	return true;
 #endif
 }
 #endif
@@ -1411,16 +1468,16 @@ static void modeline(struct window *wp)
 
 	/* display the modes */
 
-	firstm = TRUE;
+	firstm = true;
 	if ((bp->b_flag & BFTRUNC) != 0) {
-		firstm = FALSE;
+		firstm = false;
         safe_strcat(tline, "Truncated", sizeof(tline));
 	}
 	for (i = 0; i < NUMMODES; i++)	/* add in the mode flags */
 		if (wp->w_bufp->b_mode & (1 << i)) {
-			if (firstm != TRUE)
+			if (firstm != true)
                 safe_strcat(tline, " ", sizeof(tline));
-			firstm = FALSE;
+			firstm = false;
                 safe_strcat(tline, mode2name[i], sizeof(tline));
 		}
     safe_strcat(tline, ") ", sizeof(tline));
@@ -1499,7 +1556,7 @@ static void modeline(struct window *wp)
 	{			/* determine if top line, bottom line, or both are visible */
 		struct line *lp = wp->w_linep;
 		int rows = wp->w_ntrows;
-		char *msg = NULL;
+		char *msg = nullptr;
 
 		vtcol = n - 7;	/* strlen(" top ") plus a couple */
 		while (rows--) {
@@ -1560,7 +1617,7 @@ void upmode(void)
 	struct window *wp;
 
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		wp->w_flag |= WFMODE;
 		wp = wp->w_wndp;
 	}
@@ -1585,7 +1642,7 @@ void movecursor(int row, int col)
 		TTmove(row, col);
 	}
 	
-	pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+	pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
 }
 
 /*
@@ -1598,12 +1655,12 @@ void mlerase(void)
 	int i;
 
 	movecursor(term.t_nrow, 0);
-	if (discmd == FALSE)
+	if (discmd == false)
 		return;
 
 	TTforg(7);
 	TTbacg(0);
-	if (eolexist == TRUE)
+	if (eolexist == true)
 		TTeeol();
 	else {
 		for (i = 0; i < term.t_ncol - 1; i++)
@@ -1612,14 +1669,14 @@ void mlerase(void)
 		movecursor(term.t_nrow, 0);
 	}
 	TTflush();
-	mpresf = FALSE;
+	mpresf = false;
 }
 
 /*
  * Write a message into the message line. Keep track of the physical cursor
  * position. A small class of printf like format items is handled. Assumes the
  * stack grows down; this assumption is made by the "++" in the argument scan
- * loop. Set the "message line" flag TRUE.
+ * loop. Set the "message line" flag true.
  *
  * char *fmt;		format string for output
  * char *arg;		pointer to first argument to print
@@ -1630,7 +1687,7 @@ void mlwrite(const char *fmt, ...)
 	va_list ap;
 
 	/* if we are not currently echoing on the command line, abort this */
-	if (discmd == FALSE) {
+	if (discmd == false) {
 		movecursor(term.t_nrow, 0);
 		return;
 	}
@@ -1639,7 +1696,7 @@ void mlwrite(const char *fmt, ...)
 	TTbacg(0);
 
 	/* if we can not erase to end-of-line, do it manually */
-	if (eolexist == FALSE) {
+	if (eolexist == false) {
 		mlerase();
 		TTflush();
 	}
@@ -1686,15 +1743,15 @@ void mlwrite(const char *fmt, ...)
 	va_end(ap);
 
 	/* if we can, erase to the end of screen */
-	if (eolexist == TRUE)
+	if (eolexist == true)
 		TTeeol();
 	TTflush();
-	mpresf = TRUE;
+	mpresf = true;
 }
 
 /*
  * Force a string out to the message line regardless of the
- * current $discmd setting. This is needed when $debug is TRUE
+ * current $discmd setting. This is needed when $debug is true
  * and for the write-message and clear-message-line commands
  *
  * char *s;		string to force out
@@ -1704,7 +1761,7 @@ void mlforce(const char *s)
 	int oldcmd;	/* original command display flag */
 
 	oldcmd = discmd;	/* save the discmd value */
-	discmd = TRUE;		/* and turn display on */
+	discmd = true;		/* and turn display on */
 	mlwrite(s);		/* write the string out */
 	discmd = oldcmd;	/* and restore the original setting */
 }
@@ -1857,16 +1914,16 @@ static int newscreensize(int h, int w)
 	if (displaying) {
 		chg_width = w;
 		chg_height = h;
-		return FALSE;
+		return false;
 	}
 	chg_width = chg_height = 0;
 	if (h - 1 < term.t_mrow)
-		newsize(TRUE, h);
+		newsize(true, h);
 	if (w < term.t_mcol)
-		newwidth(TRUE, w);
+		newwidth(true, w);
 
-	update(TRUE);
-	return TRUE;
+	update(true);
+	return true;
 }
 
 #if MODERN
@@ -1904,8 +1961,6 @@ static void clean_statusline(struct window *wp)
 	// Bounds check for vscreen array access  
 	if (n >= term.t_mrow) {
 		// Debug info for boundary violation
-		fprintf(stderr, "[DEBUG] clean_statusline: n=%d, t_mrow=%d, toprow=%d, ntrows=%d\n", 
-		        n, term.t_mrow, wp->w_toprow, wp->w_ntrows);
 		return;  // Safety: don't access beyond vscreen bounds
 	}
 
@@ -1935,7 +1990,7 @@ static void clean_statusline(struct window *wp)
     // --- GIT STATUS INTEGRATION ---
     char git_info[64] = "";
     if (modeline_show_git) {
-        git_status_request_async(NULL); // non-blocking, throttled
+        git_status_request_async(nullptr); // non-blocking, throttled
         if (getenv("UEMACS_GIT_STATUS")) {
             git_status_get_cached(git_info, sizeof(git_info));
         }

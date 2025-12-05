@@ -9,19 +9,19 @@
 int test_command_a(int f, int n) {
     (void)f; (void)n;
     printf("Test Command A executed.\n");
-    return TRUE;
+    return true;
 }
 
 int test_command_b(int f, int n) {
     (void)f; (void)n;
     printf("Test Command B executed.\n");
-    return TRUE;
+    return true;
 }
 
 int test_command_c(int f, int n) {
     (void)f; (void)n;
     printf("Test Command C executed.\n");
-    return TRUE;
+    return true;
 }
 
 // Test function for keymap functionality

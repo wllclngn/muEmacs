@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <unistd.h>
 
 #include "estruct.h"
@@ -36,9 +37,9 @@ int fileread(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Read file: ", fname, NFILEN)) != TRUE)
+	if ((s = mlreply("Read file: ", fname, NFILEN)) != true)
 		return s;
-	return readin(fname, TRUE);
+	return readin(fname, true);
 }
 
 /*
@@ -57,11 +58,11 @@ int insfile(int f, int n)
 		return resterr();
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	if ((s = mlreply("Insert file: ", fname, NFILEN)) != TRUE)
+	if ((s = mlreply("Insert file: ", fname, NFILEN)) != true)
 		return s;
-	if ((s = ifile(fname)) != TRUE)
+	if ((s = ifile(fname)) != true)
 		return s;
-	return reposition(TRUE, -1);
+	return reposition(true, -1);
 }
 
 /*
@@ -80,9 +81,9 @@ int filefind(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Find file: ", fname, NFILEN)) != TRUE)
+	if ((s = mlreply("Find file: ", fname, NFILEN)) != true)
 		return s;
-	return getfile(fname, TRUE);
+	return getfile(fname, true);
 }
 
 int viewfile(int f, int n)
@@ -93,15 +94,15 @@ int viewfile(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("View file: ", fname, NFILEN)) != TRUE)
+	if ((s = mlreply("View file: ", fname, NFILEN)) != true)
 		return s;
-	s = getfile(fname, FALSE);
+	s = getfile(fname, false);
 	if (s) {		/* if we succeed, put it in view mode */
 		curwp->w_bufp->b_mode |= MDVIEW;
 
 		/* scan through and update mode lines of all windows */
 		wp = wheadp;
-		while (wp != NULL) {
+		while (wp != nullptr) {
 			wp->w_flag |= WFMODE;
 			wp = wp->w_wndp;
 		}
@@ -125,7 +126,7 @@ int getfile(const char *fname, int lockfl)
 	int s;
 	char bname[NBUFN];	/* buffer name to put file */
 
-	for (bp = bheadp; bp != NULL; bp = bp->b_bufp) {
+	for (bp = bheadp; bp != nullptr; bp = bp->b_bufp) {
 		if ((bp->b_flag & BFINVS) == 0
 		    && strcmp(bp->b_fname, fname) == 0) {
 			swbuffer(bp);
@@ -137,23 +138,23 @@ int getfile(const char *fname, int lockfl)
 			curwp->w_flag |= WFMODE | WFHARD;
 			cknewwindow();
 			mlwrite("(Old buffer)");
-			return TRUE;
+			return true;
 		}
 	}
 	makename(bname, fname);	/* New buffer name.     */
-	while ((bp = bfind(bname, FALSE, 0)) != NULL) {
+	while ((bp = bfind(bname, false, 0)) != nullptr) {
 		/* old buffer name conflict code */
 		s = mlreply("Buffer name: ", bname, NBUFN);
 		if (s == ABORT)	/* ^G to just quit      */
 			return s;
-		if (s == FALSE) {	/* CR to clobber it     */
+		if (s == false) {	/* CR to clobber it     */
 			makename(bname, fname);
 			break;
 		}
 	}
-	if (bp == NULL && (bp = bfind(bname, TRUE, 0)) == NULL) {
+	if (bp == nullptr && (bp = bfind(bname, true, 0)) == nullptr) {
 		REPORT_ERROR(ERR_BUFFER_INVALID, bname);
-		return FALSE;
+		return false;
 	}
 	if (--curbp->b_nwnd == 0) {	/* Undisplay.           */
 		curbp->b_dotp = curwp->w_dotp;
@@ -194,13 +195,13 @@ int readin(const char *fname, int lockfl)
 
 	/* Old CRYPT removed */
 	bp = curbp;		/* Cheap.               */
-	if ((s = bclear(bp)) != TRUE)	/* Might be old.        */
+	if ((s = bclear(bp)) != true)	/* Might be old.        */
 		return s;
 	bp->b_flag &= ~(BFINVS | BFCHG);
 	mystrscpy(bp->b_fname, fname, NFILEN);
 
 	/* let a user macro get hold of things...if he wants */
-	execute(META | SPEC | 'R', FALSE, 1);
+	execute(META | SPEC | 'R', false, 1);
 
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
 		goto out;
@@ -215,7 +216,7 @@ int readin(const char *fname, int lockfl)
 	nline = 0;
 	while ((s = ffgetline()) == FIOSUC) {
 		nbytes = strlen(fline);
-		if ((lp1 = lalloc(nbytes)) == NULL) {
+		if ((lp1 = lalloc(nbytes)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "Failed to allocate memory for file line");
 			s = FIOMEM;	/* Keep message on the  */
 			break;	/* display.             */
@@ -256,21 +257,21 @@ int readin(const char *fname, int lockfl)
 	}
 
       out:
-	for (wp = wheadp; wp != NULL; wp = wp->w_wndp) {
+	for (wp = wheadp; wp != nullptr; wp = wp->w_wndp) {
 		if (wp->w_bufp == curbp) {
 			wp->w_linep = lforw(curbp->b_linep);
 			wp->w_dotp = lforw(curbp->b_linep);
 			wp->w_doto = 0;
-			wp->w_markp = NULL;
+			wp->w_markp = nullptr;
 			wp->w_marko = 0;
 			wp->w_flag |= WFMODE | WFHARD;
 		}
 	}
 	if (s == FIOERR || s == FIOFNF) /* False if error.      */
-		return FALSE;
+		return false;
 	/* Successful read: mark current state as saved baseline */
 	undo_mark_saved(curbp);
-	return TRUE;
+	return true;
 }
 
 /*
@@ -307,7 +308,7 @@ void unqname(char *name)
 	char *sp;
 
 	/* check to see if it is in the buffer list */
-	while (bfind(name, 0, FALSE) != NULL) {
+	while (bfind(name, 0, false) != nullptr) {
 
 		/* go to the end of the name */
 		sp = name;
@@ -338,9 +339,9 @@ int filewrite(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Write file: ", fname, NFILEN)) != TRUE)
+	if ((s = mlreply("Write file: ", fname, NFILEN)) != true)
 		return s;
-	if ((s = writeout(fname)) == TRUE) {
+	if ((s = writeout(fname)) == true) {
 		safe_strcpy(curbp->b_fname, fname, NFILEN);
 		/* Mark saved baseline so undo-to-clean clears delta */
 		undo_mark_saved(curbp);
@@ -364,24 +365,24 @@ int filesave(int f, int n)
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
 	if ((curbp->b_flag & BFCHG) == 0)	/* Return, no changes.  */
-		return TRUE;
+		return true;
 	if (curbp->b_fname[0] == 0) {	/* Must have a name.    */
 		mlwrite("No file name");
-		return FALSE;
+		return false;
 	}
 
 	/* complain about truncated files */
 	if ((curbp->b_flag & BFTRUNC) != 0) {
-		if (mlyesno("Truncated file ... write it out") == FALSE) {
+		if (mlyesno("Truncated file ... write it out") == false) {
 			mlwrite("(Aborted)");
-			return FALSE;
+			return false;
 		}
 	}
 
-	if ((s = writeout(curbp->b_fname)) == TRUE) {
+	if ((s = writeout(curbp->b_fname)) == true) {
 		curbp->b_flag &= ~BFCHG;
 		wp = wheadp;	/* Update mode lines.   */
-		while (wp != NULL) {
+		while (wp != nullptr) {
 			if (wp->w_bufp == curbp)
 				wp->w_flag |= WFMODE;
 			wp = wp->w_wndp;
@@ -409,17 +410,17 @@ int writeout(const char *fn)
 		if (curbp->b_mode & MDVIEW)    /* don't allow this command if      */
 			return rdonly();    /* we are in read only mode     */
 		if ((curbp->b_flag & BFCHG) == 0)    /* Return, no changes.  */
-			return TRUE;
+			return true;
 		if (curbp->b_fname[0] == 0) {    /* Must have a name.    */
 			mlwrite("No file name");
-			return FALSE;
+			return false;
 		}
 
 		/* complain about truncated files */
 		if ((curbp->b_flag & BFTRUNC) != 0) {
-			if (mlyesno("Truncated file ... write it out") == FALSE) {
+			if (mlyesno("Truncated file ... write it out") == false) {
 				mlwrite("(Aborted)");
-				return FALSE;
+				return false;
 			}
 		}
 
@@ -427,13 +428,13 @@ int writeout(const char *fn)
 	#include "internal/plugin.h"
 		uemacs_invoke_hooks(UEMACS_EVENT_ON_SAVE);
 
-		if ((s = writeout(curbp->b_fname)) == TRUE) {
+		if ((s = writeout(curbp->b_fname)) == true) {
 			/* Mark saved baseline so undo-to-clean clears delta */
 			undo_mark_saved(curbp);
 		}
 		return s;
 	}
-	return TRUE;
+	return true;
 }
 
 /*
@@ -455,19 +456,19 @@ int filename(int f, int n)
 		return resterr();
 	if ((s = mlreply("Name: ", fname, NFILEN)) == ABORT)
 		return s;
-    if (s == FALSE) {
+    if (s == false) {
         safe_strcpy(curbp->b_fname, "", NFILEN);
     } else {
         safe_strcpy(curbp->b_fname, fname, NFILEN);
     }
 	wp = wheadp;		/* Update mode lines.   */
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_bufp == curbp)
 			wp->w_flag |= WFMODE;
 		wp = wp->w_wndp;
 	}
 	curbp->b_mode &= ~MDVIEW;	/* no longer read only mode */
-	return TRUE;
+	return true;
 }
 
 /*
@@ -494,7 +495,7 @@ int ifile(const char *fname)
 		goto out;
 	if (s == FIOFNF) {	/* File not found.      */
 		mlwrite("(No such file)");
-		return FALSE;
+		return false;
 	}
 	mlwrite("(Inserting file)");
 
@@ -508,7 +509,7 @@ int ifile(const char *fname)
 	nline = 0;
 	while ((s = ffgetline()) == FIOSUC) {
 		nbytes = strlen(fline);
-		if ((lp1 = lalloc(nbytes)) == NULL) {
+		if ((lp1 = lalloc(nbytes)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "Failed to allocate memory for file line");
 			s = FIOMEM;	/* Keep message on the  */
 			break;	/* display.             */
@@ -558,6 +559,6 @@ int ifile(const char *fname)
 	curbp->b_marko = curwp->w_marko;
 
 	if (s == FIOERR)	/* False if error.      */
-		return FALSE;
-	return TRUE;
+		return false;
+	return true;
 }

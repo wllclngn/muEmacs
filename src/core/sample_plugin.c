@@ -14,5 +14,5 @@ static void on_save_hook(uemacs_event_t event, void* context) {
 }
 
 void register_sample_plugin(void) {
-    uemacs_register_hook(UEMACS_EVENT_ON_SAVE, on_save_hook, NULL);
+    uemacs_register_hook(UEMACS_EVENT_ON_SAVE, on_save_hook, nullptr);
 }

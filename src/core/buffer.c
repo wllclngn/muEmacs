@@ -70,11 +70,11 @@ static void buffer_hash_remove(struct buffer *bp)
 
 /*
  * Find buffer by name using O(1) hash table lookup
- * Returns buffer pointer or NULL if not found
+ * Returns buffer pointer or nullptr if not found
  */
 static struct buffer *buffer_hash_find(const char *bname)
 {
-	if (!bname || !bname[0]) return NULL;
+	if (!bname || !bname[0]) return nullptr;
 	
 	uint32_t hash = buffer_name_hash(bname);
 	struct buffer_hash_entry *entry = buffer_hash_table[hash];
@@ -85,7 +85,7 @@ static struct buffer *buffer_hash_find(const char *bname)
 		}
 		entry = entry->next;
 	}
-	return NULL;
+	return nullptr;
 }
 
 /*
@@ -100,11 +100,11 @@ int usebuffer(int f, int n)
 	int s;
 	char bufn[NBUFN];
 
-	if ((s = mlreply("Use buffer: ", bufn, NBUFN)) != TRUE)
+	if ((s = mlreply("Use buffer: ", bufn, NBUFN)) != true)
 		return s;
-	if ((bp = bfind(bufn, TRUE, 0)) == NULL) {
+	if ((bp = bfind(bufn, true, 0)) == nullptr) {
 		REPORT_ERROR(ERR_BUFFER_INVALID, bufn);
-		return FALSE;
+		return false;
 	}
 	return swbuffer(bp);
 }
@@ -116,14 +116,14 @@ int usebuffer(int f, int n)
  */
 int nextbuffer(int f, int n)
 {
-	struct buffer *bp = NULL;  /* eligable buffer to switch to */
+	struct buffer *bp = nullptr;  /* eligable buffer to switch to */
 	struct buffer *bbp;        /* eligable buffer to switch to */
 
 	/* make sure the arg is legit */
-	if (f == FALSE)
+	if (f == false)
 		n = 1;
 	if (n < 1)
-		return FALSE;
+		return false;
 
 	bbp = curbp;
 	while (n-- > 0) {
@@ -131,15 +131,15 @@ int nextbuffer(int f, int n)
 		bp = bbp->b_bufp;
 
 		/* cycle through the buffers to find an eligable one */
-		while (bp == NULL || bp->b_flag & BFINVS) {
-			if (bp == NULL)
+		while (bp == nullptr || bp->b_flag & BFINVS) {
+			if (bp == nullptr)
 				bp = bheadp;
 			else
 				bp = bp->b_bufp;
 
 			/* don't get caught in an infinite loop! */
 			if (bp == bbp)
-				return FALSE;
+				return false;
 
 		}
 
@@ -163,12 +163,12 @@ int swbuffer(struct buffer *bp)
 		curbp->b_marko = curwp->w_marko;
 	}
 	curbp = bp;		/* Switch.              */
-	if (curbp->b_active != TRUE) {	/* buffer not active yet */
+	if (curbp->b_active != true) {	/* buffer not active yet */
 		/* read it in and activate it */
-		readin(curbp->b_fname, TRUE);
+		readin(curbp->b_fname, true);
 		curbp->b_dotp = lforw(curbp->b_linep);
 		curbp->b_doto = 0;
-		curbp->b_active = TRUE;
+		curbp->b_active = true;
 		curbp->b_mode |= gmode;	/* P.K. */
 	}
 	curwp->w_bufp = bp;
@@ -180,10 +180,10 @@ int swbuffer(struct buffer *bp)
 		curwp->w_markp = bp->b_markp;
 		curwp->w_marko = bp->b_marko;
 		cknewwindow();
-		return TRUE;
+		return true;
 	}
 	wp = wheadp;		/* Look for old.        */
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp != curwp && wp->w_bufp == bp) {
 			curwp->w_dotp = wp->w_dotp;
 			curwp->w_doto = wp->w_doto;
@@ -194,7 +194,7 @@ int swbuffer(struct buffer *bp)
 		wp = wp->w_wndp;
 	}
 	cknewwindow();
-	return TRUE;
+	return true;
 }
 
 /*
@@ -211,12 +211,12 @@ int killbuffer(int f, int n)
 	int s;
 	char bufn[NBUFN];
 
-	if ((s = mlreply("Kill buffer: ", bufn, NBUFN)) != TRUE)
+	if ((s = mlreply("Kill buffer: ", bufn, NBUFN)) != true)
 		return s;
-	if ((bp = bfind(bufn, FALSE, 0)) == NULL)	/* Easy if unknown.     */
-		return TRUE;
+	if ((bp = bfind(bufn, false, 0)) == nullptr)	/* Easy if unknown.     */
+		return true;
 	if (bp->b_flag & BFINVS)	/* Deal with special buffers        */
-		return TRUE;	/* by doing nothing.    */
+		return true;	/* by doing nothing.    */
 	return zotbuf(bp);
 }
 
@@ -231,9 +231,9 @@ int zotbuf(struct buffer *bp)
 
 	if (bp->b_nwnd != 0) {	/* Error if on screen.  */
 		REPORT_ERROR(ERR_BUFFER_INVALID, "Buffer is being displayed and cannot be killed");
-		return FALSE;
+		return false;
 	}
-	if ((s = bclear(bp)) != TRUE)	/* Blow text away.      */
+	if ((s = bclear(bp)) != true)	/* Blow text away.      */
 		return s;
 	
 	// Remove buffer from hash table for O(1) lookup
@@ -242,23 +242,23 @@ int zotbuf(struct buffer *bp)
 	// Free undo stack and all undo/redo history
 	if (bp->b_undo_stack) {
 		undo_stack_destroy(bp->b_undo_stack);
-		bp->b_undo_stack = NULL;
+		bp->b_undo_stack = nullptr;
 	}
 	
 	SAFE_FREE(bp->b_linep);	/* Release header line. */
-	bp1 = NULL;		/* Find the header.     */
+	bp1 = nullptr;		/* Find the header.     */
 	bp2 = bheadp;
 	while (bp2 != bp) {
 		bp1 = bp2;
 		bp2 = bp2->b_bufp;
 	}
 	bp2 = bp2->b_bufp;	/* Next one in chain.   */
-	if (bp1 == NULL)	/* Unlink it.           */
+	if (bp1 == nullptr)	/* Unlink it.           */
 		bheadp = bp2;
 	else
 		bp1->b_bufp = bp2;
 	SAFE_FREE(bp);	/* Release buffer block */
-	return TRUE;
+	return true;
 }
 
 /*
@@ -273,12 +273,12 @@ int namebuffer(int f, int n)
 
 	/* prompt for and get the new buffer name */
       ask:if (mlreply("Change buffer name to: ", bufn, NBUFN) !=
-	    TRUE)
-		return FALSE;
+	    true)
+		return false;
 
 	/* and check for duplicates using fast O(1) lookup */
 	bp = buffer_hash_find(bufn);
-	if (bp != NULL && bp != curbp) {
+	if (bp != nullptr && bp != curbp) {
 		goto ask;  /* Name already exists, try again */
 	}
 
@@ -288,7 +288,7 @@ int namebuffer(int f, int n)
 	buffer_hash_insert(curbp);
 	curwp->w_flag |= WFMODE;	/* make mode line replot */
 	mlerase();
-	return TRUE;
+	return true;
 }
 
 /*
@@ -307,12 +307,12 @@ int listbuffers(int f, int n)
 	struct buffer *bp;
 	int s;
 
-	if ((s = makelist(f)) != TRUE)
+	if ((s = makelist(f)) != true)
 		return s;
 	if (blistp->b_nwnd == 0) {	/* Not on screen yet.   */
-		if ((wp = wpopup()) == NULL) {
+		if ((wp = wpopup()) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "Failed to create popup window for buffer list");
-			return FALSE;
+			return false;
 		}
 		bp = wp->w_bufp;
 		if (--bp->b_nwnd == 0) {
@@ -325,26 +325,26 @@ int listbuffers(int f, int n)
 		++blistp->b_nwnd;
 	}
 	wp = wheadp;
-	while (wp != NULL) {
+	while (wp != nullptr) {
 		if (wp->w_bufp == blistp) {
 			wp->w_linep = lforw(blistp->b_linep);
 			wp->w_dotp = lforw(blistp->b_linep);
 			wp->w_doto = 0;
-			wp->w_markp = NULL;
+			wp->w_markp = nullptr;
 			wp->w_marko = 0;
 			wp->w_flag |= WFMODE | WFHARD;
 		}
 		wp = wp->w_wndp;
 	}
-	return TRUE;
+	return true;
 }
 
 /*
  * This routine rebuilds the
  * text in the special secret buffer
  * that holds the buffer list. It is called
- * by the list buffers command. Return TRUE
- * if everything works. Return FALSE if there
+ * by the list buffers command. Return true
+ * if everything works. Return false if there
  * is an error (if there is no memory). Iflag
  * indicates wether to list hidden buffers.
  *
@@ -365,13 +365,13 @@ int makelist(int iflag)
 	char line[MAXLINE];
 
 	blistp->b_flag &= ~BFCHG;	/* Don't complain!      */
-	if ((s = bclear(blistp)) != TRUE)	/* Blow old text away   */
+	if ((s = bclear(blistp)) != true)	/* Blow old text away   */
 		return s;
     // No need to touch blistp->b_fname here; avoid fortify warnings on zero-sized dest
-	if (addline("ACT MODES        Size Buffer        File") == FALSE
+	if (addline("ACT MODES        Size Buffer        File") == false
 	    || addline("--- -----        ---- ------        ----") ==
-	    FALSE)
-		return FALSE;
+	    false)
+		return false;
 	bp = bheadp;		/* For all buffers      */
 
 	/* build line to report global mode settings */
@@ -391,20 +391,20 @@ int makelist(int iflag)
         size_t rem = sizeof(line) - (size_t)(cp1 - &line[0]);
         if (rem > 0) safe_strcpy(cp1, "         Global Modes", rem);
     }
-	if (addline(line) == FALSE)
-		return FALSE;
+	if (addline(line) == false)
+		return false;
 
 	/* output the list of buffers */
-	while (bp != NULL) {
+	while (bp != nullptr) {
 		/* skip invisable buffers if iflag is false */
-		if (((bp->b_flag & BFINVS) != 0) && (iflag != TRUE)) {
+		if (((bp->b_flag & BFINVS) != 0) && (iflag != true)) {
 			bp = bp->b_bufp;
 			continue;
 		}
 		cp1 = &line[0];	/* Start at left edge   */
 
 		/* output status of ACTIVE flag (has the file been read in? */
-		if (bp->b_active == TRUE)	/* "@" if activated       */
+		if (bp->b_active == true)	/* "@" if activated       */
 			*cp1++ = '@';
 		else
 			*cp1++ = ' ';
@@ -455,11 +455,11 @@ int makelist(int iflag)
 			}
 		}
 		*cp1 = 0;	/* Add to the buffer.   */
-		if (addline(line) == FALSE)
-			return FALSE;
+		if (addline(line) == false)
+			return false;
 		bp = bp->b_bufp;
 	}
-	return TRUE;		/* All done             */
+	return true;		/* All done             */
 }
 
 
@@ -467,8 +467,8 @@ int makelist(int iflag)
  * The argument "text" points to
  * a string. Append this line to the
  * buffer list buffer. Handcraft the EOL
- * on the end. Return TRUE if it worked and
- * FALSE if you ran out of room.
+ * on the end. Return true if it worked and
+ * false if you ran out of room.
  */
 int addline(char *text)
 {
@@ -477,9 +477,9 @@ int addline(char *text)
 	int ntext;
 
 	ntext = strlen(text);
-	if ((lp = lalloc(ntext)) == NULL) {
+	if ((lp = lalloc(ntext)) == nullptr) {
 		REPORT_ERROR(ERR_MEMORY, "Failed to allocate line for buffer list");
-		return FALSE;
+		return false;
 	}
 	for (i = 0; i < ntext; ++i)
 		lputc(lp, i, text[i]);
@@ -489,17 +489,17 @@ int addline(char *text)
 	lp->l_fp = blistp->b_linep;
 	if (blistp->b_dotp == blistp->b_linep)	/* If "." is at the end */
 		blistp->b_dotp = lp;	/* move it to new line  */
-	return TRUE;
+	return true;
 }
 
 /*
  * Look through the list of
- * buffers. Return TRUE if there
+ * buffers. Return true if there
  * are any changed buffers. Buffers
  * that hold magic internal stuff are
  * not considered; who cares if the
  * list of buffer names is hacked.
- * Return FALSE if no buffers
+ * Return false if no buffers
  * have been changed.
  */
 int anycb(void)
@@ -507,20 +507,20 @@ int anycb(void)
 	struct buffer *bp;
 
 	bp = bheadp;
-	while (bp != NULL) {
+	while (bp != nullptr) {
 		if ((bp->b_flag & BFINVS) == 0
 		    && (bp->b_flag & BFCHG) != 0)
-			return TRUE;
+			return true;
 		bp = bp->b_bufp;
 	}
-	return FALSE;
+	return false;
 }
 
 /*
  * Find a buffer, by name. Return a pointer
  * to the buffer structure associated with it.
  * If the buffer is not found
- * and the "cflag" is TRUE, create it. The "bflag" is
+ * and the "cflag" is true, create it. The "bflag" is
  * the settings for the flags in in buffer.
  */
 struct buffer *bfind(char *bname, int cflag, int bflag)
@@ -531,27 +531,27 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 
 	// Use O(1) hash table lookup instead of O(n) linear search
 	bp = buffer_hash_find(bname);
-	if (bp != NULL) {
+	if (bp != nullptr) {
 		return bp;
 	}
-	if (cflag != FALSE) {
-		if ((bp = (struct buffer *)safe_alloc(sizeof(struct buffer), "buffer allocation", __FILE__, __LINE__)) == NULL) {
+	if (cflag != false) {
+		if ((bp = (struct buffer *)safe_alloc(sizeof(struct buffer), "buffer allocation", __FILE__, __LINE__)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "Failed to allocate buffer structure");
-			return NULL;
+			return nullptr;
 		}
-		if ((lp = lalloc(0)) == NULL) {
+		if ((lp = lalloc(0)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "Failed to allocate header line for buffer");
 			SAFE_FREE(bp);
-			return NULL;
+			return nullptr;
 		}
 		/* find the place in the list to insert this buffer */
-		if (bheadp == NULL || strcmp(bheadp->b_bname, bname) > 0) {
+		if (bheadp == nullptr || strcmp(bheadp->b_bname, bname) > 0) {
 			/* insert at the beginning */
 			bp->b_bufp = bheadp;
 			bheadp = bp;
 		} else {
 			sb = bheadp;
-			while (sb->b_bufp != NULL) {
+			while (sb->b_bufp != nullptr) {
 				if (strcmp(sb->b_bufp->b_bname, bname) > 0)
 					break;
 				sb = sb->b_bufp;
@@ -563,10 +563,10 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 		}
 
 		/* and set up the other buffer fields */
-		bp->b_active = TRUE;
+		bp->b_active = true;
 		bp->b_dotp = lp;
 		bp->b_doto = 0;
-		bp->b_markp = NULL;
+		bp->b_markp = nullptr;
 		bp->b_marko = 0;
 		bp->b_flag = bflag;
 		bp->b_mode = gmode;
@@ -587,7 +587,7 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 			REPORT_ERROR(ERR_MEMORY, "Failed to allocate undo stack for buffer");
             SAFE_FREE(bp->b_linep);
             SAFE_FREE(bp);
-            return NULL;
+            return nullptr;
 		}
 
 		// Set initial saved baseline to the current undo version (clean buffer)
@@ -610,7 +610,7 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
  * to save the user the grief of losing text. The
  * window chain is nearly always wrong if this gets
  * called; the caller must arrange for the updates
- * that are required. Return TRUE if everything
+ * that are required. Return true if everything
  * looks good.
  */
 int bclear(struct buffer *bp)
@@ -620,14 +620,14 @@ int bclear(struct buffer *bp)
 
 	if ((bp->b_flag & BFINVS) == 0	/* Not scratch buffer.  */
 	    && (bp->b_flag & BFCHG) != 0	/* Something changed    */
-	    && (s = mlyesno("Discard changes")) != TRUE)
+	    && (s = mlyesno("Discard changes")) != true)
 		return s;
 	bp->b_flag &= ~BFCHG;	/* Not changed          */
 	while ((lp = lforw(bp->b_linep)) != bp->b_linep)
 		lfree(lp);
 	bp->b_dotp = bp->b_linep;	/* Fix "."              */
 	bp->b_doto = 0;
-	bp->b_markp = NULL;	/* Invalidate "mark"    */
+	bp->b_markp = nullptr;	/* Invalidate "mark"    */
 	bp->b_marko = 0;
 	
 	// Reset cached statistics after clearing buffer
@@ -635,7 +635,7 @@ int bclear(struct buffer *bp)
 	atomic_store(&bp->b_byte_count, 0);  // No bytes
 	atomic_store(&bp->b_word_count, 0);  // No words
 	atomic_store(&bp->b_stats_dirty, false); // Clean
-	return TRUE;
+	return true;
 }
 
 /*
@@ -728,5 +728,5 @@ int unmark(int f, int n)
 {
 	curbp->b_flag &= ~BFCHG;
 	curwp->w_flag |= WFMODE;
-	return TRUE;
+	return true;
 }

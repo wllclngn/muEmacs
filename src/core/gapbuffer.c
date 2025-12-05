@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <assert.h>
 #include "estruct.h"
 #include "edef.h"
@@ -23,12 +24,12 @@ struct gap_buffer *gap_buffer_create(size_t initial_capacity) {
     
     struct gap_buffer *gb = safe_alloc(sizeof(struct gap_buffer), 
                                       "gap buffer", __FILE__, __LINE__);
-    if (!gb) return NULL;
+    if (!gb) return nullptr;
     
     gb->data = safe_alloc(initial_capacity, "gap buffer data", __FILE__, __LINE__);
     if (!gb->data) {
         SAFE_FREE(gb);
-        return NULL;
+        return nullptr;
     }
     
     gb->capacity = initial_capacity;
@@ -43,7 +44,7 @@ struct gap_buffer *gap_buffer_create(size_t initial_capacity) {
     if (!gb->line_idx.offsets) {
         SAFE_FREE(gb->data);
         SAFE_FREE(gb);
-        return NULL;
+        return nullptr;
     }
     gb->line_idx.count = 1;
     gb->line_idx.capacity = LINE_INDEX_CHUNK;

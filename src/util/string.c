@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <assert.h>
 
@@ -122,7 +123,7 @@ void safe_string_init(char* buffer, size_t size) {
 
 /* String trimming (removes leading/trailing whitespace) */
 char* safe_strtrim(char* str) {
-    if (!str) return NULL;
+    if (!str) return nullptr;
     
     /* Trim leading whitespace */
     while (isspace((unsigned char)*str)) {
@@ -146,7 +147,7 @@ char* safe_strtrim(char* str) {
 /* Safe string tokenization (thread-safe alternative to strtok) */
 char* safe_strtok(char* str, const char* delim, char** saveptr) {
     if (!delim || !saveptr) {
-        return NULL;
+        return nullptr;
     }
     
     if (str) {
@@ -156,14 +157,14 @@ char* safe_strtok(char* str, const char* delim, char** saveptr) {
     }
     
     if (!str || *str == '\0') {
-        return NULL;
+        return nullptr;
     }
     
     /* Skip leading delimiters */
     str += strspn(str, delim);
     if (*str == '\0') {
         *saveptr = str;
-        return NULL;
+        return nullptr;
     }
     
     /* Find end of token */

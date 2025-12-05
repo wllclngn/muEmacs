@@ -87,44 +87,20 @@ Optional tools
 - **Memory Safety**: Centralized allocation system with leak tracking and overflow protection
 - **Security Hardened**: TOCTOU-safe file locking, secure temp files with XDG support, thread-safe inotify
 
-Commands
+## Removed Features
+
+**Legacy platform code:**
+- All non-Linux platform support removed (MSDOS, VMS, Amiga, etc.)
+- Conditional compilation simplified - features are always enabled
+- Cleaner codebase with no preprocessor maze
+
+## Commands
+
+**Modern commands:**
 - `M-x set-column-width` (or `C-x W`) → prompts for a number, sets width and enables wrap
 - `M-x save-settings` → writes current values to `~/.config/muemacs/settings.json`
 - `M-x open-user-config` → opens settings.json for editing (creates file/directories if needed)
 - `M-x list-settings` → shows current values in the modeline/message area
-
-## Notes on Configuration
-
-- **XDG compliant**: User settings in `~/.config/muemacs/` (honors `$XDG_CONFIG_HOME`)
-- **No sudo required**: User config takes precedence over system defaults
-- **Simple by design**: Flat JSON, human-readable, easy to edit manually or via commands
-- **Fallback chain**: Missing user config → system defaults → in-tree defaults
-
-## Modern Additions (2025) — Minimal, No Bloat
-
-These updates focus on everyday usability while preserving the uEmacs ethos:
-- UTF‑8 everywhere: robust handling and terminal fidelity.
-- Safer defaults: stack protections, hardened flags; no runtime overhead.
-- Terminal niceties: bracketed paste, clean alt‑screen restore, truecolor support.
-- Packaging quality of life: optional AUR/DEB packaging; still a single binary at runtime.
-- Discoverability: desktop entry and man page; launch remains TUI, terminal‑native.
-- Practical alias: `muEmacs` symlink to avoid typing the micro symbol.
-
-## Non‑Goals
-
-- No GUI toolkit, servers, or background daemons.
-- No heavy plugin framework or embedded scripting runtime.
-- No telemetry, network fetches, or auto‑updates.
-- No sprawling config layers: defaults ship with the program; simple, predictable behavior.
-
-## Encryption Support
-
-**Modern encryption via external tools:**
-- Removed insecure DLH-POLY-86-B cipher (1986)
-- Replaced with shell-out to battle-tested crypto tools
-- Unix philosophy: compose tools, don't reinvent crypto
-
-**Available commands:**
 - `M-x encrypt-buffer` - Encrypt with GPG (AES-256)
 - `M-x decrypt-file` - Decrypt GPG file
 - `M-x encrypt-buffer-age` - Encrypt with age (modern alternative)
@@ -143,13 +119,6 @@ These updates focus on everyday usability while preserving the uEmacs ethos:
 - Filesystem encryption: LUKS, eCryptfs, fscrypt (transparent)
 
 **Tools required:** Install `gpg` (recommended), `age`, or `openssl`
-
-## Removed Features
-
-**Legacy platform code:**
-- All non-Linux platform support removed (MSDOS, VMS, Amiga, etc.)
-- Conditional compilation simplified - features are always enabled
-- Cleaner codebase with no preprocessor maze
 
 ## Key Bindings
 
@@ -383,6 +352,13 @@ All commands available via `Meta+X` followed by command name:
 ## User Settings (JSON)
 ## WARNING: The customization system is still a Work in Progress...
 
+## Notes on Configuration
+
+- **XDG compliant**: User settings in `~/.config/muemacs/` (honors `$XDG_CONFIG_HOME`)
+- **No sudo required**: User config takes precedence over system defaults
+- **Simple by design**: Flat JSON, human-readable, easy to edit manually or via commands
+- **Fallback chain**: Missing user config → system defaults → in-tree defaults
+
 ## Configuration Hierarchy
 
 μEmacs follows the XDG Base Directory specification for user configuration:
@@ -462,6 +438,20 @@ Example settings.json
 - **Memory Safety**: Centralized allocation with leak tracking and overflow protection
 - **Thread Safety**: Signal-safe operations throughout with generation counting
 - **Zero-Copy Operations**: Efficient string handling with gap buffer and UTF-8 awareness
+
+## Encryption Support
+**Modern encryption via external tools:**
+- Removed insecure DLH-POLY-86-B cipher (1986)
+- Replaced with shell-out to battle-tested crypto tools
+- Unix philosophy: compose tools, don't reinvent crypto
+
+These updates focus on everyday usability while preserving the uEmacs ethos:
+- UTF‑8 everywhere: robust handling and terminal fidelity.
+- Safer defaults: stack protections, hardened flags; no runtime overhead.
+- Terminal niceties: bracketed paste, clean alt‑screen restore, truecolor support.
+- Packaging quality of life: optional AUR/DEB packaging; still a single binary at runtime.
+- Discoverability: desktop entry and man page; launch remains TUI, terminal‑native.
+- Practical alias: `muEmacs` symlink to avoid typing the micro symbol.
 
 ## Testing
 

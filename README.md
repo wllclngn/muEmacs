@@ -502,7 +502,6 @@ EXTREME_STRESS=1 ./build/bin/full_integration_test
 Add to your startup file (e.g., `emacs.rc`):
 
   enable-help-prefix
-  # popular rebindings
   bind-to-key kill-region ^W
   bind-to-key yank ^Y
 
@@ -511,41 +510,41 @@ Writing at fixed columns (keyboard-only)
 - Exit and restore prior settings: `M-x exit-writing-mode`.
 - Persist defaults (always start wrapped at 80):
 
-  set-column-width 80
-  add-global-mode wrap
+  - set-column-width 80
+  - add-global-mode wrap
 
 Interactive tips
 - `M-x` is bound to both `Meta+X` and `Meta+x`.
 
 - Optional convenience (pick your own keys):
-  # bind-to-key writing-mode ^X W
-  # bind-to-key exit-writing-mode M-Q
+  - bind-to-key writing-mode ^X W
+  - bind-to-key exit-writing-mode M-Q
 
 Current line and column guide (visual helpers)
 - Highlight current line (reverse video row):
 
-  set highlightline 1
+  - set highlightline 1
 
 - Enable a vertical column ruler (reverse video on a specific column):
 
-  set ruler 1
-  set rulercol 80   # change to your preferred column
+  - set ruler 1
+  - set rulercol 80   # change to your preferred column
 
 - Disable either at any time:
 
-  set highlightline 0
-  set ruler 0
+  - set highlightline 0
+  - set ruler 0
 
 Styles (inherit terminal theme; no fixed colors)
 - Choose styles: 0 none, 1 underline (default), 2 bold, 3 dim
 
-  set hilinestyle 1   # underline the current line
-  set rulerstyle 1    # underline the ruler column
+  - set hilinestyle 1   # underline the current line
+  - set rulerstyle 1    # underline the ruler column
 
 - Example: dim current line, bold ruler:
 
-  set hilinestyle 3
-  set rulerstyle 2
+  - set hilinestyle 3
+  - set rulerstyle 2
 
 ## Terminal Fidelity
 

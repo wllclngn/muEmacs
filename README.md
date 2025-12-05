@@ -4,49 +4,67 @@
 
 ## Overview
 
-μEmacs is a minimalist text editor preserving Linus Torvalds' original keybindings and philosophy, now implemented with modern C23 standards. This version removes all legacy platform code, focusing exclusively on Linux performance and reliability.
+μEmacs v0.0.23 is a minimalist text editor preserving Linus Torvalds' original keybindings and philosophy, now implemented with modern C23 standards. This version removes all legacy platform code, focusing exclusively on Linux performance and reliability.
 
-## Philosophy
-
-This project follows the uEmacs spirit that Linus favors:
+This project follows the uEmacs spirit favored by Linus Torvalds:
 - Minimal surface area: small codebase, straightforward C, no frameworks.
-- Drop-in build: clone, compile fast, run — no toolchain gymnastics.
-- Few dependencies: only what’s native on Linux (ncursesw, a C compiler).
-- Text-first, TUI-only: no GUI layers; reliable terminal behavior is the goal.
+- Drop-in build: clone, compile fast, run.
+- Native on Linux utility.
+- Text-first, TUI-only: no GUI layers; reliable terminal behavior.
 - Predictable install: single binary plus data directory; no background services.
-- No bloat: every feature must earn its place by improving core editing.
 
-## History
+## Build & Installation
 
-μEmacs traces a straight line from MicroEMACS (1985) through Petri Kutvonen’s uEmacs/PK to Linus Torvalds’ tiny personal uEmacs. This project keeps that lineage intact — modernizing just enough for 2025 while preserving the small, fast, drop‑in editor Linus prefers.
+Quick install options
+- Auto-detect: `./scripts/system_install.sh`
+- Arch (AUR-style, local PKGBUILD): `./scripts/system_install.sh --mode aur`
+- Generic CMake install: `./scripts/system_install.sh --mode cmake --prefix /usr/local`
+- Debian/Ubuntu (.deb via CPack): `./scripts/system_install.sh --mode deb`
 
-μEmacs builds on a small, portable lineage:
-- MicroEMACS (1985): Dave G. Conroy; later Daniel M. Lawrence.
-- uEmacs/PK (1990s): Petri H. Kutvonen’s enhanced MicroEMACS 3.9e.
-- Linus Torvalds’ uEmacs: a simple, personal fork maintained as a tiny, fast editor.
+Manual build from source
+```bash
+# Clone and build
+git clone [repository] && cd muEmacs
+make distclean && make && sudo make install
 
-Why small matters (uEmacs/PK README): “Creeping featurism, growing size, and reduced portability made [later versions] less attractive… [uEmacs/PK] adds some new functionality and comfort but does not sacrifice the best things (small size and portability).”
+# Run from build tree
+./build/bin/μEmacs [FILE]
+```
+After system install
+- Commands: `μEmacs` and `muEmacs` (ASCII alias)
+- Data files: `/usr/share/muemacs`
+- Desktop entry: `/usr/share/applications/muEmacs.desktop`
+- Man page: `/usr/share/man/man1/muEmacs.1`
 
-References
-- uEmacs (Torvalds): https://github.com/torvalds/uemacs
-- uEmacs/PK README (history and goals): https://github.com/torvalds/uemacs/blob/master/README
-- MicroEMACS (overview): https://en.wikipedia.org/wiki/MicroEMACS
-
-## Usage
+# Usage
 
 Run the editor using either the Unicode or ASCII-friendly command:
 
 - `μEmacs [FILE ...]`
 - `muEmacs [FILE ...]`
+- 
+Install notes
+- Arch/AUR mode builds from the current working tree with a locally generated PKGBUILD and source tarball (no network fetches).
+- The installed binary is `/usr/bin/μEmacs` with an ASCII alias symlink `/usr/bin/muEmacs`.
+
+## Requirements
+
+- Linux (kernel 5.0+)
+- GCC 12+ or Clang 15+ with C23 support
+- ncursesw library
+- 4MB RAM minimum
+  
+Optional tools
+- xclip or xsel (recommended) for system clipboard integration
 
 ## Key Features
 
-**Core Implementation** (~28,500 lines of C23 code)
+**Core Implementation** (~30K lines of C23 code)
 - **C23 Implementation**: Modern atomic operations, thread safety, and memory management
 - **Linus's Original Keybindings**: Preserved exactly as designed, with undo/redo on available keys
 - **O(1) Keymap System**: Hash-based lookup for instant command execution
 - **Zero Legacy Code**: 500+ lines of obsolete platform code removed (MSDOS, VMS, etc.)
-- **Modern Encryption**: Shell-out to gpg/age/openssl (no homebrew crypto)
+- **Modern Encryption**: Shell-out to gpg/age/openssl
 
 **Advanced Text Editing**
 - **VSCode-Style Undo/Redo**: Atomic circular buffer with intelligent operation grouping, 400ms coalescing window, and 10,000 operation capacity
@@ -68,150 +86,6 @@ Run the editor using either the Unicode or ASCII-friendly command:
 - **Display Matrix**: Dirty region tracking with hardware-accelerated scrolling and selection highlighting
 - **Memory Safety**: Centralized allocation system with leak tracking and overflow protection
 - **Security Hardened**: TOCTOU-safe file locking, secure temp files with XDG support, thread-safe inotify
-
-## Recent Fixes (December 2025)
-
-**Phase 7: Line Highlighting Modernization (December 3, 2025)**
-- Fixed broken line highlighting that appeared on wrong line in split windows
-- Replaced 1990s-style row arithmetic with modern pointer-based line tracking
-- Added `v_linep` field to struct video for direct line pointer tracking
-- Pointer comparison (`vp->v_linep == curwp->w_dotp`) now correctly identifies cursor line
-- Works correctly in all scenarios: single window, split windows, scrolling
-- Matches Vim/Emacs cursorline behavior
-
-**Phase 8: Display System Consolidation (December 4, 2025)**
-- Code review revealed inconsistencies in display system
-- Verified v_linep field present in struct video
-- Confirmed pointer-based line tracking in all 5 locations
-- Standardized include paths across 7 files for consistency
-- All display functions properly track and copy v_linep
-- Include paths now follow CMakeLists.txt configuration
-## Build & Installation
-
-Quick install options
-- Auto-detect: `./scripts/system_install.sh`
-- Arch (AUR-style, local PKGBUILD): `./scripts/system_install.sh --mode aur`
-- Generic CMake install: `./scripts/system_install.sh --mode cmake --prefix /usr/local`
-- Debian/Ubuntu (.deb via CPack): `./scripts/system_install.sh --mode deb`
-
-Manual build from source
-```bash
-# Clone and build
-git clone [repository] && cd μEmacs
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-
-# Run from build tree
-./build/bin/μEmacs [FILE]
-```
-
-After system install
-- Commands: `μEmacs` and `muEmacs` (ASCII alias)
-- Data files: `/usr/share/muemacs`
-- Desktop entry: `/usr/share/applications/muEmacs.desktop`
-- Man page: `/usr/share/man/man1/muEmacs.1`
-
-Install notes
-- Arch/AUR mode builds from the current working tree with a locally generated PKGBUILD and source tarball (no network fetches).
-- The installed binary is `/usr/bin/μEmacs` with an ASCII alias symlink `/usr/bin/muEmacs`.
-
-### Why This Build Style
-- Fast and deterministic: standard CMake flow, native packages optional, no network at build.
-- Portable across distros: either `cmake --install` or a self-contained Arch/DEB package.
-- Avoids dependency creep: runtime is just a single binary linked with ncursesw.
-
-## Requirements
-
-- Linux (kernel 5.0+)
-- GCC 12+ or Clang 15+ with C23 support
-- ncursesw library
-- 4MB RAM minimum
-  
-Optional tools
-- xclip or xsel (recommended) for system clipboard integration
-
-## Testing
-
-Recommended for CI and non-interactive environments:
-
-```bash
-# Run the non-interactive integration suite (fast, no PTY/expect required)
-./build/bin/full_integration_test
-
-# Or via CMake target
-cmake --build . --target api_tests -j
-```
-
-Interactive Expect-based tests are optional and disabled by default. To run them on a real terminal:
-
-```bash
-# Enable interactive tests explicitly and run
-cmake --build . --target itests -j
-
-# Equivalent manual invocation
-UEMACS_INTERACTIVE=1 ENABLE_EXPECT=1 ./build/bin/full_integration_test
-```
-
-Notes
-- Interactive tests require a real TTY/PTY. In CI or headless shells they will be skipped automatically.
-- The helper `interactive_stress_test.exp` will auto-exit unless `UEMACS_INTERACTIVE=1` is set.
-
-Performance benchmarks
-
-```bash
-make bench
-```
-
-Heavy Stress Testing (non-interactive)
-
-```bash
-# Run extreme stress suite with large operation counts
-cmake --build . --target stress -j
-
-# Scale intensity (default factor=1). Example: 3x intensity with longer phase timeouts
-UEMACS_STRESS=3 UEMACS_PHASE_TIMEOUT=3600 ./build/bin/full_integration_test
-
-# Enable the separate ultra-stress suite only when desired
-EXTREME_STRESS=1 ./build/bin/full_integration_test
-```
-
-## User Settings (JSON)
-
-## Configuration Hierarchy
-
-μEmacs follows the XDG Base Directory specification for user configuration:
-
-**Priority order (highest to lowest):**
-1. **User config**: `~/.config/muemacs/settings.json` (or `$XDG_CONFIG_HOME/muemacs/settings.json`)
-2. **System defaults**: `/usr/share/muemacs/editor/settings.json`
-3. **In-tree fallback**: `config/editor/settings.json` (development builds)
-
-**Behavior:**
-- Settings are read from the first location found (user config takes precedence)
-- `M-x save-settings` writes to user config directory (creates it if needed)
-- No elevated permissions needed for user customization
-
-Example settings.json
-
-```json
-{
-  "column_width": 80,
-  "wrap": true,
-  "ruler": true,
-  "rulercol": 80,
-  "highlightline": true,
-  "hilinestyle": 4,
-  "rulerstyle": 4,
-  "highlight_intensity": 15,
-  "ruler_intensity": 10,
-  "intersection_intensity": 20,
-  "highlight_strategy": 0,
-  "modeline_show_git": true,
-  "modeline_show_stats": true,
-  "modeline_show_modes": true,
-  "modeline_show_position": true
-}
-```
 
 Commands
 - `M-x set-column-width` (or `C-x W`) → prompts for a number, sets width and enables wrap
@@ -506,6 +380,45 @@ All commands available via `Meta+X` followed by command name:
 - `update-screen` - Update display
 - `apropos` - Search command help
 
+## User Settings (JSON)
+## WARNING: The customization system is still a Work in Progress...
+
+## Configuration Hierarchy
+
+μEmacs follows the XDG Base Directory specification for user configuration:
+
+**Priority order (highest to lowest):**
+1. **User config**: `~/.config/muemacs/settings.json` (or `$XDG_CONFIG_HOME/muemacs/settings.json`)
+2. **System defaults**: `/usr/share/muemacs/editor/settings.json`
+3. **In-tree fallback**: `config/editor/settings.json` (development builds)
+
+**Behavior:**
+- Settings are read from the first location found (user config takes precedence)
+- `M-x save-settings` writes to user config directory (creates it if needed)
+- No elevated permissions needed for user customization
+
+Example settings.json
+
+```json
+{
+  "column_width": 80,
+  "wrap": true,
+  "ruler": true,
+  "rulercol": 80,
+  "highlightline": true,
+  "hilinestyle": 4,
+  "rulerstyle": 4,
+  "highlight_intensity": 15,
+  "ruler_intensity": 10,
+  "intersection_intensity": 20,
+  "highlight_strategy": 0,
+  "modeline_show_git": true,
+  "modeline_show_stats": true,
+  "modeline_show_modes": true,
+  "modeline_show_position": true
+}
+```
+
 ## Modern Features Deep Dive
 
 ### Undo/Redo System
@@ -550,19 +463,49 @@ All commands available via `Meta+X` followed by command name:
 - **Thread Safety**: Signal-safe operations throughout with generation counting
 - **Zero-Copy Operations**: Efficient string handling with gap buffer and UTF-8 awareness
 
+## Testing
 
-## Credits
+Recommended for CI and non-interactive environments:
 
-- Original μEmacs: Linus Torvalds
-- C23 Modernization: Will Clingan
-- Version 0.0.23: Homage to C23 standard implementation
+```bash
+# Run the non-interactive integration suite (fast, no PTY/expect required)
+./build/bin/full_integration_test
 
-## License
+# Or via CMake target
+cmake --build . --target api_tests -j
+```
+Interactive Expect-based tests are optional and disabled by default. To run them on a real terminal:
 
-Original μEmacs license terms apply. Modernization preserves Linus Torvalds' vision and minimalist philosophy.
-See also
-- docs/TERMINAL_COMPATIBILITY.md
-- docs/UPGRADING.md
+```bash
+# Enable interactive tests explicitly and run
+cmake --build . --target itests -j
+
+# Equivalent manual invocation
+UEMACS_INTERACTIVE=1 ENABLE_EXPECT=1 ./build/bin/full_integration_test
+```
+
+Notes
+- Interactive tests require a real TTY/PTY. In CI or headless shells they will be skipped automatically.
+- The helper `interactive_stress_test.exp` will auto-exit unless `UEMACS_INTERACTIVE=1` is set.
+
+Performance benchmarks
+
+```bash
+make bench
+```
+
+Heavy Stress Testing (non-interactive)
+
+```bash
+# Run extreme stress suite with large operation counts
+cmake --build . --target stress -j
+
+# Scale intensity (default factor=1). Example: 3x intensity with longer phase timeouts
+UEMACS_STRESS=3 UEMACS_PHASE_TIMEOUT=3600 ./build/bin/full_integration_test
+
+# Enable the separate ultra-stress suite only when desired
+EXTREME_STRESS=1 ./build/bin/full_integration_test
+```
 
 ## Config Snippets
 
@@ -674,3 +617,32 @@ Styles (inherit terminal theme; no fixed colors)
 
   set highlightline 0
   set ruler 0
+
+## History
+
+μEmacs traces a straight line from MicroEMACS (1985) through Petri Kutvonen’s uEmacs/PK to Linus Torvalds’ tiny personal uEmacs. This project keeps that lineage intact — modernizing just enough for 2025 while preserving the small, fast, drop‑in editor Linus prefers.
+
+μEmacs builds on a small, portable lineage:
+- MicroEMACS (1985): Dave G. Conroy; later Daniel M. Lawrence.
+- uEmacs/PK (1990s): Petri H. Kutvonen’s enhanced MicroEMACS 3.9e.
+- Linus Torvalds’ uEmacs: a simple, personal fork maintained as a tiny, fast editor.
+
+Why small matters (uEmacs/PK README): “Creeping featurism, growing size, and reduced portability made [later versions] less attractive… [uEmacs/PK] adds some new functionality and comfort but does not sacrifice the best things (small size and portability).”
+
+References
+- uEmacs (Torvalds): https://github.com/torvalds/uemacs
+- uEmacs/PK README (history and goals): https://github.com/torvalds/uemacs/blob/master/README
+- MicroEMACS (overview): https://en.wikipedia.org/wiki/MicroEMACS
+
+## Credits
+
+- Original μEmacs: Linus Torvalds
+- C23 Modernization: Will Clingan
+- Version 0.0.23: Homage to C23 standard implementation
+
+## License
+
+Original μEmacs license terms apply. Modernization preserves Linus Torvalds' vision and minimalist philosophy.
+See also
+- docs/TERMINAL_COMPATIBILITY.md
+- docs/UPGRADING.md

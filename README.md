@@ -349,6 +349,64 @@ All commands available via `Meta+X` followed by command name:
 - `update-screen` - Update display
 - `apropos` - Search command help
 
+## Modern Features Deep Dive
+
+### Undo/Redo System
+- **Intelligent Grouping**: Auto-coalesces character insertions within 400ms windows and word boundaries
+- **Atomic Operations**: Thread-safe with `_Atomic` operations and circular buffer architecture
+- **Dynamic Capacity**: Starts at 100 operations, expands to 10,000 with 2x growth factor
+- **Version Tracking**: Each operation has unique 64-bit timestamp and version ID
+- **Memory Safety**: Prevents recursive undo/redo, tracks resize failures
+
+### Status Line Customization
+- **Real-time Git Integration**: Shows branch name and dirty state (`*`) with background pthread updates
+- **Atomic Buffer Statistics**: Line count, column position, file size with lock-free updates
+- **Mode Indicators**: Configurable display of buffer modes (CMODE, VIEW, etc.)
+- **Terminal-Adaptive**: Automatically adjusts for terminal width and capabilities
+- **Performance Metrics**: Optional display of search timing and memory usage
+- **Clean/Dirty Baseline**: Accurate saved-state delta; undo back to saved state clears the dirty indicator
+
+### Advanced Search
+- **Boyer-Moore-Horspool**: Sublinear O(n/m) average case with 256-character bad-character table
+- **Thompson NFA**: Zero-heap regex engine supporting `.`, `[char-class]`, `^$` anchors, `*` closure
+- **Hybrid Selection**: Automatically chooses optimal algorithm based on pattern complexity
+- **Case-Insensitive**: Optional case folding for both search engines
+- **Cross-line Patterns**: Multi-line regex support with proper anchoring
+
+### Terminal Integration
+- **Bracketed Paste**: Automatic detection of `ESC[200~...ESC[201~` sequences with state machine parser
+- **Alt Screen Restore**: Leaves the terminal history intact after exit, avoiding the “split screen” artifact
+- **24-bit Color**: RGB color support `\033[38;2;r;g;b`m for modern terminals
+- **Cursor Shapes**: Block, underline, bar cursor styles with capability detection
+- **GPU Terminal Optimization**: Designed for Alacritty, Kitty, WezTerm performance
+- **Unicode Locale**: Automatic UTF-8 locale initialization and validation
+
+### Plugin System
+- **Event Hooks**: Register callbacks for editor events (file load, buffer switch, etc.)
+- **Multiple Handlers**: Up to 8 hooks per event type with context passing
+- **Dynamic Registration**: Runtime hook registration/deregistration
+- **Type Safety**: Enumerated event types with validation
+
+### C23 Architecture
+- **Atomic Data Structures**: Kill ring, undo stack, terminal state, display matrix
+- **Memory Safety**: Centralized allocation with leak tracking and overflow protection
+- **Thread Safety**: Signal-safe operations throughout with generation counting
+- **Zero-Copy Operations**: Efficient string handling with gap buffer and UTF-8 awareness
+
+### Encryption Support
+- **Modern encryption via external tools:**
+- Removed insecure DLH-POLY-86-B cipher (1986)
+- Replaced with shell-out to battle-tested crypto tools
+- Unix philosophy: compose tools, don't reinvent crypto
+
+### These updates focus on everyday usability while preserving the uEmacs ethos:
+- UTF‑8 everywhere: robust handling and terminal fidelity.
+- Safer defaults: stack protections, hardened flags; no runtime overhead.
+- Terminal niceties: bracketed paste, clean alt‑screen restore, truecolor support.
+- Packaging quality of life: optional AUR/DEB packaging; still a single binary at runtime.
+- Discoverability: desktop entry and man page; launch remains TUI, terminal‑native.
+- Practical alias: `muEmacs` symlink to avoid typing the micro symbol.
+
 ## User Settings (JSON)
 ## WARNING: The customization system is still a Work in Progress...
 
@@ -394,64 +452,6 @@ Example settings.json
   "modeline_show_position": true
 }
 ```
-
-## Modern Features Deep Dive
-
-### Undo/Redo System
-- **Intelligent Grouping**: Auto-coalesces character insertions within 400ms windows and word boundaries
-- **Atomic Operations**: Thread-safe with `_Atomic` operations and circular buffer architecture
-- **Dynamic Capacity**: Starts at 100 operations, expands to 10,000 with 2x growth factor
-- **Version Tracking**: Each operation has unique 64-bit timestamp and version ID
-- **Memory Safety**: Prevents recursive undo/redo, tracks resize failures
-
-### Status Line Customization
-- **Real-time Git Integration**: Shows branch name and dirty state (`*`) with background pthread updates
-- **Atomic Buffer Statistics**: Line count, column position, file size with lock-free updates
-- **Mode Indicators**: Configurable display of buffer modes (CMODE, VIEW, etc.)
-- **Terminal-Adaptive**: Automatically adjusts for terminal width and capabilities
-- **Performance Metrics**: Optional display of search timing and memory usage
-- **Clean/Dirty Baseline**: Accurate saved-state delta; undo back to saved state clears the dirty indicator
-
-### Advanced Search
-- **Boyer-Moore-Horspool**: Sublinear O(n/m) average case with 256-character bad-character table
-- **Thompson NFA**: Zero-heap regex engine supporting `.`, `[char-class]`, `^$` anchors, `*` closure
-- **Hybrid Selection**: Automatically chooses optimal algorithm based on pattern complexity
-- **Case-Insensitive**: Optional case folding for both search engines
-- **Cross-line Patterns**: Multi-line regex support with proper anchoring
-
-### Terminal Integration
-- **Bracketed Paste**: Automatic detection of `ESC[200~...ESC[201~` sequences with state machine parser
-- **Alt Screen Restore**: Leaves the terminal history intact after exit, avoiding the “split screen” artifact
-- **24-bit Color**: RGB color support `\033[38;2;r;g;b`m for modern terminals
-- **Cursor Shapes**: Block, underline, bar cursor styles with capability detection
-- **GPU Terminal Optimization**: Designed for Alacritty, Kitty, WezTerm performance
-- **Unicode Locale**: Automatic UTF-8 locale initialization and validation
-
-### Plugin System
-- **Event Hooks**: Register callbacks for editor events (file load, buffer switch, etc.)
-- **Multiple Handlers**: Up to 8 hooks per event type with context passing
-- **Dynamic Registration**: Runtime hook registration/deregistration
-- **Type Safety**: Enumerated event types with validation
-
-### C23 Architecture
-- **Atomic Data Structures**: Kill ring, undo stack, terminal state, display matrix
-- **Memory Safety**: Centralized allocation with leak tracking and overflow protection
-- **Thread Safety**: Signal-safe operations throughout with generation counting
-- **Zero-Copy Operations**: Efficient string handling with gap buffer and UTF-8 awareness
-
-## Encryption Support
-**Modern encryption via external tools:**
-- Removed insecure DLH-POLY-86-B cipher (1986)
-- Replaced with shell-out to battle-tested crypto tools
-- Unix philosophy: compose tools, don't reinvent crypto
-
-These updates focus on everyday usability while preserving the uEmacs ethos:
-- UTF‑8 everywhere: robust handling and terminal fidelity.
-- Safer defaults: stack protections, hardened flags; no runtime overhead.
-- Terminal niceties: bracketed paste, clean alt‑screen restore, truecolor support.
-- Packaging quality of life: optional AUR/DEB packaging; still a single binary at runtime.
-- Discoverability: desktop entry and man page; launch remains TUI, terminal‑native.
-- Practical alias: `muEmacs` symlink to avoid typing the micro symbol.
 
 ## Testing
 

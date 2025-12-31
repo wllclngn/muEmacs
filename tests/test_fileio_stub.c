@@ -30,7 +30,7 @@ int test_large_file_handling(void) {
             chunk[chunk_size - 1] = '\n';
             
             if (fwrite(chunk, 1, chunk_size, f) != chunk_size) {
-                printf("[%sFAIL%s] Failed to write chunk %zu\n", RED, RESET, i);
+                LOG_ERRORF("[FAIL] Failed to write chunk %zu", i);
                 ok = 0;
                 break;
             }
@@ -42,21 +42,19 @@ int test_large_file_handling(void) {
         if (stat(test_file, &st) == 0) {
             size_t expected_size = total_chunks * chunk_size;
             if ((size_t)st.st_size == expected_size) {
-                printf("[%sSUCCESS%s] Large file created successfully: %zu bytes\n", 
-                       GREEN, RESET, (size_t)st.st_size);
+                LOG_INFOF("[SUCCESS] Large file created successfully: %zu bytes", (size_t)st.st_size);
             } else {
-                printf("[%sFAIL%s] File size mismatch: expected %zu, got %ld\n", 
-                       RED, RESET, expected_size, (long)st.st_size);
+                LOG_ERRORF("[FAIL] File size mismatch: expected %zu, got %ld", expected_size, (long)st.st_size);
                 ok = 0;
             }
         } else {
-            printf("[%sFAIL%s] Cannot stat large file\n", RED, RESET);
+            LOG_ERROR("[FAIL] Cannot stat large file");
             ok = 0;
         }
         
         unlink(test_file);
     } else {
-        printf("[%sFAIL%s] Cannot create large test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create large test file");
         ok = 0;
     }
     
@@ -92,27 +90,27 @@ int test_file_encoding_detection(void) {
             
             // Check for BOM
             if (read_bytes >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF) {
-                printf("[%sSUCCESS%s] UTF-8 BOM detected correctly\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] UTF-8 BOM detected correctly");
             } else {
-                printf("[%sFAIL%s] UTF-8 BOM not found\n", RED, RESET);
+                LOG_ERROR("[FAIL] UTF-8 BOM not found");
                 ok = 0;
             }
             
             // Basic UTF-8 validation (simplified)
             if (read_bytes > 10) {
-                printf("[%sSUCCESS%s] UTF-8 file handling basic verification\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] UTF-8 file handling basic verification");
             } else {
-                printf("[%sFAIL%s] UTF-8 file too short\n", RED, RESET);
+                LOG_ERROR("[FAIL] UTF-8 file too short");
                 ok = 0;
             }
         } else {
-            printf("[%sFAIL%s] Cannot read UTF-8 test file\n", RED, RESET);
+            LOG_ERROR("[FAIL] Cannot read UTF-8 test file");
             ok = 0;
         }
         
         unlink(utf8_file);
     } else {
-        printf("[%sFAIL%s] Cannot create UTF-8 test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create UTF-8 test file");
         ok = 0;
     }
     
@@ -134,15 +132,15 @@ int test_file_locking_mechanisms(void) {
         
         // Basic access test
         if (access(lock_file, R_OK) == 0) {
-            printf("[%sSUCCESS%s] File locking basic access verified\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] File locking basic access verified");
         } else {
-            printf("[%sFAIL%s] File access test failed\n", RED, RESET);
+            LOG_ERROR("[FAIL] File access test failed");
             ok = 0;
         }
         
         unlink(lock_file);
     } else {
-        printf("[%sFAIL%s] Cannot create lock test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create lock test file");
         ok = 0;
     }
     
@@ -156,9 +154,9 @@ int test_encryption_decryption_robustness(void) {
     
     // Basic encryption availability test
     #ifdef CRYPT
-    printf("[%sSUCCESS%s] Encryption support compiled in\n", GREEN, RESET);
+    LOG_INFO("[SUCCESS] Encryption support compiled in");
     #else
-    printf("[%sINFO%s] Encryption not compiled - skipping detailed tests\n", BLUE, RESET);
+    LOG_INFO("[INFO] Encryption not compiled - skipping detailed tests");
     #endif
     
     PHASE_END("FILEIO: CRYPT", ok);
@@ -192,13 +190,13 @@ int test_backup_recovery_systems(void) {
             
             // Verify backup exists
             if (access(backup_file, R_OK) == 0) {
-                printf("[%sSUCCESS%s] Backup creation verified\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Backup creation verified");
             } else {
-                printf("[%sFAIL%s] Backup file not accessible\n", RED, RESET);
+                LOG_ERROR("[FAIL] Backup file not accessible");
                 ok = 0;
             }
         } else {
-            printf("[%sFAIL%s] Cannot create backup copy\n", RED, RESET);
+            LOG_ERROR("[FAIL] Cannot create backup copy");
             ok = 0;
             if (src) fclose(src);
             if (dst) fclose(dst);
@@ -207,7 +205,7 @@ int test_backup_recovery_systems(void) {
         unlink(orig_file);
         unlink(backup_file);
     } else {
-        printf("[%sFAIL%s] Cannot create original file for backup test\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create original file for backup test");
         ok = 0;
     }
     
@@ -231,17 +229,17 @@ int test_permission_handling(void) {
         if (chmod(perm_file, S_IRUSR | S_IRGRP | S_IROTH) == 0) {
             // Test read access
             if (access(perm_file, R_OK) == 0) {
-                printf("[%sSUCCESS%s] Read-only permission handling verified\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Read-only permission handling verified");
             } else {
-                printf("[%sFAIL%s] Cannot read read-only file\n", RED, RESET);
+                LOG_ERROR("[FAIL] Cannot read read-only file");
                 ok = 0;
             }
             
             // Test write access (should fail)
             if (access(perm_file, W_OK) != 0) {
-                printf("[%sSUCCESS%s] Write protection verified\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Write protection verified");
             } else {
-                printf("[%sFAIL%s] Write access not properly restricted\n", RED, RESET);
+                LOG_ERROR("[FAIL] Write access not properly restricted");
                 ok = 0;
             }
         }
@@ -250,7 +248,7 @@ int test_permission_handling(void) {
         chmod(perm_file, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         unlink(perm_file);
     } else {
-        printf("[%sFAIL%s] Cannot create permission test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create permission test file");
         ok = 0;
     }
     
@@ -274,15 +272,15 @@ int test_network_file_operations(void) {
         usleep(10000); // 10ms delay
         
         if (access(net_file, R_OK) == 0) {
-            printf("[%sSUCCESS%s] Network file operation simulation verified\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Network file operation simulation verified");
         } else {
-            printf("[%sFAIL%s] Network simulation failed\n", RED, RESET);
+            LOG_ERROR("[FAIL] Network simulation failed");
             ok = 0;
         }
         
         unlink(net_file);
     } else {
-        printf("[%sFAIL%s] Cannot create network simulation file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create network simulation file");
         ok = 0;
     }
     

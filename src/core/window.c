@@ -14,6 +14,7 @@
 #include "line.h"
 #include "wrapper.h"
 #include "memory.h"
+#include "util/logger.h"
 
 /*
  * Reposition dot in the current window to line "n". If the argument is
@@ -56,7 +57,7 @@ int redraw(int f, int n)
  * int f, n;		default flag and numeric argument
  *
  */
-int nextwind(int f, int n)
+int window_next(int f, int n)
 {
 	struct window *wp;
 	int nwindows;	/* total number of windows */
@@ -82,14 +83,13 @@ int nextwind(int f, int n)
 			while (--n)
 				wp = wp->w_wndp;
 		} else {
-			mlwrite("Window number out of range");
+			mlwrite("WINDOW NUMBER OUT OF RANGE");
 			return false;
 		}
 	} else if ((wp = curwp->w_wndp) == nullptr)
 		wp = wheadp;
 	curwp = wp;
 	curbp = wp->w_bufp;
-	cknewwindow();
 	upmode();
 	return true;
 }
@@ -99,14 +99,14 @@ int nextwind(int f, int n)
  * current window. There arn't any errors, although the command does not do a
  * lot if there is 1 window.
  */
-int prevwind(int f, int n)
+int window_prev(int f, int n)
 {
 	struct window *wp1;
 	struct window *wp2;
 
 	/* if we have an argument, we mean the nth window from the bottom */
 	if (f)
-		return nextwind(f, -n);
+		return window_next(f, -n);
 
 	wp1 = wheadp;
 	wp2 = curwp;
@@ -119,7 +119,6 @@ int prevwind(int f, int n)
 
 	curwp = wp1;
 	curbp = wp1->w_bufp;
-	cknewwindow();
 	upmode();
 	return true;
 }
@@ -131,9 +130,9 @@ int prevwind(int f, int n)
  * a new dot. We share the code by having "move down" just be an interface to
  * "move up". Magic. Bound to "C-X C-N".
  */
-int mvdnwind(int f, int n)
+int window_move_down(int f, int n)
 {
-	return mvupwind(f, -n);
+	return window_move_up(f, -n);
 }
 
 /*
@@ -143,7 +142,7 @@ int mvdnwind(int f, int n)
  * (this command does not really move "."; it moves the frame). Bound to
  * "C-X C-P".
  */
-int mvupwind(int f, int n)
+int window_move_up(int f, int n)
 {
 	struct line *lp;
 	int i;
@@ -187,7 +186,7 @@ int mvupwind(int f, int n)
  * the buffer structures right if the distruction of a window makes a buffer
  * become undisplayed.
  */
-int onlywind(int f, int n)
+int window_only(int f, int n)
 {
 	struct window *wp;
 	struct line *lp;
@@ -222,7 +221,8 @@ int onlywind(int f, int n)
 		lp = lback(lp);
 	}
 	curwp->w_toprow = 0;
-	curwp->w_ntrows = term.t_nrow - 1;
+	/* Use effective_nrow for overlay support - shrinks when overlay active */
+	curwp->w_ntrows = effective_nrow > 0 ? effective_nrow : term.t_nrow - 1;
 	curwp->w_linep = lp;
 	curwp->w_flag |= WFMODE | WFHARD;
 	return true;
@@ -234,7 +234,7 @@ int onlywind(int f, int n)
  *
  * int f, n;	arguments are ignored for this command
  */
-int delwind(int f, int n)
+int window_delete(int f, int n)
 {
 	struct window *wp;	/* window to recieve deleted space */
 	struct window *lwp;	/* ptr window before curwp */
@@ -242,7 +242,7 @@ int delwind(int f, int n)
 
 	/* if there is only one window, don't delete it */
 	if (wheadp->w_wndp == nullptr) {
-		mlwrite("Can not delete this window");
+		mlwrite("CANNOT DELETE THIS WINDOW");
 		return false;
 	}
 
@@ -298,7 +298,6 @@ int delwind(int f, int n)
 	curwp = wp;
 	wp->w_flag |= WFHARD;
 	curbp = wp->w_bufp;
-	cknewwindow();
 	upmode();
 	return true;
 }
@@ -312,7 +311,7 @@ int delwind(int f, int n)
  *
  * int f, n;	default flag and numeric argument
  */
-int splitwind(int f, int n)
+int window_split(int f, int n)
 {
 	struct window *wp;
 	struct line *lp;
@@ -322,8 +321,15 @@ int splitwind(int f, int n)
 	struct window *wp1;
 	struct window *wp2;
 
+	LOG_INFOF("Window: window_split() called f=%d n=%d curwp->w_ntrows=%d",
+	          f, n, curwp->w_ntrows);
+
+	if (!curwp->w_linep) {
+		mlwrite("WINDOW NOT INITIALIZED");
+		return false;
+	}
 	if (curwp->w_ntrows < 3) {
-		mlwrite("Cannot split a %d line window", curwp->w_ntrows);
+		mlwrite("CANNOT SPLIT A %d LINE WINDOW", curwp->w_ntrows);
 		return false;
 	}
 	wp = (struct window *)safe_alloc(sizeof(struct window), "split window", __FILE__, __LINE__);
@@ -338,29 +344,53 @@ int splitwind(int f, int n)
 	wp->w_marko = curwp->w_marko;
 	wp->w_flag = 0;
 	wp->w_force = 0;
-#if	COLOR
+	wp->w_wrap_col = curwp->w_wrap_col;  /* Inherit wrap setting */
 	/* set the colors of the new window */
 	wp->w_fcolor = gfcolor;
 	wp->w_bcolor = gbcolor;
-#endif
 	ntru = (curwp->w_ntrows - 1) / 2;	/* Upper size           */
 	ntrl = (curwp->w_ntrows - 1) - ntru;	/* Lower size           */
 	lp = curwp->w_linep;
 	ntrd = 0;
-	while (lp != curwp->w_dotp) {
+	/* Safety limit to prevent infinite loop if w_dotp not in line chain */
+	int safety = 100000;
+	while (lp != curwp->w_dotp && --safety > 0) {
 		++ntrd;
 		lp = lforw(lp);
+		/* Detect self-referential line (circular list of one) */
+		if (lp == curwp->w_linep && lp != curwp->w_dotp) {
+			/* w_dotp not reachable from w_linep - corrupt state */
+			mlwrite("Window state corrupt: w_dotp unreachable");
+			safe_free((void **)&wp);
+			return false;
+		}
+	}
+	if (safety <= 0) {
+		mlwrite("Window state corrupt: too many lines");
+		safe_free((void **)&wp);
+		return false;
 	}
 	lp = curwp->w_linep;
+	if (!lp) {
+		mlwrite("Window line pointer NULL - cannot split");
+		safe_free((void **)&wp);
+		return false;
+	}
 	if (((f == false) && (ntrd <= ntru)) || ((f == true) && (n == 1))) {
 		/* Old is upper window. */
-		if (ntrd == ntru)	/* Hit mode line.       */
-			lp = lforw(lp);
+		if (ntrd == ntru) {	/* Hit mode line.       */
+			struct line *next = lforw(lp);
+			if (next && next != curbp->b_linep)
+				lp = next;
+		}
 		curwp->w_ntrows = ntru;
 		wp->w_wndp = curwp->w_wndp;
 		curwp->w_wndp = wp;
 		wp->w_toprow = curwp->w_toprow + ntru + 1;
 		wp->w_ntrows = ntrl;
+		/* Both windows start at same line */
+		curwp->w_linep = lp;
+		wp->w_linep = lp;
 	} else {		/* Old is lower window  */
 		wp1 = nullptr;
 		wp2 = wheadp;
@@ -375,14 +405,25 @@ int splitwind(int f, int n)
 		wp->w_wndp = curwp;
 		wp->w_toprow = curwp->w_toprow;
 		wp->w_ntrows = ntru;
+		/* New upper window starts at original position */
+		wp->w_linep = lp;
 		++ntru;		/* Mode line.           */
 		curwp->w_toprow += ntru;
 		curwp->w_ntrows = ntrl;
-		while (ntru--)
+		/* Advance to find where lower window starts */
+		while (ntru--) {
+			if (!lp || lp == curbp->b_linep) {
+				/* Not enough lines in buffer - use what we have */
+				break;
+			}
 			lp = lforw(lp);
+		}
+		/* Ensure we have a valid line pointer */
+		if (!lp || lp == curbp->b_linep) {
+			lp = lforw(curbp->b_linep);
+		}
+		curwp->w_linep = lp;
 	}
-	curwp->w_linep = lp;	/* Adjust the top lines */
-	wp->w_linep = lp;	/* if necessary.        */
 	curwp->w_flag |= WFMODE | WFHARD;
 	wp->w_flag |= WFMODE | WFHARD;
 	return true;
@@ -394,49 +435,66 @@ int splitwind(int f, int n)
  * all the hard work. You don't just set "force reframe" because dot would
  * move. Bound to "C-X Z".
  */
-int enlargewind(int f, int n)
+int window_enlarge(int f, int n)
 {
 	struct window *adjwp;
 	struct line *lp;
 	int i;
 
 	if (n < 0)
-		return shrinkwind(f, -n);
+		return window_shrink(f, -n);
 	if (wheadp->w_wndp == nullptr) {
-		mlwrite("Only one window");
+		mlwrite("ONLY ONE WINDOW");
 		return false;
 	}
 	if ((adjwp = curwp->w_wndp) == nullptr) {
 		adjwp = wheadp;
-		while (adjwp->w_wndp != curwp)
+		while (adjwp && adjwp->w_wndp != curwp)
 			adjwp = adjwp->w_wndp;
+		if (!adjwp) {
+			mlwrite("WINDOW LIST CORRUPT");
+			return false;
+		}
 	}
 	if (adjwp->w_ntrows <= n) {
-		mlwrite("Impossible change");
+		mlwrite("IMPOSSIBLE CHANGE");
 		return false;
 	}
 	if (curwp->w_wndp == adjwp) {	/* Shrink below.        */
 		lp = adjwp->w_linep;
-		for (i = 0; i < n && lp != adjwp->w_bufp->b_linep; ++i)
+		if (!lp) {
+			mlwrite("WINDOW LINE POINTER NULL");
+			return false;
+		}
+		for (i = 0; i < n && lp != adjwp->w_bufp->b_linep; ++i) {
+			if (!lp) {
+				mlwrite("LINE LIST CORRUPT (NULL)");
+				return false;
+			}
 			lp = lforw(lp);
+		}
 		adjwp->w_linep = lp;
 		adjwp->w_toprow += n;
 	} else {		/* Shrink above.        */
 		lp = curwp->w_linep;
-		for (i = 0; i < n && lback(lp) != curbp->b_linep; ++i)
+		if (!lp) {
+			mlwrite("WINDOW LINE POINTER NULL");
+			return false;
+		}
+		for (i = 0; i < n && lback(lp) != curbp->b_linep; ++i) {
+			if (!lback(lp)) {
+				mlwrite("LINE LIST CORRUPT (NULL BACK)");
+				return false;
+			}
 			lp = lback(lp);
+		}
 		curwp->w_linep = lp;
 		curwp->w_toprow -= n;
 	}
 	curwp->w_ntrows += n;
 	adjwp->w_ntrows -= n;
-#if	SCROLLCODE
-	curwp->w_flag |= WFMODE | WFHARD | WFINS;
-	adjwp->w_flag |= WFMODE | WFHARD | WFKILLS;
-#else
 	curwp->w_flag |= WFMODE | WFHARD;
 	adjwp->w_flag |= WFMODE | WFHARD;
-#endif
 	return true;
 }
 
@@ -445,50 +503,67 @@ int enlargewind(int f, int n)
  * window descriptions. Ask the redisplay to do all the hard work. Bound to
  * "C-X C-Z".
  */
-int shrinkwind(int f, int n)
+int window_shrink(int f, int n)
 {
 	struct window *adjwp;
 	struct line *lp;
 	int i;
 
 	if (n < 0)
-		return enlargewind(f, -n);
+		return window_enlarge(f, -n);
 	if (wheadp->w_wndp == nullptr) {
-		mlwrite("Only one window");
+		mlwrite("ONLY ONE WINDOW");
 		return false;
 	}
 	if ((adjwp = curwp->w_wndp) == nullptr) {
 		adjwp = wheadp;
-		while (adjwp->w_wndp != curwp)
+		while (adjwp && adjwp->w_wndp != curwp)
 			adjwp = adjwp->w_wndp;
+		if (!adjwp) {
+			mlwrite("WINDOW LIST CORRUPT");
+			return false;
+		}
 	}
 	if (curwp->w_ntrows <= n) {
-		mlwrite("Impossible change");
+		mlwrite("IMPOSSIBLE CHANGE");
 		return false;
 	}
 	if (curwp->w_wndp == adjwp) {	/* Grow below.          */
 		lp = adjwp->w_linep;
+		if (!lp) {
+			mlwrite("WINDOW LINE POINTER NULL");
+			return false;
+		}
 		for (i = 0; i < n && lback(lp) != adjwp->w_bufp->b_linep;
-		     ++i)
+		     ++i) {
+			if (!lback(lp)) {
+				mlwrite("LINE LIST CORRUPT (NULL BACK)");
+				return false;
+			}
 			lp = lback(lp);
+		}
 		adjwp->w_linep = lp;
 		adjwp->w_toprow -= n;
 	} else {		/* Grow above.          */
 		lp = curwp->w_linep;
-		for (i = 0; i < n && lp != curbp->b_linep; ++i)
+		if (!lp) {
+			mlwrite("WINDOW LINE POINTER NULL");
+			return false;
+		}
+		for (i = 0; i < n && lp != curbp->b_linep; ++i) {
+			if (!lp) {
+				mlwrite("LINE LIST CORRUPT (NULL)");
+				return false;
+			}
 			lp = lforw(lp);
+		}
 		curwp->w_linep = lp;
 		curwp->w_toprow += n;
 	}
 	curwp->w_ntrows -= n;
 	adjwp->w_ntrows += n;
-#if	SCROLLCODE
-	curwp->w_flag |= WFMODE | WFHARD | WFKILLS;
-	adjwp->w_flag |= WFMODE | WFHARD | WFINS;
-#else
 	curwp->w_flag |= WFMODE | WFHARD;
 	adjwp->w_flag |= WFMODE | WFHARD;
-#endif
 	return true;
 }
 
@@ -512,7 +587,7 @@ int resize(int f, int n)
 	if (clines == n)
 		return true;
 
-	return enlargewind(true, n - clines);
+	return window_enlarge(true, n - clines);
 }
 
 /*
@@ -525,7 +600,7 @@ struct window *wpopup(void)
 	struct window *wp;
 
 	if (wheadp->w_wndp == nullptr	/* Only 1 window        */
-	    && splitwind(false, 0) == false)	/* and it won't split   */
+	    && window_split(false, 0) == false)	/* and it won't split   */
 		return nullptr;
 	wp = wheadp;		/* Find window to use   */
 	while (wp != nullptr && wp == curwp)
@@ -533,29 +608,29 @@ struct window *wpopup(void)
 	return wp;
 }
 
-int scrnextup(int f, int n)
+int scroll_other_up(int f, int n)
 {				/* scroll the next window up (back) a page */
-	nextwind(false, 1);
-	backpage(f, n);
-	prevwind(false, 1);
+	window_next(false, 1);
+	move_page_up(f, n);
+	window_prev(false, 1);
 	return true;
 }
 
-int scrnextdw(int f, int n)
+int scroll_other_down(int f, int n)
 {				/* scroll the next window down (forward) a page */
-	nextwind(false, 1);
-	forwpage(f, n);
-	prevwind(false, 1);
+	window_next(false, 1);
+	move_page_down(f, n);
+	window_prev(false, 1);
 	return true;
 }
 
-int savewnd(int f, int n)
+int window_save(int f, int n)
 {				/* save ptr to current window */
 	swindow = curwp;
 	return true;
 }
 
-int restwnd(int f, int n)
+int window_restore(int f, int n)
 {				/* restore the saved screen */
 	struct window *wp;
 
@@ -571,7 +646,7 @@ int restwnd(int f, int n)
 		wp = wp->w_wndp;
 	}
 
-	mlwrite("(No such window exists)");
+	mlwrite("[NO SUCH WINDOW EXISTS]");
 	return false;
 }
 
@@ -594,7 +669,7 @@ int newsize(int f, int n)
 
 	/* make sure it's in range */
 	if (n < 3 || n > term.t_mrow + 1) {
-		mlwrite("%%Screen size out of range");
+		mlwrite("SCREEN SIZE OUT OF RANGE");
 		return false;
 	}
 
@@ -679,7 +754,7 @@ int newwidth(int f, int n)
 
 	/* make sure it's in range */
 	if (n < 10 || n > term.t_mcol) {
-		mlwrite("%%Screen width out of range");
+		mlwrite("SCREEN WIDTH OUT OF RANGE");
 		return false;
 	}
 
@@ -699,7 +774,7 @@ int newwidth(int f, int n)
 	return true;
 }
 
-int getwpos(void)
+int window_get_position(void)
 {				/* get screen offset of current line in current window */
 	int sline;	/* screen line from top of window */
 	struct line *lp;	/* scannile line pointer */
@@ -716,7 +791,185 @@ int getwpos(void)
 	return sline;
 }
 
-void cknewwindow(void)
-{
-	execute(META | SPEC | 'X', false, 1);
+/* ==========================================================================
+ * Terminal Overlay Support
+ * ========================================================================== */
+
+/*
+ * adjust_windows_for_overlay - Shrink windows to make room for terminal overlay
+ *
+ * Called when terminal overlay is opened. Reduces effective_nrow and shrinks
+ * the bottom window(s) accordingly.
+ *
+ * @param overlay_height  Number of rows needed for overlay
+ */
+void adjust_windows_for_overlay(int overlay_height) {
+	struct window *wp;
+	int new_effective;
+	int total_shrink;
+
+	LOG_DEBUGF("adjust_windows_for_overlay: overlay_height=%d", overlay_height);
+
+	/* Calculate new effective rows (leave room for at least 1 status line) */
+	new_effective = term.t_nrow - 1 - overlay_height;
+	if (new_effective < 3) {
+		new_effective = 3;  /* Minimum usable window height */
+	}
+
+	LOG_DEBUGF("adjust_windows_for_overlay: effective_nrow %d -> %d",
+	           effective_nrow, new_effective);
+
+	/* Initialize effective_nrow if needed */
+	if (effective_nrow <= 0) {
+		effective_nrow = term.t_nrow - 1;
+	}
+
+	/* Calculate how much to shrink */
+	total_shrink = effective_nrow - new_effective;
+	if (total_shrink <= 0) {
+		LOG_DEBUG("adjust_windows_for_overlay: No shrink needed");
+		return;
+	}
+
+	/* Find the bottom-most window */
+	wp = wheadp;
+	while (wp && wp->w_wndp != nullptr) {
+		wp = wp->w_wndp;
+	}
+
+	if (!wp) {
+		LOG_ERROR("adjust_windows_for_overlay: No windows found");
+		return;
+	}
+
+	/* Shrink bottom window */
+	LOG_DEBUGF("adjust_windows_for_overlay: Shrinking bottom window '%s' by %d rows",
+	           wp->w_bufp ? wp->w_bufp->b_bname : "(null)", total_shrink);
+
+	if (wp->w_ntrows > total_shrink) {
+		wp->w_ntrows -= total_shrink;
+	} else {
+		/* Window too small - set to minimum */
+		wp->w_ntrows = 1;
+	}
+
+	wp->w_flag |= WFMODE | WFHARD;
+
+	/* Update effective_nrow */
+	effective_nrow = new_effective;
+
+	LOG_DEBUGF("adjust_windows_for_overlay: Done, effective_nrow=%d", effective_nrow);
+}
+
+/*
+ * restore_windows_from_overlay - Restore windows after terminal overlay closes
+ *
+ * Called when terminal overlay is closed. Restores effective_nrow and expands
+ * the bottom window to reclaim space.
+ */
+void restore_windows_from_overlay(void) {
+	struct window *wp;
+	int old_effective;
+	int expand_amount;
+
+	LOG_DEBUG("restore_windows_from_overlay: Restoring windows");
+
+	/* Calculate how much space to reclaim */
+	old_effective = effective_nrow;
+	effective_nrow = term.t_nrow - 1;  /* Full screen minus message line */
+
+	expand_amount = effective_nrow - old_effective;
+	if (expand_amount <= 0) {
+		LOG_DEBUG("restore_windows_from_overlay: No expansion needed");
+		return;
+	}
+
+	LOG_DEBUGF("restore_windows_from_overlay: Expanding by %d rows", expand_amount);
+
+	/* Find the bottom-most window */
+	wp = wheadp;
+	while (wp && wp->w_wndp != nullptr) {
+		wp = wp->w_wndp;
+	}
+
+	if (!wp) {
+		LOG_ERROR("restore_windows_from_overlay: No windows found");
+		return;
+	}
+
+	/* Expand bottom window */
+	LOG_DEBUGF("restore_windows_from_overlay: Expanding bottom window '%s' by %d rows",
+	           wp->w_bufp ? wp->w_bufp->b_bname : "(null)", expand_amount);
+
+	wp->w_ntrows += expand_amount;
+	wp->w_flag |= WFMODE | WFHARD;
+
+	LOG_DEBUGF("restore_windows_from_overlay: Done, effective_nrow=%d", effective_nrow);
+}
+
+/*
+ * terminal_split_bottom - Create a terminal window at the bottom of the screen
+ *
+ * height_rows: Number of rows for the terminal window
+ *
+ * Returns: Pointer to the new window, or NULL on failure
+ *
+ * This function finds the bottom-most window, shrinks it, and creates
+ * a new window below it for the terminal.
+ */
+struct window *terminal_split_bottom(int height_rows) {
+	struct window *bottom_wp;
+	struct window *term_wp;
+
+	LOG_DEBUGF("terminal_split_bottom: Creating terminal window with %d rows", height_rows);
+
+	/* Find bottom-most window */
+	bottom_wp = wheadp;
+	while (bottom_wp && bottom_wp->w_wndp != nullptr) {
+		bottom_wp = bottom_wp->w_wndp;
+	}
+
+	if (!bottom_wp) {
+		LOG_ERROR("terminal_split_bottom: No windows found");
+		return nullptr;
+	}
+
+	/* Check minimum size - need room for both windows */
+	if (bottom_wp->w_ntrows < height_rows + 3) {
+		LOG_ERRORF("terminal_split_bottom: Bottom window too small (%d rows, need %d)",
+		           bottom_wp->w_ntrows, height_rows + 3);
+		mlwrite("Window too small for terminal");
+		return nullptr;
+	}
+
+	/* Allocate new window structure */
+	term_wp = (struct window *)safe_alloc(sizeof(struct window), "terminal window", __FILE__, __LINE__);
+	if (!term_wp) {
+		LOG_ERROR("terminal_split_bottom: Cannot allocate window");
+		return nullptr;
+	}
+
+	/* Initialize terminal window */
+	memset(term_wp, 0, sizeof(struct window));
+	term_wp->w_wndp = nullptr;  /* Terminal is at the end of the list */
+	term_wp->w_bufp = nullptr;  /* Will be set by caller */
+	term_wp->w_toprow = bottom_wp->w_toprow + bottom_wp->w_ntrows - height_rows;
+	term_wp->w_ntrows = height_rows;
+	term_wp->w_flag = WFMODE | WFHARD;
+	term_wp->w_force = 0;
+	term_wp->w_fcolor = gfcolor;
+	term_wp->w_bcolor = gbcolor;
+	term_wp->w_wrap_col = 0;
+
+	/* Shrink bottom window to make room (minus 1 for mode line) */
+	bottom_wp->w_ntrows -= (height_rows + 1);
+	bottom_wp->w_wndp = term_wp;
+	bottom_wp->w_flag |= WFMODE | WFHARD;
+
+	LOG_DEBUGF("terminal_split_bottom: Created terminal window at row %d, %d rows",
+	           term_wp->w_toprow, term_wp->w_ntrows);
+	LOG_DEBUGF("terminal_split_bottom: Bottom window now has %d rows",
+	           bottom_wp->w_ntrows);
+
+	return term_wp;
 }

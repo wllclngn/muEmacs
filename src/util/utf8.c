@@ -6,9 +6,9 @@
  * Convert a UTF-8 sequence to its unicode value, and return the length of
  * the sequence in bytes.
  *
- * NOTE! Invalid UTF-8 will be converted to a one-byte sequence, so you can
- * either use it as-is (ie as Latin1) or you can check for invalid UTF-8
- * by checking for a length of 1 and a result > 127.
+ * NOTE! Invalid UTF-8 will be converted to a one-byte sequence. Check for
+ * invalid UTF-8 by testing for length == 1 && result > 127. The raw byte
+ * is returned as-is (not interpreted as any specific encoding).
  *
  * NOTE 2! This does *not* verify things like minimality. So overlong forms
  * are happily accepted and decoded, as are the various "invalid values".
@@ -24,8 +24,9 @@ unsigned utf8_to_unicode(const char *line, unsigned index, unsigned len, unicode
 	len -= index;
 
 	/*
-	 * 0xxxxxxx is valid utf8
-	 * 10xxxxxx is invalid UTF-8, we assume it is Latin1
+	 * 0xxxxxxx is valid utf8 (ASCII)
+	 * 10xxxxxx is invalid UTF-8 start (continuation byte without lead)
+	 * Return as raw byte - caller handles interpretation
 	 */
 	if (c < 0xc0)
 		return 1;

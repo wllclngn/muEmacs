@@ -31,7 +31,7 @@ int test_large_file_handling(void) {
     
     FILE* f = fopen(large_file, "wb");
     if (!f) {
-        printf("[%sFAIL%s] Cannot create large test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create large test file");
         return 0;
     }
     
@@ -47,7 +47,7 @@ int test_large_file_handling(void) {
         pattern[1023] = '\n';
         
         if (fwrite(pattern, 1, 1024, f) != 1024) {
-            printf("[%sFAIL%s] Failed to write large file chunk %zu\n", RED, RESET, i);
+            LOG_ERRORF("[FAIL] Failed to write large file chunk %zu", i);
             fclose(f);
             unlink(large_file);
             return 0;
@@ -58,14 +58,14 @@ int test_large_file_handling(void) {
     // Test 1: Large file creation and basic access verification
     struct stat st;
     if (stat(large_file, &st) != 0 || st.st_size != (off_t)total_size) {
-        printf("[%sFAIL%s] Large file size mismatch\n", RED, RESET);
+        LOG_ERROR("[FAIL] Large file size mismatch");
         unlink(large_file);
         return 0;
     }
     
     // Test 2: Sequential access performance using standard FILE I/O
     struct timeval start, end;
-    gettimeofday(&start, nullptr);
+    gettimeofday(&start, NULL);
     
     FILE* test_fp = fopen(large_file, "r");
     if (test_fp) {
@@ -79,7 +79,7 @@ int test_large_file_handling(void) {
                 char expected[32];
                 snprintf(expected, sizeof(expected), "CHUNK_%06d_", lines_read);
                 if (strncmp(line_buf, expected, strlen(expected)) != 0) {
-                    printf("[%sFAIL%s] Pattern mismatch in line %d\n", RED, RESET, lines_read);
+                    LOG_ERRORF("[FAIL] Pattern mismatch in line %d", lines_read);
                     ok = 0;
                     break;
                 }
@@ -89,24 +89,23 @@ int test_large_file_handling(void) {
         
         fclose(test_fp);
         
-        gettimeofday(&end, nullptr);
+        gettimeofday(&end, NULL);
         double read_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
         
         // Should read 100 lines from large file reasonably quickly
         if (read_time > 2.0) { // More than 2 seconds is too slow for 100 lines
-            printf("[%sFAIL%s] Large file access too slow: %.2fs\n", RED, RESET, read_time);
+            LOG_ERRORF("[FAIL] Large file access too slow: %.2fs", read_time);
             ok = 0;
         }
         
         if (lines_read != 100) {
-            printf("[%sFAIL%s] Expected 100 lines, got %d\n", RED, RESET, lines_read);
+            LOG_ERRORF("[FAIL] Expected 100 lines, got %d", lines_read);
             ok = 0;
         } else {
-            printf("[%sSUCCESS%s] Large file streaming read completed in %.2fs\n", 
-                   GREEN, RESET, read_time);
+            LOG_INFOF("[SUCCESS] Large file streaming read completed in %.2fs", read_time);
         }
     } else {
-        printf("[%sFAIL%s] Failed to open large file for reading\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to open large file for reading");
         ok = 0;
     }
     
@@ -119,17 +118,17 @@ int test_large_file_handling(void) {
             if (fgets(mid_buf, sizeof(mid_buf), seek_fp)) {
                 // Should read valid pattern from middle
                 if (strlen(mid_buf) < 100) { // Pattern should be substantial
-                    printf("[%sFAIL%s] Middle-file seek returned short line\n", RED, RESET);
+                    LOG_ERROR("[FAIL] Middle-file seek returned short line");
                     ok = 0;
                 } else {
-                    printf("[%sSUCCESS%s] Random file access working correctly\n", GREEN, RESET);
+                    LOG_INFO("[SUCCESS] Random file access working correctly");
                 }
             } else {
-                printf("[%sFAIL%s] Failed to read from middle of large file\n", RED, RESET);
+                LOG_ERROR("[FAIL] Failed to read from middle of large file");
                 ok = 0;
             }
         } else {
-            printf("[%sFAIL%s] Failed to seek in large file\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to seek in large file");
             ok = 0;
         }
         fclose(seek_fp);
@@ -159,24 +158,24 @@ int test_file_encoding_detection(void) {
         fclose(f);
         
         // Test BOM detection
-        if (fopen((char*)utf8_bom_file, "r") != nullptr) {
+        if (fopen((char*)utf8_bom_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
-            if (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
+            if (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
                 // Content should not include BOM bytes
                 if ((unsigned char)line_buf[0] == 0xEF) {
-                    printf("[%sFAIL%s] UTF-8 BOM not properly stripped\n", RED, RESET);
+                    LOG_ERROR("[FAIL] UTF-8 BOM not properly stripped");
                     ok = 0;
                 }
                 // Should contain Greek letters
                 if (!strstr(line_buf, "Greek")) {
-                    printf("[%sFAIL%s] UTF-8 content not properly decoded\n", RED, RESET);
+                    LOG_ERROR("[FAIL] UTF-8 content not properly decoded");
                     ok = 0;
                 }
             }
             fclose();
         } else {
-            printf("[%sFAIL%s] Failed to open UTF-8 BOM file\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to open UTF-8 BOM file");
             ok = 0;
         }
         unlink(utf8_bom_file);
@@ -192,23 +191,23 @@ int test_file_encoding_detection(void) {
         fprintf(f, "Another Unix\n");
         fclose(f);
         
-        if (fopen((char*)mixed_endings_file, "r") != nullptr) {
+        if (fopen((char*)mixed_endings_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
             int line_count = 0;
             
-            while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
+            while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
                 line_count++;
                 // Verify line endings are normalized
                 size_t len = strlen(line_buf);
                 if (len > 0 && (line_buf[len-1] == '\r' || line_buf[len-1] == '\n')) {
-                    printf("[%sFAIL%s] Line ending not properly normalized in line %d\n", RED, RESET, line_count);
+                    LOG_ERRORF("[FAIL] Line ending not properly normalized in line %d", line_count);
                     ok = 0;
                 }
             }
             
             if (line_count != 4) {
-                printf("[%sFAIL%s] Expected 4 lines, got %d (mixed endings)\n", RED, RESET, line_count);
+                LOG_ERRORF("[FAIL] Expected 4 lines, got %d (mixed endings)", line_count);
                 ok = 0;
             }
             
@@ -228,18 +227,18 @@ int test_file_encoding_detection(void) {
         fprintf(f, "\nValid end\n");
         fclose(f);
         
-        if (fopen((char*)invalid_utf8_file, "r") != nullptr) {
+        if (fopen((char*)invalid_utf8_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
             int valid_lines = 0;
             
-            while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
+            while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
                 if (strlen(line_buf) > 0) valid_lines++;
             }
             
             // Should handle invalid sequences gracefully (replacement chars or skip)
             if (valid_lines < 2) { // At least "Valid start" and "Valid end"
-                printf("[%sFAIL%s] Invalid UTF-8 caused excessive data loss\n", RED, RESET);
+                LOG_ERROR("[FAIL] Invalid UTF-8 caused excessive data loss");
                 ok = 0;
             }
             
@@ -281,7 +280,7 @@ int test_file_locking_mechanisms(void) {
                     struct flock lock2 = lock1;
                     
                     if (fcntl(fd2, F_SETLK, &lock2) == 0) {
-                        printf("[%sFAIL%s] Second lock acquired when first was active\n", RED, RESET);
+                        LOG_ERROR("[FAIL] Second lock acquired when first was active");
                         ok = 0;
                     }
                     // This is expected to fail
@@ -293,7 +292,7 @@ int test_file_locking_mechanisms(void) {
                 lock1.l_type = F_UNLCK;
                 fcntl(fd1, F_SETLK, &lock1);
             } else {
-                printf("[%sFAIL%s] Failed to acquire file lock\n", RED, RESET);
+                LOG_ERROR("[FAIL] Failed to acquire file lock");
                 ok = 0;
             }
             
@@ -334,7 +333,7 @@ int test_file_locking_mechanisms(void) {
             usleep(100000); // Wait for child to acquire lock
             
             struct timeval start, end;
-            gettimeofday(&start, nullptr);
+            gettimeofday(&start, NULL);
             
             int fd = open(lock_test_file, O_RDWR);
             if (fd >= 0) {
@@ -346,12 +345,12 @@ int test_file_locking_mechanisms(void) {
                 
                 // This should block until child releases lock
                 if (fcntl(fd, F_SETLKW, &lock) == 0) {
-                    gettimeofday(&end, nullptr);
+                    gettimeofday(&end, NULL);
                     double wait_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
                     
                     // Should have waited approximately 2 seconds
                     if (wait_time < 1.5 || wait_time > 3.0) {
-                        printf("[%sFAIL%s] Lock wait time unexpected: %.2fs\n", RED, RESET, wait_time);
+                        LOG_ERRORF("[FAIL] Lock wait time unexpected: %.2fs", wait_time);
                         ok = 0;
                     }
                     
@@ -392,23 +391,23 @@ int test_encryption_decryption_robustness(void) {
         struct stat st;
         if (stat(crypt_test_file, &st) == 0 && st.st_size > 0) {
             // File should be readable
-            if (fopen((char*)crypt_test_file, "r") != nullptr) {
+            if (fopen((char*)crypt_test_file, "r") != NULL) {
                 char line_buf[512];
                 int eol_type;
                 size_t total_read = 0;
                 
-                while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
+                while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
                     total_read += strlen(line_buf);
                 }
                 
                 if (total_read == 0) {
-                    printf("[%sFAIL%s] Encrypted file appears empty\n", RED, RESET);
+                    LOG_ERROR("[FAIL] Encrypted file appears empty");
                     ok = 0;
                 }
                 
                 fclose();
             } else {
-                printf("[%sFAIL%s] Cannot read encrypted file\n", RED, RESET);
+                LOG_ERROR("[FAIL] Cannot read encrypted file");
                 ok = 0;
             }
         }
@@ -426,7 +425,7 @@ int test_encryption_decryption_robustness(void) {
         fclose(f);
         
         // Should handle corrupted encryption gracefully
-        if (fopen((char*)crypt_test_file, "r") != nullptr) {
+        if (fopen((char*)crypt_test_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
             // Should either decrypt with fallback or error gracefully
@@ -452,7 +451,7 @@ int test_encryption_decryption_robustness(void) {
         if (test_key && strlen(test_key) > 0) {
             // Key should be validated for minimum requirements
             if (strlen(test_key) < 3) { // Minimum key length check
-                printf("[%sFAIL%s] Weak key accepted\n", RED, RESET);
+                LOG_ERROR("[FAIL] Weak key accepted");
                 ok = 0;
             }
         }
@@ -461,7 +460,7 @@ int test_encryption_decryption_robustness(void) {
     }
     
     #else
-    printf("[%sWARNING%s] CRYPT not enabled - skipping encryption tests\n", YELLOW, RESET);
+    LOG_WARN("[WARN] CRYPT not enabled - skipping encryption tests");
     #endif
     
     PHASE_END("FILEIO: CRYPT", ok);
@@ -495,10 +494,10 @@ int test_backup_recovery_systems(void) {
                     
                     // Backup file should exist and have content
                     if (stat(backup_file, &backup_stat) != 0) {
-                        printf("[%sFAIL%s] Backup file not created\n", RED, RESET);
+                        LOG_ERROR("[FAIL] Backup file not created");
                         ok = 0;
                     } else if (backup_stat.st_size != orig_stat.st_size) {
-                        printf("[%sFAIL%s] Backup size mismatch\n", RED, RESET);
+                        LOG_ERROR("[FAIL] Backup size mismatch");
                         ok = 0;
                     }
                 }
@@ -526,7 +525,7 @@ int test_backup_recovery_systems(void) {
                     if (fgets(line, sizeof(line), backup_f) && strstr(line, "Original content")) {
                         // Backup contains expected content
                     } else {
-                        printf("[%sFAIL%s] Backup content validation failed\n", RED, RESET);
+                        LOG_ERROR("[FAIL] Backup content validation failed");
                         ok = 0;
                     }
                     fclose(backup_f);
@@ -543,7 +542,7 @@ int test_backup_recovery_systems(void) {
         // If very low disk space, backup creation should fail gracefully
         if (free_space < 1024 * 1024) { // Less than 1MB free
             // Test backup failure handling
-            printf("[%sINFO%s] Low disk space detected - testing backup failure handling\n", BLUE, RESET);
+            LOG_INFO("[INFO] Low disk space detected - testing backup failure handling");
             
             // Backup creation should fail gracefully without corrupting original
             struct stat orig_before;
@@ -554,7 +553,7 @@ int test_backup_recovery_systems(void) {
                 if (stat(original_file, &orig_after) == 0) {
                     if (orig_before.st_size != orig_after.st_size || 
                         orig_before.st_mtime != orig_after.st_mtime) {
-                        printf("[%sFAIL%s] Original file corrupted during backup failure\n", RED, RESET);
+                        LOG_ERROR("[FAIL] Original file corrupted during backup failure");
                         ok = 0;
                     }
                 }
@@ -587,22 +586,22 @@ int test_permission_handling(void) {
         // Make file read-only
         if (chmod(readonly_file, S_IRUSR | S_IRGRP | S_IROTH) == 0) {
             // Test reading from read-only file
-            if (fopen((char*)readonly_file, "r") != nullptr) {
+            if (fopen((char*)readonly_file, "r") != NULL) {
                 char line_buf[256];
                 int eol_type;
                 if (fgets(line_buf, sizeof(line_buf), &eol_type) != FIOSUC) {
-                    printf("[%sFAIL%s] Cannot read from read-only file\n", RED, RESET);
+                    LOG_ERROR("[FAIL] Cannot read from read-only file");
                     ok = 0;
                 }
                 fclose();
             } else {
-                printf("[%sFAIL%s] Cannot open read-only file for reading\n", RED, RESET);
+                LOG_ERROR("[FAIL] Cannot open read-only file for reading");
                 ok = 0;
             }
             
             // Test writing to read-only file (should fail gracefully)
-            if (fopen((char*)readonly_file, "w") != nullptr) {
-                printf("[%sFAIL%s] Read-only file opened for writing\n", RED, RESET);
+            if (fopen((char*)readonly_file, "w") != NULL) {
+                LOG_ERROR("[FAIL] Read-only file opened for writing");
                 ok = 0;
                 fclose();
             }
@@ -621,8 +620,8 @@ int test_permission_handling(void) {
         snprintf(test_file_in_nowrite, sizeof(test_file_in_nowrite), "%s/test.txt", nowrite_dir);
         
         // Should fail to create file in no-write directory
-        if (fopen(test_file_in_nowrite, "w") != nullptr) {
-            printf("[%sFAIL%s] Created file in no-write directory\n", RED, RESET);
+        if (fopen(test_file_in_nowrite, "w") != NULL) {
+            LOG_ERROR("[FAIL] Created file in no-write directory");
             ok = 0;
             fclose();
         }
@@ -645,7 +644,7 @@ int test_permission_handling(void) {
             
             if (stat(readonly_file, &st_after) == 0) {
                 if (st_before.st_mode == st_after.st_mode) {
-                    printf("[%sFAIL%s] Permission change not detected\n", RED, RESET);
+                    LOG_ERROR("[FAIL] Permission change not detected");
                     ok = 0;
                 }
             }
@@ -673,9 +672,9 @@ int test_network_file_operations(void) {
         
         // Test file access with simulated network delay
         struct timeval start, end;
-        gettimeofday(&start, nullptr);
+        gettimeofday(&start, NULL);
         
-        if (fopen((char*)slow_file, "r") != nullptr) {
+        if (fopen((char*)slow_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
             
@@ -685,19 +684,19 @@ int test_network_file_operations(void) {
             alarm(0); // Cancel timeout
             
             if (result != FIOSUC) {
-                printf("[%sFAIL%s] Network file read failed or timed out\n", RED, RESET);
+                LOG_ERROR("[FAIL] Network file read failed or timed out");
                 ok = 0;
             }
             
             fclose();
         }
         
-        gettimeofday(&end, nullptr);
+        gettimeofday(&end, NULL);
         double access_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
         
         // Should complete within reasonable time for local file
         if (access_time > 2.0) {
-            printf("[%sFAIL%s] File access took too long: %.2fs\n", RED, RESET, access_time);
+            LOG_ERRORF("[FAIL] File access took too long: %.2fs", access_time);
             ok = 0;
         }
         
@@ -712,20 +711,20 @@ int test_network_file_operations(void) {
         fclose(f);
         
         // Simulate network interruption by removing file mid-operation
-        if (fopen((char*)disconnected_file, "r") != nullptr) {
+        if (fopen((char*)disconnected_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
             
             // Read first line successfully
-            if (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
+            if (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
                 // Simulate disconnection
                 unlink(disconnected_file);
                 
                 // Try to read more (should handle disconnection gracefully)
                 int result = fgets(line_buf, sizeof(line_buf), &eol_type);
-                if (result != nullptr) {
+                if (result != NULL) {
                     // Unexpected success after disconnection
-                    printf("[%sWARNING%s] Read succeeded after file removal\n", YELLOW, RESET);
+                    LOG_WARN("[WARN] Read succeeded after file removal");
                 }
                 // FIOEOF or error expected here
             }
@@ -746,14 +745,14 @@ int test_network_file_operations(void) {
         
         // Test streaming read performance
         struct timeval start, end;
-        gettimeofday(&start, nullptr);
+        gettimeofday(&start, NULL);
         
-        if (fopen((char*)large_network_file, "r") != nullptr) {
+        if (fopen((char*)large_network_file, "r") != NULL) {
             char line_buf[256];
             int eol_type;
             int lines_read = 0;
             
-            while (fgets(line_buf, sizeof(line_buf), &eol_type) != nullptr) {
+            while (fgets(line_buf, sizeof(line_buf), &eol_type) != NULL) {
                 lines_read++;
                 // Simulate processing delay
                 if (lines_read % 1000 == 0) {
@@ -762,22 +761,22 @@ int test_network_file_operations(void) {
             }
             
             if (lines_read != 10000) {
-                printf("[%sFAIL%s] Expected 10000 lines, got %d\n", RED, RESET, lines_read);
+                LOG_ERRORF("[FAIL] Expected 10000 lines, got %d", lines_read);
                 ok = 0;
             }
             
             fclose();
         } else {
-            printf("[%sFAIL%s] Failed to open large network file\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to open large network file");
             ok = 0;
         }
         
-        gettimeofday(&end, nullptr);
+        gettimeofday(&end, NULL);
         double transfer_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
         
         // Should handle large file efficiently
         if (transfer_time > 10.0) {
-            printf("[%sFAIL%s] Large network file transfer too slow: %.2fs\n", RED, RESET, transfer_time);
+            LOG_ERRORF("[FAIL] Large network file transfer too slow: %.2fs", transfer_time);
             ok = 0;
         }
         

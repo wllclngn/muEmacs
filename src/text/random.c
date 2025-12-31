@@ -13,7 +13,7 @@
 #include "edef.h"
 #include "efunc.h"
 #include "line.h"
-#include "string_safe.h"
+#include "string_utils.h"
 #include "memory.h"
 #include "gapbuffer.h"
 
@@ -88,7 +88,7 @@ int showcpos(int f, int n)
 		ratio = (100L * predchars) / numchars;
 
 	/* summarize and report the info */
-	mlwrite("Line %d/%d Col %d/%d Char %D/%D (%d%%) char = 0x%x",
+	mlwrite("LINE %d/%d COL %d/%d CHAR %D/%D [%d%%] CHAR = 0X%x",
 		predlines + 1, numlines + 1, col, ecol,
 		predchars, numchars, ratio, curchar);
 	return true;
@@ -142,9 +142,8 @@ int getccol(int bflg)
 		if (c == '\t')
 			col |= tabmask;
 		else if (c < 0x20 || c == 0x7F)
-			++col;
-		else if (c >= 0xc0 && c <= 0xa0)
-			col += 2;
+			++col;  /* Control chars display as ^X (2 cols) */
+		/* Dead code removed: c >= 0xc0 && c <= 0xa0 was always false */
 		++col;
 	}
 	return col;
@@ -230,7 +229,7 @@ int quote(int f, int n)
 
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	c = tgetc();
+	c = input_read_byte();
 	if (n < 0)
 		return false;
 	if (n == 0)
@@ -293,11 +292,11 @@ int detab(int f, int n)
 					 (tabmask + 1) -
 					 (curwp->w_doto & tabmask));
 			}
-			forwchar(false, 1);
+			move_char_forward(false, 1);
 		}
 
 		/* advance/or back to the next line */
-		forwline(true, inc);
+		cursor_down(true, inc);
 		n -= inc;
 	}
 	curwp->w_doto = 0;	/* to the begining of the line */
@@ -338,9 +337,8 @@ int entab(int f, int n)
 				if (ccol - fspace < 2)
 					fspace = -1;
 				else {
-					/* there is a bug here dealing with mixed space/tabed
-					   lines.......it will get fixed                */
-					backchar(true, ccol - fspace);
+					/* Known limitation: mixed space/tab lines may not convert perfectly */
+					move_char_backward(true, ccol - fspace);
 					ldelete((long) (ccol - fspace),
 						false);
 					linsert(1, '\t');
@@ -367,11 +365,11 @@ int entab(int f, int n)
 				fspace = -1;
 				break;
 			}
-			forwchar(false, 1);
+			move_char_forward(false, 1);
 		}
 
 		/* advance/or back to the next line */
-		forwline(true, inc);
+		cursor_down(true, inc);
 		n -= inc;
 	}
 	curwp->w_doto = 0;	/* to the begining of the line */
@@ -419,7 +417,7 @@ int trim(int f, int n)
 		}
 
 		/* advance/or back to the next line */
-		forwline(true, inc);
+		cursor_down(true, inc);
 		n -= inc;
 	}
 	lchange(WFEDIT);
@@ -448,7 +446,7 @@ int openline(int f, int n)
 		s = lnewline();
 	} while (s == true && --i);
 	if (s == true)		/* Then back up overtop */
-		s = backchar(f, n);	/* of them all.         */
+		s = move_char_backward(f, n);	/* of them all.         */
 	return s;
 }
 
@@ -478,15 +476,12 @@ int insert_newline(int f, int n)
 	if ((curwp->w_bufp->b_mode & MDWRAP) && fillcol > 0 &&
 	    getccol(false) > fillcol &&
 	    (curwp->w_bufp->b_mode & MDVIEW) == false)
-		execute(META | SPEC | 'W', false, 1);
+		wrapword(false, 1);
 
 	/* insert some lines */
 	while (n--) {
 		if ((s = lnewline()) != true)
 			return s;
-#if SCROLLCODE
-		curwp->w_flag |= WFINS;
-#endif
 	}
 	invalidate_line_cache(curwp);  /* update line count after newline insertion */
 	return true;
@@ -535,21 +530,17 @@ int cinsert(void)
 	if (bracef)
 		insert_tab(false, 1);
 
-#if SCROLLCODE
-	curwp->w_flag |= WFINS;
-#endif
 	invalidate_line_cache(curwp);  /* update line count after C-mode newline */
 	return true;
 }
 
-#if	NBRACE
 /*
  * insert a brace into the text here...we are in CMODE
  *
  * int n;	repeat count
  * int c;	brace to insert (always } for now)
  */
-int insbrace(int n, int c)
+int insert_brace(int n, int c)
 {
 	int ch;	/* last character before input */
 	int oc;	/* caractere oppose a c */
@@ -587,7 +578,7 @@ int insbrace(int n, int c)
 	oldoff = curwp->w_doto;
 
 	count = 1;
-	backchar(false, 1);
+	move_char_backward(false, 1);
 
 	while (count > 0) {
 		if (curwp->w_doto == llength(curwp->w_dotp))
@@ -600,8 +591,8 @@ int insbrace(int n, int c)
 		if (ch == oc)
 			--count;
 
-		backchar(false, 1);
-		if (boundry(curwp->w_dotp, curwp->w_doto, REVERSE))
+		move_char_backward(false, 1);
+		if (boundry(curwp->w_dotp, curwp->w_doto, DIR_REVERSE))
 			break;
 	}
 
@@ -615,7 +606,7 @@ int insbrace(int n, int c)
 	/* aller au debut de la ligne apres la tabulation */
 	while ((ch = lgetc(curwp->w_dotp, curwp->w_doto)) == ' '
 	       || ch == '\t')
-		forwchar(false, 1);
+		move_char_forward(false, 1);
 
 	/* delete back first */
 	target = getccol(false);	/* c'est l'indent que l'on doit avoir */
@@ -625,7 +616,7 @@ int insbrace(int n, int c)
 	while (target != getccol(false)) {
 		if (target < getccol(false))	/* on doit detruire des caracteres */
 			while (getccol(false) > target)
-				backdel(false, 1);
+				delete_char_backward(false, 1);
 		else {		/* on doit en inserer */
 			while (target - getccol(false) >= 8)
 				linsert(1, '\t');
@@ -637,44 +628,7 @@ int insbrace(int n, int c)
 	return linsert(n, c);
 }
 
-#else
-
-/*
- * insert a brace into the text here...we are in CMODE
- *
- * int n;		repeat count
- * int c;		brace to insert (always { for now)
- */
-int insbrace(int n, int c)
-{
-	int ch;	/* last character before input */
-	int i;
-	int target;	/* column brace should go after */
-
-	/* if we are at the beginning of the line, no go */
-	if (curwp->w_doto == 0)
-		return linsert(n, c);
-
-	/* scan to see if all space before this is white space */
-	for (i = curwp->w_doto - 1; i >= 0; --i) {
-		ch = lgetc(curwp->w_dotp, i);
-		if (ch != ' ' && ch != '\t')
-			return linsert(n, c);
-	}
-
-	/* delete back first */
-	target = getccol(false);	/* calc where we will delete to */
-	target -= 1;
-	target -= target % (tabsize == 0 ? 8 : tabsize);
-	while (getccol(false) > target)
-		backdel(false, 1);
-
-	/* and insert the required brace(s) */
-	return linsert(n, c);
-}
-#endif
-
-int inspound(void)
+int insert_pound(void)
 {				/* insert a # into the text here...we are in CMODE */
 	int ch;	/* last character before input */
 	int i;
@@ -692,7 +646,7 @@ int inspound(void)
 
 	/* delete back first */
 	while (getccol(false) >= 1)
-		backdel(false, 1);
+		delete_char_backward(false, 1);
 
 	/* and insert the required pound */
 	return linsert(1, '#');
@@ -770,18 +724,48 @@ int indent(int f, int n)
  * If any argument is present, it kills rather than deletes, to prevent loss
  * of text if typed with a big argument. Normally bound to "C-D".
  */
-int forwdel(int f, int n)
+int delete_char_forward(int f, int n)
 {
+	int s;
+
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
 	if (n < 0)
-		return backdel(f, -n);
+		return delete_char_backward(f, -n);
 	if (f != false) {	/* Really a kill.       */
 		if ((lastflag & CFKILL) == 0)
 			kdelete();
 		thisflag |= CFKILL;
 	}
-	return ldelchar((long) n, f);
+
+	/* Delete n UTF-8 characters forward */
+	for (int i = 0; i < n; i++) {
+		/* Calculate UTF-8 byte length at current position */
+		int byte_len = 1;
+		int remaining = llength(curwp->w_dotp) - curwp->w_doto;
+		if (remaining > 0) {
+			unsigned char first = lgetc(curwp->w_dotp, curwp->w_doto);
+			if ((first & 0x80) == 0) {
+				byte_len = 1;       /* ASCII */
+			} else if ((first & 0xE0) == 0xC0) {
+				byte_len = 2;       /* 2-byte UTF-8 */
+			} else if ((first & 0xF0) == 0xE0) {
+				byte_len = 3;       /* 3-byte UTF-8 (curly quotes, etc.) */
+			} else if ((first & 0xF8) == 0xF0) {
+				byte_len = 4;       /* 4-byte UTF-8 */
+			}
+			if (byte_len > remaining)
+				byte_len = remaining;
+		} else if (remaining == 0) {
+			/* At end of line - delete newline (1 byte) */
+			byte_len = 1;
+		}
+
+		s = ldelchar(byte_len, f != false);
+		if (s != true)
+			return s;
+	}
+	return true;
 }
 
 /*
@@ -790,22 +774,48 @@ int forwdel(int f, int n)
  * forward, this actually does a kill if presented with an argument. Bound to
  * both "RUBOUT" and "C-H".
  */
-int backdel(int f, int n)
+int delete_char_backward(int f, int n)
 {
 	int s;
 
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
 	if (n < 0)
-		return forwdel(f, -n);
+		return delete_char_forward(f, -n);
 	if (f != false) {	/* Really a kill.       */
 		if ((lastflag & CFKILL) == 0)
 			kdelete();
 		thisflag |= CFKILL;
 	}
-	if ((s = backchar(f, n)) == true)
-		s = ldelchar(n, f);
-	return s;
+
+	/* Delete n UTF-8 characters backwards */
+	for (int i = 0; i < n; i++) {
+		if ((s = move_char_backward(false, 1)) != true)
+			return s;
+
+		/* Calculate UTF-8 byte length at current position */
+		int byte_len = 1;
+		int remaining = llength(curwp->w_dotp) - curwp->w_doto;
+		if (remaining > 0) {
+			unsigned char first = lgetc(curwp->w_dotp, curwp->w_doto);
+			if ((first & 0x80) == 0) {
+				byte_len = 1;       /* ASCII */
+			} else if ((first & 0xE0) == 0xC0) {
+				byte_len = 2;       /* 2-byte UTF-8 */
+			} else if ((first & 0xF0) == 0xE0) {
+				byte_len = 3;       /* 3-byte UTF-8 (curly quotes, etc.) */
+			} else if ((first & 0xF8) == 0xF0) {
+				byte_len = 4;       /* 4-byte UTF-8 */
+			}
+			if (byte_len > remaining)
+				byte_len = remaining;
+		}
+
+		s = ldelchar(byte_len, f != false);
+		if (s != true)
+			return s;
+	}
+	return true;
 }
 
 /*
@@ -816,7 +826,7 @@ int backdel(int f, int n)
  * number of newlines. If called with a negative argument it kills backwards
  * that number of newlines. Normally bound to "C-K".
  */
-int killtext(int f, int n)
+int kill_to_eol(int f, int n)
 {
 	struct line *nextp;
 	long chunk;
@@ -843,7 +853,7 @@ int killtext(int f, int n)
 			nextp = lforw(nextp);
 		}
 	} else {
-		mlwrite("neg kill");
+		mlwrite("NEG KILL");
 		return false;
 	}
 	return ldelete(chunk, true);
@@ -900,9 +910,7 @@ int adjustmode(int kind, int global)
 	char *scan;	/* scanning pointer to convert prompt */
 	int i;		/* loop index */
 	int status;	/* error return on input */
-#if	COLOR
 	int uflag;	/* was modename uppercase?      */
-#endif
 	char prompt[50];	/* string to prompt user with */
 	char cbuf[NPAT];	/* buffer to recieve mode name into */
 
@@ -921,16 +929,14 @@ int adjustmode(int kind, int global)
 
 	/* prompt the user and get an answer */
 
-	status = mlreply(prompt, cbuf, NPAT - 1);
+	status = minibuf_read(prompt, cbuf, NPAT - 1);
 	if (status != true)
 		return status;
 
 	/* make it uppercase */
 
 	scan = cbuf;
-#if	COLOR
 	uflag = (*scan >= 'A' && *scan <= 'Z');
-#endif
 	while (*scan != 0) {
 		if (*scan >= 'a' && *scan <= 'z')
 			*scan = *scan - 32;
@@ -938,14 +944,9 @@ int adjustmode(int kind, int global)
 	}
 
 	/* test it first against the colors we know */
-#if	PKCODE & IBMPC
-	for (i = 0; i <= NCOLORS; i++) {
-#else
 	for (i = 0; i < NCOLORS; i++) {
-#endif
 		if (strcmp(cbuf, cname[i]) == 0) {
 			/* finding the match, we set the color */
-#if	COLOR
 			if (uflag) {
 				if (global)
 					gfcolor = i;
@@ -959,7 +960,6 @@ int adjustmode(int kind, int global)
 			}
 
 			curwp->w_flag |= WFCOLR;
-#endif
 			mlerase();
 			return true;
 		}
@@ -987,7 +987,7 @@ int adjustmode(int kind, int global)
 		}
 	}
 
-	mlwrite("No such mode!");
+	mlwrite("NO SUCH MODE!");
 	return false;
 }
 
@@ -1018,7 +1018,7 @@ int writemsg(int f, int n)
 	char nbuf[NPAT * 2];	/* buffer to expand string into */
 
 	if ((status =
-	     mlreply("Message to write: ", buf, NPAT - 1)) != true)
+	     minibuf_read("MESSAGE TO WRITE: ", buf, NPAT - 1)) != true)
 		return status;
 
 	/* expand all '%' to "%%" so mlwrite won't expect arguments */
@@ -1065,27 +1065,27 @@ int getfence(int f, int n)
 	switch (ch) {
 	case '(':
 		ofence = ')';
-		sdir = FORWARD;
+		sdir = DIR_FORWARD;
 		break;
 	case '{':
 		ofence = '}';
-		sdir = FORWARD;
+		sdir = DIR_FORWARD;
 		break;
 	case '[':
 		ofence = ']';
-		sdir = FORWARD;
+		sdir = DIR_FORWARD;
 		break;
 	case ')':
 		ofence = '(';
-		sdir = REVERSE;
+		sdir = DIR_REVERSE;
 		break;
 	case '}':
 		ofence = '{';
-		sdir = REVERSE;
+		sdir = DIR_REVERSE;
 		break;
 	case ']':
 		ofence = '[';
-		sdir = REVERSE;
+		sdir = DIR_REVERSE;
 		break;
 	default:
 		TTbeep();
@@ -1094,10 +1094,10 @@ int getfence(int f, int n)
 
 	/* set up for scan */
 	count = 1;
-	if (sdir == REVERSE)
-		backchar(false, 1);
+	if (sdir == DIR_REVERSE)
+		move_char_backward(false, 1);
 	else
-		forwchar(false, 1);
+		move_char_forward(false, 1);
 
 	/* scan until we find it, or reach the end of file */
 	while (count > 0) {
@@ -1109,20 +1109,20 @@ int getfence(int f, int n)
 			++count;
 		if (c == ofence)
 			--count;
-		if (sdir == FORWARD)
-			forwchar(false, 1);
+		if (sdir == DIR_FORWARD)
+			move_char_forward(false, 1);
 		else
-			backchar(false, 1);
+			move_char_backward(false, 1);
 		if (boundry(curwp->w_dotp, curwp->w_doto, sdir))
 			break;
 	}
 
 	/* if count is zero, we have a match, move the sucker */
 	if (count == 0) {
-		if (sdir == FORWARD)
-			backchar(false, 1);
+		if (sdir == DIR_FORWARD)
+			move_char_backward(false, 1);
 		else
-			forwchar(false, 1);
+			move_char_forward(false, 1);
 		curwp->w_flag |= WFMOVE;
 		return true;
 	}
@@ -1140,7 +1140,7 @@ int getfence(int f, int n)
  *
  * char ch;			fence type to match against
  */
-int fmatch(int ch)
+int fence_match(int ch)
 {
 	struct line *oldlp;	/* original line pointer */
 	int oldoff;	/* and offset */
@@ -1168,7 +1168,7 @@ int fmatch(int ch)
 	/* find the top line and set up for scan */
 	toplp = curwp->w_linep->l_bp;
 	count = 1;
-	backchar(false, 2);
+	move_char_backward(false, 2);
 
 	/* scan back until we find it, or reach past the top of the window */
 	while (count > 0 && curwp->w_dotp != toplp) {
@@ -1180,17 +1180,16 @@ int fmatch(int ch)
 			++count;
 		if (c == opench)
 			--count;
-		backchar(false, 1);
+		move_char_backward(false, 1);
 		if (curwp->w_dotp == curwp->w_bufp->b_linep->l_fp &&
 		    curwp->w_doto == 0)
 			break;
 	}
 
 	/* if count is zero, we have a match, display the sucker */
-	/* there is a real machine dependant timing problem here we have
-	   yet to solve......... */
+	/* Fence highlight uses term.t_pause for visible delay */
 	if (count == 0) {
-		forwchar(false, 1);
+		move_char_forward(false, 1);
 		for (i = 0; i < term.t_pause; i++)
 			update(false);
 	}
@@ -1213,8 +1212,7 @@ int istring(int f, int n)
 	char tstring[NPAT + 1];	/* string to add */
 
 	/* ask for string to insert */
-	status =
-	    mlreplyt("String to insert<META>: ", tstring, NPAT, metac);
+	status = minibuf_read("String to insert: ", tstring, NPAT);
 	if (status != true)
 		return status;
 
@@ -1241,8 +1239,7 @@ int ovstring(int f, int n)
 	char tstring[NPAT + 1];	/* string to add */
 
 	/* ask for string to insert */
-	status =
-	    mlreplyt("String to overwrite<META>: ", tstring, NPAT, metac);
+	status = minibuf_read("String to overwrite: ", tstring, NPAT);
 	if (status != true)
 		return status;
 
@@ -1304,19 +1301,19 @@ int duplicate_line(int f, int n)
 }
 
 /*
- * Move current line up by one line.
+ * Transpose current line up by one line (swap with previous).
  * Bound to Alt+Up in modern editors.
  *
  * int f, n;		default flag and numeric repeat count
  */
-int move_line_up(int f, int n)
+int transpose_line_up(int f, int n)
 {
 	struct line *prevl;	/* previous line */
 	struct line *curl;	/* current line */
 	int doto;		/* current offset */
-	
+
 	if (n < 0)
-		return move_line_down(f, -n);
+		return transpose_line_down(f, -n);
 	
 	if (n == 0)
 		n = 1;
@@ -1351,19 +1348,19 @@ int move_line_up(int f, int n)
 }
 
 /*
- * Move current line down by one line.
+ * Transpose current line down by one line (swap with next).
  * Bound to Alt+Down in modern editors.
  *
  * int f, n;		default flag and numeric repeat count
  */
-int move_line_down(int f, int n)
+int transpose_line_down(int f, int n)
 {
 	struct line *nextl;	/* next line */
 	struct line *curl;	/* current line */
 	int doto;		/* current offset */
-	
+
 	if (n < 0)
-		return move_line_up(f, -n);
+		return transpose_line_up(f, -n);
 	
 	if (n == 0)
 		n = 1;

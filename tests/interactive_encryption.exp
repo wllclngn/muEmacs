@@ -1,0 +1,38 @@
+#!/usr/bin/expect -f
+# Interactive GPG Encryption Test
+set timeout 10
+set env(TERM) "xterm"
+set env(GPG_TTY) "/dev/tty"
+log_user 1
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+spawn -noecho $editor $testfile
+
+expect -re ".*"
+
+# Insert some text
+send "Secret Data\r"
+
+# Run encrypt-buffer-gpg
+send "\033x"
+expect ": "
+send "encrypt-buffer-gpg\r"
+
+# Expect editor message about password
+expect "PROMPTED FOR PASSWORD"
+
+# GPG interaction (this is tricky as GPG output bypasses the pty sometimes or uses pinentry)
+# We hope for a TTY prompt.
+expect {
+    "Passphrase" { send "password123\r" ; exp_continue }
+    "Repeat"     { send "password123\r" ; exp_continue }
+    "ENCRYPTED:" { puts "Encryption success!" }
+    timeout { puts "GPG Timeout"; exit 1 }
+}
+
+# Exit
+send "\030\003"
+expect eof
+exit 0
+

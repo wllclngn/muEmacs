@@ -1,8 +1,9 @@
-/*	spaw.c
+/*	spawn.c
  *
  *	Various operating system access commands.
  *
- *	<odified by Petri Kutvonen
+ *	Modified by Petri Kutvonen
+ *	C23 modernization: Uses posix_spawn() instead of fork()/exec()
  */
 
 #include <stdio.h>
@@ -13,12 +14,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <spawn.h>
 
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
 #include "file_utils.h"
-#include "string_safe.h"
+#include "string_utils.h"
+
+extern char **environ;
 
 #ifdef SIGWINCH
 extern int chg_width, chg_height;
@@ -26,14 +30,57 @@ extern void sizesignal(int);
 #endif
 
 /*
- * Create a subjob with a copy of the command intrepreter in it. When the
+ * run_shell - Execute a shell command using posix_spawn()
+ *
+ * This is a modern replacement for fork()/exec() patterns.
+ * If shell is NULL, uses $SHELL or falls back to /bin/sh.
+ * If cmd is NULL, spawns an interactive shell.
+ */
+static int run_shell(const char *shell, const char *cmd)
+{
+    pid_t pid;
+    int status;
+    const char *sh = shell;
+
+    /* Determine shell to use */
+    if (!sh || *sh == '\0') {
+        sh = getenv("SHELL");
+        if (!sh || *sh == '\0') {
+            sh = "/bin/sh";
+        }
+    }
+
+    char *argv[4];
+    if (cmd) {
+        /* Run command: sh -c "cmd" */
+        argv[0] = (char *)sh;
+        argv[1] = "-c";
+        argv[2] = (char *)cmd;
+        argv[3] = NULL;
+    } else {
+        /* Interactive shell */
+        argv[0] = (char *)sh;
+        argv[1] = NULL;
+    }
+
+    if (posix_spawn(&pid, sh, NULL, NULL, argv, environ) != 0) {
+        return -1;
+    }
+
+    if (waitpid(pid, &status, 0) == -1) {
+        return -1;
+    }
+
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+/*
+ * Create a subjob with a copy of the command interpreter in it. When the
  * command interpreter exits, mark the screen as garbage so that you do a full
  * repaint. Bound to "^X C".
  */
 int spawncli([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
-	const char *restrict cp;
-
 	/* don't allow this command if restricted */
 	if (restflag)
 		return resterr();
@@ -42,27 +89,10 @@ int spawncli([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTflush();
 	TTclose();		/* stty to old settings */
 	TTkclose();		/* Close "keyboard" */
-	if ((cp = getenv("SHELL")) != nullptr && *cp != '\0') {
-		pid_t pid = fork();
-		if (pid == 0) {
-			// Child process
-			execl(cp, cp, (char *)nullptr);
-			// If execl fails, try /bin/sh
-			execl("/bin/sh", "sh", (char *)nullptr);
-			_exit(127); // exec failed
-		} else if (pid > 0) {
-			// Parent process
-			waitpid(pid, nullptr, 0);
-		}
-	} else {
-		pid_t pid = fork();
-		if (pid == 0) {
-			execl("/bin/sh", "sh", (char *)nullptr);
-			_exit(127);
-		} else if (pid > 0) {
-			waitpid(pid, nullptr, 0);
-		}
-	}
+
+	/* Spawn interactive shell using posix_spawn */
+	run_shell(NULL, NULL);
+
 	sgarbf = true;
 	sleep(2);
 	TTopen();
@@ -90,7 +120,8 @@ int bktoshell([[maybe_unused]] int f, [[maybe_unused]] int n)
 void rtfrmshell(void)
 {
 	TTopen();
-	curwp->w_flag = WFHARD;
+	/* Preserve WFTERM if set (terminal window marker) */
+	curwp->w_flag = (curwp->w_flag & WFTERM) | WFHARD;
 	sgarbf = true;
 }
 
@@ -108,28 +139,22 @@ int spawn([[maybe_unused]] int f, [[maybe_unused]] int n)
 	if (restflag)
 		return resterr();
 
-	if ((s = mlreply("!", line, NLINE)) != true)
+	if ((s = minibuf_read("!", line, NLINE)) != true)
 		return s;
 	TTflush();
 	TTclose();		/* stty to old modes    */
 	TTkclose();
-	
-	// Safe command execution using sh -c
-	pid_t pid = fork();
-	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
-		_exit(127);
-	} else if (pid > 0) {
-		waitpid(pid, nullptr, 0);
-	}
-	
+
+	/* Execute command using posix_spawn */
+	run_shell(NULL, line);
+
 	fflush(stdout);		/* to be sure P.K.      */
 	TTopen();
 
 	if (clexec == false) {
 		mlputs("(End)");	/* Pause.               */
 		TTflush();
-		while ((s = tgetc()) != '\r' && s != ' ');
+		while ((s = input_read_byte()) != '\r' && s != ' ');
 		mlputs("\r\n");
 	}
 	TTkopen();
@@ -151,27 +176,21 @@ int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
 	if (restflag)
 		return resterr();
 
-	if ((s = mlreply("!", line, NLINE)) != true)
+	if ((s = minibuf_read("!", line, NLINE)) != true)
 		return s;
 	TTputc('\n');		/* Already have '\r'    */
 	TTflush();
 	TTclose();		/* stty to old modes    */
 	TTkclose();
-	
-	// Safe command execution using sh -c
-	pid_t pid = fork();
-	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
-		_exit(127);
-	} else if (pid > 0) {
-		waitpid(pid, nullptr, 0);
-	}
-	
+
+	/* Execute command using posix_spawn */
+	run_shell(NULL, line);
+
 	fflush(stdout);		/* to be sure P.K.      */
 	TTopen();
 	mlputs("(End)");	/* Pause.               */
 	TTflush();
-	while ((s = tgetc()) != '\r' && s != ' ');
+	while ((s = input_read_byte()) != '\r' && s != ' ');
 	sgarbf = true;
 	return true;
 }
@@ -195,7 +214,7 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 		return resterr();
 
 	/* get the command to pipe in */
-	if ((s = mlreply("@", line, NLINE)) != true)
+	if ((s = minibuf_read("@", line, NLINE)) != true)
 		return s;
 
 	/* get rid of the command output buffer if it exists */
@@ -205,9 +224,9 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 		while (wp != nullptr) {
 			if (wp->w_bufp == bp) {
 				if (wp == curwp)
-					delwind(false, 1);
+					window_delete(false, 1);
 				else
-					onlywind(false, 1);
+					window_only(false, 1);
 				break;
 			}
 			wp = wp->w_wndp;
@@ -222,16 +241,10 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTkclose();
 	safe_strcat(line, " >", NLINE);
 	safe_strcat(line, filnam, NLINE);
-	
-	// Safe command execution with output redirection
-	pid_t pid = fork();
-	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
-		_exit(127);
-	} else if (pid > 0) {
-		waitpid(pid, nullptr, 0);
-	}
-	
+
+	/* Execute command with output redirection using posix_spawn */
+	run_shell(NULL, line);
+
 	TTopen();
 	TTkopen();
 	TTflush();
@@ -242,7 +255,7 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 		return s;
 
 	/* split the current window to make room for the command output */
-	if (splitwind(false, 1) == false)
+	if (window_split(false, 1) == false)
 		return false;
 
 	/* and read the stuff in */
@@ -285,7 +298,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 		return rdonly();	/* we are in read only mode     */
 
 	/* get the filter name and its args */
-	if ((s = mlreply("#", line, NLINE)) != true)
+	if ((s = minibuf_read("#", line, NLINE)) != true)
 		return s;
 
 	/* setup the proper file names */
@@ -295,7 +308,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 
 	/* write it out, checking for errors */
 	if (writeout(filnam1) != true) {
-		mlwrite("(Cannot write filter file)");
+		mlwrite("[CANNOT WRITE FILTER FILE]");
 		safe_strcpy(bp->b_fname, tmpnam, NFILEN);
 		return false;
 	}
@@ -304,17 +317,11 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTflush();
 	TTclose();		/* stty to old modes    */
 	TTkclose();
-    safe_strcat(line, " <fltinp >fltout", NLINE);
-	
-	// Safe command execution with I/O redirection
-	pid_t pid = fork();
-	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", line, (char *)nullptr);
-		_exit(127);
-	} else if (pid > 0) {
-		waitpid(pid, nullptr, 0);
-	}
-	
+	safe_strcat(line, " <fltinp >fltout", NLINE);
+
+	/* Execute filter command with I/O redirection using posix_spawn */
+	run_shell(NULL, line);
+
 	TTopen();
 	TTkopen();
 	TTflush();
@@ -323,7 +330,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 
 	/* on failure, escape gracefully */
 	if (s != true || (readin(filnam2, false) == false)) {
-		mlwrite("(Execution failed)");
+		mlwrite("[EXECUTION FAILED]");
 		safe_strcpy(bp->b_fname, tmpnam, NFILEN);
 		unlink(filnam1);
 		unlink(filnam2);

@@ -29,11 +29,21 @@ struct line {
 	_Atomic bool l_column_cache_dirty;  /* Cache needs invalidation */
 };
 
-#define lforw(lp)       ((lp)->l_fp)
-#define lback(lp)       ((lp)->l_bp)
-#define lgetc(lp, n)    gap_buffer_get_char((lp)->gb, (n))
-#define lputc(lp, n, c) do { char _ch = (c); gap_buffer_delete((lp)->gb, (n), 1); gap_buffer_insert((lp)->gb, (n), &_ch, 1); } while(0)
-#define llength(lp)     ((int)gap_buffer_size((lp)->gb))
+/* Modern inline functions - type-safe replacements for legacy macros */
+static inline struct line *lforw(struct line *lp) { return lp->l_fp; }
+static inline struct line *lback(struct line *lp) { return lp->l_bp; }
+static inline int lgetc(struct line *lp, int n) { return gap_buffer_get_char(lp->gb, (size_t)n); }
+static inline void lputc(struct line *lp, int n, int c) {
+	char ch = (char)c;
+	gap_buffer_delete(lp->gb, (size_t)n, 1);
+	gap_buffer_insert(lp->gb, (size_t)n, &ch, 1);
+}
+static inline int llength(struct line *lp) { return (int)gap_buffer_size(lp->gb); }
+
+/* Shared word-byte classification for undo grouping and word operations */
+static inline bool is_word_byte(int ch) {
+	return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
+}
 
 extern void lfree(struct line *lp);
 extern void lchange(int flag);
@@ -56,5 +66,6 @@ extern int yank(int f, int n);
 extern int yank_clipboard(int f, int n);
 extern int yankpop(int f, int n);
 extern struct line *lalloc(int);  /* Allocate a line. */
+extern long getlinenum(struct buffer *bp, struct line *lp);
 
 #endif  /* LINE_H_ */

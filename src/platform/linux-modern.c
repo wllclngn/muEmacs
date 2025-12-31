@@ -15,10 +15,13 @@
 #include <time.h>
 #include <sys/inotify.h>
 #include <sys/wait.h>
-#include <sys/select.h>
+#include <poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <spawn.h>
+
+extern char **environ;
 
 #include "estruct.h"
 #include "edef.h"
@@ -26,14 +29,29 @@
 #include "file_utils.h"
 #include "memory.h"
 #include "string_utils.h"
+#include "util/logger.h"
 #include <pthread.h>
 
 /* Function prototypes */
 void handle_external_modification(int wd);
 void handle_file_deletion(int wd);
 
-/* File watching with inotify */
+/* Modern Terminal Integration (2025) */
+#include "terminal/terminal.h"
+#include "terminal/pty.h"
+
 static int inotify_fd = -1;
+static int active_terminal_fd = -1;
+
+void register_terminal_fd(int fd) {
+    active_terminal_fd = fd;
+}
+
+void unregister_terminal_fd(void) {
+    active_terminal_fd = -1;
+}
+
+/* get_terminal_fd() and check_terminal_output() are now in terminal.c */
 static int watch_descriptors[MAXWATCH];
 static char *watch_files[MAXWATCH];
 static int watch_count = 0;
@@ -111,9 +129,7 @@ void unwatch_file(const char *filepath) {
 void check_file_changes(void) {
     char buffer[EVENT_BUF_LEN];
     int length, i;
-    struct timeval tv;
-    fd_set rfds;
-    
+
     pthread_mutex_lock(&watch_mutex);
     
     if (inotify_fd < 0) {
@@ -121,13 +137,10 @@ void check_file_changes(void) {
         return;
     }
     
-    /* Non-blocking check */
-    FD_ZERO(&rfds);
-    FD_SET(inotify_fd, &rfds);
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    
-    if (select(inotify_fd + 1, &rfds, nullptr, nullptr, &tv) <= 0) {
+    /* Non-blocking check using poll */
+    struct pollfd pfd = { .fd = inotify_fd, .events = POLLIN, .revents = 0 };
+
+    if (poll(&pfd, 1, 0) <= 0 || !(pfd.revents & POLLIN)) {
         pthread_mutex_unlock(&watch_mutex);
         return;
     }
@@ -165,7 +178,7 @@ void handle_external_modification(int wd) {
             for (bp = bheadp; bp != nullptr; bp = bp->b_bufp) {
                 if (strcmp(bp->b_fname, watch_files[i]) == 0) {
                     /* Mark buffer as externally modified */
-                    mlwrite("WARNING: %s modified externally!", bp->b_fname);
+                    mlwrite("WARNING: %s MODIFIED EXTERNALLY!", bp->b_fname);
                     /* Could prompt for reload here */
                     break;
                 }
@@ -184,7 +197,7 @@ void handle_file_deletion(int wd) {
         if (watch_descriptors[i] == wd) {
             for (bp = bheadp; bp != nullptr; bp = bp->b_bufp) {
                 if (strcmp(bp->b_fname, watch_files[i]) == 0) {
-                    mlwrite("WARNING: %s was deleted!", bp->b_fname);
+                    mlwrite("WARNING: %s WAS DELETED!", bp->b_fname);
                     break;
                 }
             }
@@ -222,188 +235,198 @@ char *get_home_directory(void) {
     return "/tmp";
 }
 
-/* Get system clipboard content using safe execution */
+/* Get system clipboard content using posix_spawn */
 int get_clipboard(char *buf, int maxlen) {
     int pipefd[2];
     pid_t pid;
     int len = 0;
-    
+
     if (pipe(pipefd) == -1) return false;
-    
-    pid = fork();
-    if (pid == 0) {
-        // Child process
-        close(pipefd[0]); // Close read end
-        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
-        close(pipefd[1]);
-        
-        // Try xclip first (using PATH)
-        execlp("xclip", "xclip", "-selection", "clipboard", "-o", (char *)nullptr);
-        // If xclip fails, try xsel (using PATH)
-        execlp("xsel", "xsel", "--clipboard", "--output", (char *)nullptr);
-        _exit(127);
-    } else if (pid > 0) {
-        // Parent process
-        close(pipefd[1]); // Close write end
-        
-        FILE *fp = fdopen(pipefd[0], "r");
-        if (fp) {
-            if (safe_fread_line(buf, maxlen, fp) > 0) {
-                len = strlen(buf);
-                // Remove trailing newline if present
-                if (len > 0 && buf[len-1] == '\n') {
-                    buf[len-1] = '\0';
-                    len--;
-                }
-            }
-            fclose(fp);
-        }
-        
-        waitpid(pid, nullptr, 0);
-        close(pipefd[0]);
-    } else {
-        // Fork failed
+
+    /* Set up file actions to redirect stdout to pipe */
+    posix_spawn_file_actions_t actions;
+    if (posix_spawn_file_actions_init(&actions) != 0) {
         close(pipefd[0]);
         close(pipefd[1]);
         return false;
     }
-    
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+
+    /* Use shell with fallback: xclip or xsel */
+    char *argv[] = {"/bin/sh", "-c",
+        "xclip -selection clipboard -o 2>/dev/null || xsel --clipboard --output 2>/dev/null",
+        NULL};
+
+    if (posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ) != 0) {
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return false;
+    }
+    posix_spawn_file_actions_destroy(&actions);
+    close(pipefd[1]); /* Close write end in parent */
+
+    FILE *fp = fdopen(pipefd[0], "r");
+    if (fp) {
+        if (safe_fread_line(buf, maxlen, fp) > 0) {
+            len = strlen(buf);
+            /* Remove trailing newline if present */
+            if (len > 0 && buf[len-1] == '\n') {
+                buf[len-1] = '\0';
+                len--;
+            }
+        }
+        fclose(fp);
+    }
+
+    waitpid(pid, NULL, 0);
     return len > 0;
 }
 
-/* Set system clipboard content */
+/* Set system clipboard content using posix_spawn */
 int set_clipboard(const char *text) {
     int pipefd[2];
     pid_t pid;
-    
+
     if (pipe(pipefd) == -1) return false;
-    
-    pid = fork();
-    if (pid == 0) {
-        // Child process
-        close(pipefd[1]); // Close write end
-        dup2(pipefd[0], STDIN_FILENO); // Redirect stdin from pipe
-        close(pipefd[0]);
-        
-        // Try xclip first (using PATH)
-        execlp("xclip", "xclip", "-selection", "clipboard", (char *)nullptr);
-        // If xclip fails, try xsel (using PATH)
-        execlp("xsel", "xsel", "--clipboard", "--input", (char *)nullptr);
-        _exit(127);
-    } else if (pid > 0) {
-        // Parent process
-        close(pipefd[0]); // Close read end
-        
-        ssize_t bytes_written = write(pipefd[1], text, strlen(text));
-	(void)bytes_written;
-        close(pipefd[1]);
-        
-        waitpid(pid, nullptr, 0);
-    } else {
-        // Fork failed
+
+    /* Set up file actions to redirect stdin from pipe */
+    posix_spawn_file_actions_t actions;
+    if (posix_spawn_file_actions_init(&actions) != 0) {
         close(pipefd[0]);
         close(pipefd[1]);
         return false;
     }
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[0], STDIN_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+
+    /* Use shell with fallback: xclip or xsel */
+    char *argv[] = {"/bin/sh", "-c",
+        "xclip -selection clipboard 2>/dev/null || xsel --clipboard --input 2>/dev/null",
+        NULL};
+
+    if (posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ) != 0) {
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return false;
+    }
+    posix_spawn_file_actions_destroy(&actions);
+    close(pipefd[0]); /* Close read end in parent */
+
+    /* Write text to clipboard process */
+    ssize_t bytes_written = write(pipefd[1], text, strlen(text));
+    (void)bytes_written;
+    close(pipefd[1]);
+
+    waitpid(pid, NULL, 0);
     return true;
 }
 
-/* Get Git branch for current file using safe execution */
+/* Get Git branch for current file using posix_spawn */
 int get_git_branch(char *branch, int maxlen) {
     int pipefd[2];
     pid_t pid;
-    const char *dir = curbp->b_fname[0] ? curbp->b_fname : ".";
-    
-    if (pipe(pipefd) == -1) return false;
-    
-    pid = fork();
-    if (pid == 0) {
-        // Child process
-        close(pipefd[0]); // Close read end
-        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
-        close(pipefd[1]);
-        
-        // Change to directory safely
-        if (chdir(dir) == 0) {
-            execl("/usr/bin/git", "git", "symbolic-ref", "--short", "HEAD", (char *)nullptr);
-        }
-        _exit(127);
-    } else if (pid > 0) {
-        // Parent process
-        close(pipefd[1]); // Close write end
-        
-        FILE *fp = fdopen(pipefd[0], "r");
-        if (fp && safe_fread_line(branch, maxlen, fp) > 0) {
-            // Remove trailing newline
-            branch[strcspn(branch, "\n")] = '\0';
-            fclose(fp);
-            waitpid(pid, nullptr, 0);
-            close(pipefd[0]);
-            return true;
-        }
-        
-        if (fp) fclose(fp);
-        waitpid(pid, nullptr, 0);
-        close(pipefd[0]);
+
+    /* Get directory from filename, or use current dir */
+    char dir[NFILEN];
+    if (curbp->b_fname[0]) {
+        safe_strcpy(dir, curbp->b_fname, sizeof(dir));
+        char *slash = strrchr(dir, '/');
+        if (slash) *slash = '\0';
+        else safe_strcpy(dir, ".", sizeof(dir));
     } else {
-        // Fork failed
+        safe_strcpy(dir, ".", sizeof(dir));
+    }
+
+    if (pipe(pipefd) == -1) return false;
+
+    /* Set up file actions to redirect stdout to pipe */
+    posix_spawn_file_actions_t actions;
+    if (posix_spawn_file_actions_init(&actions) != 0) {
         close(pipefd[0]);
         close(pipefd[1]);
         return false;
     }
-    
-    return false;
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+    /* Redirect stderr to /dev/null */
+    posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+
+    /* Use git -C to specify directory */
+    char *argv[] = {"git", "-C", dir, "symbolic-ref", "--short", "HEAD", NULL};
+
+    if (posix_spawnp(&pid, "git", &actions, NULL, argv, environ) != 0) {
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return false;
+    }
+    posix_spawn_file_actions_destroy(&actions);
+    close(pipefd[1]); /* Close write end in parent */
+
+    int result = false;
+    FILE *fp = fdopen(pipefd[0], "r");
+    if (fp && safe_fread_line(branch, maxlen, fp) > 0) {
+        /* Remove trailing newline */
+        branch[strcspn(branch, "\n")] = '\0';
+        result = true;
+    }
+    if (fp) fclose(fp);
+    else close(pipefd[0]);
+
+    waitpid(pid, NULL, 0);
+    return result;
 }
 
-/* Check if file has uncommitted changes */
+/* Check if file has uncommitted changes using posix_spawn */
 int git_file_modified(void) {
     int pipefd[2];
     pid_t pid;
     char result[128];
-    
+
     if (!curbp->b_fname[0]) return false;
-    
+
     if (pipe(pipefd) == -1) return false;
-    
-    pid = fork();
-    if (pid == 0) {
-        // Child process
-        close(pipefd[0]); // Close read end
-        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
-        close(pipefd[1]);
-        
-        // Redirect stderr to /dev/null
-        int null_fd = open("/dev/null", O_WRONLY);
-        if (null_fd >= 0) {
-            dup2(null_fd, STDERR_FILENO);
-            close(null_fd);
-        }
-        
-        execl("/usr/bin/git", "git", "status", "--porcelain", curbp->b_fname, (char *)nullptr);
-        _exit(127);
-    } else if (pid > 0) {
-        // Parent process
-        close(pipefd[1]); // Close write end
-        
-        FILE *fp = fdopen(pipefd[0], "r");
-        if (fp && safe_fread_line(result, sizeof(result), fp) > 0) {
-            fclose(fp);
-            waitpid(pid, nullptr, 0);
-            close(pipefd[0]);
-            return true; /* File is modified */
-        }
-        
-        if (fp) fclose(fp);
-        waitpid(pid, nullptr, 0);
-        close(pipefd[0]);
-    } else {
-        // Fork failed
+
+    /* Set up file actions for stdout and stderr */
+    posix_spawn_file_actions_t actions;
+    if (posix_spawn_file_actions_init(&actions) != 0) {
         close(pipefd[0]);
         close(pipefd[1]);
         return false;
     }
-    
-    return false;
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+    /* Redirect stderr to /dev/null */
+    posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+
+    char *argv[] = {"git", "status", "--porcelain", curbp->b_fname, NULL};
+
+    if (posix_spawnp(&pid, "git", &actions, NULL, argv, environ) != 0) {
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return false;
+    }
+    posix_spawn_file_actions_destroy(&actions);
+    close(pipefd[1]); /* Close write end in parent */
+
+    int modified = false;
+    FILE *fp = fdopen(pipefd[0], "r");
+    if (fp && safe_fread_line(result, sizeof(result), fp) > 0) {
+        modified = true; /* File is modified */
+    }
+    if (fp) fclose(fp);
+    else close(pipefd[0]);
+
+    waitpid(pid, NULL, 0);
+    return modified;
 }
 
 /* Get system load average */

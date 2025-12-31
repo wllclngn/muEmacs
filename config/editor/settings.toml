@@ -1,0 +1,551 @@
+# μEmacs Configuration File (TOML)
+
+[editor]
+column_width = 80
+wrap = false
+evil_mode = false
+linus_mode = false  # true = classic modeline + B&W colors
+tab_width = 8           # Tab stop width (1-16)
+auto_save_interval = 256  # Keystrokes between auto-saves (0 = disabled)
+scroll_step = 1         # Lines to scroll per scroll command
+trim_trailing_whitespace = false  # Strip trailing spaces/tabs on save
+insert_final_newline = true       # Ensure file ends with newline (POSIX)
+
+[visual]
+ruler = true
+ruler_col = 80
+highlight_line = true
+highlight_style = 4  # 4 = RGB Dark Grey
+ruler_style = 1      # 1 = Underline
+
+[theme]
+# Truecolor hex colors for TUI elements
+# Matching Vim's minimal dark theme
+
+# ─── Backgrounds ───────────────────────────────────────────
+modeline_bg = "#1C1C1C"        # Modeline background (darker, like Vim)
+modeline_fg = "#FFFFFF"        # Modeline text foreground (white)
+highlight_bg = "#262626"       # Cursor line background (very subtle)
+ruler_bg = "#1C1C1C"           # Column ruler (subtle vertical line)
+selection_bg = "#3A3A5A"       # Visual selection (muted purple)
+search_bg = "#5F5F00"          # Search match background (olive)
+search_fg = ""                 # Search match foreground (inherit)
+message_bg = "#1C1C1C"         # Minibuffer/message line background
+
+# ─── Vim Mode Indicators ───────────────────────────────────
+# Minimal colors like Vim's modeline
+mode_normal = "#FFFFFF"        # White (like Vim NORMAL)
+mode_insert = "#87CEEB"        # Light blue
+mode_visual = "#FFA500"        # Orange
+mode_replace = "#FF6347"       # Tomato red
+mode_evil = "#EA1717"          # EVIL splash (Kitty red)
+
+# ─── Accents & Messages ────────────────────────────────────
+accent = "#87CEEB"             # Light blue (subtle)
+error = "#FF6347"              # Error messages (red)
+warning = "#FFA500"            # Warnings (orange)
+success = "#90EE90"            # Success messages (light green)
+
+# Legacy intensity settings (deprecated)
+highlight_intensity = 10
+ruler_intensity = 10
+intersection_intensity = 12
+highlight_strategy = 0
+
+[modeline]
+show_git = false
+show_stats = true
+show_modes = true
+show_position = true
+
+[backup]
+enabled = true
+# directory = "~/.local/share/muemacs/backups"  # Optional: custom backup dir
+
+[cursor]
+style = "block"  # block, bar, or underline
+
+[wrap]
+soft_wrap = false       # Enable visual soft-wrapping
+soft_wrap_column = 80   # Column for soft wrap (if enabled)
+
+# =============================================================================
+# GLOBAL KEYBINDINGS (Default Emacs Mode)
+# =============================================================================
+# These bindings are always active in the global keymap.
+# Prefix keys (C-x, ESC) are hardcoded - all command bindings come from here.
+
+[keybindings.global]
+# Movement
+"^A" = "beginning-of-line"
+"^B" = "backward-character"
+"^E" = "end-of-line"
+"^F" = "forward-character"
+"^N" = "next-line"
+"^P" = "previous-line"
+"^V" = "next-page"
+"^Z" = "previous-page"
+
+# Arrow keys
+"UP" = "previous-line"
+"DOWN" = "next-line"
+"LEFT" = "backward-character"
+"RIGHT" = "forward-character"
+
+# Backspace
+"BACKSPACE" = "delete-previous-character"
+
+# Editing
+"^D" = "delete-next-character"
+"^H" = "delete-previous-character"
+"DELETE" = "delete-next-character"
+"^K" = "kill-to-end-of-line"
+"^O" = "open-line"
+"^Q" = "quote-character"
+"^T" = "transpose-characters"
+"^W" = "kill-region"
+"^Y" = "yank"
+"^_" = "undo"
+
+# Search and control
+"^G" = "abort-command"
+"^L" = "clear-and-redraw"
+"^R" = "search-reverse"
+"^S" = "search-forward"
+"^U" = "universal-argument"
+
+# Special
+"^I" = "handle-tab"
+"^J" = "newline-and-indent"
+"^M" = "newline"
+
+# Space inserts via default self-insert (not bound here)
+
+# =============================================================================
+# C-X PREFIX KEYBINDINGS
+# =============================================================================
+# These bindings are active after pressing C-x.
+
+[keybindings.ctlx]
+# File operations
+"^C" = "exit-emacs"
+"^F" = "find-file"
+"^R" = "read-file"
+"^S" = "save-file"
+"^W" = "write-file"
+"^V" = "view-file"
+
+# Buffer operations
+"B" = "select-buffer"
+"b" = "select-buffer"
+"K" = "delete-buffer"
+"k" = "delete-buffer"
+"^B" = "list-buffers"
+"N" = "name-buffer"
+"n" = "name-buffer"
+
+# Window operations
+"0" = "delete-window"
+"1" = "delete-other-windows"
+"2" = "split-current-window"
+"O" = "next-window"
+"o" = "next-window"
+"P" = "previous-window"
+"p" = "previous-window"
+"Z" = "shrink-window"
+"z" = "shrink-window"
+"^" = "grow-window"
+"^N" = "scroll-next-down"
+"^P" = "scroll-next-up"
+"^Z" = "shrink-window"
+
+# Macro operations
+"(" = "begin-macro"
+")" = "end-macro"
+"E" = "execute-macro"
+"e" = "execute-macro"
+
+# Undo/redo
+"U" = "undo"
+"u" = "undo"
+"^U" = "undo"
+
+# Mark and position
+"^X" = "exchange-point-and-mark"
+"=" = "buffer-position"
+
+# Encryption
+"^E" = "encrypt-buffer-auto"
+
+# Terminal
+"T" = "terminal-buffer"
+"t" = "terminal-buffer"
+
+# Settings
+"S" = "save-settings"
+"s" = "save-settings"
+
+# =============================================================================
+# META/ESC PREFIX KEYBINDINGS
+# =============================================================================
+# These bindings are active after pressing ESC or Meta.
+
+[keybindings.meta]
+# Word movement
+"b" = "previous-word"
+"B" = "previous-word"
+"f" = "next-word"
+"F" = "next-word"
+
+# Paragraph movement
+"{" = "previous-paragraph"
+"}" = "next-paragraph"
+
+# Word operations
+"C" = "case-word-capitalize"
+"c" = "case-word-capitalize"
+"D" = "delete-next-word"
+"d" = "delete-next-word"
+"L" = "case-word-lower"
+"l" = "case-word-lower"
+"U" = "case-word-upper"
+"u" = "case-word-upper"
+"^H" = "delete-previous-word"
+
+# File navigation
+"<" = "beginning-of-file"
+">" = "end-of-file"
+"G" = "goto-line"
+"g" = "goto-line"
+
+# Commands
+"x" = "execute-named-command"
+"X" = "execute-named-command"
+
+# Buffer navigation
+"^V" = "previous-page"
+
+# Fill/justify
+"Q" = "fill-paragraph"
+"q" = "fill-paragraph"
+
+# Search and replace
+"S" = "search-forward"
+"s" = "search-forward"
+"R" = "replace-string"
+"r" = "search-reverse"
+"%" = "query-replace-string"
+"^R" = "query-replace-string"
+
+# Matching
+"^F" = "goto-matching-fence"
+
+# Macros
+"!" = "shell-command"
+"|" = "pipe-command"
+"#" = "filter-buffer"
+
+# Subword navigation
+"^B" = "previous-subword"
+
+# Mark and yank
+" " = "set-mark"
+"W" = "copy-region"
+"w" = "copy-region"
+"Y" = "yank-pop"
+"y" = "yank-pop"
+
+# Undo
+"_" = "redo"
+
+# =============================================================================
+# VIM NORMAL MODE KEYBINDINGS (Evil Mode)
+# =============================================================================
+# Active when evil_mode = true and in normal mode.
+
+[keybindings.normal]
+# Count digits (for repeat counts like 5j, 10dd)
+"0" = "vim-digit-0"
+"1" = "vim-digit-1"
+"2" = "vim-digit-2"
+"3" = "vim-digit-3"
+"4" = "vim-digit-4"
+"5" = "vim-digit-5"
+"6" = "vim-digit-6"
+"7" = "vim-digit-7"
+"8" = "vim-digit-8"
+"9" = "vim-digit-9"
+
+# Basic motion
+"h" = "vim-move-left"
+"j" = "vim-move-down"
+"k" = "vim-move-up"
+"l" = "vim-move-right"
+
+# Arrow keys (standard navigation)
+"UP" = "vim-move-up"
+"DOWN" = "vim-move-down"
+"LEFT" = "vim-move-left"
+"RIGHT" = "vim-move-right"
+
+# Backspace
+"BACKSPACE" = "vim-move-left"
+
+# Word motion
+"w" = "vim-word-forward"
+"b" = "vim-word-backward"
+"e" = "vim-word-end"
+
+# Line motion
+"$" = "vim-line-end"
+"^" = "vim-first-nonblank-wrapped"
+
+# Custom user bindings (from ~/.vimrc)
+"H" = "vim-line-start"
+"L" = "vim-line-end"
+"K" = "previous-page"
+"J" = "next-page"
+"w" = "next-window"
+"r" = "redo"
+"f" = "vim-word-end"
+
+# Mode switching
+"i" = "vim-enter-insert-mode"
+"a" = "vim-append"
+"A" = "vim-append-eol"
+"I" = "vim-insert-bol"
+"^[" = "vim-enter-normal-mode"
+
+# Operators
+"d" = "vim-delete-operator"
+"c" = "vim-change-operator"
+"y" = "vim-yank-operator"
+"x" = "vim-delete-char"
+
+# Open lines
+"o" = "vim-open-line-below"
+"O" = "vim-open-line-above"
+
+# Put (paste)
+"p" = "vim-put-after"
+"P" = "vim-put-before"
+
+# Registers
+"\"" = "vim-register-prefix"
+
+# Undo
+"u" = "undo"
+"^R" = "redo"
+
+# File operations (user preferences)
+"s" = "save-file"
+"S" = "quick-exit"
+"q" = "exit-emacs"
+
+# Visual mode
+"v" = "vim-enter-visual-mode"
+"V" = "vim-enter-visual-line-mode"
+
+# Goto
+"g" = "vim-goto-prefix"
+"G" = "vim-goto-line-or-end"
+
+# Find character (f remapped to vim-word-end in custom bindings above)
+"F" = "vim-find-char-backward"
+"t" = "vim-till-char-forward"
+"T" = "vim-till-char-backward"
+";" = "vim-repeat-find"
+"," = "vim-repeat-find-reverse"
+
+# Replace mode (r remapped to redo in custom bindings above)
+"R" = "vim-enter-replace-mode"
+
+# Misc
+"~" = "vim-toggle-case"
+"." = "vim-dot-repeat"
+
+# Marks
+"m" = "vim-set-mark"
+"'" = "vim-goto-mark-line"
+"`" = "vim-goto-mark-exact"
+
+# Search
+"/" = "vim-search-forward"
+"?" = "vim-search-backward"
+"n" = "vim-search-next"
+"N" = "vim-search-prev"
+"*" = "vim-search-word-forward"
+"#" = "vim-search-word-backward"
+
+# Command prompt
+":" = "execute-named-command"
+
+# =============================================================================
+# VIM VISUAL MODE KEYBINDINGS (Evil Mode)
+# =============================================================================
+# Active when in visual selection mode.
+
+[keybindings.visual]
+# Navigation
+"h" = "vim-move-left"
+"j" = "vim-move-down"
+"k" = "vim-move-up"
+"l" = "vim-move-right"
+"b" = "previous-word"
+"e" = "vim-end-of-word"
+"w" = "next-word"
+
+# Find character
+"f" = "vim-find-char-forward"
+"F" = "vim-find-char-backward"
+"t" = "vim-till-char-forward"
+"T" = "vim-till-char-backward"
+";" = "vim-repeat-find"
+"," = "vim-repeat-find-reverse"
+
+# Line positions
+"0" = "beginning-of-line"
+"$" = "end-of-line"
+"^" = "vim-first-nonblank"
+"H" = "beginning-of-line"
+"L" = "end-of-line"
+"K" = "previous-page"
+"J" = "next-page"
+
+# Operations on selection
+"d" = "vim-visual-delete"
+"x" = "vim-visual-delete"
+"c" = "vim-visual-change"
+"y" = "vim-visual-yank"
+
+# Exit visual mode
+"^[" = "vim-exit-visual-mode"
+"v" = "vim-exit-visual-mode"
+
+# =============================================================================
+# HELP PREFIX KEYBINDINGS (C-h prefix)
+# =============================================================================
+# These bindings are active after pressing C-h (when help prefix is enabled).
+# Enable help prefix with M-x enable-help-prefix
+# Disable to restore C-h as backspace with M-x disable-help-prefix
+
+[keybindings.help]
+"a" = "apropos"
+"b" = "describe-bindings"
+"c" = "describe-key"
+"k" = "describe-key"
+
+# =============================================================================
+# INSERT MODE KEYBINDINGS
+# =============================================================================
+# These override global bindings when in insert mode (evil_mode enabled).
+# Most keys self-insert; only special bindings needed here.
+
+[keybindings.insert]
+"^S" = "save-file"
+"BACKSPACE" = "delete-previous-character"
+"^H" = "delete-previous-character"
+
+[terminal]
+enabled = true              # Allow terminal feature
+height_percent = 45         # Window height as % of screen (10-80)
+shell = ""                  # Shell to use ("" = $SHELL or /bin/sh)
+scrollback = 1000           # Lines of scrollback history
+close_on_exit = true        # Close terminal window when shell exits
+
+[keys]
+# Control key overrides (format: "C-X" for Ctrl-X, or raw char)
+# Defaults shown - only override if you need non-standard keys
+meta = "C-["                # Meta/Alt prefix (Ctrl-[ = ESC)
+command_prefix = "C-X"      # Extended command prefix
+repeat = "C-U"              # Numeric argument prefix
+abort = "C-G"               # Cancel/abort operation
+quote = "C-Q"               # Quote next character literally
+
+[behavior]
+echo_commands = true        # Show commands as typed
+echo_input = true           # Show input characters
+page_overlap = 0            # Lines to keep visible when paging (like Emacs)
+justify = false             # Auto-justify paragraphs
+allow_null = false          # Accept NULL bytes in files
+
+[performance]
+frame_interval = 100        # Terminal poll interval in ms (50-200)
+escape_timeout = 100        # Escape sequence timeout in ms (50-200)
+parallel_threshold = 1000   # Min lines before parallel search kicks in
+max_threads = 8             # Max parallel search threads (1-32)
+
+# =============================================================================
+# ADVANCED KEYBINDING FEATURES
+# =============================================================================
+#
+# μEmacs supports three levels of keybinding customization:
+#
+# 1. RECURSIVE PREFIX MAPS
+#    Multi-key sequences like C-x r s (Ctrl-X, r, s) are supported.
+#    When a key is bound to a prefix map, pressing it waits for the next key.
+#    Prefix maps can be nested up to 10 levels deep.
+#
+# 2. USER-DEFINED PREFIX KEYS
+#    Any key can become a prefix by binding it to a new keymap.
+#    Use M-x bind-to-key to bind a key to a prefix function,
+#    then bind keys within that prefix's sub-keymap.
+#
+# 3. BUFFER-LOCAL KEYBINDINGS
+#    Override global bindings for specific buffers using:
+#      M-x local-set-key    - Bind a key only in the current buffer
+#      M-x local-unset-key  - Remove a buffer-local binding
+#    Buffer-local bindings take precedence over global bindings.
+#
+# =============================================================================
+# KEYBINDING COMMANDS
+# =============================================================================
+#
+# Interactive commands (via M-x):
+#   bind-to-key       - Bind a key globally
+#   unbind-key        - Remove a global binding
+#   local-set-key     - Bind a key in current buffer only
+#   local-unset-key   - Remove a buffer-local binding
+#   describe-key      - Show what a key is bound to
+#   describe-bindings - List all keybindings
+#
+# =============================================================================
+# KEY NOTATION
+# =============================================================================
+#
+# In TOML keybindings:
+#   "^X"    = Ctrl-X (also "C-X")
+#   "M-X"   = Meta-X (Alt-X or ESC X)
+#   "F1"    = Function key F1
+#   "a"     = Literal 'a' key
+#
+# Special keys: UP, DOWN, LEFT, RIGHT, HOME, END, PAGEUP, PAGEDOWN,
+#               INSERT, DELETE, BACKSPACE, TAB, RETURN, ESCAPE
+#
+# =============================================================================
+# EXAMPLE: CUSTOM PREFIX KEY
+# =============================================================================
+#
+# To create a C-c prefix for mode-specific commands:
+#
+# 1. First, bind C-c to become a prefix (via macro or startup file):
+#    (This creates a new keymap for C-c)
+#
+# 2. Then bind keys under C-c:
+#    [keybindings.prefix.C-c]
+#    "C-c" = "compile"           # C-c C-c -> compile
+#    "C-k" = "kill-comment"      # C-c C-k -> kill comment
+#
+# =============================================================================
+# EXAMPLE: FILETYPE-SPECIFIC BINDINGS
+# =============================================================================
+#
+# Use buffer-local keymaps for different file types.
+# In your startup macro, detect the file extension and call local-set-key:
+#
+#   ; For .c files:
+#   local-set-key compile ^C^C
+#
+# Or use the [keybindings.filetype] section (future feature).
+#
+# =============================================================================

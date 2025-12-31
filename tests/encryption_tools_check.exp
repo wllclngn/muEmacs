@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+set timeout 5
+set env(TERM) "xterm"
+log_user 1
+set editor [lindex $argv 0]
+spawn -noecho $editor
+expect -re ".*"
+
+send "\033x"
+expect ": "
+send "show-encryption-tools\r"
+expect "Available encryption tools"
+puts "\n[SUCCESS] Tools found."
+send "\030\003"
+exit 0
+

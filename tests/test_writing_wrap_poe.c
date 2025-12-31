@@ -27,9 +27,22 @@ int test_poe_gutenberg_wrap(void)
     bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
-    const char* path = "tests/data/poe-collected-works.txt";
+    // Try multiple paths since tests can run from different directories
+    const char* paths[] = {
+        "tests/data/poe-collected-works.txt",      // From project root
+        "../tests/data/poe-collected-works.txt",   // From build/
+        NULL
+    };
+    const char* path = NULL;
+    for (int i = 0; paths[i]; i++) {
+        if (access(paths[i], R_OK) == 0) {
+            path = paths[i];
+            break;
+        }
+    }
+    if (!path) path = paths[0];  // Fallback for error message
     if (access(path, R_OK) != 0) {
-        printf("[%sFAIL%s] Missing Gutenberg text at %s\n", RED, RESET, path);
+        LOG_ERRORF("[FAIL] Missing Gutenberg text at %s", path);
         ok = 0;
         PHASE_END("POE: WRAP", ok);
         return ok;
@@ -37,7 +50,7 @@ int test_poe_gutenberg_wrap(void)
 
     // Read file into current buffer
     if (!readin(path, false)) {
-        printf("[%sFAIL%s] readin failed for %s\n", RED, RESET, path);
+        LOG_ERRORF("[FAIL] readin failed for %s", path);
         ok = 0;
         PHASE_END("POE: WRAP", ok);
         return ok;
@@ -50,7 +63,7 @@ int test_poe_gutenberg_wrap(void)
     struct line* lp = lforw(curbp->b_linep);
     while (lp != curbp->b_linep && line_len(lp) == 0) lp = lforw(lp);
     if (lp == curbp->b_linep) {
-        printf("[%sFAIL%s] Could not find a non-empty paragraph\n", RED, RESET);
+        LOG_ERROR("[FAIL] Could not find a non-empty paragraph");
         ok = 0;
         PHASE_END("POE: WRAP", ok);
         return ok;
@@ -68,7 +81,7 @@ int test_poe_gutenberg_wrap(void)
     curwp->w_dotp = start;
     curwp->w_doto = 0;
     if (!fillpara(false, 1)) {
-        printf("[%sFAIL%s] fill-paragraph failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] fill-paragraph failed");
         ok = 0;
     } else {
         // Verify lines up to first blank are <= fillcol
@@ -85,13 +98,13 @@ int test_poe_gutenberg_wrap(void)
             cur = lforw(cur);
         }
         if (checked == 0) {
-            printf("[%sFAIL%s] No lines checked in paragraph\n", RED, RESET);
+            LOG_ERROR("[FAIL] No lines checked in paragraph");
             ok = 0;
         } else if (violations > 0) {
-            printf("[%sFAIL%s] %d/%d lines exceed fill column (max=%d, fillcol=%d)\n", RED, RESET, violations, checked, maxlen, fcol);
+            LOG_ERRORF("[FAIL] %d/%d lines exceed fill column (max=%d, fillcol=%d)", violations, checked, maxlen, fcol);
             ok = 0;
         } else {
-            printf("[%sSUCCESS%s] Paragraph reflowed within fill column (max=%d, fillcol=%d)\n", GREEN, RESET, maxlen, fcol);
+            LOG_INFOF("[SUCCESS] Paragraph reflowed within fill column (max=%d, fillcol=%d)", maxlen, fcol);
         }
     }
 

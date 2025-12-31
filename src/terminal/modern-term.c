@@ -74,7 +74,7 @@ void cleanup_modern_terminal(void) {
 /* Get terminal info for debugging */
 void show_terminal_info(void) {
     terminal_caps_t caps = get_terminal_capabilities();
-    mlwrite("Terminal: %dx%d, TrueColor:%s, Alt:%s",
+    mlwrite("TERMINAL: %dX%d, TRUECOLOR:%s, ALT:%s",
             caps.width, caps.height,
             caps.truecolor ? "yes" : "no",
             caps.alt_screen ? "yes" : "no");

@@ -18,15 +18,12 @@
 #include "memory.h"
 #include "error.h" // Required for REPORT_ERROR and ERR_MEMORY
 #include "undo.h"
+#include "util/logger.h"
 /* Helper: mark all windows showing bp to refresh their modelines */
 static inline void refresh_modelines_for_buffer(struct buffer *bp) {
-    struct window *wp = wheadp;
-    while (wp) { if (wp->w_bufp == bp) wp->w_flag |= WFMODE; wp = wp->w_wndp; }
-}
-
-// Simple ASCII word classification for grouping decisions
-static inline bool undo_is_word_byte(int ch) {
-    return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
+    FOR_EACH_WINDOW(wp) {
+        if (wp->w_bufp == bp) wp->w_flag |= WFMODE;
+    }
 }
 
 // Per-buffer atomic undo stack
@@ -83,6 +80,7 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
     }
 
     if (atomic_load(&stack->capacity) >= UNDO_MAX_CAPACITY) {
+        LOG_WARN("Undo: Max capacity reached, undo disabled for this buffer");
         atomic_store(&stack->resize_failed, true);
         return false; // Cannot resize further
     }
@@ -95,15 +93,26 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
 
     struct undo_operation *new_operations = safe_alloc(new_capacity * sizeof(struct undo_operation), "resized undo operations array", __FILE__, __LINE__);
     if (!new_operations) {
+        LOG_ERRORF("Undo: Stack resize failed (%d -> %d)", old_capacity, new_capacity);
         atomic_store(&stack->resize_failed, true);
         return false; // Allocation failed
     }
 
+    LOG_INFOF("Undo: Resizing stack %d -> %d (count=%d)", old_capacity, new_capacity, atomic_load(&stack->count));
+
     // Copy existing operations, handling circular buffer wrap-around
     int current_index = atomic_load(&stack->tail);
-    for (int i = 0; i < atomic_load(&stack->count); ++i) {
+    int count = atomic_load(&stack->count);
+    for (int i = 0; i < count; ++i) {
         memcpy(&new_operations[i], &stack->operations[current_index], sizeof(struct undo_operation));
         current_index = (current_index + 1) % old_capacity;
+    }
+
+    // Verify slots beyond count are zeroed
+    for (int i = count; i < new_capacity; ++i) {
+        if (new_operations[i].text_data != nullptr) {
+            LOG_ERRORF("Undo: CORRUPTION - slot %d has non-null text_data %p after resize", i, (void*)new_operations[i].text_data);
+        }
     }
 
     // Free old operations array
@@ -112,9 +121,9 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
     // Update stack pointers atomically
     stack->operations = new_operations;
     atomic_store(&stack->capacity, new_capacity);
-    atomic_store(&stack->head, atomic_load(&stack->count)); // Head is now at the end of copied elements
+    atomic_store(&stack->head, count); // Head is now at the end of copied elements
     atomic_store(&stack->tail, 0); // Tail is at the beginning of the new array
-    atomic_store(&stack->undo_ptr, atomic_load(&stack->count) - 1); // undo_ptr points to the last copied element
+    atomic_store(&stack->undo_ptr, count - 1); // undo_ptr points to the last copied element
 
     return true;
 }
@@ -124,10 +133,14 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
 // Creates and initializes a new undo stack for a buffer.
 struct atomic_undo_stack *undo_stack_create(void) {
     struct atomic_undo_stack *stack = safe_alloc(sizeof(struct atomic_undo_stack), "undo stack", __FILE__, __LINE__);
-    if (!stack) return nullptr;
+    if (!stack) {
+        LOG_ERROR("Undo: Stack allocation failed");
+        return nullptr;
+    }
 
     stack->operations = safe_alloc(UNDO_INITIAL_CAPACITY * sizeof(struct undo_operation), "undo operations array", __FILE__, __LINE__);
     if (!stack->operations) {
+        LOG_ERRORF("Undo: Operations array allocation failed (capacity=%d)", UNDO_INITIAL_CAPACITY);
         SAFE_FREE(stack);
         return nullptr;
     }
@@ -157,6 +170,32 @@ void undo_stack_destroy(struct atomic_undo_stack *stack) {
     SAFE_FREE(stack);
 }
 
+// Clears all operations from an undo stack without destroying it.
+// Called when buffer is cleared to prevent stale undo operations.
+void undo_stack_clear(struct atomic_undo_stack *stack) {
+    if (!stack) return;
+
+    // Free all operation text data
+    int capacity = atomic_load(&stack->capacity);
+    for (int i = 0; i < capacity; ++i) {
+        free_undo_operation(&stack->operations[i]);
+    }
+
+    // Zero out all operations to prevent garbage pointers
+    memset(stack->operations, 0, capacity * sizeof(struct undo_operation));
+
+    // Reset stack pointers to empty state
+    atomic_store(&stack->head, 0);
+    atomic_store(&stack->tail, 0);
+    atomic_store(&stack->undo_ptr, -1);
+    atomic_store(&stack->count, 0);
+    atomic_store(&stack->version, 1);
+    atomic_store(&stack->in_operation, false);
+    atomic_store(&stack->group_forced, false);
+    atomic_store(&stack->current_group_id, 1);
+    // Note: Keep resize_failed and capacity as-is
+}
+
 // Records a text insertion for undo.
 void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int len) {
     if (!bp || !bp->b_undo_stack || !text) return;
@@ -166,8 +205,8 @@ void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int 
 
     // Resize if needed before adding new operation
     if (!undo_stack_resize_if_needed(stack)) {
-        // Silently disable undo to prevent infinite error loop
-        atomic_store(&stack->resize_failed, true);
+        // resize_failed is already set by undo_stack_resize_if_needed
+        // Don't spam logs - the warning is logged once when it first fails
         return;
     }
 
@@ -198,6 +237,8 @@ void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int 
     if (op->text_data) {
         memcpy(op->text_data, text, len);
         op->text_data[len] = '\0';
+    } else {
+        LOG_WARN("Undo: Text data allocation failed, operation may not undo correctly");
     }
 
     // Assign grouping id (auto or forced)
@@ -217,9 +258,9 @@ void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int 
                     int a = (unsigned char)op->text_data[0];
                     int b = (unsigned char)prev->text_data[0];
                     // Keep grouping for word characters; break when transitioning into a new word
-                    if (undo_is_word_byte(a) && undo_is_word_byte(b)) {
+                    if (is_word_byte(a) && is_word_byte(b)) {
                         keep_group = keep_group && true;
-                    } else if (!undo_is_word_byte(a)) {
+                    } else if (!is_word_byte(a)) {
                         // Whitespace: safe to keep grouping
                         keep_group = keep_group && true;
                     } else {
@@ -257,8 +298,8 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
 
     // Resize if needed before adding new operation
     if (!undo_stack_resize_if_needed(stack)) {
-        // Silently disable undo to prevent infinite error loop
-        atomic_store(&stack->resize_failed, true);
+        // resize_failed is already set by undo_stack_resize_if_needed
+        // Don't spam logs - the warning is logged once when it first fails
         return;
     }
 
@@ -276,6 +317,11 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
 
     // Get the next slot
     int head = atomic_load(&stack->head);
+    int capacity = atomic_load(&stack->capacity);
+    if (head < 0 || head >= capacity) {
+        LOG_ERRORF("Undo: Delete - invalid head index %d (capacity=%d)", head, capacity);
+        return;
+    }
     struct undo_operation *op = &stack->operations[head];
     free_undo_operation(op);
 
@@ -289,6 +335,8 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
     if (op->text_data) {
         memcpy(op->text_data, text, len);
         op->text_data[len] = '\0';
+    } else {
+        LOG_WARN("Undo: Text data allocation failed, operation may not undo correctly");
     }
 
     // Assign grouping id (auto or forced)
@@ -310,9 +358,9 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
                 if (single_char && prev->text_data && op->text_data) {
                     int a = (unsigned char)op->text_data[0];
                     int b = (unsigned char)prev->text_data[0];
-                    if (undo_is_word_byte(a) && undo_is_word_byte(b)) {
+                    if (is_word_byte(a) && is_word_byte(b)) {
                         keep_group = keep_group && true;
-                    } else if (!undo_is_word_byte(a)) {
+                    } else if (!is_word_byte(a)) {
                         keep_group = keep_group && true;
                     } else {
                         keep_group = false;

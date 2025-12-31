@@ -13,16 +13,19 @@
 #include	"memory.h"
 #include	"error.h"
 #include	"file_utils.h"
+#include	"util/logger.h"
 
 static FILE *ffp;			/* File pointer, all functions. */
 static int eofflag;			/* end-of-file flag */
 
 /*
  * Open a file for reading.
+ * Uses raw fopen() to avoid error logging during file searches (e.g., .emacsrc in PATH).
+ * Returns FIOFNF if file not found - caller handles this gracefully.
  */
 int ffropen(const char *fn)
 {
-	if ((ffp = safe_fopen(fn, FILE_READ)) == nullptr)
+	if ((ffp = fopen(fn, "r")) == nullptr)
 		return FIOFNF;
 	eofflag = false;
 	return FIOSUC;
@@ -55,7 +58,7 @@ int ffclose(void)
 
 
 	if (!safe_fclose(&ffp)) {
-		REPORT_ERROR(ERR_FILE_WRITE, "Error closing file");
+		REPORT_ERROR(ERR_FILE_WRITE, "ERROR CLOSING FILE");
 		return FIOERR;
 	}
 	return FIOSUC;
@@ -68,15 +71,16 @@ int ffclose(void)
  */
 int ffputline(char *buf, int nbuf)
 {
-	int i;
-	/* Old CRYPT removed - use encrypt.c */
-	for (i = 0; i < nbuf; ++i)
-		fputc(buf[i] & 0xFF, ffp);
+	/* Bulk write instead of character-by-character (major I/O optimization) */
+	if (nbuf > 0) {
+		if (fwrite(buf, 1, (size_t)nbuf, ffp) != (size_t)nbuf) {
+			REPORT_ERROR(ERR_FILE_WRITE, "WRITE I/O ERROR");
+			return FIOERR;
+		}
+	}
 
-	fputc('\n', ffp);
-
-	if (ferror(ffp)) {
-		REPORT_ERROR(ERR_FILE_WRITE, "Write I/O error");
+	if (fputc('\n', ffp) == EOF) {
+		REPORT_ERROR(ERR_FILE_WRITE, "WRITE I/O ERROR");
 		return FIOERR;
 	}
 
@@ -108,7 +112,7 @@ int ffgetline(void)
 	/* if we don't have an fline, allocate one */
 	if (fline == nullptr)
 		if ((fline = (char*)safe_alloc(flen = NSTRING, "file line buffer", __FILE__, __LINE__)) == nullptr) {
-			REPORT_ERROR(ERR_MEMORY, "Failed to allocate file line buffer");
+			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE FILE LINE BUFFER");
 			return FIOMEM;
 		}
 
@@ -140,8 +144,10 @@ int ffgetline(void)
 			/* if it's longer, get more room */
 			if (i >= flen) {
 				if ((tmpline =
-				     (char*)safe_alloc(flen + NSTRING, "expanded line buffer", __FILE__, __LINE__)) == nullptr)
+				     (char*)safe_alloc(flen + NSTRING, "expanded line buffer", __FILE__, __LINE__)) == nullptr) {
+					LOG_ERRORF("FileIO: Line buffer expansion failed (flen=%d)", flen);
 					return FIOMEM;
+				}
                 if (flen > 0) {
                     size_t maxlen = NSTRING - 1;
                     size_t cpy = (size_t)flen;
@@ -162,7 +168,7 @@ int ffgetline(void)
 	/* test for any errors that may have occured */
 	if (c == EOF) {
 		if (ferror(ffp)) {
-			REPORT_ERROR(ERR_FILE_READ, "File read error");
+			REPORT_ERROR(ERR_FILE_READ, "FILE READ ERROR");
 			return FIOERR;
 		}
 
@@ -174,6 +180,29 @@ int ffgetline(void)
 
 	/* terminate the string */
 	fline[i] = 0;
+
+#if UEMACS_DEBUG_LOG
+	/* DEBUG: Hex dump first line to trace UTF-8 corruption */
+	if (i > 0 && i < 40) {
+		static int line_num = 0;
+		if (line_num == 0) {
+			LOG_DEBUGF("FILEIO_READ: line=%d bytes[0..9] = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			           line_num,
+			           i > 0 ? (unsigned char)fline[0] : 0,
+			           i > 1 ? (unsigned char)fline[1] : 0,
+			           i > 2 ? (unsigned char)fline[2] : 0,
+			           i > 3 ? (unsigned char)fline[3] : 0,
+			           i > 4 ? (unsigned char)fline[4] : 0,
+			           i > 5 ? (unsigned char)fline[5] : 0,
+			           i > 6 ? (unsigned char)fline[6] : 0,
+			           i > 7 ? (unsigned char)fline[7] : 0,
+			           i > 8 ? (unsigned char)fline[8] : 0,
+			           i > 9 ? (unsigned char)fline[9] : 0);
+		}
+		line_num++;
+	}
+#endif
+
 	/* Old CRYPT removed - use encrypt.c */
 	return FIOSUC;
 }

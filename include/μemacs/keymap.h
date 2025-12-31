@@ -1,5 +1,5 @@
 // keymap.h - Hierarchical keymap system with O(1) hash table lookup
-// Replaces linear search through keytab with modern hash-based approach
+// Modern event-based key representation - no legacy CONTROL/META/SPEC encoding
 
 #ifndef UEMACS_KEYMAP_H
 #define UEMACS_KEYMAP_H
@@ -8,9 +8,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdatomic.h>
-
-// Key flag constants
-#define SPEC    (1u << 31)    /* special key (function keys, arrows, etc.) */
+#include "terminal/input_state.h"
 
 // Forward declarations
 struct buffer;
@@ -19,42 +17,40 @@ struct window;
 // Command function type
 typedef int (*command_fn)(int f, int n);
 
-// Key event representation with full modifier support
-struct key_event {
-	uint32_t code;      // Unicode codepoint or special key
-	uint8_t ctrl : 1;   // Control modifier
-	uint8_t meta : 1;   // Meta/Alt modifier  
-	uint8_t shift : 1;    // Shift modifier
-	uint8_t super : 1;  // Super/Windows key
-	uint8_t hyper : 1;  // Hyper modifier (rare)
-	uint8_t reserved : 3;
-};
+// Keymap key - minimal representation for binding lookup
+// Uses same format as input_key_event_t for direct comparison
+typedef struct keymap_key {
+	uint32_t code;       // Unicode codepoint or SPECIAL_* code
+	uint16_t modifiers;  // MOD_CTRL, MOD_META, MOD_SHIFT, etc.
+} keymap_key_t;
 
-// Convert legacy key code to key_event
-static inline struct key_event key_from_legacy(int legacy_code) {
-	struct key_event evt = {0};
-	evt.code = legacy_code & 0x0FFFFFFF;
-	evt.ctrl = (legacy_code & 0x10000000) ? 1 : 0;
-	evt.meta = (legacy_code & 0x20000000) ? 1 : 0;
-	// CTLX and SPEC are handled separately as prefix maps
-	return evt;
+// Create keymap_key from input_key_event_t
+static inline keymap_key_t keymap_key_from_event(const input_key_event_t *evt) {
+	return (keymap_key_t){ .code = evt->code, .modifiers = evt->modifiers };
 }
 
-// Convert key_event to legacy code for compatibility
-static inline uint32_t key_to_legacy(struct key_event evt) {
-	uint32_t code = evt.code;
-	// If SPEC flag already set (special keys like arrows), return as-is
-	if (code & SPEC) {
-		return code;
-	}
-	if (evt.ctrl) code |= 0x10000000;
-	if (evt.meta) code |= 0x20000000;
-	return code;
+// Create keymap_key directly
+static inline keymap_key_t keymap_key_make(uint32_t code, uint16_t modifiers) {
+	return (keymap_key_t){ .code = code, .modifiers = modifiers };
+}
+
+// Compare two keymap keys
+static inline bool keymap_key_eq(keymap_key_t a, keymap_key_t b) {
+	return a.code == b.code && a.modifiers == b.modifiers;
+}
+
+// Hash a keymap key
+static inline uint32_t keymap_key_hash(keymap_key_t key) {
+	uint32_t h = key.code ^ ((uint32_t)key.modifiers << 16);
+	h ^= h >> 16;
+	h *= 0x85ebca6b;
+	h ^= h >> 13;
+	return h;
 }
 
 // Hash table entry for keymap
 struct keymap_entry {
-	uint32_t key;           // Hashed key value
+	keymap_key_t key;       // Key code + modifiers
 	union {
 		command_fn cmd;     // Leaf: command function
 		struct keymap *map; // Branch: prefix keymap
@@ -87,17 +83,24 @@ struct keymap *keymap_create(const char *name);
 void keymap_destroy(struct keymap *km);
 
 // Binding operations - O(1) average case
-int keymap_bind(struct keymap *km, uint32_t key, command_fn cmd);
-int keymap_bind_prefix(struct keymap *km, uint32_t key, struct keymap *prefix);
-struct keymap_entry *keymap_lookup(struct keymap *km, uint32_t key);
-int keymap_unbind(struct keymap *km, uint32_t key);
+int keymap_bind(struct keymap *km, keymap_key_t key, command_fn cmd);
+int keymap_bind_prefix(struct keymap *km, keymap_key_t key, struct keymap *prefix);
+struct keymap_entry *keymap_lookup(struct keymap *km, keymap_key_t key);
+int keymap_unbind(struct keymap *km, keymap_key_t key);
 
 // Hierarchical lookup with inheritance
-struct keymap_entry *keymap_lookup_chain(struct keymap *km, uint32_t key);
+struct keymap_entry *keymap_lookup_chain(struct keymap *km, keymap_key_t key);
 
-// Legacy compatibility layer
-void keymap_init_from_legacy(void);
-struct keymap_entry *keymap_get_binding(int legacy_code);
+// Convenience: bind/lookup with event directly
+static inline int keymap_bind_event(struct keymap *km, const input_key_event_t *evt, command_fn cmd) {
+	return keymap_bind(km, keymap_key_from_event(evt), cmd);
+}
+static inline struct keymap_entry *keymap_lookup_event(struct keymap *km, const input_key_event_t *evt) {
+	return keymap_lookup(km, keymap_key_from_event(evt));
+}
+
+// Keymap initialization
+void keymap_init_defaults(void);
 
 // Keymap listing and help
 void keymap_describe(struct keymap *km, struct buffer *bp);
@@ -105,31 +108,13 @@ void keymap_list_bindings(struct keymap *km, struct buffer *bp);
 
 // Multi-key sequence handling
 struct key_sequence {
-	uint32_t keys[8];    // Up to 8 keys in sequence
-	size_t length;       // Current sequence length
-	size_t capacity;     // Max sequence length (8)
+	keymap_key_t keys[8];    // Up to 8 keys in sequence
+	size_t length;           // Current sequence length
+	size_t capacity;         // Max sequence length (8)
 };
 
 // Sequence lookup for complex bindings
 command_fn keymap_lookup_sequence(struct keymap *km, struct key_sequence *seq);
-
-// Hook system for command execution
-typedef int (*command_hook)(command_fn cmd, int f, int n);
-
-struct hook_list {
-	command_hook *hooks;
-	size_t count;
-	size_t capacity;
-};
-
-extern struct hook_list pre_command_hooks;
-extern struct hook_list post_command_hooks;
-
-// Hook management
-int hook_add(struct hook_list *list, command_hook hook);
-int hook_remove(struct hook_list *list, command_hook hook);
-int hook_run_pre(command_fn cmd, int f, int n);
-int hook_run_post(command_fn cmd, int f, int n, int result);
 
 // Statistics and debugging
 struct keymap_stats {

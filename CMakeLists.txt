@@ -10,6 +10,14 @@ project(μEmacs
 
 # Feature toggles (defined early so they affect source lists and targets)
 option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
+option(ENABLE_LIBVTERM "Enable full terminal emulator integration using libvterm" OFF)
+option(UEMACS_DEBUG_LOG "Enable debug logging to /tmp/uemacs_debug.log" OFF)
+
+if(ENABLE_LIBVTERM)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(VTERM REQUIRED vterm)
+    message(STATUS "Full Terminal Integration (libvterm) ENABLED")
+endif()
 
 # Tuning knob: minimum literal length for BMH fast path
 set(BMH_MIN_LEN 5 CACHE STRING "Minimum length for Boyer–Moore–Horspool literal path (default 5)")
@@ -40,6 +48,7 @@ check_include_file(sys/timerfd.h HAVE_SYS_TIMERFD_H)
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/μemacs/util
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
@@ -57,9 +66,6 @@ set(CORE_SOURCES
     src/core/keymap.c
     src/core/globals.c
     src/core/cbuf_dispatch.c
-    src/core/command_hooks.c
-    src/core/display_matrix.c
-    src/core/events.c
     src/core/gapbuffer.c
     src/core/window_hash.c
     src/core/plugin.c
@@ -69,10 +75,12 @@ set(CORE_SOURCES
 set(TEXT_SOURCES
     src/text/region.c
     src/text/search.c
+    src/text/parallel_search.c
     src/text/isearch.c
     src/text/word.c
     src/text/random.c
     src/text/boyer_moore.c
+    src/text/writeedit.c
 )
 
 if(ENABLE_SEARCH_NFA)
@@ -97,6 +105,7 @@ set(CONFIG_SOURCES
     src/config/eval.c
     src/config/writing.c
     src/config/settings.c
+    src/config/vim_bindings.c
 )
 
 # Linux platform specific
@@ -105,17 +114,28 @@ set(PLATFORM_SOURCES
     src/platform/linux-modern.c
 )
 
-# Terminal handling - Linux only
+# Terminal handling - Linux only (pure raw ANSI, no ncurses dependency)
 set(TERMINAL_SOURCES
-    src/terminal/drivers/posix.c
-    src/terminal/drivers/termcap.c
+    src/terminal/drivers/curses.c
     src/terminal/modern-term.c
     src/terminal/capability.c
     src/terminal/cleanup.c
     src/terminal/display_ops.c
     src/terminal/winsize.c
     src/terminal/atomic_terminal.c
+    src/terminal/palette.c
+    # Modern terminal integration (2025 Architecture)
+    src/terminal/terminal.c
+    src/terminal/pty.c
+    # New terminal layer (2024 Rewrite)
+    src/terminal/input_state.c
+    # src/terminal/frame_buffer.c  # Removed - file doesn't exist
+    src/terminal/signal_handler.c
 )
+
+if(ENABLE_LIBVTERM)
+    list(APPEND TERMINAL_SOURCES src/terminal/vterm_wrapper.c)
+endif()
 
 # Utilities - Phase 1 modernized utilities
 set(UTIL_SOURCES
@@ -132,13 +152,14 @@ set(UTIL_SOURCES
     src/util/file.c
     # Phase 5: Performance monitoring
     src/util/profiler.c
-    # Phase 3: Security string operations
-    src/util/string_enhanced.c
-    src/util/string_missing.c
     # Status line integrations (async Git)
     src/util/git_status.c
     # Phase 5: Pattern consolidation
     src/util/buffer_utils.c
+    # Configuration parser
+    src/util/tiny_toml.c
+    # Debug logging (conditionally compiled)
+    src/util/logger.c
 )
 
 # All sources
@@ -165,9 +186,17 @@ if(ENABLE_SEARCH_NFA)
 endif()
 target_compile_definitions(uemacs PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
+# Debug logging (zero-cost when disabled)
+if(UEMACS_DEBUG_LOG)
+    target_compile_definitions(uemacs PRIVATE UEMACS_DEBUG_LOG=1)
+    message(STATUS "Debug logging ENABLED -> /tmp/uemacs_debug.log")
+else()
+    target_compile_definitions(uemacs PRIVATE UEMACS_DEBUG_LOG=0)
+endif()
+
 # Main executable
 add_executable(muEmacs main.c)
-target_link_libraries(muEmacs uemacs ${NCURSES_LIBRARIES} m Threads::Threads) # Link against the static library
+target_link_libraries(muEmacs uemacs m Threads::Threads) # Link against the static library
 set_target_properties(muEmacs PROPERTIES OUTPUT_NAME "μEmacs")
 
 # Apply same compile definitions as the library so main.c builds consistently
@@ -184,13 +213,14 @@ target_compile_definitions(muEmacs PRIVATE
     HAVE_CONFIG_H=1
     _GNU_SOURCE
     _DEFAULT_SOURCE
+    UEMACS_DEBUG_LOG=$<BOOL:${UEMACS_DEBUG_LOG}>
 )
 
 # Integration test executable (TTY-capable stress testing)
 set(TEST_SOURCES
     tests/test_utils.c
     tests/test_keymap_defaults.c
-    tests/test_key_decode_edges.c
+    tests/unit/test_io_input.c
     tests/test_mx_command_flow.c
     tests/test_help_prefix_toggle.c
     tests/test_phase1_core_ops.c
@@ -198,20 +228,17 @@ set(TEST_SOURCES
     tests/test_phase3_selection.c
     tests/test_phase4_command_validation.c
     tests/test_phase5_advanced_undo_redo.c
-    tests/test_keymap.c
+    tests/unit/test_core_keymap.c
     tests/test_api.c
-    tests/test_boyer_moore.c
-    tests/test_paste.c
-    tests/test_undo_deterministic.c
-    tests/test_undo_capacity.c
+    tests/unit/test_text_boyer_moore.c
+    tests/unit/test_core_undo.c
     tests/test_stats.c
-    tests/test_utf8.c
-    tests/test_undo_advanced.c
-    tests/test_search_engines.c
+    tests/unit/test_util_utf8.c
+    tests/unit/test_core_gapbuffer.c
+    tests/unit/test_text_nfa.c
+    tests/unit/test_text_search.c
     tests/test_atomic_stats.c
     tests/test_fileio_stub.c
-    tests/test_key_decode_edges.c
-    tests/test_mx_command_flow.c
     tests/test_writing_wrap_poe.c
     # 100% coverage completion test suites
     tests/test_terminal_display.c
@@ -223,8 +250,6 @@ set(TEST_SOURCES
     tests/test_config_engine.c
     # Phase 1B: Security & Encryption Testing
     tests/test_security_encryption.c
-    # Key decode matrix tests
-    tests/test_key_decode_matrix.c
     # Phase 2C: Process & Shell Integration Tests
     tests/test_process_shell.c
     # Phase 2D: Transaction & Persistence System Tests
@@ -235,12 +260,57 @@ set(TEST_SOURCES
     tests/test_platform_specific.c
     # EXTREME Stress Testing (10X)
     tests/test_extreme_stress.c
-    # Kitty CSI u decoding tests
-    tests/test_kitty_csi_u.c
+    # Vim Mode, Settings, Soft Wrap, TrueColor tests
+    tests/test_vim_mode.c
+    tests/test_settings_system.c
+    tests/test_soft_wrap_display.c
+    tests/test_truecolor_display.c
+    # New modular unit tests
+    tests/unit/test_core_buffer.c
+    tests/unit/test_core_line.c
+    tests/unit/test_core_window.c
+    tests/unit/test_text_isearch.c
+    tests/unit/test_text_region.c
+    tests/unit/test_config_settings.c
+    tests/unit/test_config_vim.c
+    tests/unit/test_io_file.c
+    # Terminal integration tests
+    tests/unit/test_terminal_pty.c
+    # Stub implementations
+    tests/unit/test_io_fileio.c
+    tests/unit/test_terminal_signal.c
+    tests/unit/test_terminal_cleanup.c
+    tests/unit/test_terminal_input_state.c
+    # Additional modular tests
+    tests/unit/test_text_random.c
+    tests/unit/test_text_word.c
+    tests/unit/test_text_replace.c
+    tests/unit/test_text_encrypt.c
+    tests/unit/test_config_eval.c
+    tests/unit/test_config_exec.c
+    tests/unit/test_config_bind.c
+    tests/unit/test_config_names.c
+    tests/unit/test_util_profiler.c
+    tests/unit/test_platform_spawn.c
+    tests/unit/test_core_globals.c
+    tests/unit/test_atomic_cursor.c
+    tests/unit/test_util_memory.c
+    tests/unit/test_text_writing.c
+    tests/unit/test_core_basic.c
+    tests/unit/test_core_plugin.c
+    tests/unit/test_core_window_hash.c
+    tests/unit/test_io_lock.c
+    tests/unit/test_util_git_status.c
+    # Additional test files
+    # tests/unit/test_config_eval_extended.c  # FIXME: uses internal uv/MAXVARS
+    tests/unit/test_core_display.c
+    tests/unit/test_terminal_ansi.c
+    # tests/unit/test_tui_rendering.c  # FIXME: needs display internals
+    tests/unit/test_util_string.c
 )
 
 add_executable(full_integration_test
-    tests/full_integration_test.c
+    tests/integration/main_test_suite.c
     ${TEST_SOURCES}
 )
 if(ENABLE_SEARCH_NFA)
@@ -248,16 +318,33 @@ if(ENABLE_SEARCH_NFA)
 endif()
 target_compile_definitions(full_integration_test PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
-# Focused keymap-only test runner (fast)
-add_executable(keymap_tests
-    tests/run_keymap_tests.c
-    tests/test_utils.c
-    tests/test_keymap.c
-    tests/test_keymap_defaults.c
-    tests/test_help_prefix_toggle.c
+# (E4: Standalone test runners deleted - all tests consolidated into full_integration_test)
+
+# Remaining target definitions
+target_compile_definitions(full_integration_test PRIVATE
+    LINUX=1
+    UNIX=1
+    POSIX=1
+    UTF8=1
+    COLOR=1
+    CRYPT=1
+    FILOCK=1
+    MODERN=1
+    AUTOCONF=1
+    HAVE_CONFIG_H=1
+    _GNU_SOURCE
+    _DEFAULT_SOURCE
 )
-target_link_libraries(keymap_tests uemacs ${NCURSES_LIBRARIES} m Threads::Threads)
-target_compile_definitions(keymap_tests PRIVATE
+
+# Save crash reproduction test
+add_executable(save_crash_test tests/test_save_crash.c)
+target_link_libraries(save_crash_test uemacs Threads::Threads m)
+target_include_directories(save_crash_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+target_compile_definitions(save_crash_test PRIVATE
     LINUX=1
     UNIX=1
     POSIX=1
@@ -282,12 +369,23 @@ target_include_directories(bench_search PRIVATE
 )
 target_compile_definitions(bench_search PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
+# Parallel search benchmark
+add_executable(bench_parallel tests/bench_parallel.c)
+target_link_libraries(bench_parallel uemacs Threads::Threads m)
+target_include_directories(bench_parallel PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+target_compile_definitions(bench_parallel PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
+
 add_custom_target(bench
   COMMAND $<TARGET_FILE:bench_search>
   COMMAND $<TARGET_FILE:bench_keymap>
   COMMAND $<TARGET_FILE:bench_utf8>
   COMMAND $<TARGET_FILE:bench_editor>
-  DEPENDS bench_search bench_keymap bench_utf8
+  COMMAND $<TARGET_FILE:bench_parallel>
+  DEPENDS bench_search bench_keymap bench_utf8 bench_parallel
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running microbenchmarks (search)"
 )
@@ -383,17 +481,20 @@ target_link_options(uemacs PRIVATE
     $<$<CONFIG:Release>:-s>
 )
 
-# Find required libraries
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(NCURSES REQUIRED ncursesw)
+# Find required libraries (no ncurses - pure raw ANSI terminal driver)
 find_package(Threads REQUIRED)
 
-# Link libraries - only what modern Linux needs
+# Link libraries - only what modern Linux needs (no external deps for terminal)
 target_link_libraries(uemacs
     m                           # Math library
-    ${NCURSES_LIBRARIES}       # Terminal control (ncursesw)
     Threads::Threads           # pthreads for mutex/signal masking
+    util                        # PTY functions (forkpty, openpty)
 )
+if(ENABLE_LIBVTERM)
+    target_link_libraries(uemacs ${VTERM_LIBRARIES})
+    target_include_directories(uemacs PRIVATE ${VTERM_INCLUDE_DIRS})
+    target_compile_definitions(uemacs PRIVATE USE_LIBVTERM=1)
+endif()
 
 # Link libraries for integration tests  
 target_link_libraries(full_integration_test
@@ -414,14 +515,12 @@ target_include_directories(uemacs PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_BINARY_DIR}/include
-    ${NCURSES_INCLUDE_DIRS}
 )
 target_include_directories(full_integration_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}/include
-    ${NCURSES_INCLUDE_DIRS}
 )
 
 # Debug build with sanitizers
@@ -460,6 +559,30 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT DISABLE_SANITIZERS)
         -fsanitize=address
         -fsanitize=undefined
     )
+
+    # Sanitizers for save_crash_test
+    target_compile_options(save_crash_test PRIVATE
+        -fsanitize=address
+        -fsanitize=undefined
+        -fno-omit-frame-pointer
+    )
+    target_link_options(save_crash_test PRIVATE
+        -fsanitize=address
+        -fsanitize=undefined
+    )
+
+    # Sanitizers for benchmark targets
+    foreach(_bench bench_search bench_keymap bench_utf8 bench_editor bench_parallel)
+        target_compile_options(${_bench} PRIVATE
+            -fsanitize=address
+            -fsanitize=undefined
+            -fno-omit-frame-pointer
+        )
+        target_link_options(${_bench} PRIVATE
+            -fsanitize=address
+            -fsanitize=undefined
+        )
+    endforeach()
 endif()
 
 # Modern Linux installation following FHS standards
@@ -558,6 +681,15 @@ add_custom_target(stress
   DEPENDS full_integration_test
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running extreme non-interactive stress tests (set UEMACS_STRESS to scale)"
+)
+
+# TUI tests using pyte terminal emulator (Python)
+# Requires: pip install pyte pexpect (or use .venv)
+add_custom_target(tui_tests
+  COMMAND ${CMAKE_SOURCE_DIR}/.venv/bin/python ${CMAKE_SOURCE_DIR}/tests/tui/test_highlight.py
+  DEPENDS muEmacs
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMENT "Running TUI tests with pyte terminal emulator"
 )
 
 # Packaging via CPack (optional): generates DEB/RPM/TGZ packages

@@ -11,9 +11,9 @@
 #include "edef.h"
 #include "efunc.h"
 #include "memory.h"
-#include "string_safe.h"
+#include "string_utils.h"
 
-#include <sys/errno.h>
+#include <errno.h>
 
 static char *lname[NLOCKS];		/* names of all locked files */
 static int numlocks;			/* # of current locks active */
@@ -37,7 +37,7 @@ int lockchk(char *fname)
 
 	/* if we have a full locking table, bitch and leave */
 	if (numlocks == NLOCKS) {
-		mlwrite("LOCK ERROR: Lock table full");
+		mlwrite("LOCK ERROR: LOCK TABLE FULL");
 		return ABORT;
 	}
 
@@ -52,7 +52,7 @@ int lockchk(char *fname)
 	lname[++numlocks - 1] = (char*)safe_alloc(strlen(fname) + 1, "lock filename", __FILE__, __LINE__);
 	if (lname[numlocks - 1] == nullptr) {	/* malloc failure */
 		undolock(fname);	/* free the lock */
-		mlwrite("Cannot lock, out of memory");
+		mlwrite("CANNOT LOCK, OUT OF MEMORY");
 		--numlocks;
 		return ABORT;
 	}

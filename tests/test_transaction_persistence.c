@@ -62,13 +62,13 @@ typedef struct {
 // Test transaction atomicity
 int test_transaction_atomicity(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Transaction Atomicity ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Transaction Atomicity ===%s", BLUE, RESET);
     
     // Use unified global atomic state
     unified_atomic_state_t *tx = &atomic_state;
     
     // Test atomic transaction begin/commit
-    printf("Testing atomic transaction operations...\n");
+    LOG_INFO("Testing atomic transaction operations...");
     total++;
     
     // Simulate transaction begin
@@ -87,7 +87,7 @@ int test_transaction_atomicity(void) {
         }
         
         if (atomic_load(&tx->committed) == 1 && atomic_load(&tx->depth) == 0) {
-            printf("[%sSUCCESS%s] Transaction atomicity: begin/commit cycle completed\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Transaction atomicity: begin/commit cycle completed");
             fflush(stdout);
             passed++;
         }
@@ -97,7 +97,7 @@ int test_transaction_atomicity(void) {
     RESET_ATOMIC_STRUCT(tx);
     
     // Test transaction abort
-    printf("Testing transaction abort functionality...\n");
+    LOG_INFO("Testing transaction abort functionality...");
     total++;
     
     atomic_fetch_add(&tx->depth, 1);
@@ -107,7 +107,7 @@ int test_transaction_atomicity(void) {
     atomic_store(&tx->aborted, 1);
     
     if (atomic_load(&tx->aborted) == 1 && atomic_load(&tx->depth) == 0) {
-        printf("[%sSUCCESS%s] Transaction abort: transaction properly aborted\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Transaction abort: transaction properly aborted");
         passed++;
     }
     
@@ -115,7 +115,7 @@ int test_transaction_atomicity(void) {
     RESET_ATOMIC_STRUCT(tx);
     
     // Test nested transaction handling
-    printf("Testing nested transaction handling...\n");
+    LOG_INFO("Testing nested transaction handling...");
     total++;
     
     
@@ -136,7 +136,7 @@ int test_transaction_atomicity(void) {
     int final_depth = atomic_load(&tx->depth);
     
     if (outer_depth == 1 && inner_depth == 2 && after_inner == 1 && final_depth == 0) {
-        printf("[%sSUCCESS%s] Nested transactions: depth tracking works correctly\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Nested transactions: depth tracking works correctly");
         passed++;
     }
     
@@ -145,20 +145,20 @@ int test_transaction_atomicity(void) {
     atomic_store(&tx->committed, 0);
     atomic_store(&tx->aborted, 0);
     
-    printf("Transaction atomicity tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Transaction atomicity tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test multi-step operations
 int test_multi_step_operations(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Multi-Step Operations ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Multi-Step Operations ===%s", BLUE, RESET);
     
     // Reset atomic state to prevent interference from previous tests
     RESET_ATOMIC_STRUCT(&atomic_state);
     
     // Test file operation transaction
-    printf("Testing file operation transaction...\n");
+    LOG_INFO("Testing file operation transaction...");
     total++;
     
     const char* test_file = "/tmp/uemacs_tx_test.txt";
@@ -183,8 +183,8 @@ int test_multi_step_operations(void) {
             fclose(orig);
             fclose(backup);
             free(copy_buffer);
-            orig = nullptr;
-            backup = nullptr;
+            orig = NULL;
+            backup = NULL;
             
             // Step 3: Modify original file
             FILE* mod = fopen(test_file, "w");
@@ -200,7 +200,7 @@ int test_multi_step_operations(void) {
                     fclose(verify);
                     
                     if (strcmp(verify_buffer, new_content) == 0) {
-                        printf("[SUCCESS] Multi-step file: backup created, file modified\n");
+                        LOG_INFO("[SUCCESS] Multi-step file: backup created, file modified");
                         fflush(stdout);
                         passed++;
                     }
@@ -213,7 +213,7 @@ int test_multi_step_operations(void) {
     }
     
     // Test buffer operation transaction
-    printf("Testing buffer operation transaction...\n");
+    LOG_INFO("Testing buffer operation transaction...");
     total++;
     
     // Use heap allocation to prevent stack layout corruption
@@ -236,20 +236,20 @@ int test_multi_step_operations(void) {
     // Verify transaction state
     if (buffer->line_count == 3 && buffer->modified == 1 && 
         checkpoint->line_count == 2 && checkpoint->modified == 0) {
-        printf("[%sSUCCESS%s] Buffer transaction: state tracked through modifications\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Buffer transaction: state tracked through modifications");
         passed++;
     }
     
     // Test rollback operation
-    printf("Testing transaction rollback...\n");
+    LOG_INFO("Testing transaction rollback...");
     total++;
     
     // Rollback to checkpoint
     *buffer = *checkpoint;
     
     if (buffer->line_count == 2 && buffer->modified == 0 && 
-        strstr(buffer->data, "Line 3") == nullptr) {
-        printf("[%sSUCCESS%s] Transaction rollback: buffer restored to checkpoint\n", GREEN, RESET);
+        strstr(buffer->data, "Line 3") == NULL) {
+        LOG_INFO("[SUCCESS] Transaction rollback: buffer restored to checkpoint");
         passed++;
     }
     
@@ -261,17 +261,17 @@ int test_multi_step_operations(void) {
     unlink(test_file);
     unlink(backup_file);
     
-    printf("Multi-step operation tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Multi-step operation tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test crash recovery functionality
 int test_crash_recovery(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Crash Recovery ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Crash Recovery ===%s", BLUE, RESET);
     
     // Test journal file creation
-    printf("Testing journal file creation...\n");
+    LOG_INFO("Testing journal file creation...");
     total++;
     
     const char* journal_file = "/tmp/uemacs_journal.log";
@@ -283,7 +283,7 @@ int test_crash_recovery(void) {
         fprintf(journal, "TRANSACTION_BEGIN\n");
         fprintf(journal, "FILE_OPERATION: %s\n", data_file);
         fprintf(journal, "OPERATION: WRITE\n");
-        fprintf(journal, "TIMESTAMP: %ld\n", time(nullptr));
+        fprintf(journal, "TIMESTAMP: %ld\n", time(NULL));
         fprintf(journal, "TRANSACTION_END\n");
         fflush(journal);
         fsync(fileno(journal));
@@ -292,13 +292,13 @@ int test_crash_recovery(void) {
         // Verify journal exists and has content
         struct stat st;
         if (stat(journal_file, &st) == 0 && st.st_size > 0) {
-            printf("[%sSUCCESS%s] Journal creation: %ld bytes written to journal\n", GREEN, RESET, st.st_size);
+            LOG_INFOF("[SUCCESS] Journal creation: %ld bytes written to journal", st.st_size);
             passed++;
         }
     }
     
     // Test recovery from journal
-    printf("Testing recovery from journal...\n");
+    LOG_INFO("Testing recovery from journal...");
     total++;
     
     FILE* recovery = fopen(journal_file, "r");
@@ -316,13 +316,13 @@ int test_crash_recovery(void) {
         fclose(recovery);
         
         if (transaction_found && file_op_found && timestamp_found) {
-            printf("[%sSUCCESS%s] Journal recovery: transaction data parsed successfully\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Journal recovery: transaction data parsed successfully");
             passed++;
         }
     }
     
     // Test incomplete transaction detection
-    printf("Testing incomplete transaction detection...\n");
+    LOG_INFO("Testing incomplete transaction detection...");
     total++;
     
     const char* incomplete_journal = "/tmp/uemacs_incomplete.log";
@@ -341,11 +341,11 @@ int test_crash_recovery(void) {
             fread(content, 1, sizeof(content) - 1, check);
             fclose(check);
             
-            int has_begin = strstr(content, "TRANSACTION_BEGIN") != nullptr;
-            int has_end = strstr(content, "TRANSACTION_END") != nullptr;
+            int has_begin = strstr(content, "TRANSACTION_BEGIN") != NULL;
+            int has_end = strstr(content, "TRANSACTION_END") != NULL;
             
             if (has_begin && !has_end) {
-                printf("[%sSUCCESS%s] Incomplete detection: incomplete transaction identified\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Incomplete detection: incomplete transaction identified");
                 passed++;
             }
         }
@@ -356,17 +356,17 @@ int test_crash_recovery(void) {
     unlink(incomplete_journal);
     unlink(data_file);
     
-    printf("Crash recovery tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Crash recovery tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test undo persistence functionality
 int test_undo_persistence(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Undo Persistence ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Undo Persistence ===%s", BLUE, RESET);
     
     // Test undo stack serialization
-    printf("Testing undo stack serialization...\n");
+    LOG_INFO("Testing undo stack serialization...");
     total++;
     
     typedef struct undo_entry {
@@ -380,7 +380,7 @@ int test_undo_persistence(void) {
     undo_entry_t entries[3];
     entries[0] = (undo_entry_t){1, "insert text", 11, &entries[1]};
     entries[1] = (undo_entry_t){2, "delete line", 11, &entries[2]};
-    entries[2] = (undo_entry_t){3, "replace word", 12, nullptr};
+    entries[2] = (undo_entry_t){3, "replace word", 12, NULL};
     
     const char* undo_file = "/tmp/uemacs_undo_test.dat";
     FILE* undo_f = fopen(undo_file, "wb");
@@ -396,13 +396,13 @@ int test_undo_persistence(void) {
         // Verify file was created
         struct stat st;
         if (stat(undo_file, &st) == 0 && st.st_size > 0) {
-            printf("[%sSUCCESS%s] Undo serialization: %ld bytes written to undo file\n", GREEN, RESET, st.st_size);
+            LOG_INFOF("[SUCCESS] Undo serialization: %ld bytes written to undo file", st.st_size);
             passed++;
         }
     }
     
     // Test undo stack deserialization
-    printf("Testing undo stack deserialization...\n");
+    LOG_INFO("Testing undo stack deserialization...");
     total++;
     
     FILE* read_undo = fopen(undo_file, "rb");
@@ -423,13 +423,13 @@ int test_undo_persistence(void) {
         if (loaded_count == 3 && 
             loaded_entries[0].operation_type == 1 &&
             strcmp(loaded_entries[0].data, "insert text") == 0) {
-            printf("[%sSUCCESS%s] Undo deserialization: %d entries loaded correctly\n", GREEN, RESET, loaded_count);
+            LOG_INFOF("[SUCCESS] Undo deserialization: %d entries loaded correctly", loaded_count);
             passed++;
         }
     }
     
     // Test undo persistence across sessions
-    printf("Testing undo persistence across sessions...\n");
+    LOG_INFO("Testing undo persistence across sessions...");
     total++;
     
     const char* session_undo = "/tmp/uemacs_session_undo.dat";
@@ -452,7 +452,7 @@ int test_undo_persistence(void) {
             if (strstr(buffer, "SESSION_1_UNDO_DATA") && 
                 strstr(buffer, "operation_1") && 
                 strstr(buffer, "operation_2")) {
-                printf("[%sSUCCESS%s] Session persistence: undo data persisted across sessions\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Session persistence: undo data persisted across sessions");
                 passed++;
             }
         }
@@ -462,17 +462,17 @@ int test_undo_persistence(void) {
     unlink(undo_file);
     unlink(session_undo);
     
-    printf("Undo persistence tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Undo persistence tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test buffer state persistence
 int test_buffer_state_persistence(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Buffer State Persistence ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Buffer State Persistence ===%s", BLUE, RESET);
     
     // Test buffer metadata persistence
-    printf("Testing buffer metadata persistence...\n");
+    LOG_INFO("Testing buffer metadata persistence...");
     total++;
     
     typedef struct {
@@ -490,7 +490,7 @@ int test_buffer_state_persistence(void) {
         .line_count = 100,
         .char_count = 2500,
         .modified = 1,
-        .last_modified = time(nullptr),
+        .last_modified = time(NULL),
         .cursor_line = 45,
         .cursor_col = 12
     };
@@ -509,7 +509,7 @@ int test_buffer_state_persistence(void) {
                 if (loaded_meta.line_count == 100 && 
                     loaded_meta.cursor_line == 45 && 
                     strcmp(loaded_meta.filename, "/tmp/test_file.txt") == 0) {
-                    printf("[%sSUCCESS%s] Buffer metadata: saved and loaded correctly\n", GREEN, RESET);
+                    LOG_INFO("[SUCCESS] Buffer metadata: saved and loaded correctly");
                     passed++;
                 }
             }
@@ -518,7 +518,7 @@ int test_buffer_state_persistence(void) {
     }
     
     // Test buffer content checksum
-    printf("Testing buffer content integrity checking...\n");
+    LOG_INFO("Testing buffer content integrity checking...");
     total++;
     
     const char* content = "Buffer content for checksum testing\nLine 2\nLine 3\n";
@@ -558,7 +558,7 @@ int test_buffer_state_persistence(void) {
             }
             
             if (calc_checksum == loaded_checksum && calc_checksum == checksum) {
-                printf("[%sSUCCESS%s] Content integrity: checksum verified (0x%08x)\n", GREEN, RESET, checksum);
+                LOG_INFOF("[SUCCESS] Content integrity: checksum verified (0x%08x)", checksum);
                 passed++;
             }
             
@@ -576,17 +576,17 @@ int test_buffer_state_persistence(void) {
     unlink(content_file);
     unlink(checksum_file);
     
-    printf("Buffer state persistence tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Buffer state persistence tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test concurrent transactions
 int test_concurrent_transactions(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Concurrent Transactions ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Concurrent Transactions ===%s", BLUE, RESET);
     
     // Test atomic counter operations
-    printf("Testing atomic transaction counters...\n");
+    LOG_INFO("Testing atomic transaction counters...");
     total++;
     
     // Use unified global atomic state - concurrent ops section
@@ -603,13 +603,12 @@ int test_concurrent_transactions(void) {
     
     if (atomic_load(&ops->global_counter) == num_operations && 
         atomic_load(&ops->transaction_depth) == 0) {
-        printf("[%sSUCCESS%s] Atomic counters: %d operations completed, depth=0\n", 
-               GREEN, RESET, num_operations);
+        LOG_INFOF("[SUCCESS] Atomic counters: %d operations completed, depth=0", num_operations);
         passed++;
     }
     
     // Test transaction isolation simulation
-    printf("Testing transaction isolation...\n");
+    LOG_INFO("Testing transaction isolation...");
     total++;
     
     // Use unified global atomic state - resource isolation section
@@ -630,12 +629,12 @@ int test_concurrent_transactions(void) {
     if (atomic_load(&resource->value) == 42 && 
         atomic_load(&resource->readers) == 0 && 
         atomic_load(&resource->writers) == 0) {
-        printf("[%sSUCCESS%s] Transaction isolation: reader/writer coordination works\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Transaction isolation: reader/writer coordination works");
         passed++;
     }
     
     // Test transaction conflict detection
-    printf("Testing transaction conflict detection...\n");
+    LOG_INFO("Testing transaction conflict detection...");
     total++;
     
     // Reset counters for conflict detection test
@@ -658,22 +657,21 @@ int test_concurrent_transactions(void) {
     }
     
     if (atomic_load(&ops->conflict_counter) > 0) {
-        printf("[%sSUCCESS%s] Conflict detection: %d conflicts detected\n", 
-               GREEN, RESET, atomic_load(&ops->conflict_counter));
+        LOG_INFOF("[SUCCESS] Conflict detection: %d conflicts detected", atomic_load(&ops->conflict_counter));
         passed++;
     }
     
-    printf("Concurrent transaction tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Concurrent transaction tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test transaction rollback
 int test_transaction_rollback(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Transaction Rollback ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Transaction Rollback ===%s", BLUE, RESET);
     
     // Test single operation rollback
-    printf("Testing single operation rollback...\n");
+    LOG_INFO("Testing single operation rollback...");
     total++;
     
     typedef struct {
@@ -703,12 +701,12 @@ int test_transaction_rollback(void) {
     if (strcmp(current_state.content, "Original text content") == 0 && 
         current_state.operation_id == 0 && 
         current_state.length == 21) {
-        printf("[%sSUCCESS%s] Single rollback: state restored to original\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Single rollback: state restored to original");
         passed++;
     }
     
     // Test multi-operation rollback
-    printf("Testing multi-operation rollback...\n");
+    LOG_INFO("Testing multi-operation rollback...");
     total++;
     
     rollback_state_t checkpoints[4];
@@ -739,12 +737,12 @@ int test_transaction_rollback(void) {
     if (strstr(current_state.content, "+ op1") && 
         !strstr(current_state.content, "+ op2") && 
         current_state.operation_id == 1) {
-        printf("[%sSUCCESS%s] Multi-operation rollback: rolled back to checkpoint 1\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Multi-operation rollback: rolled back to checkpoint 1");
         passed++;
     }
     
     // Test rollback with file operations
-    printf("Testing rollback with file operations...\n");
+    LOG_INFO("Testing rollback with file operations...");
     total++;
     
     const char* rollback_file = "/tmp/uemacs_rollback_test.txt";
@@ -792,7 +790,7 @@ int test_transaction_rollback(void) {
                         fclose(verify);
                         
                         if (strstr(verify_buffer, "Original file content")) {
-                            printf("[%sSUCCESS%s] File rollback: original content restored\n", GREEN, RESET);
+                            LOG_INFO("[SUCCESS] File rollback: original content restored");
                             passed++;
                         }
                     }
@@ -809,6 +807,6 @@ int test_transaction_rollback(void) {
     unlink(rollback_file);
     unlink(backup_rollback);
     
-    printf("Transaction rollback tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Transaction rollback tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }

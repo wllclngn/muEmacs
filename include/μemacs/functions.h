@@ -16,15 +16,15 @@
 
 /* word.c */
 extern int wrapword(int f, int n);
-extern int backword(int f, int n);
-extern int forwword(int f, int n);
+extern int move_word_backward(int f, int n);
+extern int move_word_forward(int f, int n);
 extern int forwsubword(int f, int n);
 extern int backsubword(int f, int n);
 extern int upperword(int f, int n);
 extern int lowerword(int f, int n);
 extern int capword(int f, int n);
-extern int delfword(int f, int n);
-extern int delbword(int f, int n);
+extern int delete_word_forward(int f, int n);
+extern int delete_word_backward(int f, int n);
 extern int inword(void);
 extern int at_subword_boundary(void);
 extern int fillpara(int f, int n);
@@ -35,41 +35,40 @@ extern int wordcount(int f, int n);
 /* window.c */
 extern int reposition(int f, int n);
 extern int redraw(int f, int n);
-extern int nextwind(int f, int n);
-extern int prevwind(int f, int n);
-extern int mvdnwind(int f, int n);
-extern int mvupwind(int f, int n);
-extern int onlywind(int f, int n);
-extern int delwind(int f, int n);
-extern int splitwind(int f, int n);
-extern int enlargewind(int f, int n);
-extern int shrinkwind(int f, int n);
+extern int window_next(int f, int n);
+extern int window_prev(int f, int n);
+extern int window_move_down(int f, int n);
+extern int window_move_up(int f, int n);
+extern int window_only(int f, int n);
+extern int window_delete(int f, int n);
+extern int window_split(int f, int n);
+extern int window_enlarge(int f, int n);
+extern int window_shrink(int f, int n);
 extern int resize(int f, int n);
-extern int scrnextup(int f, int n);
-extern int scrnextdw(int f, int n);
-extern int savewnd(int f, int n);
-extern int restwnd(int f, int n);
+extern int scroll_other_up(int f, int n);
+extern int scroll_other_down(int f, int n);
+extern int window_save(int f, int n);
+extern int window_restore(int f, int n);
 extern int newsize(int f, int n);
 extern int newwidth(int f, int n);
-extern int getwpos(void);
-extern void cknewwindow(void);
+extern int window_get_position(void);
 extern struct window *wpopup(void);  /* Pop up window creation. */
 
 
 /* basic.c */
-extern int gotobol(int f, int n);
-extern int backchar(int f, int n);
-extern int gotoeol(int f, int n);
-extern int forwchar(int f, int n);
+extern int goto_line_start(int f, int n);
+extern int move_char_backward(int f, int n);
+extern int goto_line_end(int f, int n);
+extern int move_char_forward(int f, int n);
 extern int gotoline(int f, int n);
-extern int gotobob(int f, int n);
-extern int gotoeob(int f, int n);
-extern int forwline(int f, int n);
-extern int backline(int f, int n);
-extern int gotobop(int f, int n);
-extern int gotoeop(int f, int n);
-extern int forwpage(int f, int n);
-extern int backpage(int f, int n);
+extern int goto_buffer_start(int f, int n);
+extern int goto_buffer_end(int f, int n);
+extern int cursor_down(int f, int n);
+extern int cursor_up(int f, int n);
+extern int goto_para_start(int f, int n);
+extern int goto_para_end(int f, int n);
+extern int move_page_down(int f, int n);
+extern int move_page_up(int f, int n);
 extern int setmark(int f, int n);
 extern int swapmark(int f, int n);
 
@@ -88,13 +87,13 @@ extern int trim(int f, int n);
 extern int openline(int f, int n);
 extern int insert_newline(int f, int n);
 extern int cinsert(void);
-extern int insbrace(int n, int c);
-extern int inspound(void);
+extern int insert_brace(int n, int c);
+extern int insert_pound(void);
 extern int deblank(int f, int n);
 extern int indent(int f, int n);
-extern int forwdel(int f, int n);
-extern int backdel(int f, int n);
-extern int killtext(int f, int n);
+extern int delete_char_forward(int f, int n);
+extern int delete_char_backward(int f, int n);
+extern int kill_to_eol(int f, int n);
 extern int setemode(int f, int n);
 extern int delmode(int f, int n);
 extern int setgmode(int f, int n);
@@ -110,18 +109,18 @@ extern int adjustmode(int kind, int global);
 extern int clrmes(int f, int n);
 extern int writemsg(int f, int n);
 extern int getfence(int f, int n);
-extern int fmatch(int ch);
+extern int fence_match(int ch);
 extern int istring(int f, int n);
 extern int ovstring(int f, int n);
 extern int duplicate_line(int f, int n);
-extern int move_line_up(int f, int n);
-extern int move_line_down(int f, int n);
+extern int transpose_line_up(int f, int n);
+extern int transpose_line_down(int f, int n);
 
 /* Minimal, Linux‑only command set */
 
 /* main.c */
 extern void edinit(char *bname);
-extern int execute(int c, int f, int n);
+extern int execute_event(input_key_event_t *evt, int f, int n);  /* Event-based dispatch */
 extern int quickexit(int f, int n);
 extern int quit(int f, int n);
 extern int ctlxlp(int f, int n);
@@ -157,55 +156,53 @@ extern void getscreensize(int *widthp, int *heightp);
 extern void sizesignal(int signr);
 
 /* region.c */
-extern int killregion(int f, int n);
-extern int copyregion(int f, int n);
+extern int region_kill(int f, int n);
+extern int region_copy(int f, int n);
 extern int lowerregion(int f, int n);
 extern int upperregion(int f, int n);
 extern int getregion(struct region *rp);
 
-/* posix.c */
+/* posix.c / curses.c */
 extern void ttopen(void);
 extern void ttclose(void);
 extern int ttputc(int c);
+extern void ttputs(const char *s);      /* Bulk string write */
+extern void ttwrite(const char *data, int len);  /* Bulk binary write */
 extern void ttflush(void);
-extern int ttgetc(void);
-extern int typahead(void);
+extern int terminal_read_byte(void);
+extern int input_pending(void);
 
 /* input.c */
-extern int mlyesno(char *prompt);
-extern int mlreply(char *prompt, char *buf, int nbuf);
-extern int mlreplyt(char *prompt, char *buf, int nbuf, int eolchar);
-extern int ectoc(int c);
-extern int ctoec(int c);
+extern int mlyesno(const char *prompt);
+extern int minibuf_confirm(const char *prompt);
 extern fn_t getname(void);
-extern int tgetc(void);
-extern int get1key(void);
-extern int getcmd(void);
-extern int getstring(char *prompt, char *buf, int nbuf, int eolchar);
-extern void outstring(char *s);
-extern void ostring(char *s);
+extern fn_t minibuf_read_command(void);
+extern int minibuf_read(const char *prompt, char *buf, int nbuf);
+extern int input_read_byte(void);
+extern int input_read_event(input_key_event_t *out);
+extern void outstring(const char *s);
+extern void ostring(const char *s);
 /* test helper */
 extern void input_reset_parser_state(void);
 
 /* bind.c */
 extern int help(int f, int n);
-extern int deskey(int f, int n);
+extern int describe_key_binding(int f, int n);
 extern int bindtokey(int f, int n);
 extern int unbindkey(int f, int n);
-extern int unbindchar(int c);
-extern int desbind(int f, int n);
-extern int apro(int f, int n);
-extern int buildlist(int type, char *mstring);
-extern int strinc(char *source, char *sub);
-extern unsigned int getckey(int mflag);
-extern int startup(char *sfname);
-extern char *flook(char *fname, int hflag);
-extern void cmdstr(int c, char *seq);
-extern fn_t getbind(int c);
+extern int describe_all_bindings(int f, int n);
+extern int apropos_command(int f, int n);
+extern int buildlist(int type, const char *mstring);
+extern int string_contains(const char *source, const char *sub);
+extern keymap_key_t read_key(int mflag);               /* Read key as modern keymap_key_t */
+extern int startup(const char *sfname);
+extern const char *flook(const char *fname, int hflag);
+extern void cmdstr_key(keymap_key_t key, char *seq);   /* Modern key to string */
+extern fn_t getbind_event(input_key_event_t *evt);     /* Event-based binding lookup */
 extern char *getfname(fn_t);
-extern fn_t fncmatch(char *);
-extern unsigned int stock(char *keyname);
-extern char *transbind(char *skey);
+extern fn_t fncmatch(const char *);
+extern keymap_key_t stock_key(const char *keyname);    /* String to keymap_key_t */
+extern char *transbind(const char *skey);
 
 /* buffer.c */
 extern int usebuffer(int f, int n);
@@ -252,7 +249,7 @@ extern int execcmd(int f, int n);
 extern int docmd(char *cline);
 extern char *token(char *src, char *tok, int size);
 extern int macarg(char *tok);
-extern int nextarg(char *prompt, char *buffer, int size, int terminator);
+extern int nextarg(const char *prompt, char *buffer, int size);
 extern int storemac(int f, int n);
 extern int storeproc(int f, int n);
 extern int execproc(int f, int n);
@@ -291,11 +288,9 @@ extern int forwsearch(int f, int n);
 extern int forwhunt(int f, int n);
 extern int backsearch(int f, int n);
 extern int backhunt(int f, int n);
-extern int mcscanner(struct magic *mcpatrn, int direct, int beg_or_end);
 extern int scanner(const char *patrn, int direct, int beg_or_end);
 extern int eq(unsigned char bc, unsigned char pc);
-extern void savematch(void);
-extern void rvstrcpy(char *rvstr, char *str);
+extern void rvstrcpy(char *rvstr, char *str, size_t maxlen);
 extern int sreplace(int f, int n);
 extern int qreplace(int f, int n);
 extern int delins(int dlength, char *instr, int use_meta);
@@ -318,24 +313,24 @@ extern void reeat(int c);
 
 /* eval.c */
 extern void varinit(void);
-extern char *gtfun(char *fname);
-extern char *gtusr(char *vname);
-extern char *gtenv(char *vname);
+extern const char *eval_get_function(char *fname);
+extern char *eval_get_user_var(char *vname);
+extern char *eval_get_env_var(const char *vname);
 extern char *getkill(void);
 extern int setvar(int f, int n);
 extern void findvar(char *var, struct variable_description *vd, int size);
 extern int svar(struct variable_description *var, const char *value);
-extern char *itoa(int i);
-extern int gettyp(char *token);
+extern char *int_to_string(int i);
+extern int token_get_type(char *token);
 extern char *getval(char *token, char *result, int size);
-extern int stol(char *val);
-extern char *ltos(int val);
-extern char *mkupper(char *str);
-extern char *mklower(char *str);
+extern int string_to_bool(const char *val);
+extern char *bool_to_string(int val);
+extern char *string_to_upper(char *str);
+extern char *string_to_lower(char *str);
 extern int abs(int x);
-extern int ernd(void);
-extern int sindex(char *source, char *pattern);
-extern char *xlat(char *source, char *lookup, char *trans);
+extern int editor_random(void);
+extern int string_find_index(const char *source, const char *pattern);
+extern char *string_translate(char *source, char *lookup, char *trans);
 
 /* crypt.c - REMOVED, CRYPT disabled */
 /* extern int set_encryption_key(int f, int n); */

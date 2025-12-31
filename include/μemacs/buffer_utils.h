@@ -6,7 +6,9 @@
 #ifndef UEMACS_BUFFER_UTILS_H
 #define UEMACS_BUFFER_UTILS_H
 
-#include "core.h"
+#include "estruct.h"
+#include "edef.h"
+#include "line.h"
 
 // Modern C23 buffer iteration - eliminates redundant loop patterns
 #define FOR_EACH_BUFFER(bp) \

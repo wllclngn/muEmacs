@@ -30,7 +30,7 @@ int test_atomic_stats_updates() {
     int lines=0; long bytes=0; int words=0;
     buffer_get_stats_fast(curbp, &lines, &bytes, &words);
     if (lines != 1 || bytes != 0 || words != 0) {
-        ok = 0; printf("[%sFAIL%s] initial stats wrong (L=%d B=%ld W=%d)\n", RED, RESET, lines, bytes, words);
+        ok = 0; LOG_ERRORF("[FAIL] initial stats wrong (L=%d B=%ld W=%d)", lines, bytes, words);
     }
 
     // Insert "hello world" (2 words)
@@ -38,23 +38,23 @@ int test_atomic_stats_updates() {
     for (const char* p = s; *p; ++p) linsert(1, *p);
     buffer_get_stats_fast(curbp, &lines, &bytes, &words);
     if (lines != 1 || words < 2) {
-        ok = 0; printf("[%sFAIL%s] after insert expected 2 words (got %d)\n", RED, RESET, words);
+        ok = 0; LOG_ERRORF("[FAIL] after insert expected 2 words (got %d)", words);
     }
 
     // Newline
     lnewline();
     buffer_get_stats_fast(curbp, &lines, &bytes, &words);
     if (lines < 2) {
-        ok = 0; printf("[%sFAIL%s] line count did not increase\n", RED, RESET);
+        ok = 0; LOG_ERROR("[FAIL] line count did not increase");
     }
 
     // Delete a char and check bytes change (words heuristic may not change)
     curwp->w_dotp = lforw(curbp->b_linep); curwp->w_doto = 0; // line 1
-    long before_bytes = 0; buffer_get_stats_fast(curbp, nullptr, &before_bytes, nullptr);
+    long before_bytes = 0; buffer_get_stats_fast(curbp, NULL, &before_bytes, NULL);
     ldelete(1, false);
-    long after_bytes = 0; buffer_get_stats_fast(curbp, nullptr, &after_bytes, nullptr);
+    long after_bytes = 0; buffer_get_stats_fast(curbp, NULL, &after_bytes, NULL);
     if (!(after_bytes == before_bytes - 1)) {
-        ok = 0; printf("[%sFAIL%s] byte count did not decrement\n", RED, RESET);
+        ok = 0; LOG_ERROR("[FAIL] byte count did not decrement");
     }
 
     PHASE_END("STATS: ATOMIC", ok);

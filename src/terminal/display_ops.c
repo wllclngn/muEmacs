@@ -1,6 +1,30 @@
 // display_ops.c - Consolidated display operations for μEmacs
 // Optimizes terminal I/O through batched operations and efficient string handling
 
+/*
+ * =============================================================================
+ * Modern Raw ANSI Terminal Driver
+ * =============================================================================
+ *
+ * This file uses the raw ANSI terminal driver (curses.c) for all output.
+ * No ncurses dependency - pure POSIX with direct ANSI escape sequences.
+ *
+ * Benefits:
+ * - Zero external dependencies
+ * - Inherits user's terminal theme automatically
+ * - Works with any modern terminal (kitty, alacritty, xterm, etc.)
+ * - Full UTF-8 and truecolor support
+ *
+ * All output goes through the terminal driver API:
+ * - (*term.t_move)(row, col) for cursor positioning
+ * - (*term.t_rev)(state) for reverse video (theme-aware)
+ * - (*term.t_eeol)() for erase to end of line
+ * - (*term.t_flush)() for buffer flush
+ * - ttputc() / ttflush() for direct output
+ *
+ * =============================================================================
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +38,17 @@
 #include "string_utils.h"
 #include "c23_compat.h"
 #include "terminal_capability.h"
+#include "terminal_ops.h"
 #include "git_status.h"
+#include "util/logger.h"
+
+/* Buffer stats API for O(1) modeline updates */
+extern void buffer_get_stats_fast(struct buffer *bp, int *line_count, long *byte_count, int *word_count);
+extern int get_line_number_cached(struct window *wp);
+
+// Forward declarations for internal buffer functions
+static void buffer_append(const char* str);
+static void buffer_append_char(char c);
 
 // UTF-8 symbols as named constants
 static const char* UTF8_BULLET = "\xe2\x97\x8f";     // ●
@@ -23,17 +57,112 @@ static const char* UTF8_ARROW = "\xe2\x86\x92";      // →
 static const char* UTF8_CHECK = "\xe2\x9c\x93";      // ✓
 static const char* UTF8_CROSS = "\xe2\x9c\x97";      // ✗
 
+/*
+ * Unicode box-drawing characters with ASCII fallbacks
+ * Like montauk's Renderer.cpp - detects UTF-8 support and falls back gracefully
+ */
+typedef struct {
+    const char* top_left;
+    const char* top_right;
+    const char* bottom_left;
+    const char* bottom_right;
+    const char* horizontal;
+    const char* vertical;
+    const char* cross;
+    const char* t_down;
+    const char* t_up;
+    const char* t_right;
+    const char* t_left;
+} box_chars_t;
+
+/* Unicode rounded corners (like montauk) */
+static const box_chars_t box_unicode = {
+    .top_left     = "╭",
+    .top_right    = "╮",
+    .bottom_left  = "╰",
+    .bottom_right = "╯",
+    .horizontal   = "─",
+    .vertical     = "│",
+    .cross        = "┼",
+    .t_down       = "┬",
+    .t_up         = "┴",
+    .t_right      = "├",
+    .t_left       = "┤"
+};
+
+/* ASCII fallback */
+static const box_chars_t box_ascii = {
+    .top_left     = "+",
+    .top_right    = "+",
+    .bottom_left  = "+",
+    .bottom_right = "+",
+    .horizontal   = "-",
+    .vertical     = "|",
+    .cross        = "+",
+    .t_down       = "+",
+    .t_up         = "+",
+    .t_right      = "+",
+    .t_left       = "+"
+};
+
+/* Detect if terminal supports Unicode */
+static bool terminal_supports_unicode(void) {
+    terminal_caps_t caps = get_terminal_capabilities();
+    return caps.utf8_capable;
+}
+
+/* Get appropriate box character set */
+const box_chars_t* get_box_chars(void) {
+    static const box_chars_t* cached = nullptr;
+    static bool initialized = false;
+
+    if (!initialized) {
+        cached = terminal_supports_unicode() ? &box_unicode : &box_ascii;
+        initialized = true;
+    }
+    return cached;
+}
+
+/* Draw a horizontal line using box characters */
+void display_hline(int width) {
+    const box_chars_t* box = get_box_chars();
+    for (int i = 0; i < width; i++) {
+        buffer_append(box->horizontal);
+    }
+}
+
+/* Draw a box border (top) */
+void display_box_top(int width) {
+    const box_chars_t* box = get_box_chars();
+    buffer_append(box->top_left);
+    display_hline(width - 2);
+    buffer_append(box->top_right);
+}
+
+/* Draw a box border (bottom) */
+void display_box_bottom(int width) {
+    const box_chars_t* box = get_box_chars();
+    buffer_append(box->bottom_left);
+    display_hline(width - 2);
+    buffer_append(box->bottom_right);
+}
+
+/* Draw a vertical bar */
+void display_vbar(void) {
+    const box_chars_t* box = get_box_chars();
+    buffer_append(box->vertical);
+}
+
 // Display buffer for batched output
 #define DISPLAY_BUFFER_SIZE 4096
 static char display_buffer[DISPLAY_BUFFER_SIZE];
 static int buffer_pos = 0;
 
-// Flush display buffer via vt layer to avoid stdout interleaving
+// Flush display buffer through terminal driver - bulk write
 void display_flush(void) {
     if (buffer_pos > 0) {
-        display_buffer[buffer_pos] = '\0';
-        vtputs(display_buffer);
-        TTflush();
+        ttwrite(display_buffer, buffer_pos);  /* Bulk write - no char-by-char loop */
+        ttflush();
         buffer_pos = 0;
     }
 }
@@ -65,7 +194,7 @@ static void buffer_appendf(const char* fmt, ...) {
     va_start(args, fmt);
     int len = vsnprintf(temp, sizeof(temp), fmt, args);
     va_end(args);
-    
+
     if (len > 0) {
         buffer_append(temp);
     }
@@ -80,7 +209,7 @@ void display_utf8_symbol(const char* symbol) {
 void display_aligned_text(const char* text, int width, char pad) {
     int len = strlen(text);
     buffer_append(text);
-    
+
     while (len < width) {
         buffer_append_char(pad);
         len++;
@@ -98,30 +227,28 @@ void display_status_section(const char* text, const char* separator) {
 }
 
 // Display complete status line (optimized version)
+// Uses terminal driver for styling - inherits terminal theme
 void display_status_line(struct buffer* bp, struct window* wp, int row) {
     char temp[256];
     terminal_caps_t caps = get_terminal_capabilities();
     char gitbuf[128]; gitbuf[0] = '\0';
     git_status_request_async(nullptr);
     (void)git_status_get_cached(gitbuf, sizeof(gitbuf));
-    
-    // Move to status line position
-    buffer_appendf("\x1b[%d;1H", row + 1);
-    
-    // Style status line; gate truecolor by capability
-    if (caps.truecolor) {
-        // Dimmed dark background with light foreground (e.g., bg #222222, fg #DDDDDD)
-        buffer_append("\x1b[48;2;34;34;34m\x1b[38;2;221;221;221m");
-    } else {
-        // Fallback: reverse video
-        buffer_append("\x1b[7m");
-    }
-    
+
+    // Flush any pending buffer content first
+    display_flush();
+
+    // Move to status line position via safe terminal wrapper
+    TTmove(row, 0);
+
+    // Enable reverse video (inherits terminal theme colors)
+    TTrev(true);
+
     // Buffer status indicator
-    display_utf8_symbol(UTF8_BULLET);
+    buffer_append(UTF8_BULLET);
     buffer_append(" - ");
     buffer_append(bp->b_bname);
-    
+
     // File type
     display_status_section("", UTF8_DOT);
     const char* ext = strrchr(bp->b_fname, '.');
@@ -142,7 +269,7 @@ void display_status_line(struct buffer* bp, struct window* wp, int row) {
     } else {
         buffer_append("?");
     }
-    
+
     // Encoding
     display_status_section("UTF-8", UTF8_DOT);
 
@@ -150,15 +277,12 @@ void display_status_line(struct buffer* bp, struct window* wp, int row) {
     if (gitbuf[0] != '\0') {
         display_status_section(gitbuf, UTF8_DOT);
     }
-    
-    // File size (efficient calculation)
+
+    // File size and line count (O(1) via cached stats)
+    int total_lines = 0;
     long file_size = 0;
-    struct line* lp = lforw(bp->b_linep);
-    while (lp != bp->b_linep) {
-        file_size += llength(lp) + 1;
-        lp = lforw(lp);
-    }
-    
+    buffer_get_stats_fast(bp, &total_lines, &file_size, nullptr);
+
     if (file_size < 1024) {
         snprintf(temp, sizeof(temp), "%ldB", file_size);
     } else if (file_size < 1048576) {
@@ -171,46 +295,36 @@ void display_status_line(struct buffer* bp, struct window* wp, int row) {
         snprintf(temp, sizeof(temp), "%.2fTB", file_size / 1099511627776.0);
     }
     display_status_section(temp, UTF8_DOT);
-    
-    // Line position
-    int current_line = 0, total_lines = 0;
-    lp = lforw(bp->b_linep);
-    while (lp != bp->b_linep) {
-        total_lines++;
-        if (lp == wp->w_dotp) {
-            current_line = total_lines;
-        }
-        lp = lforw(lp);
-    }
-    
+
+    // Line position (O(1) via cached line number)
+    int current_line = get_line_number_cached(wp);
     snprintf(temp, sizeof(temp), "L%d/%d", current_line, total_lines);
     display_status_section(temp, UTF8_DOT);
-    
+
     // Column position
     snprintf(temp, sizeof(temp), "C%d", getccol(false));
     buffer_append(temp);
-    
-    // Pad to full width
-    int current_pos = strlen(bp->b_bname) + 50; // Approximate
-    while (current_pos < caps.width) {
-        buffer_append_char(' ');
-        current_pos++;
-    }
-    
-    // Reset attributes
-    buffer_append("\x1b[0m");
-    
-    // Flush to terminal
+
+    // Flush text content before padding
     display_flush();
+
+    // Pad to full width (erase to end of line)
+    TTeeol();
+
+    // Turn off reverse video
+    TTrev(false);
+
+    // Final flush
+    ttflush();
 }
 
 // Display progress bar
 void display_progress_bar(int percent, int width) {
     if (width < 3) return;
-    
+
     int filled = (percent * (width - 2)) / 100;
     int empty = (width - 2) - filled;
-    
+
     buffer_append_char('[');
     for (int i = 0; i < filled; i++) {
         buffer_append_char('=');
@@ -223,32 +337,26 @@ void display_progress_bar(int percent, int width) {
 
 // Optimized screen update
 void display_update_screen(void) {
-    terminal_caps_t caps = get_terminal_capabilities();
-    
-    // Use alternate screen if available
-    if (caps.alt_screen) {
-        buffer_append("\x1b[?1049h");
-    }
-    
-    // Clear screen efficiently
-    buffer_append("\x1b[2J\x1b[H");
-    
-    // Update content (delegated to existing update logic)
-    // This would integrate with existing vtputc/vtputs calls
-    
-    display_flush();
+    // Clear screen via bulk ANSI escape
+    ttputs("\033[2J");
+    // Move to home position via safe terminal wrapper
+    TTmove(0, 0);
+    ttflush();
 }
 
 // Initialize display optimization
 void display_init_optimization(void) {
+    LOG_DEBUG("Display: Initializing display optimization");
     terminal_caps_t caps = detect_terminal_capabilities();
     optimize_for_terminal(&caps);
     git_status_init();
     buffer_pos = 0;
+    LOG_DEBUG("Display: Optimization initialized");
 }
 
 // Cleanup display optimization
 void display_cleanup_optimization(void) {
+    LOG_DEBUG("Display: Cleaning up display optimization");
     display_flush();
     cleanup_terminal_optimizations();
 }

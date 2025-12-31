@@ -1,0 +1,96 @@
+#!/usr/bin/expect -f
+# Minibuffer Editing & Completion Stress Test
+set timeout 10
+set env(TERM) "xterm"
+log_user 1
+set editor [lindex $argv 0]
+set testfile [lindex $argv 1]
+
+if {[string length $editor] == 0} {
+    puts "Usage: minibuffer_stress.exp <editor_path> <dummy_file>"
+    exit 1
+}
+
+spawn -noecho $editor $testfile
+expect_after {
+    timeout { 
+        puts "\n\n\[TIMEOUT\]\n"
+        exit 1 
+    }
+}
+
+# Wait for startup - look for status line indicators
+expect -re ".*test_mini.txt.*"
+sleep 1
+
+puts "\n--- Test 1: M-x Completion ---"
+# 1. M-x
+send "\033x"
+expect ": "
+
+
+# 2. Type "fi" and TAB -> expect completion to include "file" or "find"
+send "fi\t"
+# Should expand to "file" or list options. "find-file" is a common match.
+# In uEmacs, "fi" might match "fill-paragraph", "filter-buffer", "find-file".
+# TAB usually shows ambiguous matches or completes up to common prefix.
+# "find-file" is likely unique enough if we type "find-f".
+send "nd-f\t"
+expect "find-file"
+
+puts "\n--- Test 2: Minibuffer Editing (Backspace) ---"
+# We are at ": find-file". Add garbage.
+send "GARBAGE"
+# Backspace 7 times. \177 is DEL, \010 is BS. uEmacs handles both.
+send "\177\177\177\177\177\177\177"
+# Now submit. Should be "find-file".
+send "\r"
+expect "FIND FILE: "
+
+puts "\n--- Test 3: Minibuffer Editing (Ctrl-U Kill Line) ---"
+# We are at "FIND FILE: ". Type junk.
+send "some/very/long/path/to/nowhere"
+sleep 0.5
+# Kill line (Ctrl-U = \x15)
+send -raw "\x15"
+sleep 0.5
+# Type real filename
+send "test_minibuffer.txt\r"
+
+# Should open the file. Check for the filename in status line or New file message
+expect {
+    "New file" { }
+    "test_minibuffer.txt" { }
+    timeout { puts "Test 3 Timeout"; exit 1 }
+}
+
+puts "\n--- Test 4: Abort (Ctrl-G) ---"
+# M-x
+send "\033x"
+expect ": "
+# Abort
+send "\007"
+# Should return to buffer (check mode line or just ensure we aren't in minibuffer)
+# We can try typing text into the buffer now.
+send "Alive\r"
+
+puts "\n--- Test 5: Yes/No Prompt Editing ---"
+# Try to exit with modified buffer.
+# C-x C-c
+send "\030\003"
+# Expect "Modified buffers exist. Leave anyway (y/n)?"
+expect "Modified buffers exist"
+# Type "n" (No)
+send "n"
+# Should stay in editor.
+# Verify by typing more.
+send "Still here\r"
+
+# Exit for real
+send "\030\003"
+expect "Modified buffers exist"
+send "y"
+expect eof
+
+puts "\n\[SUCCESS\] Minibuffer tests passed."
+exit 0

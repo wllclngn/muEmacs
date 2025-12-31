@@ -5,8 +5,11 @@
 
 #include <stddef.h>
 
-// Initialize Git status helper. Enabled only if UEMACS_GIT_STATUS=1.
+// Initialize Git status helper (legacy - now uses TOML config).
 void git_status_init(void);
+
+// Enable/disable git status (called after TOML settings load).
+void git_status_set_enabled(int enabled);
 
 // Request asynchronous update if stale; returns immediately.
 // If cwd is nullptr, uses current working directory.

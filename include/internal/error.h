@@ -6,6 +6,7 @@
 #define ERROR_H
 
 #include <stdbool.h>
+#include "util/logger.h"
 
 /* Error codes enum */
 typedef enum {
@@ -51,7 +52,9 @@ void handle_assertion_failure(const char* expr, const char* file, int line, cons
 
 /* Convenient macros */
 #define REPORT_ERROR(code, ctx) \
-    (set_error_context(__func__, __FILE__, __LINE__), report_error(code, ctx))
+    (set_error_context(__func__, __FILE__, __LINE__), \
+     LOG_ERRORF("Error: %s - %s [%s:%d]", get_error_message(code), ctx, __FILE__, __LINE__), \
+     report_error(code, ctx))
 
 #define REPORT_ERROR_LOG(code, ctx) \
     (set_error_context(__func__, __FILE__, __LINE__), report_error_with_logging(code, ctx))

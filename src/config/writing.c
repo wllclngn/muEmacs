@@ -10,6 +10,13 @@
 static int saved_fillcol = -1;
 static int saved_wrap_flag = -1; /* 0 or 1 when saved, -1 when not saved */
 
+/* Reset writing mode state (for testing/re-initialization). */
+void writing_mode_reset(void)
+{
+    saved_fillcol = -1;
+    saved_wrap_flag = -1;
+}
+
 /* Enable writing mode: set fill column (default 80) and enable wrap for current buffer. */
 int writing_mode_enable(int f, int n)
 {
@@ -19,13 +26,15 @@ int writing_mode_enable(int f, int n)
 
     if (saved_fillcol == -1)
         saved_fillcol = fillcol;
-    if (saved_wrap_flag == -1)
+    if (saved_wrap_flag == -1 && curbp != NULL)
         saved_wrap_flag = (curbp->b_mode & MDWRAP) ? 1 : 0;
 
     fillcol = target;
-    curbp->b_mode |= MDWRAP;
-    upmode();
-    mlwrite("Writing mode enabled: wrap at %d", fillcol);
+    if (curbp != NULL) {
+        curbp->b_mode |= MDWRAP;
+        upmode();
+    }
+    mlwrite("COLUMN WIDTH ENABLED AT %d", fillcol);
     return true;
 }
 
@@ -45,7 +54,6 @@ int writing_mode_disable(int f, int n)
         saved_wrap_flag = -1;
     }
     upmode();
-    mlwrite("Writing mode disabled");
+    mlwrite("COLUMN WIDTH DISABLED");
     return true;
 }
-

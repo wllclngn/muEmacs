@@ -25,9 +25,11 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <assert.h>
+#include <sys/types.h>  /* For pid_t */
 
 /* Forward declarations */
 struct edit_stack;
+struct keymap;
 
 /* Configuration options not in config.h */
 #define CVMVAS  1  /* arguments to page forward/back in pages      */
@@ -51,15 +53,8 @@ struct edit_stack;
 
 /* Terminal capabilities from config.h are used */
 
-/* Internal constants with C23 compile-time validation */
-#define	NBINDS	256		/* max # of bound keys          */
-#define NFILEN  256		/* # of bytes, file name        */
-#define NBUFN   16		/* # of bytes, buffer name      */
-#define NLINE   256		/* # of bytes, input line       */
-#define	NSTRING	8192		/* # of bytes, string buffers   */
-#define NKBDM   256		/* # of strokes, keyboard macro */
-#define NPAT    128		/* # of bytes, pattern          */
-#define HUGE    1000		/* Huge number                  */
+#include "constants.h"
+
 #define	NLOCKS	100		/* max # of file locks active   */
 #define	NCOLORS	8		/* number of supported colors   */
 
@@ -69,19 +64,11 @@ static_assert(NFILEN >= 64, "NFILEN must be at least 64 bytes for modern paths")
 static_assert(NSTRING >= 1024, "NSTRING must be at least 1KB for string operations");
 static_assert((NCOLORS & (NCOLORS - 1)) == 0, "NCOLORS must be power of 2 for efficient lookup");
 
-/* Portable key flag bitmasks (avoid C23-only binary literals) */
-#define CONTROL (1u << 28)    /* Control flag, or'ed in       */
-#define META    (1u << 29)    /* Meta flag, or'ed in          */
-#define CTLX    (1u << 30)    /* ^X flag, or'ed in            */
-#define SPEC    (1u << 31)    /* special key (function keys)  */
-
-// C23 compile-time validation of key flag isolation
-static_assert((CONTROL & META) == 0, "CONTROL and META flags must not overlap");
-static_assert((CONTROL & CTLX) == 0, "CONTROL and CTLX flags must not overlap");
-static_assert((CONTROL & SPEC) == 0, "CONTROL and SPEC flags must not overlap");
-static_assert((META & CTLX) == 0, "META and CTLX flags must not overlap");
-static_assert((META & SPEC) == 0, "META and SPEC flags must not overlap");
-static_assert((CTLX & SPEC) == 0, "CTLX and SPEC flags must not overlap");
+/* Legacy key encoding macros - REMOVED 2024-12
+ * The old bit-flag system (CONTROL|META|CTLX|SPEC) has been replaced by
+ * the modern input_key_event_t structure with separate code and modifiers.
+ * See include/terminal/input_state.h for MOD_CTRL, MOD_META, etc.
+ */
 
 /* Boolean values */
 #ifdef	false
@@ -96,33 +83,38 @@ static_assert((CTLX & SPEC) == 0, "CTLX and SPEC flags must not overlap");
 #define ABORT   2		/* Death, ^G, abort, etc.       */
 #define	FAILED	3		/* not-quite fatal false return */
 
-/* Macro states */
-#define	STOP	0		/* keyboard macro not in use    */
-#define	PLAY	1		/*                playing       */
-#define	RECORD	2		/*                recording     */
+/* Macro states - C23 enum for type safety */
+enum macro_state {
+	MACRO_STOP   = 0,	/* keyboard macro not in use    */
+	MACRO_PLAY   = 1,	/*                playing       */
+	MACRO_RECORD = 2	/*                recording     */
+};
 
-/*	Directive definitions	*/
-#define	DIF		0
-#define DELSE		1
-#define DENDIF		2
-#define DGOTO		3
-#define DRETURN		4
-#define DENDM		5
-#define DWHILE		6
-#define	DENDWHILE	7
-#define	DBREAK		8
-#define DFORCE		9
+/* Directive definitions - C23 enum for type safety */
+enum directive {
+	DIR_IF        = 0,
+	DIR_ELSE      = 1,
+	DIR_ENDIF     = 2,
+	DIR_GOTO      = 3,
+	DIR_RETURN    = 4,
+	DIR_ENDM      = 5,
+	DIR_WHILE     = 6,
+	DIR_ENDWHILE  = 7,
+	DIR_BREAK     = 8,
+	DIR_FORCE     = 9,
+	DIR_COUNT     = 10	/* Number of directives */
+};
 
-#define NUMDIRS		10
+/* Search position and direction - C23 enums for type safety */
+enum search_position {
+	POS_BEGIN = 0,		/* Leave the point at the beginning on search  */
+	POS_END   = 1		/* Leave the point at the end on search         */
+};
 
-/*
- * PTBEG, PTEND, FORWARD, and REVERSE are all toggle-able values for
- * the scan routines.
- */
-#define	PTBEG	0		/* Leave the point at the beginning on search   */
-#define	PTEND	1		/* Leave the point at the end on search         */
-#define	FORWARD	0		/* forward direction            */
-#define REVERSE	1		/* backwards direction          */
+enum search_direction {
+	DIR_FORWARD = 0,	/* forward direction            */
+	DIR_REVERSE = 1		/* backwards direction          */
+};
 
 /* File I/O status codes - Standard enum */
 enum FileStatus {
@@ -147,19 +139,32 @@ enum FileStatus {
 
 #define	INTWIDTH	sizeof(int) * 3
 
-/*	Macro argument token types					*/
-
-#define	TKNUL	0		/* end-of-string                */
-#define	TKARG	1		/* interactive argument         */
-#define	TKBUF	2		/* buffer argument              */
-#define	TKVAR	3		/* user variables               */
-#define	TKENV	4		/* environment variables        */
-#define	TKFUN	5		/* function....                 */
-#define	TKDIR	6		/* directive                    */
-#define	TKLBL	7		/* line label                   */
-#define	TKLIT	8		/* numeric literal              */
-#define	TKSTR	9		/* quoted string literal        */
-#define	TKCMD	10		/* command name                 */
+/* Macro argument token types - C23 enum for type safety */
+enum token_type {
+	TOKEN_NUL  = 0,		/* end-of-string                */
+	TOKEN_ARG  = 1,		/* interactive argument         */
+	TOKEN_BUF  = 2,		/* buffer argument              */
+	TOKEN_VAR  = 3,		/* user variables               */
+	TOKEN_ENV  = 4,		/* environment variables        */
+	TOKEN_FUN  = 5,		/* function....                 */
+	TOKEN_DIR  = 6,		/* directive                    */
+	TOKEN_LBL  = 7,		/* line label                   */
+	TOKEN_LIT  = 8,		/* numeric literal              */
+	TOKEN_STR  = 9,		/* quoted string literal        */
+	TOKEN_CMD  = 10		/* command name                 */
+};
+/* Legacy aliases for backward compatibility during transition */
+#define TKNUL TOKEN_NUL
+#define TKARG TOKEN_ARG
+#define TKBUF TOKEN_BUF
+#define TKVAR TOKEN_VAR
+#define TKENV TOKEN_ENV
+#define TKFUN TOKEN_FUN
+#define TKDIR TOKEN_DIR
+#define TKLBL TOKEN_LBL
+#define TKLIT TOKEN_LIT
+#define TKSTR TOKEN_STR
+#define TKCMD TOKEN_CMD
 
 /*	Internal defined functions					*/
 
@@ -178,24 +183,83 @@ enum FileStatus {
 #undef	islower
 #endif
 
-#if	PKCODE
+/* PKCODE always enabled */
 #ifdef	isupper
 #undef	isupper
 #endif
-#endif
 
-#define	DIFCASE		0x20
+/*
+ * Branchless character classification for μEmacs.
+ * Handles ASCII + Latin-1 supplement (ISO-8859-1).
+ *
+ * Design goals (Linus-approved):
+ *   - Zero branches: uses arithmetic range checks
+ *   - Zero call overhead: always_inline + const
+ *   - No ctype.h conflicts: clean namespacing
+ *   - Single-cycle on modern CPUs
+ *
+ * Note: Latin-1 ranges 192-220/224-252 include × (215) and ÷ (247)
+ * which are not letters. This matches original uemacs behavior.
+ */
 
-#define LASTUL 'Z'
-#define LASTLL 'z'
+/* Branchless unsigned range check: true if lo <= x <= hi */
+#define UEMACS_IN_RANGE(x, lo, hi) \
+	((unsigned)((x) - (lo)) <= (unsigned)((hi) - (lo)))
 
-#define isletter(c)	isxletter((0xFF & (c)))
-#define islower(c)	isxlower((0xFF & (c)))
-#define isupper(c)	isxupper((0xFF & (c)))
+/*
+ * Character classification - branchless, always inlined.
+ * [[gnu::const]] tells the compiler these are pure functions
+ * with no side effects, enabling aggressive optimization.
+ */
 
-#define isxletter(c)	(('a' <= c && LASTLL >= c) || ('A' <= c && LASTUL >= c) || (192<=c && c<=255))
-#define isxlower(c)	(('a' <= c && LASTLL >= c) || (224 <= c && 252 >= c))
-#define isxupper(c)	(('A' <= c && LASTUL >= c) || (192 <= c && 220 >= c))
+[[gnu::always_inline, gnu::const]]
+static inline int is_lower(int c) {
+	unsigned u = (unsigned char)c;
+	return UEMACS_IN_RANGE(u, 'a', 'z');  /* ASCII only - Latin-1 conflicts with UTF-8 */
+}
+
+[[gnu::always_inline, gnu::const]]
+static inline int is_upper(int c) {
+	unsigned u = (unsigned char)c;
+	return UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only - Latin-1 conflicts with UTF-8 */
+}
+
+[[gnu::always_inline, gnu::const]]
+static inline int is_letter(int c) {
+	unsigned u = (unsigned char)c;
+	return UEMACS_IN_RANGE(u, 'a', 'z') | UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only */
+}
+
+/*
+ * Case conversion - branchless XOR with 0x20.
+ * ASCII only - Latin-1 ranges (192-220, 224-252) were removed because they
+ * conflict with UTF-8 multi-byte sequences (lead bytes C0-FF). UTF-8 is the
+ * standard encoding now; non-ASCII case conversion requires Unicode tables.
+ */
+#define DIFCASE 0x20
+
+[[gnu::always_inline, gnu::const]]
+static inline int to_lower(int c) {
+	unsigned u = (unsigned char)c;
+	int is_up = UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only */
+	return c ^ (is_up * DIFCASE);
+}
+
+[[gnu::always_inline, gnu::const]]
+static inline int to_upper(int c) {
+	unsigned u = (unsigned char)c;
+	int is_lo = UEMACS_IN_RANGE(u, 'a', 'z');  /* ASCII only */
+	return c ^ (is_lo * DIFCASE);
+}
+
+/*
+ * Case-insensitive character comparison - single branchless operation.
+ * Folds both chars to lowercase before comparing.
+ */
+[[gnu::always_inline, gnu::const]]
+static inline int eq_nocase(int c1, int c2) {
+	return to_lower(c1) == to_lower(c2);
+}
 
 /*
  * There is a window structure allocated for every active display window. The
@@ -216,13 +280,12 @@ struct window {
 	int w_marko;		/* Byte offset for "mark"       */
 	int w_toprow;		/* Origin 0 top row of window   */
 	int w_ntrows;		/* # of rows of text in window  */
+	int w_wrap_col;		/* Soft wrap column (0 = disabled) */
 	char w_force;		/* If NZ, forcing row.          */
-	char w_flag;		/* Flags.                       */
-#if	COLOR
+	short w_flag;		/* Flags (expanded for WFTERM)  */
 	char w_fcolor;		/* current forground color      */
 	char w_bcolor;		/* current background color     */
-#endif
-	
+
 	// Atomic cursor position cache for instant status updates
 	_Atomic int w_line_cache;	/* Cached line number for w_dotp */
 	_Atomic bool w_line_cache_dirty; /* Line cache needs recalculation */
@@ -236,10 +299,7 @@ enum WindowFlags {
 	WFHARD  = 0x08,		/* Better to a full display     */
 	WFMODE  = 0x10,		/* Update mode line.            */
 	WFCOLR  = 0x20,		/* Needs a color change         */
-#if SCROLLCODE
-	WFKILLS = 0x40,		/* something was deleted        */
-	WFINS   = 0x80		/* something was inserted       */
-#endif
+	WFTERM  = 0x40		/* Terminal emulator window     */
 };
 
 
@@ -266,8 +326,8 @@ struct buffer {
 	int b_marko;		/* but for the "mark"           */
 	uint32_t b_mode;	/* editor mode of this buffer (was int) */
 	uint8_t b_active;	/* window activated flag (was char) */
-	uint8_t b_nwnd;		/* Count of windows on buffer (was char) */
-	uint8_t b_flag;		/* Buffer flags - see BufferFlags enum */
+	_Atomic uint8_t b_nwnd;		/* Count of windows on buffer - C23 atomic */
+	_Atomic uint8_t b_flag;		/* Buffer flags - C23 atomic for RMW safety */
 	uint8_t _reserved;	/* Padding for 32-bit alignment */
 	
 	// Cached status line statistics for instant updates
@@ -275,16 +335,24 @@ struct buffer {
 	_Atomic long b_byte_count;	/* Total bytes in buffer - cached */
 	_Atomic int b_word_count;	/* Total words in buffer - cached */
 	_Atomic bool b_stats_dirty;	/* Statistics need recalculation */
+
+	// Display dirty tracking (montauk/OUROBOROS pattern)
+	_Atomic uint64_t b_dirty_seq;	/* Incremented on any modification */
 	
+	// O(1) Line Access Index (Phase 2)
+	struct line **b_line_index;     /* Dynamic array of line pointers */
+	size_t b_line_capacity;         /* Capacity of the index array */
+
 	// Atomic undo/redo system (VSCode-inspired)
 	struct atomic_undo_stack *b_undo_stack;	/* Edit history for this buffer */
 	_Atomic uint64_t b_saved_version_id;   /* Version id of last saved/clean state */
 	
 	char b_fname[NFILEN];	/* File name                    */
 	char b_bname[NBUFN];	/* Buffer name                  */
-#if	CRYPT
-	char b_key[NPAT];	/* current encrypted key        */
-#endif
+	/* Legacy b_key removed - use external GPG/age via encrypt.c */
+
+	void *b_term_data;	/* Modern terminal state (terminal.h) */
+	struct keymap *b_local_keymap;	/* Buffer-local keybindings (NULL = use global) */
 };
 
 /* Buffer flags - Standard enum */
@@ -305,7 +373,7 @@ struct buffer_hash_entry {
 extern struct buffer_hash_entry *buffer_hash_table[BUFFER_HASH_SIZE];
 
 /*	mode flags	*/
-#define	NUMMODES	10	/* # of defined modes           */
+#define	NUMMODES	11	/* # of defined modes           */
 
 #define	MDWRAP	0x0001		/* word wrap                    */
 #define	MDCMOD	0x0002		/* C indentation and fence match */
@@ -316,6 +384,8 @@ extern struct buffer_hash_entry *buffer_hash_table[BUFFER_HASH_SIZE];
 #define MDMAGIC	0x0040		/* regular expresions in search */
 #define	MDCRYPT	0x0080		/* encrytion mode active        */
 #define	MDASAVE	0x0100		/* auto-save mode               */
+#define	MDTBUFFER 0x0200	/* terminal emulator buffer     */
+#define	MDWRITEEDIT 0x0400	/* WriteEdit prose mode         */
 
 /*
  * The starting position of a region, and the size of the region in
@@ -337,10 +407,10 @@ struct region {
  * one terminal type.
  */
 struct terminal {
-	short t_mrow;		/* max number of rows allowable */
-	short t_nrow;		/* current number of rows used  */
-	short t_mcol;		/* max Number of columns.       */
-	short t_ncol;		/* current Number of columns.   */
+	_Atomic short t_mrow;		/* max number of rows - C23 atomic for signal safety */
+	_Atomic short t_nrow;		/* current rows used - C23 atomic for signal safety */
+	_Atomic short t_mcol;		/* max columns - C23 atomic for signal safety */
+	_Atomic short t_ncol;		/* current columns - C23 atomic for signal safety */
 	short t_margin;		/* min margin for extended lines */
 	short t_scrsiz;		/* size of scroll region "      */
 	int t_pause;		/* # times thru update to pause */
@@ -357,13 +427,9 @@ struct terminal {
 	void (*t_beep)(void);	/* Beep.                        */
 	void (*t_rev)(int);	/* set reverse video state      */
 	int (*t_rez)(const char *);	/* change screen resolution     */
-#if	COLOR
 	int (*t_setfor) (int);	/* set forground color          */
 	int (*t_setback) (int);	/* set background color         */
-#endif
-#if     SCROLLCODE
 	void (*t_scroll)(int, int,int);	/* scroll a region of the screen */
-#endif
 };
 
 /*	TEMPORARY macros for terminal I/O  (to be placed in a machine
@@ -433,45 +499,41 @@ struct while_block {
 	struct while_block *w_next;  /* next while */
 };
 
-#define	BTWHILE		1
-#define	BTBREAK		2
+/* While block types - C23 enum for type safety */
+enum block_type {
+	BLOCK_WHILE = 1,
+	BLOCK_BREAK = 2
+};
+/* Legacy aliases */
+#define BTWHILE BLOCK_WHILE
+#define BTBREAK BLOCK_BREAK
 
 /*
- * Incremental search defines.
+ * Incremental search buffer size defined in constants.h (CMDBUFLEN)
+ * Key handling now uses input_key_event_t with evt_is_* helpers
  */
-#if	ISRCH
 
-#define	CMDBUFLEN	256	/* Length of our command buffer */
-
-#define	IS_ABORT	0x07	/* Abort the isearch */
-#define IS_BACKSP	0x08	/* Delete previous char */
-#define	IS_TAB		0x09	/* Tab character (allowed search char) */
-#define IS_NEWLINE	0x0D	/* New line from keyboard (Carriage return) */
-#define	IS_QUOTE	0x11	/* Quote next character */
-#define IS_REVERSE	0x12	/* Search backward */
-#define	IS_FORWARD	0x13	/* Search forward */
-#define	IS_QUIT		0x1B	/* Exit the search */
-#define	IS_RUBOUT	0x7F	/* Delete previous character */
-
-/* IS_QUIT is no longer used, the variable metac is used instead */
-
-#endif
-
-#if defined(MAGIC)
-/*
- * Defines for the metacharacters in the regular expression
- * search routines.
- */
-#define	MCNIL		0	/* Like the '\0' for strings. */
-#define	LITCHAR		1	/* Literal character, or string. */
-#define	ANY		2
-#define	CCL		3
-#define	NCCL		4
-#define	BOL		5
-#define	EOL		6
-#define	DITTO		7
-#define	CLOSURE		256	/* An or-able value. */
-#define	MASKCL		(CLOSURE - 1)
+/* Regex metacharacter types - C23 enum for type safety */
+enum metachar_type {
+	MC_NIL     = 0,		/* Like the '\0' for strings    */
+	MC_LITCHAR = 1,		/* Literal character, or string */
+	MC_ANYCHAR = 2,		/* Any character                */
+	MC_CHARCLASS = 3,	/* Character class              */
+	MC_NEGCLASS  = 4,	/* Negated character class      */
+	MC_BEGLINE   = 5,	/* Beginning of line            */
+	MC_ENDLINE   = 6,	/* End of line                  */
+	MC_DITTO_REP = 7	/* Replacement ditto            */
+};
+/* Legacy aliases */
+#define MCNIL   MC_NIL
+#define LITCHAR MC_LITCHAR
+#define ANY     MC_ANYCHAR
+#define CCL     MC_CHARCLASS
+#define NCCL    MC_NEGCLASS
+#define BOL     MC_BEGLINE
+#define EOL     MC_ENDLINE
+#define DITTO   MC_DITTO_REP
+/* CLOSURE and MASKCL are in constants.h */
 
 #define	MC_ANY		'.'	/* 'Any' character (except newline). */
 #define	MC_CCL		'['	/* Character class. */
@@ -486,11 +548,7 @@ struct while_block {
 
 /* LEGACY macros removed. Use BIT_SET/BIT_TEST and SAFE_CHCASE instead. */
 
-/* HICHAR - 1 is the largest character we will deal with.
- * HIBYTE represents the number of bytes in the bitmap.
- */
-#define	HICHAR		256
-#define	HIBYTE		(HICHAR >> 3)
+/* HICHAR and HIBYTE are in constants.h */
 
 /* Typedefs that define the meta-character structure for MAGIC mode searching
  * (struct magic), and the meta-character structure for MAGIC mode replacement
@@ -508,7 +566,5 @@ struct magic_replacement {
 	short int mc_type;
 	char *rstr;
 };
-
-#endif  /* MAGIC */
 
 #endif  /* ESTRUCT_H */

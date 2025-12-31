@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "../test_utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
@@ -18,7 +18,7 @@ static void init_editor_minimal(const char* name) {
 }
 
 static double now_sec(void) {
-    struct timeval tv; gettimeofday(&tv, nullptr);
+    struct timeval tv; gettimeofday(&tv, NULL);
     return tv.tv_sec + tv.tv_usec / 1e6;
 }
 
@@ -46,14 +46,14 @@ int main(void) {
     const char* pat5 = "abcde";  // BMH path
 
     // Warmup
-    scanner(pat4, FORWARD, PTBEG);
-    scanner(pat5, FORWARD, PTBEG);
+    scanner(pat4, DIR_FORWARD, POS_BEGIN);
+    scanner(pat5, DIR_FORWARD, POS_BEGIN);
 
     // Time short path
     double t0 = now_sec();
     for (int i = 0; i < repeats; ++i) {
         curwp->w_dotp = first; curwp->w_doto = 0;
-        (void)scanner(pat4, FORWARD, PTBEG);
+        (void)scanner(pat4, DIR_FORWARD, POS_BEGIN);
     }
     double t1 = now_sec();
 
@@ -61,13 +61,13 @@ int main(void) {
     double t2 = now_sec();
     for (int i = 0; i < repeats; ++i) {
         curwp->w_dotp = first; curwp->w_doto = 0;
-        (void)scanner(pat5, FORWARD, PTBEG);
+        (void)scanner(pat5, DIR_FORWARD, POS_BEGIN);
     }
     double t3 = now_sec();
 
-    printf("BMH_MIN_LEN=%d\n", BMH_MIN_LEN);
-    printf("Short literal (len=4): %.3f ms total\n", (t1 - t0) * 1000.0);
-    printf("BMH literal   (len=5): %.3f ms total\n", (t3 - t2) * 1000.0);
-    printf("Done.\n");
+    LOG_INFOF("BMH_MIN_LEN=%d", BMH_MIN_LEN);
+    LOG_INFOF("Short literal (len=4): %.3f ms total", (t1 - t0) * 1000.0);
+    LOG_INFOF("BMH literal   (len=5): %.3f ms total", (t3 - t2) * 1000.0);
+    LOG_INFO("Done.");
     return 0;
 }

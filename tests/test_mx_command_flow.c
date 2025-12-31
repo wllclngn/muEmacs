@@ -5,22 +5,22 @@
 #include "internal/line.h"
 #include "μemacs/keymap.h"
 
-static void init_editor_minimal(const char* name) {
-    term.t_nrow = 24 - 1;
-    term.t_ncol = 80;
-    term.t_mrow = 24;
-    term.t_mcol = 80;
-    edinit((char*)(name ? name : "mx"));
-    varinit();
-}
-
 int test_mx_command_flow(void)
 {
     int ok = 1;
     PHASE_START("M-X FLOW", "execute-command-line (docmd) path with args");
 
-    init_editor_minimal("mx-flow");
-    unmark(0,0);
+    test_init_editor("mx-flow");
+
+    // Defensive checks - ensure editor initialized properly
+    if (!curbp || !curwp) {
+        LOG_ERRORF("[FAIL] Editor not initialized (curbp=%p, curwp=%p)", (void*)curbp, (void*)curwp);
+        ok = 0;
+        PHASE_END("M-X FLOW", ok);
+        return 0;
+    }
+
+    unmark(0, 0);
     bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
@@ -37,45 +37,46 @@ int test_mx_command_flow(void)
     curwp->w_doto = 0;
     int len = llength(curwp->w_dotp);
     if (!docmd("10 forward-character")) {
-        printf("[%sFAIL%s] docmd forward-character failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] docmd forward-character failed");
         ok = 0;
     } else {
         if (curwp->w_doto != (len >= 10 ? 10 : len)) {
-            printf("[%sFAIL%s] forward-character did not move expected distance (got %d)\n", RED, RESET, curwp->w_doto);
+            LOG_ERRORF("[FAIL] forward-character did not move expected distance (got %d)", curwp->w_doto);
             ok = 0;
         }
     }
 
     // Enable help prefix and validate via keymap
+    keymap_key_t ctrl_h = keymap_key_make('H', MOD_CTRL);
     if (!docmd("enable-help-prefix")) {
-        printf("[%sFAIL%s] enable-help-prefix via docmd failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] enable-help-prefix via docmd failed");
         ok = 0;
     } else {
         struct keymap *gkm = atomic_load(&global_keymap);
         struct keymap *hkm = atomic_load(&help_keymap);
-        struct keymap_entry *e = keymap_lookup(gkm, CONTROL | 'H');
+        struct keymap_entry *e = keymap_lookup(gkm, ctrl_h);
         if (!e || !e->is_prefix || e->binding.map != hkm) {
-            printf("[%sFAIL%s] C-h did not become help prefix after docmd\n", RED, RESET);
+            LOG_ERROR("[FAIL] C-h did not become help prefix after docmd");
             ok = 0;
         }
     }
 
-    // Disable help prefix and validate backdel restored
+    // Disable help prefix and validate delete_char_backward restored
     if (!docmd("disable-help-prefix")) {
-        printf("[%sFAIL%s] disable-help-prefix via docmd failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] disable-help-prefix via docmd failed");
         ok = 0;
     } else {
         struct keymap *gkm = atomic_load(&global_keymap);
-        struct keymap_entry *e = keymap_lookup(gkm, CONTROL | 'H');
-        if (!e || e->is_prefix || e->binding.cmd != backdel) {
-            printf("[%sFAIL%s] C-h backdel not restored after docmd\n", RED, RESET);
+        struct keymap_entry *e = keymap_lookup(gkm, ctrl_h);
+        if (!e || e->is_prefix || e->binding.cmd != delete_char_backward) {
+            LOG_ERROR("[FAIL] C-h delete_char_backward not restored after docmd");
             ok = 0;
         }
     }
 
     // Invalid command should fail but not crash
     if (docmd("this-command-does-not-exist")) {
-        printf("[%sFAIL%s] invalid command unexpectedly succeeded\n", RED, RESET);
+        LOG_ERROR("[FAIL] invalid command unexpectedly succeeded");
         ok = 0;
     }
 

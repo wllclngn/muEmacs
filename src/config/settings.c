@@ -4,19 +4,26 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <stdatomic.h>
 
 #include "config.h"
 
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
-#include "string_safe.h"
+#include "string_utils.h"
+#include "tiny_toml.h"
+#include "keymap.h"
+#include "memory.h"
+#include "util/logger.h"
+#include "terminal/palette.h"
+#include "git_status.h"
 
 // Settings loader with XDG Base Directory support
 // Priority order:
-//   1. User config: ~/.config/muemacs/settings.json (XDG_CONFIG_HOME)
-//   2. System installed: UEMACS_DATA_DIR/editor/settings.json
-//   3. In-tree fallback: UEMACS_SOURCE_EDITOR_DIR/settings.json
+//   1. User config: ~/.config/muemacs/settings.toml (XDG_CONFIG_HOME)
+//   2. System installed: UEMACS_DATA_DIR/editor/settings.toml
+//   3. In-tree fallback: UEMACS_SOURCE_EDITOR_DIR/settings.toml
 
 static char user_config_path[512] = {0};
 static char user_config_dir[512] = {0};
@@ -49,33 +56,40 @@ static const char* get_user_config_file(void) {
     
     const char* dir = get_user_config_dir();
     if (dir[0] != '\0') {
-        snprintf(user_config_path, sizeof(user_config_path), "%s/settings.json", dir);
+        snprintf(user_config_path, sizeof(user_config_path), "%s/settings.toml", dir);
     }
     return user_config_path;
 }
 
-static const char* settings_dir(void) { return UEMACS_DATA_DIR "/editor"; }
-
-static const char* settings_file(void) { return UEMACS_DATA_DIR "/editor/settings.json"; }
-
-// No write-directory probing; writes go to project file.
-
-static const char* bundled_settings_source_file(void) { return UEMACS_SOURCE_EDITOR_DIR "/settings.json"; }
+static const char* settings_file(void) { return UEMACS_DATA_DIR "/editor/settings.toml"; }
 
 static FILE* open_settings_fp(void) {
     // Try user config first (highest priority)
     const char* user_config = get_user_config_file();
     if (user_config[0] != '\0') {
+        LOG_DEBUGF("SETTINGS: Trying user config: %s", user_config);
         FILE* fp = fopen(user_config, "r");
-        if (fp) return fp;
+        if (fp) {
+            LOG_DEBUGF("SETTINGS: Opened user config: %s", user_config);
+            return fp;
+        }
     }
-    
+
     // Try system installed config
-    FILE* fp = fopen(UEMACS_DATA_DIR "/editor/settings.json", "r");
-    if (fp) return fp;
-    
+    LOG_DEBUGF("SETTINGS: Trying system config: %s", UEMACS_DATA_DIR "/editor/settings.toml");
+    FILE* fp = fopen(UEMACS_DATA_DIR "/editor/settings.toml", "r");
+    if (fp) {
+        LOG_DEBUG("SETTINGS: Opened system config: " UEMACS_DATA_DIR "/editor/settings.toml");
+        return fp;
+    }
+
     // Fallback to in-tree config
-    return fopen(UEMACS_SOURCE_EDITOR_DIR "/settings.json", "r");
+    LOG_DEBUGF("SETTINGS: Trying in-tree fallback: %s", UEMACS_SOURCE_EDITOR_DIR "/settings.toml");
+    fp = fopen(UEMACS_SOURCE_EDITOR_DIR "/settings.toml", "r");
+    if (fp) {
+        LOG_DEBUG("SETTINGS: Opened in-tree config: " UEMACS_SOURCE_EDITOR_DIR "/settings.toml");
+    }
+    return fp;
 }
 
 static int ensure_dir_abs(const char* dir) {
@@ -90,148 +104,351 @@ static void ensure_settings_dir(void) {
     if (user_dir[0] != '\0' && ensure_dir_abs(user_dir)) {
         return; // User config dir created successfully
     }
-    
+
     /* Prefer installed data dir; if not writable, fallback to project tree */
     if (!ensure_dir_abs(UEMACS_DATA_DIR "/editor")) {
         (void)ensure_dir_abs(UEMACS_SOURCE_EDITOR_DIR);
     }
 }
 
-// Tiny JSON scanner for flat key:value pairs we recognize
-static int json_bool(const char* s, const char* key, int* out) {
-    const char* p = strstr(s, key);
-    if (!p) return 0;
-    p = strchr(p, ':');
-    if (!p) return 0;
-    while (*p == ':' || *p == ' ' || *p == '\t') p++;
-    if (strncmp(p, "true", 4) == 0) { *out = 1; return 1; }
-    if (strncmp(p, "false", 5) == 0) { *out = 0; return 1; }
-    return 0;
-}
+/* TOML Callback to apply settings */
+static void apply_setting(const char *section, const char *key, const char *value, enum toml_type type, void *user_data) {
+    (void)user_data;
+    int int_val = 0;
+    int bool_val = 0;
+    
+    if (type == TOML_INT) {
+        char *endptr;
+        errno = 0;
+        long val = strtol(value, &endptr, 10);
+        if (errno == 0 && endptr != value) int_val = (int)val;
+    }
+    if (type == TOML_BOOL) bool_val = (strcmp(value, "true") == 0);
 
-static int json_int(const char* s, const char* key, int* out) {
-    const char* p = strstr(s, key);
-    if (!p) return 0;
-    p = strchr(p, ':');
-    if (!p) return 0;
-    while (*p == ':' || *p == ' ' || *p == '\t') p++;
-    char* end = nullptr;
-    long v = strtol(p, &end, 10);
-    if (end == p) return 0;
-    *out = (int)v;
-    return 1;
+    /* [editor] section */
+    if (strcmp(section, "editor") == 0) {
+        if (strcmp(key, "column_width") == 0 && int_val > 0) {
+            writing_mode_enable(true, int_val);
+        }
+        if (strcmp(key, "wrap") == 0) {
+            if (bool_val) {
+                int col = (fillcol > 0 ? fillcol : 80);
+                writing_mode_enable(true, col);
+            } else {
+                if (curbp) curbp->b_mode &= ~MDWRAP;
+            }
+        }
+        if (strcmp(key, "evil_mode") == 0) {
+            if (bool_val && !vim_mode_active) {
+                evil_mode(0, 1);
+            } else if (!bool_val && vim_mode_active) {
+                evil_mode(0, 1);
+            }
+        }
+        if (strcmp(key, "tab_width") == 0 && int_val >= 1 && int_val <= 16) {
+            tabmask = int_val - 1;  /* tab_width=8 -> tabmask=0x07 */
+        }
+        if (strcmp(key, "auto_save_interval") == 0 && int_val >= 0) {
+            gasave = int_val;  /* 0 = disabled */
+        }
+        if (strcmp(key, "scroll_step") == 0 && int_val >= 1) {
+            scrollcount = int_val;
+        }
+        if (strcmp(key, "trim_trailing_whitespace") == 0) {
+            trim_trailing_whitespace = bool_val;
+        }
+        if (strcmp(key, "insert_final_newline") == 0) {
+            insert_final_newline = bool_val;
+        }
+        if (strcmp(key, "linus_mode") == 0) {
+            linus_mode = bool_val;
+        }
+    }
+
+    /* [visual] section */
+    else if (strcmp(section, "visual") == 0) {
+        if (strcmp(key, "ruler") == 0) column_ruler_enabled = bool_val;
+        if (strcmp(key, "ruler_col") == 0 && int_val > 0) column_ruler_column = int_val;
+        if (strcmp(key, "highlight_line") == 0) highlight_current_line = bool_val;
+        if (strcmp(key, "highlight_style") == 0) hiline_style = int_val;
+        if (strcmp(key, "ruler_style") == 0) ruler_style = int_val;
+        sgarbf = true;
+    }
+    
+    /* [theme] section */
+    else if (strcmp(section, "theme") == 0) {
+        LOG_DEBUGF("THEME: Parsing key='%s' value='%s' type=%d", key, value, type);
+        /* Legacy intensity settings (may be deprecated) */
+        if (strcmp(key, "highlight_intensity") == 0) highlight_intensity_pct = int_val;
+        if (strcmp(key, "ruler_intensity") == 0) ruler_intensity_pct = int_val;
+        if (strcmp(key, "intersection_intensity") == 0) intersection_intensity_pct = int_val;
+        if (strcmp(key, "highlight_strategy") == 0) highlight_strategy = int_val;
+
+        /* Hex color parsing helper macro */
+        #define PARSE_HEX_RGB(keyname, bg_field, rgb_field) \
+            if (strcmp(key, keyname) == 0 && palette_parse_hex(value, &r, &g, &b)) { \
+                bg_field = -2; \
+                rgb_field[0] = (unsigned char)r; \
+                rgb_field[1] = (unsigned char)g; \
+                rgb_field[2] = (unsigned char)b; \
+            }
+
+        #define PARSE_HEX_FG(keyname, rgb_field) \
+            if (strcmp(key, keyname) == 0 && palette_parse_hex(value, &r, &g, &b)) { \
+                rgb_field[0] = (unsigned char)r; \
+                rgb_field[1] = (unsigned char)g; \
+                rgb_field[2] = (unsigned char)b; \
+            }
+
+        /* Truecolor hex colors - always parse, render code checks capability */
+        if (type == TOML_STRING) {
+            int r, g, b;
+
+            /* Backgrounds */
+            PARSE_HEX_RGB("modeline_bg", g_palette.modeline_bg, g_palette.modeline_rgb)
+            if (strcmp(key, "modeline_bg") == 0) {
+                LOG_DEBUGF("THEME: modeline_bg parsed -> #%02X%02X%02X",
+                           g_palette.modeline_rgb[0],
+                           g_palette.modeline_rgb[1],
+                           g_palette.modeline_rgb[2]);
+            }
+            PARSE_HEX_FG("modeline_fg", g_palette.modeline_fg_rgb)
+            PARSE_HEX_RGB("highlight_bg", g_palette.highlight_bg, g_palette.highlight_rgb)
+            PARSE_HEX_RGB("ruler_bg", g_palette.ruler_bg, g_palette.ruler_rgb)
+            PARSE_HEX_RGB("selection_bg", g_palette.selection_bg, g_palette.selection_rgb)
+            PARSE_HEX_RGB("search_bg", g_palette.search_bg, g_palette.search_bg_rgb)
+            PARSE_HEX_RGB("message_bg", g_palette.message_bg, g_palette.message_bg_rgb)
+
+            /* Search foreground (optional) */
+            if (strcmp(key, "search_fg") == 0 && value[0] != '\0' && palette_parse_hex(value, &r, &g, &b)) {
+                g_palette.search_fg = -2;
+                g_palette.search_fg_rgb[0] = (unsigned char)r;
+                g_palette.search_fg_rgb[1] = (unsigned char)g;
+                g_palette.search_fg_rgb[2] = (unsigned char)b;
+                g_palette.search_fg_set = true;
+            }
+
+            /* Vim mode indicator colors */
+            PARSE_HEX_FG("mode_normal", g_palette.mode_normal_rgb)
+            PARSE_HEX_FG("mode_insert", g_palette.mode_insert_rgb)
+            PARSE_HEX_FG("mode_visual", g_palette.mode_visual_rgb)
+            PARSE_HEX_FG("mode_replace", g_palette.mode_replace_rgb)
+            PARSE_HEX_FG("mode_evil", g_palette.mode_evil_rgb)
+
+            /* Accent and message colors */
+            PARSE_HEX_FG("accent", g_palette.accent_rgb)
+            PARSE_HEX_FG("error", g_palette.error_rgb)
+            PARSE_HEX_FG("warning", g_palette.warning_rgb)
+            PARSE_HEX_FG("success", g_palette.success_rgb)
+        }
+
+        #undef PARSE_HEX_RGB
+        #undef PARSE_HEX_FG
+
+        sgarbf = true;
+    }
+    
+    /* [modeline] section */
+    else if (strcmp(section, "modeline") == 0) {
+        if (strcmp(key, "show_git") == 0) modeline_show_git = bool_val;
+        if (strcmp(key, "show_stats") == 0) modeline_show_stats = bool_val;
+        if (strcmp(key, "show_modes") == 0) modeline_show_modes = bool_val;
+        if (strcmp(key, "show_position") == 0) modeline_show_position = bool_val;
+        sgarbf = true;
+    }
+
+    /* [backup] section */
+    else if (strcmp(section, "backup") == 0) {
+        if (strcmp(key, "enabled") == 0) make_backup = bool_val;
+        if (strcmp(key, "directory") == 0 && type == TOML_STRING) {
+            safe_strcpy(backup_dir, value, sizeof(backup_dir));
+        }
+    }
+
+    /* [cursor] section */
+    else if (strcmp(section, "cursor") == 0) {
+        if (strcmp(key, "style") == 0) {
+            if (type == TOML_STRING) {
+                if (strcmp(value, "block") == 0) cursor_style = 0;
+                else if (strcmp(value, "bar") == 0) cursor_style = 1;
+                else if (strcmp(value, "underline") == 0) cursor_style = 2;
+            } else if (type == TOML_INT) {
+                cursor_style = int_val;
+            }
+        }
+    }
+
+    /* [wrap] section - soft wrap settings */
+    else if (strcmp(section, "wrap") == 0) {
+        if (strcmp(key, "soft_wrap") == 0 && curwp) {
+            curwp->w_wrap_col = bool_val ? 80 : 0;  /* Enable with default 80 */
+        }
+        if (strcmp(key, "soft_wrap_column") == 0 && int_val > 0 && curwp) {
+            if (curwp->w_wrap_col > 0) {  /* Only set if enabled */
+                curwp->w_wrap_col = int_val;
+            }
+        }
+        sgarbf = true;
+    }
+
+    /* [writeedit] section - WriteEdit prose mode settings */
+    else if (strcmp(section, "writeedit") == 0) {
+        if (strcmp(key, "soft_wrap_column") == 0 && int_val > 0) {
+            writeedit_set_default_wrap_col(int_val);
+        }
+        if (strcmp(key, "smart_typography") == 0) {
+            writeedit_set_default_smart_typography(bool_val);
+        }
+        if (strcmp(key, "em_dash") == 0) {
+            writeedit_set_default_em_dash(bool_val);
+        }
+        if (strcmp(key, "smart_quotes") == 0) {
+            writeedit_set_default_smart_quotes(bool_val);
+        }
+        if (strcmp(key, "curly_apostrophe") == 0) {
+            writeedit_set_default_curly_apostrophe(bool_val);
+        }
+    }
+
+    /* [terminal] section */
+    else if (strcmp(section, "terminal") == 0) {
+        if (strcmp(key, "enabled") == 0) terminal_enabled = bool_val;
+        if (strcmp(key, "height_percent") == 0 && int_val >= 10 && int_val <= 80) {
+            terminal_height_percent = int_val;
+        }
+        if (strcmp(key, "shell") == 0 && type == TOML_STRING) {
+            safe_strcpy(terminal_shell, value, sizeof(terminal_shell));
+        }
+        if (strcmp(key, "scrollback") == 0 && int_val >= 0) {
+            terminal_scrollback = int_val;
+        }
+        if (strcmp(key, "close_on_exit") == 0) terminal_close_on_exit = bool_val;
+    }
+
+    /* [keys] section - legacy key configuration (removed, use [bindings]) */
+    else if (strcmp(section, "keys") == 0) {
+        /* Legacy meta/command_prefix/repeat/abort/quote settings removed */
+        /* Use [bindings] section for key binding configuration */
+    }
+
+    /* [behavior] section - display and behavior flags */
+    else if (strcmp(section, "behavior") == 0) {
+        if (strcmp(key, "echo_commands") == 0) discmd = bool_val;
+        else if (strcmp(key, "echo_input") == 0) disinp = bool_val;
+        else if (strcmp(key, "page_overlap") == 0 && int_val >= 0) overlap = int_val;
+        else if (strcmp(key, "justify") == 0) justflag = bool_val;
+        else if (strcmp(key, "allow_null") == 0) nullflag = bool_val;
+    }
+
+    /* [performance] section - tuning parameters */
+    else if (strcmp(section, "performance") == 0) {
+        if (strcmp(key, "frame_interval") == 0 && int_val >= 50 && int_val <= 200) {
+            perf_frame_interval = int_val;
+        }
+        else if (strcmp(key, "escape_timeout") == 0 && int_val >= 50 && int_val <= 200) {
+            perf_escape_timeout = int_val;
+        }
+        else if (strcmp(key, "parallel_threshold") == 0 && int_val >= 100) {
+            perf_parallel_threshold = int_val;
+        }
+        else if (strcmp(key, "max_threads") == 0 && int_val >= 1 && int_val <= 32) {
+            perf_max_threads = int_val;
+        }
+    }
+
+    /* [keybindings.*] sections */
+    else if (strncmp(section, "keybindings.", 12) == 0) {
+        if (type == TOML_STRING) {
+            /* Find the function */
+            fn_t func = fncmatch(value);
+            LOG_DEBUGF("TOML: [%s] key='%s' func='%s' -> %s",
+                       section, key, value, func ? "OK" : "nil");
+            if (func) {
+                /* Clean up key name (remove surrounding quotes if present) */
+                char key_clean[128];
+                safe_strcpy(key_clean, key, sizeof(key_clean));
+                size_t klen = strlen(key_clean);
+                if (klen >= 2 && (key_clean[0] == '"' || key_clean[0] == '\'')) {
+                    // Shift left and remove both quotes
+                    memmove(key_clean, key_clean + 1, klen - 2);
+                    key_clean[klen - 2] = '\0';
+                }
+                LOG_DEBUGF("TOML: key_clean='%s' (len=%zu)", key_clean, strlen(key_clean));
+
+                /* Resolve key to modern format */
+                keymap_key_t key_code = stock_key(key_clean);
+                LOG_DEBUGF("TOML: stock_key('%s') -> code=0x%X mods=0x%X",
+                           key_clean, key_code.code, key_code.modifiers);
+
+                /* Determine target keymap
+                 * Supported sections:
+                 *   keybindings.global  - Global keymap (default emacs bindings)
+                 *   keybindings.ctlx    - C-x prefix keymap
+                 *   keybindings.meta    - ESC/Meta prefix keymap
+                 *   keybindings.help    - C-h help prefix keymap
+                 *   keybindings.normal  - Vim normal mode (evil mode)
+                 *   keybindings.visual  - Vim visual mode (evil mode)
+                 *   keybindings.insert  - Insert mode (alias for global)
+                 */
+                struct keymap *target_map = nullptr;
+                if (strcmp(section, "keybindings.global") == 0) {
+                    target_map = atomic_load(&global_keymap);
+                } else if (strcmp(section, "keybindings.ctlx") == 0) {
+                    target_map = atomic_load(&ctlx_keymap);
+                } else if (strcmp(section, "keybindings.meta") == 0) {
+                    target_map = atomic_load(&meta_keymap);
+                } else if (strcmp(section, "keybindings.help") == 0) {
+                    target_map = atomic_load(&help_keymap);
+                } else if (strcmp(section, "keybindings.normal") == 0) {
+                    target_map = atomic_load(&vim_normal_keymap);
+                } else if (strcmp(section, "keybindings.visual") == 0) {
+                    target_map = atomic_load(&vim_visual_keymap);
+                } else if (strcmp(section, "keybindings.insert") == 0) {
+                    target_map = atomic_load(&global_keymap);
+                }
+
+                /* Bind it */
+                if (target_map) {
+                    keymap_bind(target_map, key_code, func);
+                    LOG_DEBUGF("TOML: BOUND key code=0x%X mods=0x%X to %s in %s",
+                               key_code.code, key_code.modifiers, value, section);
+                } else {
+                    LOG_DEBUGF("TOML: NO TARGET MAP for %s", section);
+                }
+            }
+        }
+    }
 }
 
 int settings_load(int f, int n) {
     (void)f; (void)n;
+    LOG_DEBUG("SETTINGS: settings_load() called");
     FILE* fp = open_settings_fp();
     if (!fp) {
-        // No settings file present; run with defaults and do not create anything.
-        return true;
+        LOG_DEBUG("SETTINGS: No config file found");
+        return true; /* No config, defaults apply */
     }
+    LOG_DEBUG("SETTINGS: Config file opened successfully");
+    
     fseek(fp, 0, SEEK_END);
     long sz = ftell(fp);
     fseek(fp, 0, SEEK_SET);
+    
     if (sz <= 0 || sz > 1<<20) { fclose(fp); return true; }
-    char* buf = (char*)malloc((size_t)sz + 1);
+
+    char* buf = SAFE_ALLOC_SIZED(char, (size_t)sz + 1, "settings_toml");
     if (!buf) { fclose(fp); return true; }
+
     size_t rd = fread(buf, 1, (size_t)sz, fp);
-    (void)rd;
-    buf[sz] = '\0';
+    buf[rd] = '\0'; // Safe null termination
     fclose(fp);
 
-    int col = 0; int wrap = -1;
-    if (json_int(buf, "\"column_width\"", &col) && col > 0) {
-        writing_mode_enable(true, col);
-    }
-    if (json_bool(buf, "\"wrap\"", &wrap)) {
-        if (wrap == 0) {
-            // disable word wrap if currently enabled
-            if (curbp) curbp->b_mode &= ~MDWRAP;
-        } else {
-            if (col > 0) writing_mode_enable(true, col);
-            else writing_mode_enable(true, (fillcol > 0 ? fillcol : 80));
-        }
-    }
+    toml_parse(buf, apply_setting, nullptr);
 
-    // Visual helpers
-    int ruler = -1, rcol = 0, hll = -1, hls = -1, rls = -1;
-    if (json_bool(buf, "\"ruler\"", &ruler)) {
-        column_ruler_enabled = ruler ? 1 : 0;
-        sgarbf = true;
-    }
-    if (json_int(buf, "\"rulercol\"", &rcol) && rcol > 0) {
-        column_ruler_column = rcol;
-        sgarbf = true;
-    }
-    if (json_bool(buf, "\"highlightline\"", &hll)) {
-        highlight_current_line = hll ? 1 : 0;
-        sgarbf = true;
-    }
-    if (json_int(buf, "\"hilinestyle\"", &hls)) {
-        if (hls < 0) { hls = 0; }
-        if (hls > 4) { hls = 4; } // 4 = reverse (Vim-like)
-        hiline_style = hls;
-        sgarbf = true;
-    }
-    if (json_int(buf, "\"rulerstyle\"", &rls)) {
-        if (rls < 0) { rls = 0; }
-        if (rls > 4) { rls = 4; } // 4 = reverse (Vim-like)
-        ruler_style = rls;
-        sgarbf = true;
-    }
+    /* Sync git status with TOML setting */
+    git_status_set_enabled(modeline_show_git);
 
-    // Highlight tuning (optional)
-    int hip=-1, rip=-1, iip=-1, hst=-1;
-    if (json_int(buf, "\"highlight_intensity\"", &hip)) {
-        if (hip < 0) {
-            hip = 0;
-        }
-        if (hip > 50) {
-            hip = 50;
-        }
-        highlight_intensity_pct = hip;
-        sgarbf = true;
-    }
-    if (json_int(buf, "\"ruler_intensity\"", &rip)) {
-        if (rip < 0) {
-            rip = 0;
-        }
-        if (rip > 50) {
-            rip = 50;
-        }
-        ruler_intensity_pct = rip;
-        sgarbf = true;
-    }
-    if (json_int(buf, "\"intersection_intensity\"", &iip)) {
-        if (iip < 0) {
-            iip = 0;
-        }
-        if (iip > 50) {
-            iip = 50;
-        }
-        intersection_intensity_pct = iip;
-        sgarbf = true;
-    }
-    if (json_int(buf, "\"highlight_strategy\"", &hst)) {
-        if (hst < 0) {
-            hst = 0;
-        }
-        if (hst > 2) {
-            hst = 2;
-        }
-        highlight_strategy = hst;
-        sgarbf = true;
-    }
-
-    // Modeline toggles
-    int mg=-1, ms=-1, mm=-1, mp=-1;
-    if (json_bool(buf, "\"modeline_show_git\"", &mg)) modeline_show_git = mg ? 1 : 0;
-    if (json_bool(buf, "\"modeline_show_stats\"", &ms)) modeline_show_stats = ms ? 1 : 0;
-    if (json_bool(buf, "\"modeline_show_modes\"", &mm)) modeline_show_modes = mm ? 1 : 0;
-    if (json_bool(buf, "\"modeline_show_position\"", &mp)) modeline_show_position = mp ? 1 : 0;
-
-    free(buf);
+    SAFE_FREE(buf);
     return true;
 }
 
@@ -239,79 +456,139 @@ int save_settings_cmd(int f, int n) {
     (void)f; (void)n;
     ensure_settings_dir();
     
-    // Try to save to user config first (highest priority)
     const char* user_config = get_user_config_file();
-    const char* path = nullptr;
-    FILE* fp = nullptr;
+    const char* path = user_config[0] ? user_config : UEMACS_SOURCE_EDITOR_DIR "/settings.toml";
     
-    if (user_config[0] != '\0') {
-        fp = fopen(user_config, "w");
-        if (fp) {
-            path = user_config;
-        }
-    }
-    
-    // Fallback to installed data dir or project file
+    FILE* fp = fopen(path, "w");
     if (!fp) {
-        path = UEMACS_DATA_DIR "/editor/settings.json";
-        fp = fopen(path, "w");
-    }
-    if (!fp) {
-        path = UEMACS_SOURCE_EDITOR_DIR "/settings.json";
-        fp = fopen(path, "w");
+        LOG_ERRORF("Settings: Save failed - %s (%s)", path, strerror(errno));
+        mlwrite("[COULD NOT SAVE SETTINGS: %s]", strerror(errno));
+        return false;
     }
     
-    if (!fp) { 
-        mlwrite("(Could not save settings: %s)", strerror(errno)); 
-        return false; 
-    }
     int wrap = (curbp && (curbp->b_mode & MDWRAP)) ? 1 : 0;
     int col = (fillcol > 0 ? fillcol : 80);
-    fprintf(fp, "{\n");
-    fprintf(fp, "  \"column_width\": %d,\n", col);
-    fprintf(fp, "  \"wrap\": %s,\n", wrap ? "true" : "false");
-    fprintf(fp, "  \"ruler\": %s,\n", column_ruler_enabled ? "true" : "false");
-    fprintf(fp, "  \"rulercol\": %d,\n", column_ruler_column);
-    fprintf(fp, "  \"highlightline\": %s,\n", highlight_current_line ? "true" : "false");
-    fprintf(fp, "  \"hilinestyle\": %d,\n", hiline_style);
-    fprintf(fp, "  \"rulerstyle\": %d,\n", ruler_style);
-    fprintf(fp, "  \"highlight_intensity\": %d,\n", highlight_intensity_pct);
-    fprintf(fp, "  \"ruler_intensity\": %d,\n", ruler_intensity_pct);
-    fprintf(fp, "  \"intersection_intensity\": %d,\n", intersection_intensity_pct);
-    fprintf(fp, "  \"highlight_strategy\": %d,\n", highlight_strategy);
-    fprintf(fp, "  \"modeline_show_git\": %s,\n", modeline_show_git ? "true" : "false");
-    fprintf(fp, "  \"modeline_show_stats\": %s,\n", modeline_show_stats ? "true" : "false");
-    fprintf(fp, "  \"modeline_show_modes\": %s,\n", modeline_show_modes ? "true" : "false");
-    fprintf(fp, "  \"modeline_show_position\": %s\n", modeline_show_position ? "true" : "false");
-    fprintf(fp, "}\n");
+    
+    toml_write_section(fp, "editor");
+    toml_write_int(fp, "column_width", col);
+    toml_write_bool(fp, "wrap", wrap);
+    toml_write_bool(fp, "evil_mode", vim_mode_active);
+    toml_write_int(fp, "tab_width", tabmask + 1);
+    toml_write_int(fp, "auto_save_interval", gasave);
+    toml_write_int(fp, "scroll_step", scrollcount);
+    toml_write_bool(fp, "trim_trailing_whitespace", trim_trailing_whitespace);
+    toml_write_bool(fp, "insert_final_newline", insert_final_newline);
+
+    toml_write_section(fp, "visual");
+    toml_write_bool(fp, "ruler", column_ruler_enabled);
+    toml_write_int(fp, "ruler_col", column_ruler_column);
+    toml_write_bool(fp, "highlight_line", highlight_current_line);
+    toml_write_int(fp, "highlight_style", hiline_style);
+    toml_write_int(fp, "ruler_style", ruler_style);
+    
+    toml_write_section(fp, "theme");
+    /* Legacy intensity settings (deprecated) */
+    toml_write_int(fp, "highlight_intensity", highlight_intensity_pct);
+    toml_write_int(fp, "ruler_intensity", ruler_intensity_pct);
+    toml_write_int(fp, "intersection_intensity", intersection_intensity_pct);
+    toml_write_int(fp, "highlight_strategy", highlight_strategy);
+
+    /* Helper macro to write hex colors */
+    #define WRITE_HEX(key, rgb) do { \
+        char hex[8]; \
+        snprintf(hex, sizeof(hex), "#%02X%02X%02X", (rgb)[0], (rgb)[1], (rgb)[2]); \
+        toml_write_string(fp, key, hex); \
+    } while(0)
+
+    /* Background colors */
+    WRITE_HEX("modeline_bg", g_palette.modeline_rgb);
+    WRITE_HEX("highlight_bg", g_palette.highlight_rgb);
+    WRITE_HEX("ruler_bg", g_palette.ruler_rgb);
+    WRITE_HEX("selection_bg", g_palette.selection_rgb);
+    WRITE_HEX("search_bg", g_palette.search_bg_rgb);
+    WRITE_HEX("message_bg", g_palette.message_bg_rgb);
+
+    /* Search foreground (optional) */
+    if (g_palette.search_fg_set) {
+        WRITE_HEX("search_fg", g_palette.search_fg_rgb);
+    } else {
+        toml_write_string(fp, "search_fg", "");
+    }
+
+    /* Vim mode indicator colors */
+    WRITE_HEX("mode_normal", g_palette.mode_normal_rgb);
+    WRITE_HEX("mode_insert", g_palette.mode_insert_rgb);
+    WRITE_HEX("mode_visual", g_palette.mode_visual_rgb);
+    WRITE_HEX("mode_replace", g_palette.mode_replace_rgb);
+    WRITE_HEX("mode_evil", g_palette.mode_evil_rgb);
+
+    /* Accent and message colors */
+    WRITE_HEX("accent", g_palette.accent_rgb);
+    WRITE_HEX("error", g_palette.error_rgb);
+    WRITE_HEX("warning", g_palette.warning_rgb);
+    WRITE_HEX("success", g_palette.success_rgb);
+
+    #undef WRITE_HEX
+    
+    toml_write_section(fp, "modeline");
+    toml_write_bool(fp, "show_git", modeline_show_git);
+    toml_write_bool(fp, "show_stats", modeline_show_stats);
+    toml_write_bool(fp, "show_modes", modeline_show_modes);
+    toml_write_bool(fp, "show_position", modeline_show_position);
+
+    toml_write_section(fp, "backup");
+    toml_write_bool(fp, "enabled", make_backup);
+    if (backup_dir[0] != '\0') {
+        toml_write_string(fp, "directory", backup_dir);
+    }
+
+    toml_write_section(fp, "cursor");
+    const char *style_name = cursor_style == 1 ? "bar" : cursor_style == 2 ? "underline" : "block";
+    toml_write_string(fp, "style", style_name);
+
+    toml_write_section(fp, "terminal");
+    toml_write_bool(fp, "enabled", terminal_enabled);
+    toml_write_int(fp, "height_percent", terminal_height_percent);
+    if (terminal_shell[0] != '\0') {
+        toml_write_string(fp, "shell", terminal_shell);
+    }
+    toml_write_int(fp, "scrollback", terminal_scrollback);
+    toml_write_bool(fp, "close_on_exit", terminal_close_on_exit);
+
     fclose(fp);
-    mlwrite("(Settings saved to %s)", path);
+    mlwrite("[SETTINGS SAVED TO %s]", path);
     return true;
 }
 
 int open_user_config_cmd(int f, int n) {
     (void)f; (void)n;
     ensure_settings_dir();
-    const char* path = settings_file();
+    const char* path = get_user_config_file();
+    
+    if (path[0] == '\0') path = settings_file();
+    
     // Create file if missing
     FILE* fp = fopen(path, "a");
     if (fp) fclose(fp);
 
     // Open the file into a new buffer
-    struct buffer* bp = bfind("settings.json", true, 0);
+    struct buffer* bp = bfind("settings.toml", true, 0);
     if (!bp) return false;
     safe_strcpy(bp->b_fname, path, NFILEN);
     swbuffer(bp);
     bclear(bp);
     readin(path, false);
-    mlwrite("(Opened %s)", path);
+    mlwrite("[OPENED %s]", path);
     return true;
 }
 
 int list_settings_cmd(int f, int n) {
     (void)f; (void)n;
     int wrap = (curbp && (curbp->b_mode & MDWRAP)) ? 1 : 0;
-    mlwrite("Settings: column_width=%d wrap=%s", (fillcol>0?fillcol:0), wrap?"on":"off");
+    mlwrite("SETTINGS: COLUMN_WIDTH=%d WRAP=%s EVIL=%s", 
+        (fillcol>0?fillcol:0), 
+        wrap?"ON":"OFF",
+        vim_mode_active?"ON":"OFF");
     return true;
 }
 
@@ -319,12 +596,75 @@ int set_column_width_cmd(int f, int n) {
     int col = n;
     if (!f) {
         char buf[16] = {0};
-        int s = mlreply("Column width: ", buf, (int)sizeof(buf));
+        int s = minibuf_read("COLUMN WIDTH: ", buf, (int)sizeof(buf));
         if (s != true) return (s == ABORT) ? false : true;
-        col = atoi(buf);
+        char *endptr;
+        errno = 0;
+        long val = strtol(buf, &endptr, 10);
+        if (errno != 0 || endptr == buf) {
+            mlwrite("[INVALID NUMBER]");
+            return false;
+        }
+        col = (int)val;
     }
     if (col < 1) col = 1;
     if (col > 10000) col = 10000;
     writing_mode_enable(true, col);
+    return true;
+}
+
+/* Toggle soft wrap for current window */
+int soft_wrap_toggle_cmd(int f, int n) {
+    if (!curwp) return false;
+
+    if (f) {
+        /* With argument, set wrap column directly */
+        curwp->w_wrap_col = (n > 0) ? n : 0;
+    } else {
+        /* Toggle: off -> 80, on -> off */
+        curwp->w_wrap_col = (curwp->w_wrap_col > 0) ? 0 : 80;
+    }
+
+    sgarbf = true;
+    curwp->w_flag |= WFHARD;
+
+    if (curwp->w_wrap_col > 0) {
+        mlwrite("[SOFT WRAP AT COLUMN %d]", curwp->w_wrap_col);
+    } else {
+        mlwrite("[SOFT WRAP DISABLED]");
+    }
+    return true;
+}
+
+/* Set soft wrap column */
+int soft_wrap_column_cmd(int f, int n) {
+    int col = n;
+    if (!f) {
+        char buf[16] = {0};
+        int s = minibuf_read("SOFT WRAP COLUMN: ", buf, (int)sizeof(buf));
+        if (s != true) return (s == ABORT) ? false : true;
+        char *endptr;
+        errno = 0;
+        long val = strtol(buf, &endptr, 10);
+        if (errno != 0 || endptr == buf) {
+            mlwrite("[INVALID NUMBER]");
+            return false;
+        }
+        col = (int)val;
+    }
+    if (col < 0) col = 0;
+    if (col > 10000) col = 10000;
+
+    if (curwp) {
+        curwp->w_wrap_col = col;
+        sgarbf = true;
+        curwp->w_flag |= WFHARD;
+    }
+
+    if (col > 0) {
+        mlwrite("[SOFT WRAP AT COLUMN %d]", col);
+    } else {
+        mlwrite("[SOFT WRAP DISABLED]");
+    }
     return true;
 }

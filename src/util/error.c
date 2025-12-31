@@ -76,23 +76,23 @@ bool report_error(error_code_t code, const char* context) {
     
     if (context && *context) {
         if (current_context.function) {
-            mlwrite("(%s: %s) [%s:%d in %s()]", 
+            mlwrite("[%s: %s] [%s:%d IN %s()]", 
                    base_message, context,
                    safe_basename(current_context.file),
                    current_context.line,
                    current_context.function);
         } else {
-            mlwrite("(%s: %s)", base_message, context);
+            mlwrite("[%s: %s]", base_message, context);
         }
     } else {
         if (current_context.function) {
-            mlwrite("(%s) [%s:%d in %s()]", 
+            mlwrite("[%s] [%s:%d IN %s()]", 
                    base_message,
                    safe_basename(current_context.file),
                    current_context.line,
                    current_context.function);
         } else {
-            mlwrite("(%s)", base_message);
+            mlwrite("[%s]", base_message);
         }
     }
     
@@ -150,7 +150,8 @@ static void log_error(error_code_t code, const char* context) {
     if (!error_log_file) return;
     
     time_t now = time(nullptr);
-    struct tm* tm_info = localtime(&now);
+    struct tm tm_buf;
+    struct tm* tm_info = localtime_r(&now, &tm_buf);
     char timestamp[32];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
     

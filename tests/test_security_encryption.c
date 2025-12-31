@@ -11,10 +11,10 @@
 // Test file encryption and decryption functionality
 int test_file_encryption_decryption(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing File Encryption & Decryption ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing File Encryption & Decryption ===%s", BLUE, RESET);
     
     // Test encryption/decryption with standard algorithm
-    printf("Testing file encryption with password...\n");
+    LOG_INFO("Testing file encryption with password...");
     const char* test_file = "/tmp/uemacs_encrypt_test.txt";
     const char* encrypted_file = "/tmp/uemacs_encrypt_test.enc";
     const char* password = "test_password_123";
@@ -38,13 +38,13 @@ int test_file_encryption_decryption(void) {
                 fputc(encrypted_char, f);
             }
             fclose(f);
-            printf("[%sSUCCESS%s] File encryption: content encrypted with password\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] File encryption: content encrypted with password");
             passed++;
         }
     }
     
     // Test decryption verification
-    printf("Testing file decryption verification...\n");
+    LOG_INFO("Testing file decryption verification...");
     if (access(encrypted_file, R_OK) == 0) {
         total++;
         FILE* enc_f = fopen(encrypted_file, "r");
@@ -60,16 +60,16 @@ int test_file_encryption_decryption(void) {
             }
             
             if (strcmp(decrypted, content) == 0) {
-                printf("[%sSUCCESS%s] File decryption: content verified correct\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] File decryption: content verified correct");
                 passed++;
             } else {
-                printf("[%sFAIL%s] Decryption verification failed\n", RED, RESET);
+                LOG_ERROR("[FAIL] Decryption verification failed");
             }
         }
     }
     
     // Test encryption with different key sizes
-    printf("Testing encryption with various key sizes...\n");
+    LOG_INFO("Testing encryption with various key sizes...");
     total++;
     const char* keys[] = {"short", "medium_length_key", "very_long_encryption_key_for_testing_purposes"};
     int key_tests = 0;
@@ -91,7 +91,7 @@ int test_file_encryption_decryption(void) {
         }
     }
     if (key_tests == 3) {
-        printf("[%sSUCCESS%s] Key size variations: 3/3 key sizes handled\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Key size variations: 3/3 key sizes handled");
         passed++;
     }
     
@@ -104,17 +104,17 @@ int test_file_encryption_decryption(void) {
         unlink(enc_file);
     }
     
-    printf("File encryption/decryption tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("File encryption/decryption tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test key management and security practices
 int test_key_management_security(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Key Management Security ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Key Management Security ===%s", BLUE, RESET);
     
     // Test secure key storage simulation
-    printf("Testing secure key storage...\n");
+    LOG_INFO("Testing secure key storage...");
     total++;
     typedef struct {
         char key[256];
@@ -128,15 +128,15 @@ int test_key_management_security(void) {
     strncpy(test_key.key, "secure_test_key_12345", sizeof(test_key.key) - 1);
     test_key.key_len = strlen(test_key.key);
     test_key.is_valid = 1;
-    test_key.created = time(nullptr);
+    test_key.created = time(NULL);
     
     if (test_key.is_valid && test_key.key_len > 0 && test_key.created > 0) {
-        printf("[%sSUCCESS%s] Key storage: secure key structure initialized\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Key storage: secure key structure initialized");
         passed++;
     }
     
     // Test key derivation simulation
-    printf("Testing key derivation function...\n");
+    LOG_INFO("Testing key derivation function...");
     total++;
     const char* password = "user_password";
     const char* salt = "random_salt_123";
@@ -163,12 +163,12 @@ int test_key_management_security(void) {
     }
     
     if (unique_bytes > 32) { // At least 50% unique bytes
-        printf("[%sSUCCESS%s] Key derivation: %d/64 unique bytes generated\n", GREEN, RESET, unique_bytes);
+        LOG_INFOF("[SUCCESS] Key derivation: %d/64 unique bytes generated", unique_bytes);
         passed++;
     }
     
     // Test key zeroing for security
-    printf("Testing secure key memory clearing...\n");
+    LOG_INFO("Testing secure key memory clearing...");
     total++;
     char sensitive_data[256];
     strcpy(sensitive_data, "sensitive_key_data_that_should_be_cleared");
@@ -186,21 +186,21 @@ int test_key_management_security(void) {
     }
     
     if (cleared_bytes == sizeof(sensitive_data)) {
-        printf("[%sSUCCESS%s] Memory clearing: %zu bytes securely cleared\n", GREEN, RESET, sizeof(sensitive_data));
+        LOG_INFOF("[SUCCESS] Memory clearing: %zu bytes securely cleared", sizeof(sensitive_data));
         passed++;
     }
     
-    printf("Key management security tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Key management security tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test password handling security
 int test_password_handling(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Password Handling Security ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Password Handling Security ===%s", BLUE, RESET);
     
     // Test password input masking simulation
-    printf("Testing password input masking...\n");
+    LOG_INFO("Testing password input masking...");
     total++;
     char password_buffer[128];
     const char* simulated_input = "secret_password";
@@ -211,12 +211,12 @@ int test_password_handling(void) {
     
     // Verify password was stored
     if (strlen(password_buffer) > 0 && strcmp(password_buffer, simulated_input) == 0) {
-        printf("[%sSUCCESS%s] Password masking: input captured securely\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Password masking: input captured securely");
         passed++;
     }
     
     // Test password strength validation
-    printf("Testing password strength validation...\n");
+    LOG_INFO("Testing password strength validation...");
     total++;
     const char* test_passwords[] = {
         "weak",                              // Too short
@@ -244,12 +244,12 @@ int test_password_handling(void) {
     }
     
     if (strong_count == 2) { // Expecting 2 strong passwords
-        printf("[%sSUCCESS%s] Password validation: %d/4 passwords marked strong\n", GREEN, RESET, strong_count);
+        LOG_INFOF("[SUCCESS] Password validation: %d/4 passwords marked strong", strong_count);
         passed++;
     }
     
     // Test password hashing simulation
-    printf("Testing password hashing...\n");
+    LOG_INFO("Testing password hashing...");
     total++;
     const char* plain_password = "user_password_123";
     char hashed_password[256];
@@ -262,7 +262,7 @@ int test_password_handling(void) {
     snprintf(hashed_password, sizeof(hashed_password), "hash_%08lx", hash);
     
     if (strlen(hashed_password) > 0 && strcmp(hashed_password, plain_password) != 0) {
-        printf("[%sSUCCESS%s] Password hashing: hash generated (length: %zu)\n", GREEN, RESET, strlen(hashed_password));
+        LOG_INFOF("[SUCCESS] Password hashing: hash generated (length: %zu)", strlen(hashed_password));
         passed++;
     }
     
@@ -272,26 +272,26 @@ int test_password_handling(void) {
         vol_buf[i] = 0;
     }
     
-    printf("Password handling security tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Password handling security tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test secure memory operations
 int test_secure_memory_operations(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Secure Memory Operations ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Secure Memory Operations ===%s", BLUE, RESET);
     
     // Test secure memory allocation
-    printf("Testing secure memory allocation...\n");
+    LOG_INFO("Testing secure memory allocation...");
     total++;
     size_t secure_size = 4096;
-    void* secure_ptr = mmap(nullptr, secure_size, PROT_READ | PROT_WRITE, 
+    void* secure_ptr = mmap(NULL, secure_size, PROT_READ | PROT_WRITE, 
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     
     if (secure_ptr != MAP_FAILED) {
         // Test memory locking to prevent swapping
         if (mlock(secure_ptr, secure_size) == 0) {
-            printf("[%sSUCCESS%s] Secure allocation: %zu bytes allocated and locked\n", GREEN, RESET, secure_size);
+            LOG_INFOF("[SUCCESS] Secure allocation: %zu bytes allocated and locked", secure_size);
             passed++;
             
             // Test secure clearing
@@ -307,7 +307,7 @@ int test_secure_memory_operations(void) {
     }
     
     // Test buffer overflow protection
-    printf("Testing buffer overflow protection...\n");
+    LOG_INFO("Testing buffer overflow protection...");
     total++;
     char safe_buffer[256];
     const char* test_input = "This is a test string that should fit safely in the buffer";
@@ -318,13 +318,13 @@ int test_secure_memory_operations(void) {
         safe_buffer[sizeof(safe_buffer) - 1] = '\0';
         
         if (strlen(safe_buffer) == strlen(test_input)) {
-            printf("[%sSUCCESS%s] Buffer protection: safe string copy completed\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Buffer protection: safe string copy completed");
             passed++;
         }
     }
     
     // Test memory bounds checking simulation
-    printf("Testing memory bounds checking...\n");
+    LOG_INFO("Testing memory bounds checking...");
     total++;
     const size_t array_size = 100;
     int* test_array = malloc(array_size * sizeof(int));
@@ -341,24 +341,24 @@ int test_secure_memory_operations(void) {
         }
         
         if (bounds_ok) {
-            printf("[%sSUCCESS%s] Bounds checking: %zu array accesses within bounds\n", GREEN, RESET, array_size);
+            LOG_INFOF("[SUCCESS] Bounds checking: %zu array accesses within bounds", array_size);
             passed++;
         }
         
         free(test_array);
     }
     
-    printf("Secure memory operations tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Secure memory operations tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test attack resistance
 int test_attack_resistance(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Attack Resistance ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Attack Resistance ===%s", BLUE, RESET);
     
     // Test timing attack resistance simulation
-    printf("Testing timing attack resistance...\n");
+    LOG_INFO("Testing timing attack resistance...");
     total++;
     const char* correct_password = "correct_password";
     const char* test_passwords[] = {"correct_password", "wrong_password", "correct_passwor"};
@@ -397,12 +397,12 @@ int test_attack_resistance(void) {
     
     // Allow up to 2x variance (very generous for simulation)
     if (max_time <= min_time * 2) {
-        printf("[%sSUCCESS%s] Timing resistance: verification times within 2x variance\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Timing resistance: verification times within 2x variance");
         passed++;
     }
     
     // Test input validation against malicious data
-    printf("Testing malicious input validation...\n");
+    LOG_INFO("Testing malicious input validation...");
     total++;
     const char* malicious_inputs[] = {
         "../../../etc/passwd",           // Directory traversal
@@ -425,41 +425,41 @@ int test_attack_resistance(void) {
     }
     
     if (validations_passed == 4) {
-        printf("[%sSUCCESS%s] Input validation: %d/4 malicious inputs detected\n", GREEN, RESET, validations_passed);
+        LOG_INFOF("[SUCCESS] Input validation: %d/4 malicious inputs detected", validations_passed);
         passed++;
     }
     
     // Test resource exhaustion protection
-    printf("Testing resource exhaustion protection...\n");
+    LOG_INFO("Testing resource exhaustion protection...");
     total++;
     
     // Simulate protection against excessive memory allocation
     size_t max_allowed_alloc = 100 * 1024 * 1024; // 100MB limit
     size_t requested_size = 200 * 1024 * 1024;    // 200MB request
     
-    void* test_ptr = nullptr;
+    void* test_ptr = NULL;
     if (requested_size <= max_allowed_alloc) {
         test_ptr = malloc(requested_size);
     }
     
-    if (test_ptr == nullptr) { // Allocation was properly rejected
-        printf("[%sSUCCESS%s] Resource protection: excessive allocation rejected\n", GREEN, RESET);
+    if (test_ptr == NULL) { // Allocation was properly rejected
+        LOG_INFO("[SUCCESS] Resource protection: excessive allocation rejected");
         passed++;
     } else {
         free(test_ptr); // Shouldn't reach here in this test
     }
     
-    printf("Attack resistance tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Attack resistance tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test crypto robustness
 int test_crypto_robustness(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Crypto Robustness ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Crypto Robustness ===%s", BLUE, RESET);
     
     // Test encryption with corrupted data
-    printf("Testing encryption with corrupted data...\n");
+    LOG_INFO("Testing encryption with corrupted data...");
     total++;
     char original_data[] = "This is original data for corruption testing";
     char corrupted_data[sizeof(original_data)];
@@ -479,12 +479,12 @@ int test_crypto_robustness(void) {
     }
     
     if (original_checksum != corrupted_checksum) {
-        printf("[%sSUCCESS%s] Corruption detection: checksum mismatch detected\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Corruption detection: checksum mismatch detected");
         passed++;
     }
     
     // Test key rotation simulation
-    printf("Testing cryptographic key rotation...\n");
+    LOG_INFO("Testing cryptographic key rotation...");
     total++;
     typedef struct {
         char key[32];
@@ -494,7 +494,7 @@ int test_crypto_robustness(void) {
     } crypto_key_t;
     
     crypto_key_t keys[3];
-    time_t now = time(nullptr);
+    time_t now = time(NULL);
     
     // Initialize keys with different versions
     for (int i = 0; i < 3; i++) {
@@ -517,17 +517,17 @@ int test_crypto_robustness(void) {
     }
     
     if (active_keys == 1 && newest_version == 3) {
-        printf("[%sSUCCESS%s] Key rotation: 1 active key (version %d) of 3 total\n", GREEN, RESET, newest_version);
+        LOG_INFOF("[SUCCESS] Key rotation: 1 active key (version %d) of 3 total", newest_version);
         passed++;
     }
     
     // Test cryptographic randomness quality
-    printf("Testing random number quality...\n");
+    LOG_INFO("Testing random number quality...");
     total++;
     unsigned char random_bytes[256];
     
     // Generate pseudo-random bytes (in real implementation, use /dev/urandom)
-    srand(time(nullptr));
+    srand(time(NULL));
     for (int i = 0; i < 256; i++) {
         random_bytes[i] = rand() & 0xFF;
     }
@@ -546,21 +546,21 @@ int test_crypto_robustness(void) {
     
     // Should have reasonable distribution (at least 80% unique values)
     if (unique_values >= 200) {
-        printf("[%sSUCCESS%s] Random quality: %d/256 unique values generated\n", GREEN, RESET, unique_values);
+        LOG_INFOF("[SUCCESS] Random quality: %d/256 unique values generated", unique_values);
         passed++;
     }
     
-    printf("Crypto robustness tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Crypto robustness tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test secure file operations
 int test_secure_file_operations(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Secure File Operations ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Secure File Operations ===%s", BLUE, RESET);
     
     // Test secure file creation with proper permissions
-    printf("Testing secure file creation...\n");
+    LOG_INFO("Testing secure file creation...");
     total++;
     const char* secure_file = "/tmp/uemacs_secure_test.txt";
     
@@ -577,10 +577,10 @@ int test_secure_file_operations(void) {
                 mode_t expected = S_IRUSR | S_IWUSR;
                 if ((st.st_mode & S_IRWXU) == expected && 
                     (st.st_mode & (S_IRWXG | S_IRWXO)) == 0) {
-                    printf("[%sSUCCESS%s] Secure file: created with permissions 600\n", GREEN, RESET);
+                    LOG_INFO("[SUCCESS] Secure file: created with permissions 600");
                     passed++;
                 } else {
-                    printf("[%sFAIL%s] File permissions incorrect: %o\n", RED, RESET, st.st_mode & 0777);
+                    LOG_ERRORF("[FAIL] File permissions incorrect: %o", st.st_mode & 0777);
                 }
             }
         } else {
@@ -589,7 +589,7 @@ int test_secure_file_operations(void) {
     }
     
     // Test secure file deletion
-    printf("Testing secure file deletion...\n");
+    LOG_INFO("Testing secure file deletion...");
     total++;
     if (access(secure_file, F_OK) == 0) {
         // Overwrite file content before deletion
@@ -615,13 +615,13 @@ int test_secure_file_operations(void) {
         }
         
         if (unlink(secure_file) == 0) {
-            printf("[%sSUCCESS%s] Secure deletion: file overwritten and removed\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Secure deletion: file overwritten and removed");
             passed++;
         }
     }
     
     // Test atomic file operations
-    printf("Testing atomic file operations...\n");
+    LOG_INFO("Testing atomic file operations...");
     total++;
     const char* target_file = "/tmp/uemacs_atomic_test.txt";
     const char* temp_file = "/tmp/uemacs_atomic_test.txt.tmp";
@@ -643,7 +643,7 @@ int test_secure_file_operations(void) {
                 char read_content[256];
                 if (fgets(read_content, sizeof(read_content), check_f)) {
                     if (strcmp(read_content, new_content) == 0) {
-                        printf("[%sSUCCESS%s] Atomic operation: file updated atomically\n", GREEN, RESET);
+                        LOG_INFO("[SUCCESS] Atomic operation: file updated atomically");
                         passed++;
                     }
                 }
@@ -653,7 +653,7 @@ int test_secure_file_operations(void) {
     }
     
     // Test file locking for concurrent access
-    printf("Testing file locking mechanisms...\n");
+    LOG_INFO("Testing file locking mechanisms...");
     total++;
     const char* lock_file = "/tmp/uemacs_lock_test.txt";
     
@@ -667,7 +667,7 @@ int test_secure_file_operations(void) {
         
         if (fcntl(fd, F_SETLK, &lock) == 0) {
             // Lock acquired successfully
-            printf("[%sSUCCESS%s] File locking: exclusive write lock acquired\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] File locking: exclusive write lock acquired");
             
             // Release lock
             lock.l_type = F_UNLCK;
@@ -682,6 +682,6 @@ int test_secure_file_operations(void) {
     unlink(temp_file);
     unlink(lock_file);
     
-    printf("Secure file operations tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Secure file operations tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }

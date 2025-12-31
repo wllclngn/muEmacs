@@ -6,5 +6,5 @@
 
 void version(void)
 {
-    mlwrite("%s version %s", PROGRAM_NAME_LONG, VERSION);
+    mlwrite("%s VERSION %s", PROGRAM_NAME_LONG, VERSION);
 }

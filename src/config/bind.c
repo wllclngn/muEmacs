@@ -5,10 +5,12 @@
  *
  *	Written 11-feb-86 by Daniel Lawrence
  *	Modified by Petri Kutvonen
+ *  Refactored for modern C23/Linux by Mod (2025)
  */
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -20,35 +22,21 @@
 #include "error.h"
 #include "file_utils.h"
 #include "keymap.h"
+#include "util/logger.h"
+#include "terminal/input_state.h"
 
-// Modern keymap system state
-static bool modern_keymaps_initialized = false;
+// (modern_keymaps_initialized removed - keymaps now init in main.c)
 
-// Initialize modern keymap system once
-static void ensure_modern_keymaps(void) {
-    if (!modern_keymaps_initialized) {
-        keymap_init_from_legacy();
-        modern_keymaps_initialized = true;
-    }
-}
+// Pending prefix keymap for generic_prefix_dispatch()
+// This enables user-defined prefix keys without hardcoding dispatchers
+static _Atomic(struct keymap *) g_pending_prefix = nullptr;
 
-/* Map a legacy key code to a target keymap and stripped key code */
-static void legacy_to_modern_map(int legacy_code, struct keymap **out_map, uint32_t *out_key)
-{
-    struct keymap *map = atomic_load_explicit(&global_keymap, memory_order_acquire);
-    uint32_t key = (uint32_t)legacy_code;
+extern void vim_init_keymaps(void);
+extern int prefix_dispatch_external(struct keymap *initial_map, bool is_meta, int f, int n);
 
-    if (legacy_code & CTLX) {
-        map = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
-        key = (uint32_t)(legacy_code & ~CTLX);
-    } else if (legacy_code & META) {
-        map = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-        key = (uint32_t)(legacy_code & ~META);
-    }
-
-    if (out_map) *out_map = map;
-    if (out_key) *out_key = key;
-}
+// Forward declarations
+char *getfname(fn_t func);
+void cmdstr_key(keymap_key_t key, char *seq);
 
 int help(int f, int n)
 {				/* give me some help!!!!
@@ -64,13 +52,13 @@ int help(int f, int n)
 	if (bp == nullptr) {
 		fname = flook(pathname[1], false);
 		if (fname == nullptr) {
-			REPORT_ERROR(ERR_FILE_NOT_FOUND, "Help file is not online");
+			REPORT_ERROR(ERR_FILE_NOT_FOUND, "HELP FILE IS NOT ONLINE");
 			return false;
 		}
 	}
 
 	/* split the current window to make room for the help stuff */
-	if (splitwind(false, 1) == false)
+	if (window_split(false, 1) == false)
 		return false;
 
 	if (bp == nullptr) {
@@ -91,25 +79,31 @@ int help(int f, int n)
 	return true;
 }
 
-int deskey(int f, int n)
+int describe_key_binding(int f, int n)
 {				/* describe the command for a certain key */
 	int c;		/* key to describe */
 	char *ptr;	/* string pointer to scan output strings */
 	char outseq[NSTRING];	/* output buffer for command sequence */
 
 	/* prompt the user to type us a key to describe */
-	mlwrite(": describe-key ");
+	mlwrite(": DESCRIBE-KEY ");
 
 	/* get the command sequence to describe
 	   change it to something we can print as well */
-	cmdstr(c = getckey(false), &outseq[0]);
+	keymap_key_t key = read_key(false);
+	cmdstr_key(key, &outseq[0]);
 
 	/* and dump it out */
 	ostring(outseq);
 	ostring(" ");
 
 	/* find the right ->function */
-	if ((ptr = getfname(getbind(c))) == nullptr)
+	input_key_event_t evt = {
+		.code = key.code,
+		.modifiers = key.modifiers,
+		.type = KEY_CHAR
+	};
+	if ((ptr = getfname(getbind_event(&evt))) == nullptr)
 		ptr = "Not Bound";
 
 	/* output the command sequence */
@@ -125,96 +119,50 @@ int deskey(int f, int n)
  */
 int bindtokey(int f, int n)
 {
-	unsigned int c;	     /* command key to bind */
 	fn_t kfunc;	     /* ptr to the requested function to bind to */
-	struct key_tab *ktp; /* pointer into the command table */
-	int found;	     /* matched command flag */
 	char outseq[80];     /* output buffer for keystroke sequence */
 
 	/* prompt the user to type in a key to bind */
-	mlwrite(": bind-to-key ");
+	mlwrite(": BIND-TO-KEY ");
 
 	/* get the function name to bind it to */
 	kfunc = getname();
 	if (kfunc == nullptr) {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "No such function");
+		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
 		return false;
 	}
 	ostring(" ");
 
 	/* get the command sequence to bind */
-	c = getckey((kfunc == metafn) || (kfunc == cex) ||
+	keymap_key_t key = read_key((kfunc == metafn) || (kfunc == cex) ||
 		    (kfunc == unarg) || (kfunc == ctrlg));
 
 	/* change it to something we can print as well */
-	cmdstr(c, &outseq[0]);
+	cmdstr_key(key, &outseq[0]);
 
 	/* and dump it out */
 	ostring(outseq);
 
-	/* if the function is a prefix key */
-	if (kfunc == metafn || kfunc == cex ||
-	    kfunc == unarg || kfunc == ctrlg) {
-
-		/* search for an existing binding for the prefix key */
-		ktp = &keytab[0];
-		found = false;
-		while (ktp->k_fp != nullptr) {
-			if (ktp->k_fp == kfunc)
-				unbindchar(ktp->k_code);
-			++ktp;
-		}
-
-		/* reset the appropriate global prefix variable */
-		if (kfunc == metafn)
-			metac = c;
-		if (kfunc == cex)
-			ctlxc = c;
-		if (kfunc == unarg)
-			reptc = c;
-		if (kfunc == ctrlg)
-			abortc = c;
+	/* Determine target keymap based on key modifiers */
+	struct keymap *dst = nullptr;
+	if (key.modifiers & MOD_META) {
+		dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+		key.modifiers &= ~MOD_META;  /* Clear meta since using meta map */
+	} else {
+		dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
 	}
 
-	/* search the table to see if it exists */
-	ktp = &keytab[0];
-	found = false;
-	while (ktp->k_fp != nullptr) {
-		if (ktp->k_code == (int)c) {
-			found = true;
-			break;
-		}
-		++ktp;
-	}
-
-    if (found) {		/* it exists, just change it then */
-        ktp->k_fp = kfunc;
-    } else {		/* otherwise we need to add it to the end */
-		/* if we run out of binding room, bitch */
-		if (ktp >= &keytab[NBINDS]) {
-			REPORT_ERROR(ERR_MEMORY, "Binding table FULL!");
+	if (dst) {
+		if (!keymap_bind(dst, key, kfunc)) {
+			mlwrite("FAILED TO BIND KEY IN MODERN KEYMAP");
 			return false;
 		}
-
-		ktp->k_code = c;	/* add keycode */
-		ktp->k_fp = kfunc;	/* and the function pointer */
-		++ktp;		/* and make sure the next is null */
-		ktp->k_code = 0;
-		ktp->k_fp = nullptr;
+	} else {
+		mlwrite("FAILED TO RESOLVE KEYMAP");
+		return false;
 	}
-    /* Also update modern keymaps to keep runtime in sync */
-    ensure_modern_keymaps();
-    struct keymap *dst = nullptr;
-    uint32_t mkey = 0;
-    legacy_to_modern_map((int)c, &dst, &mkey);
-    if (dst) {
-        if (!keymap_bind(dst, mkey, kfunc)) {
-            mlwrite("Failed to bind key in modern keymap");
-            return false;
-        }
-    }
 
-    return true;
+	return true;
 }
 
 /*
@@ -225,77 +173,127 @@ int bindtokey(int f, int n)
  */
 int unbindkey(int f, int n)
 {
-	int c;		/* command key to unbind */
 	char outseq[80];	/* output buffer for keystroke sequence */
 
 	/* prompt the user to type in a key to unbind */
-	mlwrite(": unbind-key ");
+	mlwrite(": UNBIND-KEY ");
 
 	/* get the command sequence to unbind */
-	c = getckey(false);	/* get a command sequence */
+	keymap_key_t key = read_key(false);
 
 	/* change it to something we can print as well */
-	cmdstr(c, &outseq[0]);
+	cmdstr_key(key, &outseq[0]);
 
 	/* and dump it out */
 	ostring(outseq);
 
-	/* if it isn't bound, bitch */
-    if (unbindchar(c) == false) {
-        REPORT_ERROR(ERR_COMMAND_UNKNOWN, "Key not bound");
-        return false;
-    }
-    /* Keep modern keymaps in sync */
-    ensure_modern_keymaps();
-    struct keymap *dst = nullptr;
-    uint32_t mkey = 0;
-    legacy_to_modern_map(c, &dst, &mkey);
-    if (dst) {
-        keymap_unbind(dst, mkey);
-    }
-    return true;
+	/* Determine target keymap based on key modifiers */
+	struct keymap *dst = nullptr;
+	if (key.modifiers & MOD_META) {
+		dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+		key.modifiers &= ~MOD_META;
+	} else {
+		dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
+	}
+
+	if (dst) {
+		if (!keymap_unbind(dst, key)) {
+			REPORT_ERROR(ERR_COMMAND_UNKNOWN, "KEY NOT BOUND");
+			return false;
+		}
+	} else {
+		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "KEY NOT BOUND");
+		return false;
+	}
+	return true;
 }
 
 
 /*
- * unbindchar()
- *
- * int c;		command key to unbind
+ * localsetkey:
+ *	Bind a key to a function in the current buffer's local keymap.
+ *	Creates the buffer-local keymap if it doesn't exist.
  */
-int unbindchar(int c)
+int localsetkey(int f, int n)
 {
-	struct key_tab *ktp;   /* pointer into the command table */
-	struct key_tab *sktp;  /* saved pointer into the command table */
-	int found;             /* matched command flag */
+	fn_t kfunc;
+	char outseq[80];
 
-	/* search the table to see if the key exists */
-	ktp = &keytab[0];
-	found = false;
-	while (ktp->k_fp != nullptr) {
-		if (ktp->k_code == c) {
-			found = true;
-			break;
-		}
-		++ktp;
+	/* Must have a current buffer */
+	if (!curbp) {
+		mlwrite("[NO CURRENT BUFFER]");
+		return false;
 	}
 
-	/* if it isn't bound, bitch */
-	if (!found)
+	/* Prompt the user */
+	mlwrite(": LOCAL-SET-KEY ");
+
+	/* Get the function name to bind */
+	kfunc = getname();
+	if (kfunc == nullptr) {
+		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
 		return false;
+	}
+	ostring(" ");
 
-	/* save the pointer and scan to the end of the table */
-	sktp = ktp;
-	while (ktp->k_fp != nullptr)
-		++ktp;
-	--ktp;			/* backup to the last legit entry */
+	/* Get the key sequence */
+	keymap_key_t key = read_key((kfunc == metafn) || (kfunc == cex) ||
+		    (kfunc == unarg) || (kfunc == ctrlg));
+	cmdstr_key(key, &outseq[0]);
+	ostring(outseq);
 
-	/* copy the last entry to the current one */
-	sktp->k_code = ktp->k_code;
-	sktp->k_fp = ktp->k_fp;
+	/* Create buffer-local keymap if needed */
+	if (!curbp->b_local_keymap) {
+		curbp->b_local_keymap = keymap_create("buffer-local");
+		if (!curbp->b_local_keymap) {
+			mlwrite("[FAILED TO CREATE LOCAL KEYMAP]");
+			return false;
+		}
+	}
 
-	/* null out the last one */
-	ktp->k_code = 0;
-	ktp->k_fp = nullptr;
+	/* Bind to buffer-local keymap */
+	if (!keymap_bind(curbp->b_local_keymap, key, kfunc)) {
+		mlwrite("[FAILED TO BIND LOCAL KEY]");
+		return false;
+	}
+
+	mlwrite("[BOUND LOCALLY]");
+	return true;
+}
+
+/*
+ * localunsetkey:
+ *	Remove a key binding from the current buffer's local keymap.
+ */
+int localunsetkey(int f, int n)
+{
+	char outseq[80];
+
+	/* Must have a current buffer with local keymap */
+	if (!curbp) {
+		mlwrite("[NO CURRENT BUFFER]");
+		return false;
+	}
+	if (!curbp->b_local_keymap) {
+		mlwrite("[NO LOCAL BINDINGS]");
+		return false;
+	}
+
+	/* Prompt the user */
+	mlwrite(": LOCAL-UNSET-KEY ");
+
+	/* Get the key sequence */
+	keymap_key_t key = read_key(false);
+	cmdstr_key(key, &outseq[0]);
+	ostring(outseq);
+
+	/* Unbind from buffer-local keymap */
+	if (!keymap_unbind(curbp->b_local_keymap, key)) {
+		mlwrite("[KEY NOT LOCALLY BOUND]");
+		return false;
+	}
+
+	mlwrite("[UNBOUND LOCALLY]");
 	return true;
 }
 
@@ -303,18 +301,18 @@ int unbindchar(int c)
  * bring up a fake buffer and list the key bindings
  * into it with view mode
  */
-int desbind(int f, int n)
+int describe_all_bindings(int f, int n)
 {
 	buildlist(true, "");
 	return true;
 }
 
-int apro(int f, int n)
+int apropos_command(int f, int n)
 {				/* Apropos (List functions that match a substring) */
 	char mstring[NSTRING];	/* string to match cmd names to */
 	int status;		/* status return */
 
-	status = mlreply("Apropos string: ", mstring, NSTRING - 1);
+	status = minibuf_read("APROPOS STRING: ", mstring, NSTRING - 1);
 	if (status != true)
 		return status;
 
@@ -328,7 +326,7 @@ int apro(int f, int n)
  * char *mstring;	match string if a partial list
  */
 /* helper: append binding lines for a given keymap and prefix modifier */
-static void append_bindings_for_map(struct keymap *map, int prefix_flag,
+static void append_bindings_for_map(struct keymap *map, const char *prefix_str,
                                     struct name_bind *nptr, char *outseq, int *cpos)
 {
     if (!map || !nptr || !outseq || !cpos) return;
@@ -340,9 +338,14 @@ static void append_bindings_for_map(struct keymap *map, int prefix_flag,
                 if (fn == nptr->n_func) {
                     /* pad spaces */
                     while (*cpos < 28) outseq[(*cpos)++] = ' ';
-                    int code = (int)entry->key;
-                    if (prefix_flag) code |= prefix_flag;
-                    cmdstr(code, &outseq[*cpos]);
+                    /* Add prefix string (e.g., "^X " or "M-") if provided */
+                    if (prefix_str && prefix_str[0]) {
+                        size_t plen = strlen(prefix_str);
+                        memcpy(&outseq[*cpos], prefix_str, plen);
+                        *cpos += plen;
+                    }
+                    /* Add the key binding */
+                    cmdstr_key(entry->key, &outseq[*cpos]);
                     SAFE_STRCAT(outseq, "\n");
                     if (linstr(outseq) != true) return;
                     *cpos = 0; /* reset line */
@@ -356,25 +359,24 @@ static void append_bindings_for_map(struct keymap *map, int prefix_flag,
 int buildlist(int type, const char *mstring)
 {
 	struct window *wp;         /* scanning pointer to windows */
-	struct key_tab *ktp;  /* pointer into the command table */
 	struct name_bind *nptr;          /* pointer into the name binding table */
 	struct buffer *bp;    /* buffer to put binding list into */
 	int cpos;             /* current position to use in outseq */
 	char outseq[80];      /* output buffer for keystroke sequence */
 
 	/* split the current window to make room for the binding list */
-	if (splitwind(false, 1) == false)
+	if (window_split(false, 1) == false)
 		return false;
 
 	/* and get a buffer for it */
 	bp = bfind("*Binding list*", true, 0);
 	if (bp == nullptr || bclear(bp) == false) {
-		REPORT_ERROR(ERR_BUFFER_INVALID, "Can not display binding list");
+		REPORT_ERROR(ERR_BUFFER_INVALID, "CANNOT DISPLAY BINDING LIST");
 		return false;
 	}
 
 	/* let us know this is in progress */
-	mlwrite("(Building binding list)");
+	mlwrite("[BUILDING BINDING LIST]");
 
 	/* disconect the current buffer */
 	if (--curbp->b_nwnd == 0) {	/* Last use.            */
@@ -398,7 +400,6 @@ int buildlist(int type, const char *mstring)
 	wp->w_marko = 0;
 
 	/* build the contents of this window, inserting it line by line */
-	ensure_modern_keymaps();
 	struct keymap *gkm_list = atomic_load_explicit(&global_keymap, memory_order_acquire);
 	struct keymap *ckm_list = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
 	struct keymap *mkm_list = atomic_load_explicit(&meta_keymap, memory_order_acquire);
@@ -413,13 +414,13 @@ int buildlist(int type, const char *mstring)
 		/* if we are executing an apropos command..... */
 		if (type == false &&
 		    /* and current string doesn't include the search string */
-		    strinc(outseq, mstring) == false)
+		    string_contains(outseq, mstring) == false)
 			goto fail;
 
 		/* append all modern keymap bindings for this function */
-		append_bindings_for_map(gkm_list, 0, nptr, outseq, &cpos);
-		append_bindings_for_map(ckm_list, CTLX, nptr, outseq, &cpos);
-		append_bindings_for_map(mkm_list, META, nptr, outseq, &cpos);
+		append_bindings_for_map(gkm_list, "", nptr, outseq, &cpos);
+		append_bindings_for_map(ckm_list, "^X ", nptr, outseq, &cpos);
+		append_bindings_for_map(mkm_list, "M-", nptr, outseq, &cpos);
 
 		/* if no key was bound, we need to dump it anyway */
 		if (cpos > 0) {
@@ -453,7 +454,7 @@ int buildlist(int type, const char *mstring)
  * char *source;	string to search in
  * char *sub;		substring to look for
  */
-int strinc(const char *source, const char *sub)
+int string_contains(const char *source, const char *sub)
 {
 	const char *sp;		/* ptr into source */
 	const char *nxtsp;		/* next ptr into source */
@@ -484,27 +485,28 @@ int strinc(const char *source, const char *sub)
 }
 
 /*
- * get a command key sequence from the keyboard
+ * read_key: Read a key from keyboard or macro and return modern keymap_key_t
  *
- * int mflag;		going for a meta sequence?
+ * int mflag;		going for a meta sequence? (ignored, kept for compat)
  */
-unsigned int getckey(int mflag)
+keymap_key_t read_key([[maybe_unused]] int mflag)
 {
-	unsigned int c;	/* character fetched */
-	char tok[NSTRING];	/* command incoming */
+	char tok[NSTRING];
 
 	/* check to see if we are executing a command line */
 	if (clexec) {
-		macarg(tok);	/* get the next token */
-		return stock(tok);
+		macarg(tok);
+		return stock_key(tok);
 	}
 
-	/* or the normal way */
-	if (mflag)
-		c = get1key();
-	else
-		c = get1key();
-	return c;
+	/* or the normal way - read event and convert to keymap_key_t */
+	input_key_event_t evt;
+	if (input_read_event(&evt) < 0) return keymap_key_make(0, 0);
+
+	uint16_t mods = 0;
+	if (evt.modifiers & MOD_CTRL) mods |= MOD_CTRL;
+	if (evt.modifiers & (MOD_META | MOD_ALT)) mods |= MOD_META;
+	return keymap_key_make(evt.code, mods);
 }
 
 /*
@@ -544,9 +546,7 @@ const char *flook(const char *fname, int hflag)
 	char *path;	/* environmental PATH variable */
 	char *sp;	/* pointer into path spec */
 	size_t i;		/* index */
-	static char fspec[NSTRING];	/* full path spec to search */
-
-#if	ENVFUNC
+	static _Thread_local char fspec[NSTRING];	/* Thread-safe path spec */
 
 	if (hflag) {
 		home = getenv("HOME");
@@ -563,14 +563,12 @@ const char *flook(const char *fname, int hflag)
 			}
 		}
 	}
-#endif
 
 	/* always try the current directory first */
 	if (ffropen(fname) == FIOSUC) {
 		ffclose();
 		return fname;
 	}
-#if	ENVFUNC
 	/* get the PATH variable */
 	path = getenv("PATH");
 	if (path != nullptr)
@@ -596,7 +594,6 @@ const char *flook(const char *fname, int hflag)
 			if (*path == PATHCHR)
 				++path;
 		}
-#endif
 
 	/* look it up via the old table method */
 	for (i = 2; i < ARRAY_SIZE(pathname); i++) {
@@ -614,70 +611,223 @@ const char *flook(const char *fname, int hflag)
 }
 
 /*
- * change a key command to a string we can print out
- *
- * int c;		sequence to translate
- * char *seq;		destination string for sequence
+ * cmdstr_key: Convert a keymap_key_t to a readable string
  */
-void cmdstr(int c, char *seq)
+void cmdstr_key(keymap_key_t key, char *seq)
 {
-	char *ptr;		/* pointer into current position in sequence */
+	char *ptr = seq;
 
-	ptr = seq;
-
-	/* apply meta sequence if needed */
-	if (c & META) {
+	if (key.modifiers & MOD_META) {
 		*ptr++ = 'M';
 		*ptr++ = '-';
 	}
-
-	/* apply ^X sequence if needed */
-	if (c & CTLX) {
-		*ptr++ = '^';
-		*ptr++ = 'X';
-	}
-
-	/* apply SPEC sequence if needed */
-	if (c & SPEC) {
-		*ptr++ = 'F';
-		*ptr++ = 'N';
-	}
-
-	/* apply control sequence if needed */
-	if (c & CONTROL) {
+	if (key.modifiers & MOD_CTRL) {
 		*ptr++ = '^';
 	}
+	*ptr++ = (char)(key.code & 0xFF);
+	*ptr = '\0';
+}
 
-	/* and output the final sequence */
+/* Forward declaration for vim mode switching */
+extern int vim_enter_normal_mode_external(int f, int n);
 
-	*ptr++ = c & 255;	/* strip the prefixes */
-
-	*ptr = 0;		/* terminate the string */
+/*
+ * generic_prefix_dispatch: Dispatcher for user-defined prefix keys.
+ *
+ * When getbind_event() encounters a prefix binding that isn't ctlx_keymap
+ * or meta_keymap, it stores the target keymap in g_pending_prefix and
+ * returns this function. This allows arbitrary keys to become prefixes.
+ */
+int generic_prefix_dispatch(int f, int n)
+{
+	struct keymap *km = atomic_exchange(&g_pending_prefix, nullptr);
+	if (!km) {
+		mlwrite("[NO PENDING PREFIX]");
+		return false;
+	}
+	return prefix_dispatch_external(km, false, f, n);
 }
 
 /*
- * This function looks a key binding up in the binding table
- *
- * int c;		key to find what is bound to it
+ * getbind_event:
+ *	Event-based key binding lookup - no legacy format conversion.
+ *	This is the modern replacement for getbind() that works directly
+ *	with input_key_event_t to avoid the legacy integer key format.
  */
-int (*getbind(int c))(int, int)
+fn_t getbind_event(input_key_event_t *evt)
 {
-    // Ensure modern keymaps initialized once
-    ensure_modern_keymaps();
+    if (!evt || evt->type == KEY_NONE) return nullptr;
 
-    // Interpret legacy CTLX/META flags and route to appropriate keymap
-    struct keymap_entry *entry = keymap_get_binding(c);
-    if (entry && !entry->is_prefix) {
-        return atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+    /* Filter out non-bindable event types.
+     * These are terminal state events, not user key presses. */
+    switch (evt->type) {
+    case KEY_FOCUS_IN:
+    case KEY_FOCUS_OUT:
+    case KEY_PASTE_START:
+    case KEY_PASTE_END:
+    case KEY_CSI_UNKNOWN:
+    case KEY_MOUSE:
+    case KEY_OSC_RECEIVED:
+        return nullptr;
+    default:
+        break;
     }
-    // Fallback: legacy table (ensures defaults like M-? and C-x C-c)
-    {
-        struct key_tab *ktp = &keytab[0];
-        while (ktp->k_fp != nullptr) {
-            if (ktp->k_code == c) return ktp->k_fp;
-            ++ktp;
+
+    // Build key code from event
+    uint32_t code = evt->code;
+    uint8_t mods = evt->modifiers;
+
+    LOG_DEBUGF("BIND: input type=%d code=0x%X ('%c') mods=0x%X",
+               evt->type, code,
+               (code >= 0x20 && code < 0x7F) ? code : '?',
+               mods);
+
+    // KEY_SPECIAL events already have SPECIAL_* codes - use directly
+    // (keymaps store SPECIAL_UP/DOWN/etc from stock_key())
+    if (evt->type == KEY_SPECIAL || code >= SPECIAL_KEY_BASE) {
+        LOG_DEBUGF("BIND: special key code=0x%X", code);
+    }
+
+    // Convert C0 control characters (0x00-0x1F) to uppercase letters for lookup
+    // e.g., Ctrl-N comes as code=0x0E, MOD_CTRL - keytab wants CONTROL|'N'
+    if ((mods & MOD_CTRL) && code < 0x20) {
+        uint32_t old_code = code;
+        code = code + '@';  // 0x0E -> 0x4E ('N')
+        LOG_DEBUGF("BIND: C0 ctrl->letter 0x%X -> 0x%X ('%c')", old_code, code, code);
+    }
+
+    // Convert lowercase letters to uppercase when Ctrl is pressed
+    // Modern terminals (kitty protocol) send code='f' mods=MOD_CTRL instead of C0 control
+    if ((mods & MOD_CTRL) && code >= 'a' && code <= 'z') {
+        uint32_t old_code = code;
+        code = code - ('a' - 'A');  // 'f' -> 'F'
+        LOG_DEBUGF("BIND: lowercase ctrl->upper 0x%X -> 0x%X ('%c')", old_code, code, code);
+    }
+
+    // Handle ESC in Vim Insert/Replace modes -> return to Normal
+    if (vim_mode_active && code == 0x1B && (mods & MOD_CTRL) == 0) {
+        enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
+        if (mode == MODE_INSERT || mode == MODE_REPLACE) {
+            LOG_DEBUGF("BIND: vim %s ESC -> normal mode",
+                       mode == MODE_INSERT ? "insert" : "replace");
+            return vim_enter_normal_mode_external;
         }
     }
+
+    // Select keymap based on modifiers
+    struct keymap *map = nullptr;
+    const char *map_name = "global";
+
+    if (vim_mode_active) {
+        enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
+        if (mode == MODE_NORMAL) {
+            map = atomic_load_explicit(&vim_normal_keymap, memory_order_acquire);
+            map_name = "vim-normal";
+        } else if (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE) {
+            map = atomic_load_explicit(&vim_visual_keymap, memory_order_acquire);
+            map_name = "vim-visual";
+        }
+    }
+
+    if (!map) {
+        map = atomic_load_explicit(&global_keymap, memory_order_acquire);
+        map_name = "global";
+    }
+
+    // Build modern keymap_key_t for lookup
+    uint16_t key_mods = 0;
+    if (mods & MOD_CTRL) key_mods |= MOD_CTRL;
+
+    // Check for prefix key sequences (Ctrl-X, Meta/Alt)
+    // MOD_ALT (0x02) = terminal Alt key, MOD_META (0x20) = ESC prefix
+    if (mods & (MOD_META | MOD_ALT)) {
+        map = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+        map_name = "meta";
+        // Key in meta keymap doesn't have META flag, just the base key
+        key_mods &= ~MOD_META;
+    }
+
+    keymap_key_t lookup_key = keymap_key_make(code, key_mods);
+    LOG_DEBUGF("BIND: lookup code=0x%X mods=0x%X in map=%s", code, key_mods, map_name);
+
+    // Check buffer-local keymap first (highest priority)
+    if (curbp && curbp->b_local_keymap) {
+        struct keymap_entry *entry = keymap_lookup(curbp->b_local_keymap, lookup_key);
+        if (entry) {
+            LOG_DEBUGF("BIND: FOUND in buffer-local keymap");
+            if (!entry->is_prefix) {
+                fn_t result = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+                return result;
+            }
+            // Buffer-local prefix
+            struct keymap *ckm = atomic_load(&ctlx_keymap);
+            struct keymap *mkm = atomic_load(&meta_keymap);
+            if (entry->binding.map == ckm) return cex;
+            if (entry->binding.map == mkm) return metafn;
+            atomic_store(&g_pending_prefix, entry->binding.map);
+            return generic_prefix_dispatch;
+        }
+    }
+
+    if (map) {
+        struct keymap_entry *entry = keymap_lookup(map, lookup_key);
+        if (entry) {
+            if (!entry->is_prefix) {
+                fn_t result = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+                char *fname = getfname(result);
+                LOG_DEBUGF("BIND: FOUND in %s -> %s", map_name, fname ? fname : "(unknown)");
+                return result;
+            }
+            // For prefix entries, return the appropriate dispatcher
+            struct keymap *ckm = atomic_load(&ctlx_keymap);
+            struct keymap *mkm = atomic_load(&meta_keymap);
+            if (entry->binding.map == ckm) {
+                LOG_DEBUGF("BIND: FOUND prefix CTLX in %s", map_name);
+                return cex;
+            }
+            if (entry->binding.map == mkm) {
+                LOG_DEBUGF("BIND: FOUND prefix META in %s", map_name);
+                return metafn;
+            }
+            // User-defined prefix - use generic dispatcher
+            LOG_DEBUGF("BIND: FOUND user-defined prefix in %s", map_name);
+            atomic_store(&g_pending_prefix, entry->binding.map);
+            return generic_prefix_dispatch;
+        }
+
+        // Fallback to global keymap if vim mode didn't have binding
+        // This allows Ctrl+F, Ctrl+B, etc. to work in vim normal mode
+        if (vim_mode_active && map != atomic_load(&global_keymap)) {
+            struct keymap *gkm = atomic_load_explicit(&global_keymap, memory_order_acquire);
+            if (gkm) {
+                entry = keymap_lookup(gkm, lookup_key);
+                if (entry) {
+                    if (!entry->is_prefix) {
+                        fn_t result = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+                        char *fname = getfname(result);
+                        LOG_DEBUGF("BIND: FOUND (vim fallback to global) -> %s", fname ? fname : "(unknown)");
+                        return result;
+                    }
+                    struct keymap *ckm2 = atomic_load(&ctlx_keymap);
+                    struct keymap *mkm2 = atomic_load(&meta_keymap);
+                    if (entry->binding.map == ckm2) {
+                        LOG_DEBUG("BIND: FOUND prefix CTLX (vim fallback)");
+                        return cex;
+                    }
+                    if (entry->binding.map == mkm2) {
+                        LOG_DEBUG("BIND: FOUND prefix META (vim fallback)");
+                        return metafn;
+                    }
+                    // User-defined prefix in vim fallback
+                    LOG_DEBUG("BIND: FOUND user-defined prefix (vim fallback)");
+                    atomic_store(&g_pending_prefix, entry->binding.map);
+                    return generic_prefix_dispatch;
+                }
+            }
+        }
+    }
+
+    LOG_DEBUGF("BIND: NOT FOUND key=0x%08X", lookup_key);
     return nullptr;
 }
 
@@ -742,70 +892,107 @@ int (*fncmatch(const char *fname)) (int, int)
 }
 
 /*
- * stock:
- *	String key name TO Command Key
- *
- * const char *keyname;	name of key to translate to Command key form
+ * stock_key:
+ *	String key name TO keymap_key_t
+ *	Modern version of stock() that returns the new key format.
  */
-unsigned int stock(const char *keyname)
+keymap_key_t stock_key(const char *keyname)
 {
-	unsigned int c;	/* key sequence to return */
-	char cur_char;
+	uint32_t code = 0;
+	uint16_t mods = 0;
 
-	/* parse it up */
-	c = 0;
+	/* Handle special key names first */
+	if (strcmp(keyname, "DELETE") == 0 || strcmp(keyname, "Del") == 0) {
+		return keymap_key_make(SPECIAL_DELETE, 0);
+	}
+	if (strcmp(keyname, "INSERT") == 0 || strcmp(keyname, "Ins") == 0) {
+		return keymap_key_make(SPECIAL_INSERT, 0);
+	}
+	if (strcmp(keyname, "HOME") == 0) {
+		return keymap_key_make(SPECIAL_HOME, 0);
+	}
+	if (strcmp(keyname, "END") == 0) {
+		return keymap_key_make(SPECIAL_END, 0);
+	}
+	if (strcmp(keyname, "PAGEUP") == 0 || strcmp(keyname, "PgUp") == 0) {
+		return keymap_key_make(SPECIAL_PAGEUP, 0);
+	}
+	if (strcmp(keyname, "PAGEDOWN") == 0 || strcmp(keyname, "PgDn") == 0) {
+		return keymap_key_make(SPECIAL_PAGEDOWN, 0);
+	}
+	if (strcmp(keyname, "UP") == 0) {
+		return keymap_key_make(SPECIAL_UP, 0);
+	}
+	if (strcmp(keyname, "DOWN") == 0) {
+		return keymap_key_make(SPECIAL_DOWN, 0);
+	}
+	if (strcmp(keyname, "RIGHT") == 0) {
+		return keymap_key_make(SPECIAL_RIGHT, 0);
+	}
+	if (strcmp(keyname, "LEFT") == 0) {
+		return keymap_key_make(SPECIAL_LEFT, 0);
+	}
+	if (strcmp(keyname, "BACKSPACE") == 0 || strcmp(keyname, "BS") == 0) {
+		return keymap_key_make(0x7F, 0);  /* DEL/Backspace = 0x7F */
+	}
 
-	/* first, the META prefix */
+	/* META prefix */
 	if (*keyname == 'M' && *(keyname + 1) == '-') {
-		c = META;
+		mods |= MOD_META;
 		keyname += 2;
 	}
 
-	/* next the function prefix */
-	if (*keyname == 'F' && *(keyname + 1) == 'N') {
-		c |= SPEC;
+	/* ^X prefix for C-x keymap - handled by caller selecting target keymap */
+	if (*keyname == '^' && *(keyname + 1) == 'X') {
 		keyname += 2;
+		/* If there's nothing after ^X, it's the prefix key itself */
+		if (*keyname == '\0') {
+			return keymap_key_make('X', MOD_CTRL);
+		}
+		/* Skip any space after ^X */
+		while (*keyname == ' ') keyname++;
 	}
 
-	/* control-x as well... (but not with FN) */
-	if (*keyname == '^' && *(keyname + 1) == 'X' && !(c & SPEC)) {
-		c |= CTLX;
-		keyname += 2;
+	/* Control key prefix */
+	if (*keyname == '^' && *(keyname + 1) != '\0') {
+		mods |= MOD_CTRL;
+		keyname++;
 	}
 
-	/* a control char? */
-	if (*keyname == '^' && *(keyname + 1) != 0) {
-		c |= CONTROL;
-		++keyname;
-	}
+	char cur_char = *keyname;
 
-	cur_char = *keyname;
-
+	/* Raw control character */
 	if (cur_char < 32) {
-		c |= CONTROL;
+		mods |= MOD_CTRL;
 		cur_char += 'A';
 	}
 
-
-	/* make sure we are not lower case (not with function keys) */
-	if (cur_char >= 'a' && cur_char <= 'z' && !(c & SPEC))
+	/* Uppercase control and meta keys for consistency */
+	if ((mods & (MOD_CTRL | MOD_META)) && cur_char >= 'a' && cur_char <= 'z') {
 		cur_char -= 32;
+	}
 
-	/* the final sequence... */
-	c |= cur_char;
-	return c;
+	code = (uint32_t)cur_char;
+	return keymap_key_make(code, mods);
 }
 
 /*
  * string key name to binding name....
  *
- * char *skey;		name of keey to get binding for
+ * char *skey;		name of key to get binding for
  */
 char *transbind(const char *skey)
 {
 	char *bindname;
 
-	bindname = getfname(getbind(stock(skey)));
+	/* Parse key string and convert to event for lookup */
+	keymap_key_t key = stock_key(skey);
+	input_key_event_t evt = {
+		.code = key.code,
+		.modifiers = key.modifiers,
+		.type = (key.code >= SPECIAL_KEY_BASE) ? KEY_SPECIAL : KEY_CHAR
+	};
+	bindname = getfname(getbind_event(&evt));
 	if (bindname == nullptr)
 		bindname = "ERROR";
 

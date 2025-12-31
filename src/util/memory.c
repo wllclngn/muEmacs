@@ -55,9 +55,22 @@ static void track_allocation(void* ptr, size_t size, const char* context, const 
     }
 }
 
+static size_t get_allocation_size(void* ptr) {
+    if (!ptr) return 0;
+
+    alloc_record_t* current = allocation_list;
+    while (current) {
+        if (current->ptr == ptr) {
+            return current->size;
+        }
+        current = current->next;
+    }
+    return 0;
+}
+
 static void untrack_allocation(void* ptr) {
     if (!ptr) return;
-    
+
     alloc_record_t** current = &allocation_list;
     while (*current) {
         if ((*current)->ptr == ptr) {
@@ -80,14 +93,14 @@ void* safe_alloc(size_t size, const char* context, const char* file, int line) {
     }
     
     if (size > SIZE_MAX / 2) {
-        mlwrite("(ALLOCATION TOO LARGE: %s)", context ? context : "unknown");
+        mlwrite("[ALLOCATION TOO LARGE: %s]", context ? context : "UNKNOWN");
         return nullptr;
     }
     
     /* Use calloc for zero-initialized memory */
     void* ptr = calloc(1, size);
     if (!ptr) {
-        mlwrite("(OUT OF MEMORY: %s - %zu bytes)", context ? context : "unknown", size);
+        mlwrite("[OUT OF MEMORY: %s - %zu BYTES]", context ? context : "UNKNOWN", size);
         return nullptr;
     }
     
@@ -106,27 +119,26 @@ void* safe_realloc(void* old_ptr, size_t new_size, const char* context) {
     }
     
     if (new_size > SIZE_MAX / 2) {
-        mlwrite("(REALLOCATION TOO LARGE: %s)", context ? context : "unknown");
+        mlwrite("[REALLOCATION TOO LARGE: %s]", context ? context : "UNKNOWN");
         return nullptr;
     }
 
-    // Untrack the old pointer before reallocating
-    if (old_ptr) {
-        untrack_allocation(old_ptr);
-    }
-    
+    /* Save old pointer address as integer to break alias chain for GCC warning */
+    uintptr_t old_addr = (uintptr_t)old_ptr;
+
     void* new_ptr = realloc(old_ptr, new_size);
     if (!new_ptr) {
-        mlwrite("(OUT OF MEMORY: %s - %zu bytes)", context ? context : "unknown", new_size);
-        // If realloc fails, the original block is untouched. We should re-track it.
-        if (old_ptr) {
-            track_allocation(old_ptr, 0, "realloc-fail", __FILE__, __LINE__); // Size is unknown here, but it's better to track it
-        }
+        mlwrite("[OUT OF MEMORY: %s - %zu BYTES]", context ? context : "UNKNOWN", new_size);
+        /* If realloc fails, original block is untouched - tracking still valid */
         return nullptr;
     }
-    
+
+    /* Realloc succeeded - untrack old pointer using saved address */
+    if (old_addr) {
+        untrack_allocation((void*)old_addr);
+    }
     track_allocation(new_ptr, new_size, context, __FILE__, __LINE__);
-    
+
     return new_ptr;
 }
 
@@ -141,22 +153,22 @@ void safe_free(void** ptr) {
 
 /* Allocation report for debugging */
 void memory_report(void) {
-    mlwrite("Memory: %zu bytes allocated (%zu peak) in %zu blocks", 
+    mlwrite("MEMORY: %zu BYTES ALLOCATED [%zu PEAK] IN %zu BLOCKS", 
             total_allocated, peak_allocated, allocation_count);
     
     if (allocation_list) {
-        mlwrite("Memory leaks detected:");
+        mlwrite("MEMORY LEAKS DETECTED:");
         alloc_record_t* current = allocation_list;
         int leak_count = 0;
         while (current && leak_count < 10) {  /* Limit output */
-            mlwrite("  Leak: %zu bytes at %s:%d (%s)", 
+            mlwrite("  LEAK: %zu BYTES AT %s:%d [%s]", 
                     current->size, current->file, current->line, 
                     current->context ? current->context : "unknown");
             current = current->next;
             leak_count++;
         }
         if (current) {
-            mlwrite("  ... and more");
+            mlwrite("  ... AND MORE");
         }
     }
 }

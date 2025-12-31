@@ -8,12 +8,30 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdbool.h>
 
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
 #include "line.h"
+#include "utf8.h"
+#include "undo.h"
+#include "memory.h"
+#include "util/logger.h"
+
+/* Helper to count display width of UTF-8 text (codepoints, not bytes) */
+static int utf8_display_width(const char *text, int len) {
+	int width = 0;
+	for (int i = 0; i < len; i++) {
+		/* Count only non-continuation bytes (not 10xxxxxx) */
+		if ((text[i] & 0xC0) != 0x80) {
+			width++;
+		}
+	}
+	return width;
+}
 
 /* Word wrap on n-spaces. Back-over whatever precedes the point on the current
  * line and stop on the first word-break or the beginning of the line. If we
@@ -31,7 +49,7 @@ int wrapword(int f, int n)
 	int c;		/* charector temporary */
 
 	/* backup from the <NL> 1 char */
-	if (!backchar(0, 1))
+	if (!move_char_backward(0, 1))
 		return false;
 
 	/* back up until we aren't in a word,
@@ -40,17 +58,17 @@ int wrapword(int f, int n)
 	while (((c = lgetc(curwp->w_dotp, curwp->w_doto)) != ' ')
 	       && (c != '\t')) {
 		cnt++;
-		if (!backchar(0, 1))
+		if (!move_char_backward(0, 1))
 			return false;
 		/* if we make it to the beginning, start a new line */
 		if (curwp->w_doto == 0) {
-			gotoeol(false, 0);
+			goto_line_end(false, 0);
 			return lnewline();
 		}
 	}
 
 	/* delete the forward white space */
-	if (!forwdel(0, 1))
+	if (!delete_char_forward(0, 1))
 		return false;
 
 	/* put in a end of line */
@@ -59,7 +77,7 @@ int wrapword(int f, int n)
 
 	/* and past the first word */
 	while (cnt-- > 0) {
-		if (forwchar(false, 1) == false)
+		if (move_char_forward(false, 1) == false)
 			return false;
 	}
 	return true;
@@ -67,44 +85,44 @@ int wrapword(int f, int n)
 
 /*
  * Move the cursor backward by "n" words. All of the details of motion are
- * performed by the "backchar" and "forwchar" routines. Error if you try to
+ * performed by the "move_char_backward" and "move_char_forward" routines. Error if you try to
  * move beyond the buffers.
  */
-int backword(int f, int n)
+int move_word_backward(int f, int n)
 {
 	if (n < 0)
-		return forwword(f, -n);
-	if (backchar(false, 1) == false)
+		return move_word_forward(f, -n);
+	if (move_char_backward(false, 1) == false)
 		return false;
 	while (n--) {
 		while (inword() == false) {
-			if (backchar(false, 1) == false)
+			if (move_char_backward(false, 1) == false)
 				return false;
 		}
 		while (inword() != false) {
-			if (backchar(false, 1) == false)
+			if (move_char_backward(false, 1) == false)
 				return false;
 		}
 	}
-	return forwchar(false, 1);
+	return move_char_forward(false, 1);
 }
 
 /*
  * Move the cursor forward by the specified number of words. All of the motion
- * is done by "forwchar". Error if you try and move beyond the buffer's end.
+ * is done by "move_char_forward". Error if you try and move beyond the buffer's end.
  */
-int forwword(int f, int n)
+int move_word_forward(int f, int n)
 {
 	if (n < 0)
-		return backword(f, -n);
+		return move_word_backward(f, -n);
 	while (n--) {
 		while (inword() == true) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 
 		while (inword() == false) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 	}
@@ -126,17 +144,17 @@ int upperword(int f, int n)
 		return false;
 	while (n--) {
 		while (inword() == false) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 		while (inword() != false) {
 			c = lgetc(curwp->w_dotp, curwp->w_doto);
-			if (islower(c)) {
-				c -= 'a' - 'A';
-				lputc(curwp->w_dotp, curwp->w_doto, c);
+			int upper = to_upper(c);
+			if (upper != c) {
+				lputc(curwp->w_dotp, curwp->w_doto, upper);
 				lchange(WFHARD);
 			}
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 	}
@@ -158,17 +176,17 @@ int lowerword(int f, int n)
 		return false;
 	while (n--) {
 		while (inword() == false) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 		while (inword() != false) {
 			c = lgetc(curwp->w_dotp, curwp->w_doto);
-			if (isupper(c)) {
-				c += 'a' - 'A';
-				lputc(curwp->w_dotp, curwp->w_doto, c);
+			int lower = to_lower(c);
+			if (lower != c) {
+				lputc(curwp->w_dotp, curwp->w_doto, lower);
 				lchange(WFHARD);
 			}
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 	}
@@ -191,27 +209,29 @@ int capword(int f, int n)
 		return false;
 	while (n--) {
 		while (inword() == false) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 		if (inword() != false) {
+			/* Capitalize first letter */
 			c = lgetc(curwp->w_dotp, curwp->w_doto);
-			if (islower(c)) {
-				c -= 'a' - 'A';
-				lputc(curwp->w_dotp, curwp->w_doto, c);
+			int upper = to_upper(c);
+			if (upper != c) {
+				lputc(curwp->w_dotp, curwp->w_doto, upper);
 				lchange(WFHARD);
 			}
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
+			/* Lowercase rest of word */
 			while (inword() != false) {
 				c = lgetc(curwp->w_dotp, curwp->w_doto);
-				if (isupper(c)) {
-					c += 'a' - 'A';
+				int lower = to_lower(c);
+				if (lower != c) {
 					lputc(curwp->w_dotp, curwp->w_doto,
-					      c);
+					      lower);
 					lchange(WFHARD);
 				}
-				if (forwchar(false, 1) == false)
+				if (move_char_forward(false, 1) == false)
 					return false;
 			}
 		}
@@ -225,7 +245,7 @@ int capword(int f, int n)
  * command for the right number of characters. With a zero argument, just
  * kill one word and no whitespace. Bound to "M-D".
  */
-int delfword(int f, int n)
+int delete_word_forward(int f, int n)
 {
 	struct line *dotp;	/* original cursor line */
 	int doto;	/*      and row */
@@ -254,7 +274,7 @@ int delfword(int f, int n)
 
 	/* get us into a word.... */
 	while (inword() == false) {
-		if (forwchar(false, 1) == false)
+		if (move_char_forward(false, 1) == false)
 			return false;
 		++size;
 	}
@@ -262,7 +282,7 @@ int delfword(int f, int n)
 	if (n == 0) {
 		/* skip one word, no whitespace! */
 		while (inword() == true) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 			++size;
 		}
@@ -272,14 +292,14 @@ int delfword(int f, int n)
 
 			/* if we are at EOL; skip to the beginning of the next */
 			while (curwp->w_doto == llength(curwp->w_dotp)) {
-				if (forwchar(false, 1) == false)
+				if (move_char_forward(false, 1) == false)
 					return false;
 				++size;
 			}
 
 			/* move forward till we are at the end of the word */
 			while (inword() == true) {
-				if (forwchar(false, 1) == false)
+				if (move_char_forward(false, 1) == false)
 					return false;
 				++size;
 			}
@@ -287,7 +307,7 @@ int delfword(int f, int n)
 			/* if there are more words, skip the interword stuff */
 			if (n != 0)
 				while (inword() == false) {
-					if (forwchar(false, 1) == false)
+					if (move_char_forward(false, 1) == false)
 						return false;
 					++size;
 				}
@@ -297,7 +317,7 @@ int delfword(int f, int n)
 		while ((curwp->w_doto == llength(curwp->w_dotp)) ||
 		       ((c = lgetc(curwp->w_dotp, curwp->w_doto)) == ' ')
 		       || (c == '\t')) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				break;
 			++size;
 		}
@@ -314,7 +334,7 @@ int delfword(int f, int n)
  * counting the characters. When dot is finally moved to its resting place,
  * fire off the kill command. Bound to "M-Rubout" and to "M-Backspace".
  */
-int delbword(int f, int n)
+int delete_word_backward(int f, int n)
 {
 	long size;
 
@@ -331,22 +351,22 @@ int delbword(int f, int n)
 		kdelete();
 	thisflag |= CFKILL;	/* this command is a kill */
 
-	if (backchar(false, 1) == false)
+	if (move_char_backward(false, 1) == false)
 		return false;
 	size = 0;
 	while (n--) {
 		while (inword() == false) {
-			if (backchar(false, 1) == false)
+			if (move_char_backward(false, 1) == false)
 				return false;
 			++size;
 		}
 		while (inword() != false) {
 			++size;
-			if (backchar(false, 1) == false)
+			if (move_char_backward(false, 1) == false)
 				goto bckdel;
 		}
 	}
-	if (forwchar(false, 1) == false)
+	if (move_char_forward(false, 1) == false)
 		return false;
       bckdel:return ldelchar(size, true);
 }
@@ -362,7 +382,7 @@ int inword(void)
 	if (curwp->w_doto == llength(curwp->w_dotp))
 		return false;
 	c = lgetc(curwp->w_dotp, curwp->w_doto);
-	if (isletter(c))
+	if (is_letter(c))
 		return true;
 	if (c >= '0' && c <= '9')
 		return true;
@@ -427,16 +447,16 @@ int forwsubword(int f, int n)
 	while (n--) {
 		/* Skip any non-word characters first */
 		while (inword() == false) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 		
 		/* Now skip to next subword boundary */
-		if (forwchar(false, 1) == false)
+		if (move_char_forward(false, 1) == false)
 			return false;
 		
 		while (inword() == true && !at_subword_boundary()) {
-			if (forwchar(false, 1) == false)
+			if (move_char_forward(false, 1) == false)
 				return false;
 		}
 	}
@@ -453,18 +473,18 @@ int backsubword(int f, int n)
 	
 	while (n--) {
 		/* Move back one character first */
-		if (backchar(false, 1) == false)
+		if (move_char_backward(false, 1) == false)
 			return false;
 		
 		/* Skip any non-word characters */
 		while (inword() == false) {
-			if (backchar(false, 1) == false)
+			if (move_char_backward(false, 1) == false)
 				return false;
 		}
 		
 		/* Now skip to previous subword boundary */
 		while (inword() == true && !at_subword_boundary()) {
-			if (backchar(false, 1) == false)
+			if (move_char_backward(false, 1) == false)
 				return false;
 		}
 	}
@@ -477,100 +497,159 @@ int backsubword(int f, int n)
  *
  * f and n - deFault flag and Numeric argument
  */
+/*
+ * Optimized fillpara - O(lines) undo operations instead of O(chars)
+ * Uses Emacs-style approach: join lines, then re-break.
+ * Preserves first line to maintain external pointer validity.
+ */
 int fillpara(int f, int n)
 {
-	unicode_t c;		/* current char during scan    */
-	unicode_t wbuf[NSTRING];/* buffer for current word      */
-	int wordlen;	/* length of current word       */
-	int clength;	/* position on line during fill */
-	int i;		/* index during word copy       */
-	int newlength;	/* tentative new line length    */
-	int eopflag;	/* Are we at the End-Of-Paragraph? */
-	int firstflag;	/* first word? (needs no space) */
-	struct line *eopline;	/* pointer to line just past EOP */
-	int dotflag;	/* was the last char a period?  */
-
-	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
-		return rdonly();	/* we are in read only mode     */
-	if (fillcol == 0) {	/* no fill column set */
-		mlwrite("No fill column set");
+	if (curbp->b_mode & MDVIEW)
+		return rdonly();
+	if (fillcol == 0) {
+		mlwrite("NO FILL COLUMN SET");
 		return false;
 	}
-#if	PKCODE
-	justflag = false;
-#endif
 
-	/* record the pointer to the line just past the EOP */
-	gotoeop(false, 1);
-	eopline = lforw(curwp->w_dotp);
+	/* Find paragraph boundaries */
+	goto_para_end(false, 1);
+	struct line *eopline = lforw(curwp->w_dotp);
+	goto_para_start(false, 1);
+	struct line *bopline = curwp->w_dotp;
+	curwp->w_doto = 0;  /* Always start from beginning of line */
+	int start_offset = 0;
 
-	/* and back top the beginning of the paragraph */
-	gotobop(false, 1);
+	/* Calculate total paragraph size */
+	size_t total_size = 0;
+	int line_count = 0;
+	for (struct line *lp = bopline; lp != eopline && lp != curbp->b_linep; lp = lforw(lp)) {
+		total_size += llength(lp) + 1;
+		line_count++;
+	}
+	if (total_size == 0 || line_count == 0) return true;
 
-	/* initialize various info */
-	clength = curwp->w_doto;
-	if (clength && lgetc(curwp->w_dotp, 0) == TAB)
-		clength = 8;
-	wordlen = 0;
-	dotflag = false;
+	/* Allocate buffer for paragraph text */
+	char *para_buf = SAFE_ALLOC_SIZED(char, total_size + 1, "paragraph_buffer");
+	if (!para_buf) return false;
 
-	/* scan through lines, filling words */
-	firstflag = true;
-	eopflag = false;
-	while (!eopflag) {
-		int bytes = 1;
-
-		/* get the next character in the paragraph */
-		if (curwp->w_doto == llength(curwp->w_dotp)) {
-			c = ' ';
-			if (lforw(curwp->w_dotp) == eopline)
-				eopflag = true;
-		} else
-			bytes = lgetchar(&c);
-
-		/* and then delete it */
-		ldelete(bytes, false);
-
-		/* if not a separator, just add it in */
-		if (c != ' ' && c != '\t') {
-			dotflag = (c == '.');	/* was it a dot */
-			if (wordlen < NSTRING - 1)
-				wbuf[wordlen++] = c;
-		} else if (wordlen) {
-			/* at a word break with a word waiting */
-			/* calculate tentitive new length with word added */
-			newlength = clength + 1 + wordlen;
-			if (newlength <= fillcol) {
-				/* add word to current line */
-				if (!firstflag) {
-					linsert(1, ' ');	/* the space */
-					++clength;
-				}
-				firstflag = false;
-			} else {
-				/* start a new line */
-				lnewline();
-				clength = 0;
+	/* Copy paragraph to buffer, converting newlines to spaces */
+	/* Skip any CR characters (handle CRLF line endings) */
+	size_t pos = 0;
+	for (struct line *lp = bopline; lp != eopline && lp != curbp->b_linep; lp = lforw(lp)) {
+		int len = llength(lp);
+		int start = (lp == bopline) ? start_offset : 0;
+		for (int i = start; i < len; i++) {
+			char c = lgetc(lp, i);
+			if (c != '\r') {  /* Skip CR characters */
+				para_buf[pos++] = c;
 			}
-
-			/* and add the word in in either case */
-			for (i = 0; i < wordlen; i++) {
-				linsert(1, wbuf[i]);
-				++clength;
-			}
-			if (dotflag) {
-				linsert(1, ' ');
-				++clength;
-			}
-			wordlen = 0;
+		}
+		if (lforw(lp) != eopline && lforw(lp) != curbp->b_linep) {
+			para_buf[pos++] = ' ';
 		}
 	}
-	/* and add a last newline for the end of our new paragraph */
-	lnewline();
+	para_buf[pos] = '\0';
+
+	LOG_DEBUGF("fillpara: read %zu bytes, line_count=%d, start_offset=%d, fillcol=%d",
+	           pos, line_count, start_offset, fillcol);
+
+	/* Group undo for atomic operation */
+	undo_group_begin(curbp);
+
+	/* Step 1: Delete paragraph content line by line (O(lines) operations) */
+	curwp->w_dotp = bopline;
+	curwp->w_doto = start_offset;
+
+	/* Calculate total bytes to delete */
+	long total_bytes = 0;
+	struct line *lp = bopline;
+	for (int i = 0; i < line_count && lp != curbp->b_linep; i++) {
+		int line_start = (i == 0) ? start_offset : 0;
+		total_bytes += llength(lp) - line_start;
+		if (i < line_count - 1) total_bytes++;  /* newline */
+		lp = lforw(lp);
+	}
+
+	/* Delete all content in ONE operation for efficiency */
+	LOG_DEBUGF("fillpara: deleting %ld bytes", total_bytes);
+	if (total_bytes > 0) {
+		ldelete(total_bytes, false);
+	}
+
+	/* Step 2: Build reformatted text in memory, then insert all at once */
+	char *output = SAFE_ALLOC_SIZED(char, total_size * 2 + 1, "reformat_output");
+	if (!output) {
+		SAFE_FREE(para_buf);
+		undo_group_end(curbp);
+		return false;
+	}
+
+	size_t out_pos = 0;
+	int clength = 0;
+	int firstflag = 1;
+	char *p = para_buf;
+
+	while (*p) {
+		/* Skip whitespace */
+		while (*p == ' ' || *p == '\t') p++;
+		if (!*p) break;
+
+		/* Extract word */
+		char *word_start = p;
+		int dotflag = 0;
+		while (*p && *p != ' ' && *p != '\t') {
+			if (*p == '.') dotflag = 1;
+			p++;
+		}
+		int wordlen = p - word_start;  /* Byte length for memcpy */
+		if (wordlen == 0) continue;
+
+		/* Calculate display width (UTF-8 aware) */
+		int wordwidth = utf8_display_width(word_start, wordlen);
+
+		/* Check if extra space after period will be added */
+		int extraspace = (dotflag && (*p == ' ' || *p == '\t' || *p == '\0')) ? 1 : 0;
+
+		/* Calculate new line length using display width (include post-period space) */
+		int newlength = clength + (firstflag ? 0 : 1) + wordwidth + extraspace;
+
+		if (newlength > fillcol && !firstflag) {
+			/* Start new line */
+			output[out_pos++] = '\n';
+			clength = 0;
+		} else if (!firstflag) {
+			/* Add space before word */
+			output[out_pos++] = ' ';
+			clength++;
+		}
+
+		/* Add word */
+		memcpy(output + out_pos, word_start, wordlen);
+		out_pos += wordlen;
+		clength += wordwidth;  /* Use display width, not byte length */
+		firstflag = 0;
+
+		/* Add extra space after period */
+		if (dotflag && (*p == ' ' || *p == '\t' || *p == '\0')) {
+			output[out_pos++] = ' ';
+			clength++;
+		}
+	}
+
+	/* Add final newline */
+	output[out_pos++] = '\n';
+	output[out_pos] = '\0';
+
+	/* Insert all reformatted text (handles newlines internally) */
+	LOG_DEBUGF("fillpara: output %zu bytes, inserting", out_pos);
+	linstr(output);
+
+	SAFE_FREE(output);
+	SAFE_FREE(para_buf);
+	undo_group_end(curbp);
 	return true;
 }
 
-#if	PKCODE
 /* Fill the current paragraph according to the current
  * fill column and cursor position
  *
@@ -592,23 +671,26 @@ int justpara(int f, int n)
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
 	if (fillcol == 0) {	/* no fill column set */
-		mlwrite("No fill column set");
+		mlwrite("NO FILL COLUMN SET");
 		return false;
 	}
 	justflag = true;
 	leftmarg = curwp->w_doto;
 	if (leftmarg + 10 > fillcol) {
 		leftmarg = 0;
-		mlwrite("Column too narrow");
+		mlwrite("COLUMN TOO NARROW");
 		return false;
 	}
 
+	/* Group all undo operations for atomic undo/redo */
+	undo_group_begin(curbp);
+
 	/* record the pointer to the line just past the EOP */
-	gotoeop(false, 1);
+	goto_para_end(false, 1);
 	eopline = lforw(curwp->w_dotp);
 
 	/* and back top the beginning of the paragraph */
-	gotobop(false, 1);
+	goto_para_start(false, 1);
 
 	/* initialize various info */
 	if (leftmarg < llength(curwp->w_dotp))
@@ -660,10 +742,17 @@ int justpara(int f, int n)
 				clength = leftmarg;
 			}
 
-			/* and add the word in in either case */
-			for (i = 0; i < wordlen; i++) {
-				linsert(1, wbuf[i]);
-				++clength;
+			/* Convert unicode word to UTF-8 and bulk insert */
+			{
+				char utf8_word[NSTRING * 4];
+				int utf8_len = 0;
+				for (i = 0; i < wordlen; i++) {
+					utf8_len += unicode_to_utf8(wbuf[i], utf8_word + utf8_len);
+				}
+				utf8_word[utf8_len] = '\0';
+				if (!linstr(utf8_word))
+					return false;
+				clength += wordlen;
 			}
 			wordlen = 0;
 		}
@@ -671,16 +760,18 @@ int justpara(int f, int n)
 	/* and add a last newline for the end of our new paragraph */
 	lnewline();
 
-	forwword(false, 1);
+	move_word_forward(false, 1);
 	if (llength(curwp->w_dotp) > leftmarg)
 		curwp->w_doto = leftmarg;
 	else
 		curwp->w_doto = llength(curwp->w_dotp);
 
+	/* End undo grouping */
+	undo_group_end(curbp);
+
 	justflag = false;
 	return true;
 }
-#endif
 
 /*
  * delete n paragraphs starting with the current one
@@ -695,18 +786,18 @@ int killpara(int f, int n)
 	while (n--) {		/* for each paragraph to delete */
 
 		/* mark out the end and beginning of the para to delete */
-		gotoeop(false, 1);
+		goto_para_end(false, 1);
 
 		/* set the mark here */
 		curwp->w_markp = curwp->w_dotp;
 		curwp->w_marko = curwp->w_doto;
 
 		/* go to the beginning of the paragraph */
-		gotobop(false, 1);
+		goto_para_start(false, 1);
 		curwp->w_doto = 0;	/* force us to the beginning of line */
 
 		/* and delete it */
-		if ((status = killregion(false, 1)) != true)
+		if ((status = region_kill(false, 1)) != true)
 			return status;
 
 		/* and clean up the 2 extra lines */
@@ -764,14 +855,7 @@ int wordcount(int f, int n)
 		}
 
 		/* and tabulate it */
-		wordflag = (
-#if	PKCODE
-				   (isletter(ch)) ||
-#else
-				   (ch >= 'a' && ch <= 'z') ||
-				   (ch >= 'A' && ch <= 'Z') ||
-#endif
-				   (ch >= '0' && ch <= '9'));
+		wordflag = (is_letter(ch) || (ch >= '0' && ch <= '9'));
 		if (wordflag == true && lastword == false)
 			++nwords;
 		lastword = wordflag;
@@ -784,7 +868,7 @@ int wordcount(int f, int n)
 	else
 		avgch = 0;
 
-	mlwrite("Words %D Chars %D Lines %d Avg chars/word %f",
+	mlwrite("WORDS %D CHARS %D LINES %d AVG CHARS/WORD %f",
 		nwords, nchars, nlines + 1, avgch);
 	return true;
 }

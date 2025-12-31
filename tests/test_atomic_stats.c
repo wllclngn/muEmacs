@@ -45,8 +45,7 @@ int test_atomic_stats_o1_operations() {
         curwp->w_dotp = lforw(curwp->w_dotp);
     }
     
-    printf("[%sINFO%s] Testing O(1) statistics access with %d operations\n", 
-           BLUE, RESET, operations);
+    LOG_INFOF("[INFO] Testing O(1) statistics access with %d operations", operations);
     
     // Benchmark statistics access
     clock_t start = clock();
@@ -57,17 +56,16 @@ int test_atomic_stats_o1_operations() {
     
     double time_per_access = ((double)(end - start)) / CLOCKS_PER_SEC / operations * 1000000; // microseconds
     
-    printf("[%sINFO%s] Statistics access: %.2f μs per operation\n", BLUE, RESET, time_per_access);
-    printf("[%sINFO%s] Current stats: %d lines, %ld bytes, %d words\n", 
-           BLUE, RESET, total_lines, file_bytes, word_count);
+    LOG_INFOF("[INFO] Statistics access: %.2f μs per operation", time_per_access);
+    LOG_INFOF("[INFO] Current stats: %d lines, %ld bytes, %d words", total_lines, file_bytes, word_count);
     
     if (time_per_access < 1.0) { // Less than 1 microsecond = truly O(1)
-        printf("[%sSUCCESS%s] Statistics access meets O(1) performance (<1μs)\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Statistics access meets O(1) performance (<1μs)");
     } else if (time_per_access < 10.0) {
-        printf("[%sSUCCESS%s] Statistics access acceptable performance (%.1fμs)\n", GREEN, RESET, time_per_access);
+        LOG_INFOF("[SUCCESS] Statistics access acceptable performance (%.1fμs)", time_per_access);
     } else {
         ok = 0;
-        printf("[%sFAIL%s] Statistics access too slow (%.1fμs) - not O(1)\n", RED, RESET, time_per_access);
+        LOG_ERRORF("[FAIL] Statistics access too slow (%.1fμs) - not O(1)", time_per_access);
     }
 
     PHASE_END("ATOMIC-STATS: O(1)", ok);
@@ -94,8 +92,7 @@ int test_atomic_stats_incremental() {
     int initial_words, words_after;
     
     buffer_get_stats_fast(curbp, &initial_lines, &initial_bytes, &initial_words);
-    printf("[%sINFO%s] Initial stats: %d lines, %ld bytes, %d words\n", 
-           BLUE, RESET, initial_lines, initial_bytes, initial_words);
+    LOG_INFOF("[INFO] Initial stats: %d lines, %ld bytes, %d words", initial_lines, initial_bytes, initial_words);
 
     // Test 1: Character insertion updates
     linsert(1, 'H');
@@ -108,10 +105,9 @@ int test_atomic_stats_incremental() {
     
     if (bytes_after != initial_bytes + 5) {
         ok = 0;
-        printf("[%sFAIL%s] Byte count not incrementally updated: expected %ld, got %ld\n", 
-               RED, RESET, initial_bytes + 5, bytes_after);
+        LOG_ERRORF("[FAIL] Byte count not incrementally updated: expected %ld, got %ld", initial_bytes + 5, bytes_after);
     } else {
-        printf("[%sSUCCESS%s] Byte count incrementally updated correctly\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Byte count incrementally updated correctly");
     }
 
     // Test 2: Line insertion updates  
@@ -121,10 +117,9 @@ int test_atomic_stats_incremental() {
     
     if (lines_after != initial_lines + 1) {
         ok = 0;
-        printf("[%sFAIL%s] Line count not updated: expected %d, got %d\n", 
-               RED, RESET, initial_lines + 1, lines_after);
+        LOG_ERRORF("[FAIL] Line count not updated: expected %d, got %d", initial_lines + 1, lines_after);
     } else {
-        printf("[%sSUCCESS%s] Line count incrementally updated correctly\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Line count incrementally updated correctly");
     }
 
     // Test 3: Word boundary detection
@@ -141,10 +136,9 @@ int test_atomic_stats_incremental() {
     buffer_get_stats_fast(curbp, &lines_after, &bytes_after, &words_after);
     
     if (words_after <= initial_words) {
-        printf("[%sWARNING%s] Word count may not be incrementally updated (implementation-dependent)\n", 
-               YELLOW, RESET);
+        LOG_WARN("[WARN] Word count may not be incrementally updated (implementation-dependent)");
     } else {
-        printf("[%sSUCCESS%s] Word count incrementally updated\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Word count incrementally updated");
     }
 
     PHASE_END("ATOMIC-STATS: INCREMENTAL", ok);
@@ -168,7 +162,7 @@ int test_atomic_stats_concurrency() {
     lnewline();
     curwp->w_dotp = lforw(curbp->b_linep);
 
-    printf("[%sINFO%s] Simulating concurrent access patterns\n", BLUE, RESET);
+    LOG_INFO("[INFO] Simulating concurrent access patterns");
 
     int total_lines, word_count;
     long file_bytes;
@@ -198,18 +192,16 @@ int test_atomic_stats_concurrency() {
         }
     }
     
-    printf("[%sINFO%s] Performed %d modification+read cycles\n", BLUE, RESET, iterations);
-    printf("[%sINFO%s] Inconsistent reads detected: %d\n", BLUE, RESET, inconsistent_reads);
+    LOG_INFOF("[INFO] Performed %d modification+read cycles", iterations);
+    LOG_INFOF("[INFO] Inconsistent reads detected: %d", inconsistent_reads);
     
     if (inconsistent_reads == 0) {
-        printf("[%sSUCCESS%s] All statistics reads were consistent (atomic)\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] All statistics reads were consistent (atomic)");
     } else if (inconsistent_reads < iterations / 100) { // Less than 1%
-        printf("[%sWARNING%s] Few inconsistent reads detected (%d/%d)\n", 
-               YELLOW, RESET, inconsistent_reads, iterations);
+        LOG_WARNF("[WARN] Few inconsistent reads detected (%d/%d)", inconsistent_reads, iterations);
     } else {
         ok = 0;
-        printf("[%sFAIL%s] Too many inconsistent reads (%d/%d) - atomicity issue\n", 
-               RED, RESET, inconsistent_reads, iterations);
+        LOG_ERRORF("[FAIL] Too many inconsistent reads (%d/%d) - atomicity issue", inconsistent_reads, iterations);
     }
 
     PHASE_END("ATOMIC-STATS: CONCURRENCY", ok);
@@ -231,22 +223,21 @@ int test_atomic_stats_bulk_accuracy() {
     // Debug: Check stats after bclear
     int debug_lines, debug_words; long debug_bytes;
     buffer_get_stats_fast(curbp, &debug_lines, &debug_bytes, &debug_words);
-    printf("[DEBUG] After bclear: %d lines, %ld bytes\n", debug_lines, debug_bytes);
+    LOG_INFOF("[DEBUG] After bclear: %d lines, %ld bytes", debug_lines, debug_bytes);
     
     lnewline();
     curwp->w_dotp = lforw(curbp->b_linep);
     
     // Debug: Check stats after lnewline
     buffer_get_stats_fast(curbp, &debug_lines, &debug_bytes, &debug_words);
-    printf("[DEBUG] After lnewline: %d lines, %ld bytes\n", debug_lines, debug_bytes);
+    LOG_INFOF("[DEBUG] After lnewline: %d lines, %ld bytes", debug_lines, debug_bytes);
 
     // Perform bulk operations and verify statistics accuracy
     const int lines_to_add = 100;
     const int chars_per_line = 50;
     const char* pattern = "Line %03d: This text contains exactly fifty chars!";
     
-    printf("[%sINFO%s] Adding %d lines with %d characters each\n", 
-           BLUE, RESET, lines_to_add, chars_per_line);
+    LOG_INFOF("[INFO] Adding %d lines with %d characters each", lines_to_add, chars_per_line);
 
     for (int i = 0; i < lines_to_add; i++) {
         char line_buffer[64];
@@ -272,34 +263,30 @@ int test_atomic_stats_bulk_accuracy() {
     int expected_lines = lines_to_add; // Accept 100 lines
     long expected_bytes = (long)lines_to_add * chars_per_line - 1; // Accept 4999 bytes
     
-    printf("[%sINFO%s] Statistics: %d lines, %ld bytes, %d words\n", 
-           BLUE, RESET, total_lines, file_bytes, word_count);
-    printf("[%sINFO%s] Expected: %d lines, %ld bytes minimum\n", 
-           BLUE, RESET, expected_lines, expected_bytes);
+    LOG_INFOF("[INFO] Statistics: %d lines, %ld bytes, %d words", total_lines, file_bytes, word_count);
+    LOG_INFOF("[INFO] Expected: %d lines, %ld bytes minimum", expected_lines, expected_bytes);
 
     // Allow some tolerance for line ending differences
     if (total_lines >= lines_to_add && total_lines <= expected_lines + 1) {
-        printf("[%sSUCCESS%s] Line count accurate\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Line count accurate");
     } else {
         ok = 0;
-        printf("[%sFAIL%s] Line count inaccurate: got %d, expected ~%d\n", 
-               RED, RESET, total_lines, expected_lines);
+        LOG_ERRORF("[FAIL] Line count inaccurate: got %d, expected ~%d", total_lines, expected_lines);
     }
 
     if (file_bytes >= expected_bytes && file_bytes <= expected_bytes + lines_to_add) {
-        printf("[%sSUCCESS%s] Byte count accurate\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Byte count accurate");
     } else {
         ok = 0;
-        printf("[%sFAIL%s] Byte count inaccurate: got %ld, expected ~%ld\n", 
-               RED, RESET, file_bytes, expected_bytes);
+        LOG_ERRORF("[FAIL] Byte count inaccurate: got %ld, expected ~%ld", file_bytes, expected_bytes);
     }
 
     // Word count is harder to predict precisely, but should be reasonable
     int expected_words_min = lines_to_add * 5; // Rough estimate
     if (word_count >= expected_words_min) {
-        printf("[%sSUCCESS%s] Word count reasonable (%d words)\n", GREEN, RESET, word_count);
+        LOG_INFOF("[SUCCESS] Word count reasonable (%d words)", word_count);
     } else {
-        printf("[%sWARNING%s] Word count may be low (%d words)\n", YELLOW, RESET, word_count);
+        LOG_WARNF("[WARN] Word count may be low (%d words)", word_count);
     }
 
     PHASE_END("ATOMIC-STATS: BULK-ACCURACY", ok);

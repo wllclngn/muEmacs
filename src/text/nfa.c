@@ -10,7 +10,6 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 
-
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
@@ -33,8 +32,10 @@ typedef struct {
 static nfa_state arena[NFA_MAX_STATES];
 static int arena_used = 0;
 
-static inline unsigned char norm_byte(unsigned char b, bool cs) {
-    return cs ? b : (unsigned char)tolower(b);
+/* Fast character normalization for case-insensitive search */
+static inline unsigned char normalize_char(unsigned char c, bool case_sensitive)
+{
+    return case_sensitive ? c : (unsigned char)tolower(c);
 }
 
 static int add_state(stype_t t, unsigned char c, int out, int out1) {
@@ -79,7 +80,7 @@ bool nfa_compile(const char* pattern, bool case_sensitive, nfa_program_info* out
     while (*p && *p != '$') {
         if (*p == '\\') { /* escape next as literal */
             p++; if (!*p) break;
-            int s = add_state(ST_CHAR, norm_byte((unsigned char)*p, cs), -1, -1);
+            int s = add_state(ST_CHAR, normalize_char((unsigned char)*p, cs), -1, -1);
             if (s < 0) return false;
             if (start == -1) start = s; else patch(last, s);
             last = s;
@@ -152,7 +153,7 @@ bool nfa_compile(const char* pattern, bool case_sensitive, nfa_program_info* out
             return false;
         }
         /* literal */
-        int s = add_state(ST_CHAR, norm_byte((unsigned char)*p, cs), -1, -1);
+        int s = add_state(ST_CHAR, normalize_char((unsigned char)*p, cs), -1, -1);
         if (s < 0) return false;
         if (start == -1) start = s; else patch(last, s);
         last = s;
@@ -228,23 +229,27 @@ static void add_epsilon(const nfa_program_info* prog, slist* l, int s, bool at_b
     }
 }
 
-static void step(const nfa_program_info* prog, const slist* cur, unsigned char byte, bool is_nl, slist* next) {
+/* Step: consume a byte and return raw next states (no epsilon closure) */
+static void step_raw(const slist* cur, unsigned char byte, bool is_nl, slist* next) {
     list_clear(next);
     for (int i = 0; i < cur->n; i++) {
         int s = cur->idx[i];
         const nfa_state* st = &arena[s];
         switch (st->type) {
             case ST_CHAR:
-                if (!is_nl && byte == st->c) add_epsilon(prog, next, st->out, false, false);
+                if (!is_nl && byte == st->c) list_add(next, st->out);
                 break;
             case ST_ANY:
-                if (!is_nl) add_epsilon(prog, next, st->out, false, false);
+                if (!is_nl) list_add(next, st->out);
                 break;
             case ST_CLASS:
-                if (!is_nl && cls_has(st->cls, byte)) add_epsilon(prog, next, st->out, false, false);
+                if (!is_nl && cls_has(st->cls, byte)) list_add(next, st->out);
                 break;
             case ST_MATCH:
-                /* Do nothing; match will be detected separately */
+            case ST_BOL:
+            case ST_EOL:
+            case ST_SPLIT:
+                /* These are handled via epsilon closure, not step */
                 break;
             default:
                 break;
@@ -281,12 +286,23 @@ bool nfa_search_forward(const nfa_program_info* prog,
     }
 
     for (;;) {
-        if (lp == curbp->b_linep) break;
+        if (!lp || lp == curbp->b_linep) break;
         int n = llength(lp);
         bool at_eol = (off == n);
         if (at_eol) {
-            /* Process EOL as a special non-consuming check via epsilon closure */
-            /* Advance to next line */
+            /* Check for EOL anchor matches before advancing to next line */
+            slist eol_closure = {0};
+            for (int i = 0; i < cur.n; i++) {
+                add_epsilon(prog, &eol_closure, cur.idx[i], false, true);
+            }
+            for (int i = 0; i < eol_closure.n; i++) {
+                if (arena[eol_closure.idx[i]].type == ST_MATCH) {
+                    *match_lp = run_start_lp;
+                    *match_off = run_start_off;
+                    return true;
+                }
+            }
+            /* No match at EOL, advance to next line */
             lp = lforw(lp);
             off = 0;
             at_bol = true;
@@ -300,18 +316,25 @@ bool nfa_search_forward(const nfa_program_info* prog,
         unsigned char b = (unsigned char)lgetc(lp, off);
         bool is_nl = false;
 
-        /* Step */
-        step(prog, &cur, norm_byte(b, prog->case_sensitive), is_nl, &next);
+        /* Step: get raw next states (no epsilon closure yet) */
+        step_raw(&cur, normalize_char(b, prog->case_sensitive), is_nl, &next);
 
-        /* Epsilon-closure on next and check for match */
+        /* Epsilon-closure on raw next states, but don't consume EOL anchors yet */
         slist closure = {0};
         for (int i = 0; i < next.n; i++) {
-            add_epsilon(prog, &closure, next.idx[i], false, false);
+            int s = next.idx[i];
+            /* For EOL states, add them directly to check at line end */
+            if (s >= 0 && arena[s].type == ST_EOL) {
+                list_add(&closure, s);
+            } else {
+                add_epsilon(prog, &closure, s, false, false);
+            }
         }
+        /* Check for match (ST_MATCH states) */
         for (int i = 0; i < closure.n; i++) {
             if (arena[closure.idx[i]].type == ST_MATCH) {
                 have_match = true;
-                if (beg_or_end == 1 /* PTEND */) { m_lp = lp; m_off = off + 1; }
+                if (beg_or_end == 1 /* POS_END */) { m_lp = lp; m_off = off + 1; }
                 else { m_lp = run_start_lp; m_off = run_start_off; }
                 break;
             }

@@ -28,7 +28,7 @@ static int stress_factor(void) {
 
 // EXTREME stress test - 10x beyond current levels (scalable)
 int test_extreme_text_operations(void) {
-    printf("\n%s=== EXTREME TEXT OPERATIONS STRESS TEST ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== EXTREME TEXT OPERATIONS STRESS TEST ===%s", CYAN, RESET);
     int ok = 1;
     
     init_editor_minimal("extreme-stress");
@@ -36,12 +36,12 @@ int test_extreme_text_operations(void) {
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, nullptr);
+    gettimeofday(&start, NULL);
     
     int F = stress_factor();
     long insert_target = 1000000L * F;
     // PHASE 1: EXTREME TEXT INSERTION
-    printf("Testing EXTREME text insertion (%ld characters; factor=%d)...\n", insert_target, F);
+    LOG_INFOF("Testing EXTREME text insertion (%ld characters; factor=%d)...", insert_target, F);
     curwp->w_dotp = curbp->b_linep;
     curwp->w_doto = 0;
     lnewline();
@@ -50,53 +50,52 @@ int test_extreme_text_operations(void) {
     for (long i = 0; i < insert_target; i++) {
         char c = 'A' + (i % 26);
         if (!linsert(1, c)) {
-            printf("[%sFAIL%s] Text insertion failed at %d\n", RED, RESET, i);
+            LOG_ERRORF("[FAIL] Text insertion failed at %d", i);
             ok = 0;
             break;
         }
         if (i % (100000 * F) == 0) {
-            printf("Progress: %ld/%ld characters inserted\n", i, insert_target);
+            LOG_INFOF("Progress: %ld/%ld characters inserted", i, insert_target);
         }
     }
     
     // PHASE 2: EXTREME LINE OPERATIONS
     long lines_target = 100000L * F;
-    printf("Testing EXTREME line operations (%ld new lines)...\n", lines_target);
+    LOG_INFOF("Testing EXTREME line operations (%ld new lines)...", lines_target);
     for (long i = 0; i < lines_target; i++) {
         if (!lnewline()) {
-            printf("[%sFAIL%s] Line creation failed at %d\n", RED, RESET, i);
+            LOG_ERRORF("[FAIL] Line creation failed at %d", i);
             ok = 0;
             break;
         }
         if (i % (10000 * F) == 0) {
-            printf("Progress: %ld/%ld lines created\n", i, lines_target);
+            LOG_INFOF("Progress: %ld/%ld lines created", i, lines_target);
         }
     }
     
     // PHASE 3: EXTREME DELETION STRESS
     long del_target = 500000L * F;
-    printf("Testing EXTREME deletion stress (%ld deletions)...\n", del_target);
+    LOG_INFOF("Testing EXTREME deletion stress (%ld deletions)...", del_target);
     for (long i = 0; i < del_target; i++) {
         if (!ldelete(1, false)) {
             break; // Hit end of buffer
         }
         if (i % (50000 * F) == 0) {
-            printf("Progress: %ld/%ld deletions completed\n", i, del_target);
+            LOG_INFOF("Progress: %ld/%ld deletions completed", i, del_target);
         }
     }
     
-    gettimeofday(&end, nullptr);
+    gettimeofday(&end, NULL);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
-    printf("[%s%s%s] EXTREME text operations completed in %.2f seconds\n", 
-           ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET, elapsed);
+    LOG_INFOF("[%s%s%s] EXTREME text operations completed in %.2f seconds", ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET, elapsed);
     
     return ok;
 }
 
 // Memory pressure stress test
 int test_extreme_memory_stress(void) {
-    printf("\n%s=== EXTREME MEMORY STRESS TEST ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== EXTREME MEMORY STRESS TEST ===%s", CYAN, RESET);
     int ok = 1;
     
     struct rusage usage_start, usage_end;
@@ -110,7 +109,7 @@ int test_extreme_memory_stress(void) {
         stress_buffers[i] = bfind(bufname, true, 0);
         
         if (!stress_buffers[i]) {
-            printf("[%sFAIL%s] Failed to create buffer %d\n", RED, RESET, i);
+            LOG_ERRORF("[FAIL] Failed to create buffer %d", i);
             ok = 0;
             break;
         }
@@ -129,30 +128,29 @@ int test_extreme_memory_stress(void) {
         for (int j = 0; j < 10000; j++) {
             char c = 'a' + (j % 26);
             if (!linsert(1, c)) {
-                printf("[%sFAIL%s] Buffer %d fill failed at char %d\n", RED, RESET, i, j);
+                LOG_ERRORF("[FAIL] Buffer %d fill failed at char %d", i, j);
                 ok = 0;
                 break;
             }
         }
         
         if (i % 10 == 0) {
-            printf("Created and filled %d/50 stress buffers\n", i + 1);
+            LOG_INFOF("Created and filled %d/50 stress buffers", i + 1);
         }
     }
     
     getrusage(RUSAGE_SELF, &usage_end);
     long memory_used = usage_end.ru_maxrss - usage_start.ru_maxrss;
     
-    printf("Memory usage increase: %ld KB\n", memory_used);
-    printf("[%s%s%s] EXTREME memory stress test completed\n", 
-           ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET);
+    LOG_INFOF("Memory usage increase: %ld KB", memory_used);
+    LOG_INFOF("[%s%s%s] EXTREME memory stress test completed", ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET);
     
     return ok;
 }
 
 // Concurrent operations stress test
 int test_extreme_concurrent_stress(void) {
-    printf("\n%s=== EXTREME CONCURRENT OPERATIONS STRESS TEST ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== EXTREME CONCURRENT OPERATIONS STRESS TEST ===%s", CYAN, RESET);
     int ok = 1;
     
     init_editor_minimal("concurrent-stress");
@@ -160,7 +158,7 @@ int test_extreme_concurrent_stress(void) {
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, nullptr);
+    gettimeofday(&start, NULL);
     
     // Simulate rapid concurrent-like operations
     for (int cycle = 0; cycle < 1000; cycle++) {
@@ -184,22 +182,21 @@ int test_extreme_concurrent_stress(void) {
         }
         
         if (cycle % 100 == 0) {
-            printf("Completed %d/1000 concurrent operation cycles\n", cycle);
+            LOG_INFOF("Completed %d/1000 concurrent operation cycles", cycle);
         }
     }
     
-    gettimeofday(&end, nullptr);
+    gettimeofday(&end, NULL);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
-    printf("[%sSUCCESS%s] EXTREME concurrent stress completed in %.2f seconds\n", 
-           GREEN, RESET, elapsed);
+    LOG_INFOF("[SUCCESS] EXTREME concurrent stress completed in %.2f seconds", elapsed);
     
     return ok;
 }
 
 // Ultra-large file simulation
 int test_extreme_file_size_stress(void) {
-    printf("\n%s=== EXTREME FILE SIZE STRESS TEST ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== EXTREME FILE SIZE STRESS TEST ===%s", CYAN, RESET);
     int ok = 1;
     int F = stress_factor();
     
@@ -208,7 +205,7 @@ int test_extreme_file_size_stress(void) {
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, nullptr);
+    gettimeofday(&start, NULL);
     
     curwp->w_dotp = curbp->b_linep;
     curwp->w_doto = 0;
@@ -229,16 +226,14 @@ int test_extreme_file_size_stress(void) {
         if (v > 0 && v < 10000000L) chars_per_line = (int)v; // sanity bounds
     }
     
-    printf("Simulating giant file: %ld lines × %d chars (factor=%d)\n", 
-           lines, chars_per_line, F);
+    LOG_INFOF("Simulating giant file: %ld lines × %d chars (factor=%d)", lines, chars_per_line, F);
     
     for (long line = 0; line < lines; line++) {
         // Insert line content
         for (int c = 0; c < chars_per_line; c++) {
             char ch = 'a' + (c % 26);
             if (!linsert(1, ch)) {
-                printf("[%sFAIL%s] Giant file simulation failed at line %d, char %d\n", 
-                       RED, RESET, line, c);
+                LOG_ERRORF("[FAIL] Giant file simulation failed at line %d, char %d", line, c);
                 ok = 0;
                 goto cleanup;
             }
@@ -247,65 +242,63 @@ int test_extreme_file_size_stress(void) {
         // Add newline (except last line)
         if (line < lines - 1) {
             if (!lnewline()) {
-                printf("[%sFAIL%s] Newline failed at line %d\n", RED, RESET, line);
+                LOG_ERRORF("[FAIL] Newline failed at line %d", line);
                 ok = 0;
                 break;
             }
         }
         
         if (line % (5000 * F) == 0) {
-            printf("Progress: %ld/%ld lines (%.1f%% complete)\n", 
-                   line, lines, (line * 100.0) / lines);
+            LOG_INFOF("Progress: %ld/%ld lines (%.1f%% complete)", line, lines, (line * 100.0) / lines);
         }
     }
     
 cleanup:
-    gettimeofday(&end, nullptr);
+    gettimeofday(&end, NULL);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
-    printf("[%s%s%s] EXTREME file size stress completed in %.2f seconds\n", 
-           ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET, elapsed);
+    LOG_INFOF("[%s%s%s] EXTREME file size stress completed in %.2f seconds", ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET, elapsed);
     
     return ok;
 }
 
 // Main extreme stress test runner
 int test_extreme_stress_suite(void) {
-    printf("\n%s========================================%s\n", MAGENTA, RESET);
-    printf("%s   EXTREME STRESS TEST SUITE (10X)     %s\n", MAGENTA, RESET);
-    printf("%s========================================%s\n", MAGENTA, RESET);
+    LOG_INFOF("\n%s========================================%s", MAGENTA, RESET);
+    LOG_INFOF("%s   EXTREME STRESS TEST SUITE (10X)     %s", MAGENTA, RESET);
+    LOG_INFOF("%s========================================%s", MAGENTA, RESET);
     
     int total_passed = 0;
     
     if (!getenv("UEMACS_SKIP_TEXT_OPS"))
         total_passed += test_extreme_text_operations();
     else
-        printf("[INFO] Skipping EXTREME text operations (UEMACS_SKIP_TEXT_OPS=1)\n");
+        LOG_INFO("[INFO] Skipping EXTREME text operations (UEMACS_SKIP_TEXT_OPS=1)");
 
     if (!getenv("UEMACS_SKIP_MEM"))
         total_passed += test_extreme_memory_stress();
     else
-        printf("[INFO] Skipping EXTREME memory stress (UEMACS_SKIP_MEM=1)\n");
+        LOG_INFO("[INFO] Skipping EXTREME memory stress (UEMACS_SKIP_MEM=1)");
 
     if (!getenv("UEMACS_SKIP_CONCURRENT"))
         total_passed += test_extreme_concurrent_stress();
     else
-        printf("[INFO] Skipping EXTREME concurrent stress (UEMACS_SKIP_CONCURRENT=1)\n");
+        LOG_INFO("[INFO] Skipping EXTREME concurrent stress (UEMACS_SKIP_CONCURRENT=1)");
 
     if (!getenv("UEMACS_SKIP_GIANT_FILE"))
         total_passed += test_extreme_file_size_stress();
     else
-        printf("[INFO] Skipping EXTREME giant file stress (UEMACS_SKIP_GIANT_FILE=1)\n");
+        LOG_INFO("[INFO] Skipping EXTREME giant file stress (UEMACS_SKIP_GIANT_FILE=1)");
     
-    printf("\n%s========================================%s\n", MAGENTA, RESET);
+    LOG_INFOF("\n%s========================================%s", MAGENTA, RESET);
     int planned = 4
         - (getenv("UEMACS_SKIP_TEXT_OPS") ? 1 : 0)
         - (getenv("UEMACS_SKIP_MEM") ? 1 : 0)
         - (getenv("UEMACS_SKIP_CONCURRENT") ? 1 : 0)
         - (getenv("UEMACS_SKIP_GIANT_FILE") ? 1 : 0);
     if (planned <= 0) planned = 0;
-    printf("EXTREME STRESS RESULTS: %d/%d tests passed\n", total_passed, planned);
-    printf("%s========================================%s\n", MAGENTA, RESET);
+    LOG_INFOF("EXTREME STRESS RESULTS: %d/%d tests passed", total_passed, planned);
+    LOG_INFOF("%s========================================%s", MAGENTA, RESET);
     
     return total_passed == planned;
 }

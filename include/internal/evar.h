@@ -60,9 +60,7 @@ static char *envars[] = {
 	"tab",			/* tab 4 or 8 */
 	"overlap",
 	"jump",
-#if SCROLLCODE
 	"scroll",		/* scroll enabled */
-#endif
 	"highlightline", /* highlight current line (0/1) */
 	"ruler",         /* enable vertical column ruler (0/1) */
 	"rulercol",      /* ruler column (1-based) */

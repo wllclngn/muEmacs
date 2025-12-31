@@ -12,14 +12,19 @@ debug:
 	@cmake --build build -j
 	@ln -sf μEmacs build/bin/muEmacs 2>/dev/null || true
 
+debug-log:
+	@cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUEMACS_DEBUG_LOG=ON >/dev/null || true
+	@cmake --build build -j
+	@ln -sf μEmacs build/bin/muEmacs 2>/dev/null || true
+
 run: build
 	@./build/bin/muEmacs
 
 test: build
 	@./build/bin/full_integration_test
 
-install: build
-	@sudo cmake --install build
+install:
+	@cmake --install build
 
 clean:
 	@cmake --build build --target clean >/dev/null 2>&1 || true

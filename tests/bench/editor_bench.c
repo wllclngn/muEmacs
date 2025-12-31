@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <sys/time.h>
-#include <string.h>
+#include "../test_utils.h"
 #include <stdbool.h>
 
 #include "internal/estruct.h"
@@ -23,7 +21,7 @@ static void init_editor_minimal(const char* name) {
 }
 
 static double now_sec(void) {
-    struct timeval tv; gettimeofday(&tv, nullptr);
+    struct timeval tv; gettimeofday(&tv, NULL);
     return tv.tv_sec + tv.tv_usec / 1e6;
 }
 
@@ -59,8 +57,8 @@ int main(void) {
     for (int i = 0; i < insert_chars; ++i) linsert(1, 'a' + (i % 26));
     double t3 = now_sec();
 
-    printf("Redraw iterations: %d time: %.3f ms\n", iters, (t1 - t0) * 1000.0);
-    printf("Insert chars: %d time: %.3f ms\n", insert_chars, (t3 - t2) * 1000.0);
+    LOG_INFOF("Redraw iterations: %d time: %.3f ms", iters, (t1 - t0) * 1000.0);
+    LOG_INFOF("Insert chars: %d time: %.3f ms", insert_chars, (t3 - t2) * 1000.0);
 
     // Print profiler results (timings for insert, update, scroll, etc.)
     perf_report();

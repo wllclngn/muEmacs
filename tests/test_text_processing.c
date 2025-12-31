@@ -1,26 +1,12 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "test_utils.h"
 #include <ctype.h>
-#include <locale.h>
 #include <wctype.h>
-#include <time.h>
-#include <sys/time.h>
 #include "test_text_processing.h"
-
-// ANSI color codes for output
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define RESET   "\x1b[0m"
 
 // Test MAGIC regex engine with complex patterns
 int test_magic_regex_engine(void) {
     int ok = 1;
-    printf("\n%s=== Testing MAGIC Regex Engine ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing MAGIC Regex Engine ===%s", CYAN, RESET);
 
     // Test 1: Basic pattern matching
     struct regex_test {
@@ -51,19 +37,18 @@ int test_magic_regex_engine(void) {
         int expected = basic_tests[i].should_match;
         
         // Basic simulation - in real implementation would use NFA engine
-        int matches = (strstr(text, "hello") != nullptr && strstr(pattern, "hello") != nullptr) ||
-                     (strstr(text, "world") != nullptr && strstr(pattern, "world") != nullptr) ||
-                     (strstr(text, "color") != nullptr && strstr(pattern, "colou") != nullptr) ||
-                     (strstr(pattern, "[aeiou]") != nullptr && strpbrk(text, "aeiou") != nullptr) ||
-                     (strstr(pattern, "ab") != nullptr && strstr(text, "ab") != nullptr);
+        int matches = (strstr(text, "hello") != NULL && strstr(pattern, "hello") != NULL) ||
+                     (strstr(text, "world") != NULL && strstr(pattern, "world") != NULL) ||
+                     (strstr(text, "color") != NULL && strstr(pattern, "colou") != NULL) ||
+                     (strstr(pattern, "[aeiou]") != NULL && strpbrk(text, "aeiou") != NULL) ||
+                     (strstr(pattern, "ab") != NULL && strstr(text, "ab") != NULL);
         
         if ((matches && expected) || (!matches && !expected)) {
             basic_passed++;
         }
     }
 
-    printf("[%s%s%s] Basic patterns: %d/10 tests passed\n", 
-           basic_passed >= 7 ? GREEN : RED, 
+    LOG_INFOF("[%s%s%s] Basic patterns: %d/10 tests passed", basic_passed >= 7 ? GREEN : RED, 
            basic_passed >= 7 ? "SUCCESS" : "PARTIAL", 
            RESET, basic_passed);
 
@@ -82,18 +67,17 @@ int test_magic_regex_engine(void) {
         {"\\b\\w+\\b", "word1 word2 word3", 17, "Word boundaries"}
     };
 
-    printf("[%sSUCCESS%s] Performance patterns: %d pathological cases handled\n", 
-           GREEN, RESET, 4);
+    LOG_INFOF("[SUCCESS] Performance patterns: %d pathological cases handled", 4);
 
     // Test 3: Backreferences (simplified)
     const char* backref_pattern = "(\\w+)\\s+\\1"; // Match repeated words
     const char* backref_text = "hello hello world";
     
     // Simplified backreference detection
-    if (strstr(backref_text, "hello hello") != nullptr) {
-        printf("[%sSUCCESS%s] Backreference pattern matching functional\n", GREEN, RESET);
+    if (strstr(backref_text, "hello hello") != NULL) {
+        LOG_INFO("[SUCCESS] Backreference pattern matching functional");
     } else {
-        printf("[%sFAIL%s] Backreference pattern matching failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Backreference pattern matching failed");
         ok = 0;
     }
 
@@ -111,8 +95,7 @@ int test_magic_regex_engine(void) {
         {"\\w+", "naïve", "Unicode word characters"}
     };
 
-    printf("[%sSUCCESS%s] Unicode patterns: %d character classes supported\n", 
-           GREEN, RESET, 4);
+    LOG_INFOF("[SUCCESS] Unicode patterns: %d character classes supported", 4);
 
     
     return ok;
@@ -153,7 +136,7 @@ int test_macro_recording_playback(void) {
 
     recording = 0; // Stop recording
 
-    printf("[%sSUCCESS%s] Macro recording: %d commands captured\n", GREEN, RESET, macro_pos);
+    LOG_INFOF("[SUCCESS] Macro recording: %d commands captured", macro_pos);
 
     // Test 2: Macro playback simulation
     int playback_ok = 1;
@@ -179,8 +162,7 @@ int test_macro_recording_playback(void) {
         }
     }
 
-    printf("[%s%s%s] Macro playback: Commands executed %s\n", 
-           playback_ok ? GREEN : RED, 
+    LOG_INFOF("[%s%s%s] Macro playback: Commands executed %s", playback_ok ? GREEN : RED, 
            playback_ok ? "SUCCESS" : "FAIL", 
            RESET,
            playback_ok ? "successfully" : "with errors");
@@ -201,10 +183,9 @@ int test_macro_recording_playback(void) {
     state.recording_level = 0; // End recording macro A
 
     if (state.recording_level == 0 && state.max_nesting >= 2) {
-        printf("[%sSUCCESS%s] Nested macros: Up to %d levels supported\n", 
-               GREEN, RESET, state.max_nesting);
+        LOG_INFOF("[SUCCESS] Nested macros: Up to %d levels supported", state.max_nesting);
     } else {
-        printf("[%sFAIL%s] Nested macro handling failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Nested macro handling failed");
         ok = 0;
     }
 
@@ -222,10 +203,9 @@ int test_macro_recording_playback(void) {
     }
 
     if (current_depth == max_recursion + 1) {
-        printf("[%sSUCCESS%s] Recursion limits: Maximum depth %d enforced\n", 
-               GREEN, RESET, max_recursion);
+        LOG_INFOF("[SUCCESS] Recursion limits: Maximum depth %d enforced", max_recursion);
     } else {
-        printf("[%sFAIL%s] Recursion limit enforcement failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Recursion limit enforcement failed");
         ok = 0;
     }
 
@@ -242,9 +222,9 @@ int test_macro_recording_playback(void) {
 
     // Simulate state changes during macro execution
     if (post_macro.buffer_id == pre_macro.buffer_id) {
-        printf("[%sSUCCESS%s] State preservation: Buffer context maintained\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] State preservation: Buffer context maintained");
     } else {
-        printf("[%sFAIL%s] State preservation: Buffer context lost\n", RED, RESET);
+        LOG_ERROR("[FAIL] State preservation: Buffer context lost");
         ok = 0;
     }
 
@@ -283,7 +263,7 @@ int test_multi_buffer_operations(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Buffer management: %d buffers created\n", GREEN, RESET, active_buffers);
+    LOG_INFOF("[SUCCESS] Buffer management: %d buffers created", active_buffers);
 
     // Test 2: Buffer switching operations
     int current_buffer = 0;
@@ -296,7 +276,7 @@ int test_multi_buffer_operations(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Buffer switching: %d successful switches\n", GREEN, RESET, switch_count);
+    LOG_INFOF("[SUCCESS] Buffer switching: %d successful switches", switch_count);
 
     // Test 3: Cross-buffer operations
     // Simulate copying text between buffers
@@ -310,9 +290,9 @@ int test_multi_buffer_operations(void) {
             memcpy(buffers[1].data, sample_text, text_len);
             buffers[1].modified = 1;
             
-            printf("[%sSUCCESS%s] Cross-buffer copy: Text transferred between buffers\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Cross-buffer copy: Text transferred between buffers");
         } else {
-            printf("[%sFAIL%s] Cross-buffer copy failed\n", RED, RESET);
+            LOG_ERROR("[FAIL] Cross-buffer copy failed");
             ok = 0;
         }
     }
@@ -326,21 +306,19 @@ int test_multi_buffer_operations(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Memory consistency: %d/%d buffers consistent\n", 
-           GREEN, RESET, consistent_buffers, active_buffers);
+    LOG_INFOF("[SUCCESS] Memory consistency: %d/%d buffers consistent", consistent_buffers, active_buffers);
 
     // Test 5: Buffer cleanup and memory management
     int cleaned_buffers = 0;
     for (int i = 0; i < active_buffers; i++) {
         if (buffers[i].data) {
             free(buffers[i].data);
-            buffers[i].data = nullptr;
+            buffers[i].data = NULL;
             cleaned_buffers++;
         }
     }
 
-    printf("[%sSUCCESS%s] Memory cleanup: %d buffers cleaned up\n", 
-           GREEN, RESET, cleaned_buffers);
+    LOG_INFOF("[SUCCESS] Memory cleanup: %d buffers cleaned up", cleaned_buffers);
 
     
     return ok;
@@ -374,9 +352,9 @@ int test_line_ending_handling(void) {
     int detected_formats = 0;
     for (int i = 0; i < 4; i++) {
         const char* text = tests[i].sample;
-        int has_lf = strstr(text, "\n") != nullptr;
-        int has_crlf = strstr(text, "\r\n") != nullptr;
-        int has_cr = strstr(text, "\r") != nullptr;
+        int has_lf = strstr(text, "\n") != NULL;
+        int has_crlf = strstr(text, "\r\n") != NULL;
+        int has_cr = strstr(text, "\r") != NULL;
         
         int detected_type = LE_LF;
         if (has_crlf) detected_type = LE_CRLF;
@@ -390,8 +368,7 @@ int test_line_ending_handling(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Line ending detection: %d/4 formats identified\n", 
-           GREEN, RESET, detected_formats);
+    LOG_INFOF("[SUCCESS] Line ending detection: %d/4 formats identified", detected_formats);
 
     // Test 2: CRLF to LF conversion
     const char* crlf_text = "Windows\r\ntext\r\nfile\r\n";
@@ -419,10 +396,9 @@ int test_line_ending_handling(void) {
     }
     
     if (lf_count == crlf_count) {
-        printf("[%sSUCCESS%s] CRLF->LF conversion: %d line endings converted\n", 
-               GREEN, RESET, lf_count);
+        LOG_INFOF("[SUCCESS] CRLF->LF conversion: %d line endings converted", lf_count);
     } else {
-        printf("[%sFAIL%s] CRLF->LF conversion failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] CRLF->LF conversion failed");
         ok = 0;
     }
 
@@ -452,8 +428,7 @@ int test_line_ending_handling(void) {
         if (*p == '\n') normalized_lines++;
     }
     
-    printf("[%sSUCCESS%s] Mixed ending normalization: %d lines normalized\n", 
-           GREEN, RESET, normalized_lines);
+    LOG_INFOF("[SUCCESS] Mixed ending normalization: %d lines normalized", normalized_lines);
 
     // Test 4: Preservation mode
     struct preservation_test {
@@ -469,8 +444,7 @@ int test_line_ending_handling(void) {
         {"\\r\\n", 0, "\\n"}     // Convert to Unix
     };
 
-    printf("[%sSUCCESS%s] Preservation modes: %d ending types preserved\n", 
-           GREEN, RESET, 3);
+    LOG_INFOF("[SUCCESS] Preservation modes: %d ending types preserved", 3);
 
     
     return ok;
@@ -516,8 +490,7 @@ int test_tab_expansion(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Tab expansion: %d/4 test cases passed\n", 
-           GREEN, RESET, expansion_tests_passed);
+    LOG_INFOF("[SUCCESS] Tab expansion: %d/4 test cases passed", expansion_tests_passed);
 
     // Test 2: Soft tabs vs hard tabs
     const char* hard_tab_line = "\tfunction() {";
@@ -536,8 +509,7 @@ int test_tab_expansion(void) {
     }
     
     if (hard_tab_count > 0 && soft_tab_spaces > 0) {
-        printf("[%sSUCCESS%s] Tab types: Hard tabs=%d, Soft tab spaces=%d\n", 
-               GREEN, RESET, hard_tab_count, soft_tab_spaces);
+        LOG_INFOF("[SUCCESS] Tab types: Hard tabs=%d, Soft tab spaces=%d", hard_tab_count, soft_tab_spaces);
     }
 
     // Test 3: Mixed indentation detection
@@ -574,8 +546,7 @@ int test_tab_expansion(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Mixed indentation: %d/4 cases detected correctly\n", 
-           GREEN, RESET, mixed_detected);
+    LOG_INFOF("[SUCCESS] Mixed indentation: %d/4 cases detected correctly", mixed_detected);
 
     // Test 4: Alignment preservation
     struct alignment_test {
@@ -590,8 +561,7 @@ int test_tab_expansion(void) {
         {"//\tComment alignment", "Comment alignment", 8}
     };
 
-    printf("[%sSUCCESS%s] Alignment preservation: %d alignment patterns supported\n", 
-           GREEN, RESET, 3);
+    LOG_INFOF("[SUCCESS] Alignment preservation: %d alignment patterns supported", 3);
 
     
     return ok;
@@ -638,8 +608,7 @@ int test_word_boundaries(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] ASCII word boundaries: %d/4 tests passed\n", 
-           GREEN, RESET, ascii_passed);
+    LOG_INFOF("[SUCCESS] ASCII word boundaries: %d/4 tests passed", ascii_passed);
 
     // Test 2: Unicode word detection
     struct unicode_word_test {
@@ -675,8 +644,7 @@ int test_word_boundaries(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Unicode words: %d/4 languages with Unicode characters\n", 
-           GREEN, RESET, unicode_supported);
+    LOG_INFOF("[SUCCESS] Unicode words: %d/4 languages with Unicode characters", unicode_supported);
 
     // Test 3: Locale-specific rules
     struct locale_rule {
@@ -692,8 +660,7 @@ int test_word_boundaries(void) {
         {"fr_FR", "a-zA-ZàâäçéèêëïîôùûüÀÂÄÇÉÈÊËÏÎÔÙÛÜ", "French (accents)"}
     };
 
-    printf("[%sSUCCESS%s] Locale rules: %d locale-specific word patterns\n", 
-           GREEN, RESET, 4);
+    LOG_INFOF("[SUCCESS] Locale rules: %d locale-specific word patterns", 4);
 
     // Test 4: Case folding
     struct case_test {
@@ -724,8 +691,7 @@ int test_word_boundaries(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Case folding: %d/3 basic tests passed\n", 
-           GREEN, RESET, case_passed);
+    LOG_INFOF("[SUCCESS] Case folding: %d/3 basic tests passed", case_passed);
 
     
     return ok;
@@ -783,8 +749,7 @@ int test_text_statistics(void) {
     
     if (!prev_was_newline) stats.para_count++; // Last paragraph
     
-    printf("[%sSUCCESS%s] Basic stats: %d chars, %d words, %d lines, %d paragraphs\n", 
-           GREEN, RESET, stats.char_count, stats.word_count, stats.line_count, stats.para_count);
+    LOG_INFOF("[SUCCESS] Basic stats: %d chars, %d words, %d lines, %d paragraphs", stats.char_count, stats.word_count, stats.line_count, stats.para_count);
 
     // Test 2: Real-time updates simulation
     struct incremental_stats {
@@ -828,8 +793,7 @@ int test_text_statistics(void) {
         inc_stats.update_count++;
     }
 
-    printf("[%sSUCCESS%s] Incremental updates: %d updates, final: %d chars, %d words\n", 
-           GREEN, RESET, inc_stats.update_count, 
+    LOG_INFOF("[SUCCESS] Incremental updates: %d updates, final: %d chars, %d words", inc_stats.update_count, 
            inc_stats.current.char_count, inc_stats.current.word_count);
 
     // Test 3: Heavy editing accuracy
@@ -853,8 +817,7 @@ int test_text_statistics(void) {
     int expected_chars = 1000 + (edit_sim.insertions * 10) - (edit_sim.deletions * 5);
     edit_sim.final_accuracy = (simulated_chars == expected_chars) ? 100 : 0;
 
-    printf("[%sSUCCESS%s] Heavy editing: %d insertions, %d deletions, %d%% accuracy\n", 
-           GREEN, RESET, edit_sim.insertions, edit_sim.deletions, edit_sim.final_accuracy);
+    LOG_INFOF("[SUCCESS] Heavy editing: %d insertions, %d deletions, %d%% accuracy", edit_sim.insertions, edit_sim.deletions, edit_sim.final_accuracy);
 
     // Test 4: Memory efficiency
     struct memory_stats {
@@ -872,8 +835,7 @@ int test_text_statistics(void) {
     mem_stats.total_memory = mem_stats.stats_struct_size + 
                             (inc_stats.update_count * mem_stats.overhead_per_update);
 
-    printf("[%sSUCCESS%s] Memory efficiency: %zu bytes for stats, %zu bytes overhead\n", 
-           GREEN, RESET, mem_stats.stats_struct_size, 
+    LOG_INFOF("[SUCCESS] Memory efficiency: %zu bytes for stats, %zu bytes overhead", mem_stats.stats_struct_size, 
            inc_stats.update_count * mem_stats.overhead_per_update);
 
     

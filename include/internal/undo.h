@@ -26,10 +26,18 @@ struct atomic_undo_stack *undo_stack_create(void);
 
 /**
  * @brief Destroys an undo stack and frees all associated memory.
- * 
+ *
  * @param stack Pointer to the undo stack to be destroyed.
  */
 void undo_stack_destroy(struct atomic_undo_stack *stack);
+
+/**
+ * @brief Clears all operations from an undo stack without destroying it.
+ * Called when buffer is cleared to prevent stale undo operations.
+ *
+ * @param stack Pointer to the undo stack to be cleared.
+ */
+void undo_stack_clear(struct atomic_undo_stack *stack);
 
 /**
  * @brief Records a text insertion operation for undo.

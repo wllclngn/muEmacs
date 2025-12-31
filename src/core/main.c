@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -16,15 +17,17 @@
 #include "estruct.h" /* Global structures and defines. */
 #include "edef.h"    /* Global definitions. */
 #include "efunc.h"   /* Function declarations and name table. */
-#include "ebind.h"   /* Default key bindings. */
+#include "line.h"    /* Line operations (linsert, lgetc, etc.) */
 #include "keymap.h"  /* Keymap system functions. */
 #include "version.h"
-#include "string_safe.h"
+#include "string_utils.h"
 #include "memory.h"
 #include "error.h"
 #include "../util/display_width.h"
-
-
+#include "util/logger.h"
+#include "terminal/terminal.h"  /* Modern Terminal System */
+#include "terminal/input_state.h" /* Unified input parser */
+#include "editor_mode.h"        /* Vim mode state for replace mode */
 
 #ifndef GOOD
 #define GOOD    0
@@ -52,13 +55,14 @@ struct main_args {
 };
 
 struct main_state {
-	int c;			// command character
+	int c;			// command character (legacy format, for compatibility)
 	int f;			// default flag
 	int n;			// numeric repeat count
 	int mflag;		// negative flag on repeat
 	int basec;		// c stripped of meta character
 	int saveflag;		// temp store for lastflag
 	int newc;		// new character
+	input_key_event_t evt;	// current key event (modern format)
 };
 
 // Function prototypes for refactored main()
@@ -90,6 +94,10 @@ int uemacs_main_entry(int argc, char **argv)
 
 	// Platform-specific initialization and signal setup
 	initialize_platform();
+
+	// Initialize debug logging (no-op if UEMACS_DEBUG_LOG=0)
+	logger_init();
+	LOG_INFO("uEmacs: Starting...");
 	
 	// Handle version and help early
 	if (handle_help_version(argc, argv))
@@ -108,16 +116,20 @@ int uemacs_main_entry(int argc, char **argv)
 	
 	// Run main editor loop
 	result = main_editor_loop(&args, &state);
-	
+
+	// Close debug logging (no-op if UEMACS_DEBUG_LOG=0)
+	LOG_INFO("uEmacs: Shutting down...");
+	logger_close();
+
 	return result;
 }
 
 // Platform-specific initialization
 static void initialize_platform(void)
 {
-#ifdef SIGWINCH
-	signal(SIGWINCH, sizesignal);
-#endif
+	// Signal handlers are now initialized via signal_handlers_init() in curses.c
+	// No platform-specific signal setup needed here
+	(void)0;
 }
 
 // Handle --help and --version early
@@ -142,7 +154,11 @@ static void initialize_editor(void)
     display_width_init();	// UTF-8 display width calculations
     edinit("main");		// Buffers, windows
     varinit();		// user variables
-    keymap_init_from_legacy();	// Initialize keymaps from legacy bindings
+    keymap_init_defaults();	// Initialize keymap infrastructure (prefix bindings only)
+
+    // Initialize vim keymaps BEFORE settings_load so TOML can bind to them
+    extern void vim_init_keymaps(void);
+    vim_init_keymaps();
 
 #ifdef DEBUG
     // Verify names table is sorted for binary search
@@ -150,8 +166,12 @@ static void initialize_editor(void)
     verify_names_sorted();
 #endif
 
-    // Load user settings from JSON, if present
+    // Load user settings from TOML - this is the single source of truth for keybindings
     settings_load(false, 0);
+
+    // Initialize palette (environment overrides after TOML)
+    extern void palette_init(void);
+    palette_init();
 }
 
 // Parse command line arguments
@@ -175,7 +195,9 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 	for (carg = 1; carg < argc; ++carg) {
 		if (argv[carg][0] == '+') {
 			args->gotoflag = true;
-			args->gline = atoi(&argv[carg][1]);
+			char *endptr;
+			long val = strtol(&argv[carg][1], &endptr, 10);
+			args->gline = (*endptr == '\0' && val > 0) ? (int)val : 1;
 		} else
 		if (argv[carg][0] == '-') {
 			switch (argv[carg][1]) {
@@ -187,7 +209,11 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 				break;
 			case 'g': case 'G':
 				args->gotoflag = true;
-				args->gline = atoi(&argv[carg][2]);
+				{
+					char *endptr;
+					long val = strtol(&argv[carg][2], &endptr, 10);
+					args->gline = (*endptr == '\0' && val > 0) ? (int)val : 1;
+				}
 				break;
 			case 'n': case 'N':
 				nullflag = true;
@@ -236,9 +262,9 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 static void process_input_files(struct main_args *args, struct main_state *state)
 {
 	struct buffer *bp;
-	
-	signal(SIGHUP, emergencyexit);
-	signal(SIGTERM, emergencyexit);
+
+	// Signal handlers (SIGHUP, SIGTERM, etc.) are now set up via sigaction()
+	// in signal_handlers_init() called from curses.c during terminal init
 
 	// if we are C error parsing... run it!
 	if (args->errflag) {
@@ -265,11 +291,11 @@ static void process_input_files(struct main_args *args, struct main_state *state
 	// Deal with startup gotos and searches
 	if (args->gotoflag && args->searchflag) {
 		update(false);
-		mlwrite("(Can not search and goto at the same time!)");
+		mlwrite("[CANNOT SEARCH AND GOTO AT THE SAME TIME]");
 	} else if (args->gotoflag) {
 		if (gotoline(true, args->gline) == false) {
 			update(false);
-			mlwrite("(Bogus goto argument)");
+			mlwrite("[BOGUS GOTO ARGUMENT]");
 		}
 	} else if (args->searchflag) {
 		if (forwhunt(false, 0) == false)
@@ -284,10 +310,10 @@ static int main_editor_loop(struct main_args *args, struct main_state *state)
 	lastflag = 0;  // Fake last flags.
 
 loop:
-	// Execute the "command" macro...normally null.
-	state->saveflag = lastflag;  // Preserve lastflag through this.
-	execute(META | SPEC | 'C', false, 1);
-	lastflag = state->saveflag;
+	/* NOTE: Pre-command hook removed - it was accidentally matching Meta-C (capword)
+	 * and executing it on every loop iteration, moving the cursor 4 positions forward.
+	 * The original intent was to handle "phantom key" 0xa0000043 in vim mode, but
+	 * getbind_event() didn't distinguish KEY_SPECIAL from KEY_CHAR with MOD_META. */
 
 	// Check for pending signals first
 	check_emergency_exit();
@@ -295,108 +321,125 @@ loop:
 	check_pending_resize();
 #endif
 
-	// Fix up the screen
-	update(false);
+	/*
+	 * Fix up the screen (montauk/OUROBOROS pattern)
+	 *
+	 * Only call update() when the display actually needs updating.
+	 * This eliminates ~88,000 redundant update() calls per second
+	 * when idle, reducing CPU usage from ~100% to <1%.
+	 */
+	if (display_needs_update()) {
+		update(false);
+		mark_display_clean();
+	}
 
-	// get the next command from the keyboard (C23 atomic processing)
-	state->c = getcmd();
-	// if there is something on the command line, clear it
+	/* Check for terminal output asynchronously */
+	extern void check_terminal_output(void);
+	check_terminal_output();
+
+	/* Update display after terminal output (shell prompt, command output, etc.) */
+	if (display_needs_update()) {
+		update(false);
+		mark_display_clean();
+	}
+
+	/* Get the next command from the keyboard (unified parser) */
+	if (input_read_event(&state->evt) < 0) {
+		return EXIT_SUCCESS;  /* EOF or error */
+	}
+	state->c = evt_char(&state->evt);  /* Character code only */
+
+	/* Clear command line if something is displayed */
 	if (mpresf != false) {
 		mlerase();
-		update(false);
+		if (display_needs_update()) {
+			update(false);
+			mark_display_clean();
+		}
 	}
 	state->f = false;
 	state->n = 1;
 
-    // do META-# processing if needed
-    state->basec = state->c & ~META;	// strip meta char off if there
-    if ((state->c & META) && ((state->basec >= '0' && state->basec <= '9') || state->basec == '-')) {
-        state->f = true;	// there is a # arg
-        state->n = 0;		// start with a zero default
-        state->mflag = 1;	// current minus flag
-        state->c = state->basec;	// strip the META
-        while ((state->c >= '0' && state->c <= '9') || (state->c == '-')) {
-            if (state->c == '-') {
-                // already hit a minus or digit?
-                if ((state->mflag == -1) || (state->n != 0))
-                    break;
-                state->mflag = -1;
-            } else {
-                state->n = state->n * 10 + (state->c - '0');
-            }
-            if ((state->n == 0) && (state->mflag == -1))	// lonely -
-                mlwrite("Arg:");
-            else
-                mlwrite("Arg: %d", state->n * state->mflag);
+	/* META-# processing: M-0 through M-9 and M-- set numeric argument */
+	if (evt_is_meta_digit(&state->evt) ||
+	    (evt_has_meta(&state->evt) && state->c == '-')) {
+		state->f = true;
+		state->n = 0;
+		state->mflag = 1;
+		/* Process digits/minus until non-digit */
+		while ((state->c >= '0' && state->c <= '9') || state->c == '-') {
+			if (state->c == '-') {
+				if ((state->mflag == -1) || (state->n != 0))
+					break;
+				state->mflag = -1;
+			} else {
+				state->n = state->n * 10 + (state->c - '0');
+			}
+			if ((state->n == 0) && (state->mflag == -1))
+				mlwrite("ARG:");
+			else
+				mlwrite("ARG: %d", state->n * state->mflag);
 
-            state->c = get1key();	// get the next key
-        }
-        state->n = state->n * state->mflag;	// figure in the sign
+			if (input_read_event(&state->evt) < 0) return EXIT_FAILURE;
+			state->c = evt_char(&state->evt);
+		}
+		state->n = state->n * state->mflag;
 
-        // If the next key is an ESC prefix, combine it as Meta with the following key.
-        // This enables sequences like "M-80 M-x" to work naturally.
-        if (state->c == (CONTROL | '[')) {
-            int k = get1key();
-            state->c = META | k;
-        }
-    }
+		/* If ESC follows numeric arg, treat next key as Meta-prefixed */
+		if (evt_is_esc(&state->evt)) {
+			if (input_read_event(&state->evt) < 0) return EXIT_FAILURE;
+			state->evt.modifiers |= MOD_META;  /* Add meta to next key */
+		}
+	}
 
-    // do ^U repeat argument processing
-    if (state->c == reptc) {	// ^U, start argument
-        state->f = true;
-        state->n = 4;		// with argument of 4
-        state->mflag = 0;	// that can be discarded.
-        mlwrite("Arg: 4");
-        while (((state->c = get1key()) >= '0' && state->c <= '9') || state->c == reptc
-               || state->c == '-') {
-			if (state->c == reptc)
+	/* ^U repeat argument processing */
+	if (evt_is_ctrl(&state->evt, 'U')) {
+		state->f = true;
+		state->n = 4;
+		state->mflag = 0;
+		mlwrite("ARG: 4");
+		while (input_read_event(&state->evt) >= 0) {
+			state->c = evt_char(&state->evt);
+			bool is_digit = (state->c >= '0' && state->c <= '9');
+			bool is_dash = (state->c == '-');
+			bool is_repeat = evt_is_ctrl(&state->evt, 'U');
+			if (!is_digit && !is_dash && !is_repeat)
+				break;
+			if (is_repeat) {
 				if ((state->n > 0) == ((state->n * 4) > 0))
 					state->n = state->n * 4;
 				else
 					state->n = 1;
-			/*
-			 * If dash, and start of argument string, set arg.
-			 * to -1.  Otherwise, insert it.
-			 */
-			else if (state->c == '-') {
+			} else if (is_dash) {
 				if (state->mflag)
 					break;
 				state->n = 0;
 				state->mflag = -1;
-			}
-			/*
-			 * If first digit entered, replace previous argument
-			 * with digit and set sign.  Otherwise, append to arg.
-			 */
-			else {
+			} else {
 				if (!state->mflag) {
 					state->n = 0;
 					state->mflag = 1;
 				}
 				state->n = 10 * state->n + state->c - '0';
 			}
-			mlwrite("Arg: %d",
+			mlwrite("ARG: %d",
 				(state->mflag >= 0) ? state->n : (state->n ? -state->n : -1));
 		}
-		/*
-		 * Make arguments preceded by a minus sign negative and change
-		 * the special argument "^U -" to an effective "^U -1".
-		 */
-        if (state->mflag == -1) {
-            if (state->n == 0)
-                state->n++;
-            state->n = -state->n;
-        }
+		if (state->mflag == -1) {
+			if (state->n == 0)
+				state->n++;
+			state->n = -state->n;
+		}
 
-        // Accept ESC as a Meta prefix for the command key after numeric arg (e.g., "C-u 80 M-x").
-        if (state->c == (CONTROL | '[')) {
-            int k = get1key();
-            state->c = META | k;
-        }
-    }
+		/* If ESC follows ^U arg, treat next key as Meta-prefixed */
+		if (evt_is_esc(&state->evt)) {
+			if (input_read_event(&state->evt) < 0) return EXIT_FAILURE;
+			state->evt.modifiers |= MOD_META;
+		}
+	}
 
-	// and execute the command
-	execute(state->c, state->f, state->n);
+	/* Execute the command using event-based dispatch */
+	execute_event(&state->evt, state->f, state->n);
 	goto loop;
 	
 	return true;
@@ -417,7 +460,7 @@ void edinit(char *bname)
 	blistp = bfind("*List*", true, BFINVS);	/* Buffer list buffer   */
 	wp = (struct window *)safe_alloc(sizeof(struct window), "first window", __FILE__, __LINE__);	/* First window         */
 	if (bp == nullptr || wp == nullptr || blistp == nullptr) {
-		REPORT_ERROR(ERR_MEMORY, "Failed to initialize core editor structures");
+		REPORT_ERROR(ERR_MEMORY, "FAILED TO INITIALIZE CORE EDITOR STRUCTURES");
 		exit(1);
 	}
 	curbp = bp;		/* Make this current    */
@@ -432,106 +475,103 @@ void edinit(char *bname)
 	wp->w_markp = nullptr;
 	wp->w_marko = 0;
 	wp->w_toprow = 0;
-#if	COLOR
 	/* initalize colors to global defaults */
 	wp->w_fcolor = gfcolor;
 	wp->w_bcolor = gbcolor;
-#endif
 	wp->w_ntrows = term.t_nrow - 1;	/* "-1" for mode line.  */
+	wp->w_wrap_col = 0;		/* Soft wrap disabled by default */
 	wp->w_force = 0;
 	wp->w_flag = WFMODE | WFHARD;	/* Full.                */
 }
 
 /*
- * This is the general command execution routine. It handles the fake binding
- * of all the keys to "self-insert". It also clears out the "thisflag" word,
- * and arranges to move it to the "lastflag", so that the next command can
- * look at it. Return the status of command.
+ * execute_event - Modern command execution with event-based binding lookup
+ *
+ * This is the primary dispatch path for keys with known events.
+ * Uses getbind_event() directly, avoiding legacy key code conversion.
  */
-/* C23 atomic command execution with instantaneous function lookup */
-int execute(int c, int f, int n)
+int execute_event(input_key_event_t *evt, int f, int n)
 {
 	int status;
 	fn_t execfunc;
+	int c = (evt->type == KEY_CHAR) ? (int)evt->code : -1;
 
-	/* C23 atomic function binding lookup - O(1) hash-based with memory ordering */
-	execfunc = getbind(c);  // Already uses atomic keymap lookups internally
-	
+	/* 2025 Terminal Input Intercept */
+	extern bool terminal_handle_key_event(input_key_event_t *evt);
+	if (curbp && (curbp->b_mode & MDTBUFFER)) {
+		if (terminal_handle_key_event(evt)) {
+			return true;
+		}
+	}
+
+	/* Event-based binding lookup - no legacy conversion needed */
+	execfunc = getbind_event(evt);
+
 	if (execfunc != nullptr) {
-		// Atomic flag management for command state
 		atomic_store_explicit((_Atomic int*)&thisflag, 0, memory_order_relaxed);
-		
-		/* Execute function atomically - instantaneous command dispatch */
 		status = (*execfunc)(f, n);
-		
-		/* Atomic flag transition for next command */
-		atomic_store_explicit((_Atomic int*)&lastflag, 
+		atomic_store_explicit((_Atomic int*)&lastflag,
 		                     atomic_load_explicit((_Atomic int*)&thisflag, memory_order_acquire),
 		                     memory_order_release);
 		return status;
 	}
 
-	/*
-	 * If a space was typed, fill column is defined, the argument is non-
-	 * negative, wrap mode is enabled, and we are now past fill column,
-	 * and we are not read-only, perform word wrap.
-	 */
+	/* Word wrap check - only for space character */
 	if (c == ' ' && (curwp->w_bufp->b_mode & MDWRAP) && fillcol > 0 &&
 	    n >= 0 && getccol(false) > fillcol &&
 	    (curwp->w_bufp->b_mode & MDVIEW) == false)
-		execute(META | SPEC | 'W', false, 1);
+		wrapword(false, 1);
 
-	if ((c >= 0x20 && c <= 0x7E) || (c >= 0xA0 && c <= 0x10FFFF)) {	/* Self inserting.      */
-		if (n <= 0) {	/* Fenceposts.          */
+	/* Self-insert for printable characters */
+	if ((c >= 0x20 && c <= 0x7E) || (c >= 0xA0 && c <= 0x10FFFF)) {
+		if (n <= 0) {
 			lastflag = 0;
 			return n < 0 ? false : true;
 		}
-		thisflag = 0;	/* For the future.      */
+		thisflag = 0;
 
-		/* if we are in overwrite mode, not at eol,
-		   and next char is not a tab or we are at a tab stop,
-		   delete a char forword                        */
-		if (curwp->w_bufp->b_mode & MDOVER &&
+		/* Overwrite mode handling */
+		int in_replace_mode = (curwp->w_bufp->b_mode & MDOVER) ||
+		    (vim_mode_active && atomic_load(&g_vim_state.current_mode) == MODE_REPLACE);
+		if (in_replace_mode &&
 		    curwp->w_doto < llength(curwp->w_dotp) &&
 		    (lgetc(curwp->w_dotp, curwp->w_doto) != '\t' ||
 		     (curwp->w_doto) % 8 == 7))
 			ldelchar(1, false);
 
-		/* do the appropriate insertion */
-		if (c == '}' && (curbp->b_mode & MDCMOD) != 0)
-			status = insbrace(n, c);
-		else if (c == '#' && (curbp->b_mode & MDCMOD) != 0)
-			status = inspound();
-		else
-			status = linsert(n, c);
-		// Smart statusline updating: only on significant changes
-		static int char_count = 0;
-		if (++char_count % 50 == 0 || c == '\n' || c == ' ') {
-			curwp->w_flag |= WFMODE;
+		/* WriteEdit smart typography transform (only when mode active) */
+		int transformed_char = c;
+		int transform_result = writeedit_transform_char(c, &transformed_char);
+		if (transform_result != 0) {
+			/* Transform requested - need to insert as UTF-8 */
+			if (transform_result == -1) {
+				/* Em-dash case: delete previous char first */
+				move_char_backward(false, 1);
+				ldelchar(1, false);
+			}
+			/* Encode Unicode codepoint to UTF-8 and insert */
+			char utf8_buf[8];
+			unsigned utf8_len = unicode_to_utf8((unsigned)transformed_char, utf8_buf);
+			utf8_buf[utf8_len] = '\0';
+			for (int i = 0; i < n; i++) {
+				status = linstr(utf8_buf);
+				if (!status) break;
+			}
+			if ((c == '}' || c == ')') && (curbp->b_mode & MDCMOD) != 0)
+				fence_match(c);
+			lastflag = thisflag;
+			return status;
 		}
 
-#if	CFENCE
-		/* check for CMODE fence matching */
-		if ((c == '}' || c == ')' || c == ']') &&
-		    (curbp->b_mode & MDCMOD) != 0)
-			fmatch(c);
-#endif
-
-		/* check auto-save mode */
-		if (curbp->b_mode & MDASAVE)
-			if (--gacount == 0) {
-				/* and save the file if needed */
-				upscreen(false, 0);
-				filesave(false, 0);
-				gacount = gasave;
-			}
-
+		/* No transform - insert original character */
+		status = linsert(n, c);
+		if ((c == '}' || c == ')') && (curbp->b_mode & MDCMOD) != 0)
+			fence_match(c);
 		lastflag = thisflag;
 		return status;
 	}
-	TTbeep();
-	mlwrite("(Key not bound)");	/* complain             */
-	lastflag = 0;		/* Fake last flags.     */
+
+	lastflag = 0;
 	return false;
 }
 
@@ -553,7 +593,7 @@ int quickexit(int f, int n)
 		    && (bp->b_flag & BFTRUNC) == 0	/* Not truncated P.K.   */
 		    && (bp->b_flag & BFINVS) == 0) {	/* Real.                */
 			curbp = bp;	/* make that buffer cur */
-			mlwrite("(Saving %s)", bp->b_fname);
+			mlwrite("[SAVING %s]", bp->b_fname);
 			if ((status = filesave(f, n)) != true) {
 				curbp = oldcb;	/* restore curbp */
 				return status;
@@ -565,23 +605,17 @@ int quickexit(int f, int n)
 	return true;
 }
 
-// Global flags for async-signal-safe emergency exit handling
-static volatile sig_atomic_t emergency_exit_flag = 0;
-
-static void emergencyexit(int signr)
-{
-	// ASYNC-SIGNAL-SAFE: Only set flag and use write() for immediate output
-	emergency_exit_flag = 1;
-	const char msg[] = "\nEmergency exit requested...\n";
-	ssize_t bytes_written = write(STDERR_FILENO, msg, sizeof(msg) - 1);
-	(void)bytes_written;
-}
-
 // Check and handle pending emergency exit - called from main loop
+// Uses modern signal_handler.c infrastructure (sigaction with SA_RESTART)
 void check_emergency_exit(void)
 {
-	if (emergency_exit_flag) {
-		emergency_exit_flag = 0;
+	// signal_should_exit() checks sig_hup_pending, sig_term_pending, sig_pipe_pending
+	// These are set by signal_handler.c which uses proper sigaction() handlers
+	extern bool signal_should_exit(void);
+	extern void signal_clear_exit(void);
+
+	if (signal_should_exit()) {
+		signal_clear_exit();
 		quickexit(false, 0);
 		quit(true, 0);
 	}
@@ -601,6 +635,8 @@ int quit(int f, int n)
 	    || (s =
 		mlyesno("Modified buffers exist. Leave anyway")) == true) {
 /* Session saving removed - keeping exit clean and simple */
+		LOG_INFO("uEmacs: Exiting via quit command");
+		logger_close();
 		vttidy();
 		if (f)
 			exit(n);
@@ -618,14 +654,14 @@ int quit(int f, int n)
  */
 int ctlxlp(int f, int n)
 {
-	if (kbdmode != STOP) {
-		mlwrite("%%Macro already active");
+	if (atomic_load(&kbdmode) != MACRO_STOP) {
+		mlwrite("MACRO ALREADY ACTIVE");
 		return false;
 	}
-	mlwrite("(Start macro)");
-	kbdptr = &kbdm[0];
-	kbdend = kbdptr;
-	kbdmode = RECORD;
+	mlwrite("[START MACRO]");
+	g_macro.count = 0;
+	g_macro.playback_pos = 0;
+	atomic_store(&kbdmode, MACRO_RECORD);
 	return true;
 }
 
@@ -635,13 +671,14 @@ int ctlxlp(int f, int n)
  */
 int ctlxrp(int f, int n)
 {
-	if (kbdmode == STOP) {
-		mlwrite("%%Macro not active");
+	int mode = atomic_load(&kbdmode);
+	if (mode == MACRO_STOP) {
+		mlwrite("MACRO NOT ACTIVE");
 		return false;
 	}
-	if (kbdmode == RECORD) {
-		mlwrite("(End macro)");
-		kbdmode = STOP;
+	if (mode == MACRO_RECORD) {
+		mlwrite("[END MACRO]");
+		atomic_store(&kbdmode, MACRO_STOP);
 	}
 	return true;
 }
@@ -653,15 +690,19 @@ int ctlxrp(int f, int n)
  */
 int ctlxe(int f, int n)
 {
-	if (kbdmode != STOP) {
-		mlwrite("%%Macro already active");
+	if (atomic_load(&kbdmode) != MACRO_STOP) {
+		mlwrite("MACRO ALREADY ACTIVE");
 		return false;
 	}
 	if (n <= 0)
 		return true;
+	if (g_macro.count == 0) {
+		mlwrite("NO MACRO RECORDED");
+		return false;
+	}
 	kbdrep = n;		/* remember how many times to execute */
-	kbdmode = PLAY;		/* start us in play mode */
-	kbdptr = &kbdm[0];	/*    at the beginning */
+	g_macro.playback_pos = 0;
+	atomic_store(&kbdmode, MACRO_PLAY);
 	return true;
 }
 
@@ -673,8 +714,8 @@ int ctlxe(int f, int n)
 int ctrlg(int f, int n)
 {
 	TTbeep();
-	kbdmode = STOP;
-	mlwrite("(Aborted)");
+	atomic_store(&kbdmode, MACRO_STOP);
+	mlwrite("[ABORTED]");
 	return ABORT;
 }
 
@@ -685,14 +726,14 @@ int ctrlg(int f, int n)
 int rdonly(void)
 {
 	TTbeep();
-	mlwrite("(Key illegal in VIEW mode)");
+	mlwrite("[KEY ILLEGAL IN VIEW MODE]");
 	return false;
 }
 
 int resterr(void)
 {
 	TTbeep();
-	mlwrite("(That command is RESTRICTED)");
+	mlwrite("[THAT COMMAND IS RESTRICTED]");
 	return false;
 }
 
@@ -702,56 +743,109 @@ int nullproc(int f, int n)
 	return true;
 }
 
-/* dummy function for binding to meta prefix */
-int metafn(int f, int n)
+/*
+ * prefix_dispatch: Recursive prefix key dispatcher.
+ *
+ * Handles multi-level prefix sequences like C-x r s (three keys deep).
+ * Loops until a terminal command is found or an error occurs.
+ *
+ * @param initial_map  Starting keymap (e.g., ctlx_keymap for C-x, meta_keymap for M-)
+ * @param is_meta      If true, use M-x == M-X convention (uppercase all letters)
+ * @param f            Prefix argument flag
+ * @param n            Prefix argument value
+ */
+int prefix_dispatch(struct keymap *initial_map, bool is_meta, int f, int n)
 {
-	int c;			/* next key pressed */
-	fn_t execfunc;	/* function to execute */
-	
-	/* get the next key */
-	c = get1key();
-	
-	/* look it up in the Meta keymap */
-	struct keymap *mkm = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-	if (mkm) {
-		struct keymap_entry *entry = keymap_lookup(mkm, c);
-		if (entry && !entry->is_prefix) {
-			execfunc = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
-			if (execfunc != nullptr) {
-				return (*execfunc)(f, n);
+	struct keymap *current_map = initial_map;
+	int depth = 0;
+	const int max_depth = 10;  /* Prevent infinite loops */
+
+	while (depth < max_depth) {
+		/* Get the next key */
+		input_key_event_t evt;
+		if (input_read_event(&evt) < 0) return false;
+
+		/* Build lookup key */
+		uint32_t code = evt.code;
+		uint16_t mods = 0;
+
+		/* Case normalization:
+		 * - For meta prefix: M-x == M-X (emacs convention)
+		 * - For C-x prefix: only normalize when Ctrl is held (kitty protocol)
+		 */
+		if (is_meta) {
+			if (code >= 'a' && code <= 'z') {
+				code -= ('a' - 'A');
+			}
+		} else {
+			if ((evt.modifiers & MOD_CTRL) && code >= 'a' && code <= 'z') {
+				code -= ('a' - 'A');
 			}
 		}
+
+		if (evt.modifiers & MOD_CTRL) mods |= MOD_CTRL;
+
+		keymap_key_t lookup_key = keymap_key_make(code, mods);
+
+		/* Look it up in current keymap */
+		struct keymap_entry *entry = keymap_lookup(current_map, lookup_key);
+		if (!entry) {
+			mlwrite("[KEY NOT BOUND]");
+			return false;
+		}
+
+		if (entry->is_prefix) {
+			/* Another prefix - descend into sub-map */
+			struct keymap *submap = entry->binding.map;
+			if (!submap) {
+				mlwrite("[INVALID PREFIX MAP]");
+				return false;
+			}
+			current_map = submap;
+			depth++;
+			continue;
+		}
+
+		/* Terminal command - execute it */
+		fn_t execfunc = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
+		if (execfunc != nullptr) {
+			return (*execfunc)(f, n);
+		}
+
+		mlwrite("[KEY NOT BOUND]");
+		return false;
 	}
-	
-	/* command not found - report error */
-	mlwrite("(Key not bound)");
+
+	mlwrite("[PREFIX TOO DEEP]");
 	return false;
 }
 
-/* dummy function for binding to control-x prefix */
+/* Meta prefix function - supports recursive prefixes */
+int metafn(int f, int n)
+{
+	struct keymap *mkm = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+	if (!mkm) {
+		mlwrite("[NO META KEYMAP]");
+		return false;
+	}
+	return prefix_dispatch(mkm, true, f, n);
+}
+
+/* Control-X prefix function - supports recursive prefixes */
 int cex(int f, int n)
 {
-	int c;			/* next key pressed */
-	fn_t execfunc;	/* function to execute */
-	
-	/* get the next key */
-	c = get1key();
-	
-	/* look it up in the C-x keymap */
 	struct keymap *ckm = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
-	if (ckm) {
-		struct keymap_entry *entry = keymap_lookup(ckm, c);
-		if (entry && !entry->is_prefix) {
-			execfunc = atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
-			if (execfunc != nullptr) {
-				return (*execfunc)(f, n);
-			}
-		}
+	if (!ckm) {
+		mlwrite("[NO C-X KEYMAP]");
+		return false;
 	}
-	
-	/* command not found - report error */
-	mlwrite("(Key not bound)");
-	return false;
+	return prefix_dispatch(ckm, false, f, n);
+}
+
+/* External entry point for generic prefix dispatcher in bind.c */
+int prefix_dispatch_external(struct keymap *initial_map, bool is_meta, int f, int n)
+{
+	return prefix_dispatch(initial_map, is_meta, f, n);
 }
 
 /* dummy function for binding to universal-argument */

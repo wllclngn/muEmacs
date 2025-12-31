@@ -39,7 +39,7 @@ int test_expression_evaluation(void) {
     
     // Test 1: Variable assignment and retrieval
     total++;
-    printf("Testing variable assignment and retrieval...\n");
+    LOG_INFO("Testing variable assignment and retrieval...");
     
     config_var_t vars[10];
     int var_count = 0;
@@ -61,16 +61,15 @@ int test_expression_evaluation(void) {
     var_count++;
     
     if (var_count == 3) {
-        printf("[%sSUCCESS%s] Variable assignment: %d variables stored\n", 
-               GREEN, RESET, var_count);
+        LOG_INFOF("[SUCCESS] Variable assignment: %d variables stored", var_count);
         passed++;
     } else {
-        printf("[%sFAIL%s] Variable assignment failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Variable assignment failed");
     }
     
     // Test 2: Arithmetic expression evaluation
     total++;
-    printf("Testing arithmetic expression evaluation...\n");
+    LOG_INFO("Testing arithmetic expression evaluation...");
     
     struct {
         const char* expr;
@@ -104,17 +103,15 @@ int test_expression_evaluation(void) {
     }
     
     if (arith_passed >= 4) {
-        printf("[%sSUCCESS%s] Arithmetic evaluation: %d/6 expressions correct\n", 
-               GREEN, RESET, arith_passed);
+        LOG_INFOF("[SUCCESS] Arithmetic evaluation: %d/6 expressions correct", arith_passed);
         passed++;
     } else {
-        printf("[%sFAIL%s] Arithmetic evaluation: only %d/6 correct\n", 
-               RED, RESET, arith_passed);
+        LOG_ERRORF("[FAIL] Arithmetic evaluation: only %d/6 correct", arith_passed);
     }
     
     // Test 3: String expression evaluation
     total++;
-    printf("Testing string expression evaluation...\n");
+    LOG_INFO("Testing string expression evaluation...");
     
     char result_buffer[512];
     const char* str_tests[] = {
@@ -126,16 +123,15 @@ int test_expression_evaluation(void) {
     // Simulate string concatenation
     strcpy(result_buffer, "hello world");
     if (strlen(result_buffer) == 11) {
-        printf("[%sSUCCESS%s] String concatenation: '%s'\n", 
-               GREEN, RESET, result_buffer);
+        LOG_INFOF("[SUCCESS] String concatenation: '%s'", result_buffer);
         passed++;
     } else {
-        printf("[%sFAIL%s] String concatenation failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] String concatenation failed");
     }
     
     // Test 4: Boolean expression evaluation
     total++;
-    printf("Testing boolean expression evaluation...\n");
+    LOG_INFO("Testing boolean expression evaluation...");
     
     struct {
         const char* expr;
@@ -159,12 +155,10 @@ int test_expression_evaluation(void) {
     }
     
     if (bool_passed >= 5) {
-        printf("[%sSUCCESS%s] Boolean evaluation: %d/6 expressions correct\n", 
-               GREEN, RESET, bool_passed);
+        LOG_INFOF("[SUCCESS] Boolean evaluation: %d/6 expressions correct", bool_passed);
         passed++;
     } else {
-        printf("[%sFAIL%s] Boolean evaluation: only %d/6 correct\n", 
-               RED, RESET, bool_passed);
+        LOG_ERRORF("[FAIL] Boolean evaluation: only %d/6 correct", bool_passed);
     }
     
     result = (passed == total);
@@ -174,12 +168,12 @@ int test_expression_evaluation(void) {
 
 // Test macro execution engine
 int test_macro_execution_engine(void) {
-    printf("\n%s=== Testing Macro Execution Engine ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Macro Execution Engine ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Simple macro recording
     total++;
-    printf("Testing simple macro recording...\n");
+    LOG_INFO("Testing simple macro recording...");
     
     macro_def_t macros[10];
     int macro_count = 0;
@@ -192,16 +186,15 @@ int test_macro_execution_engine(void) {
     macro_count++;
     
     if (macro_count == 1 && macros[0].recorded) {
-        printf("[%sSUCCESS%s] Macro recording: '%s' recorded\n", 
-               GREEN, RESET, macros[0].name);
+        LOG_INFOF("[SUCCESS] Macro recording: '%s' recorded", macros[0].name);
         passed++;
     } else {
-        printf("[%sFAIL%s] Macro recording failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Macro recording failed");
     }
     
     // Test 2: Macro playback simulation
     total++;
-    printf("Testing macro playback simulation...\n");
+    LOG_INFO("Testing macro playback simulation...");
     
     // Simulate macro execution
     if (macros[0].recorded) {
@@ -211,27 +204,26 @@ int test_macro_execution_engine(void) {
         char* commands = macros[0].commands;
         int command_count = 0;
         char* token = strtok(commands, ";");
-        while (token != nullptr) {
+        while (token != NULL) {
             // Trim whitespace
             while (*token == ' ') token++;
             command_count++;
-            token = strtok(nullptr, ";");
+            token = strtok(NULL, ";");
         }
         
         if (command_count >= 2) {
-            printf("[%sSUCCESS%s] Macro playback: %d commands executed\n", 
-                   GREEN, RESET, command_count);
+            LOG_INFOF("[SUCCESS] Macro playback: %d commands executed", command_count);
             passed++;
         } else {
-            printf("[%sFAIL%s] Macro playback: insufficient commands\n", RED, RESET);
+            LOG_ERROR("[FAIL] Macro playback: insufficient commands");
         }
     } else {
-        printf("[%sFAIL%s] Cannot playback unrecorded macro\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot playback unrecorded macro");
     }
     
     // Test 3: Complex macro with conditionals
     total++;
-    printf("Testing complex macro with conditionals...\n");
+    LOG_INFO("Testing complex macro with conditionals...");
     
     strcpy(macros[macro_count].name, "conditional-format");
     strcpy(macros[macro_count].commands, 
@@ -245,16 +237,15 @@ int test_macro_execution_engine(void) {
     int condition_result = (strcmp(current_mode, "c-mode") == 0) ? 1 : 0;
     
     if (condition_result) {
-        printf("[%sSUCCESS%s] Conditional macro: C-mode condition evaluated\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Conditional macro: C-mode condition evaluated");
         passed++;
     } else {
-        printf("[%sFAIL%s] Conditional macro evaluation failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Conditional macro evaluation failed");
     }
     
     // Test 4: Macro error handling
     total++;
-    printf("Testing macro error handling...\n");
+    LOG_INFO("Testing macro error handling...");
     
     strcpy(macros[macro_count].name, "error-macro");
     strcpy(macros[macro_count].commands, "invalid-command; valid-command");
@@ -266,25 +257,24 @@ int test_macro_execution_engine(void) {
     int continue_execution = 1; // Simulate recovery
     
     if (error_caught && continue_execution) {
-        printf("[%sSUCCESS%s] Macro error handling: error caught and recovered\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Macro error handling: error caught and recovered");
         passed++;
     } else {
-        printf("[%sFAIL%s] Macro error handling failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Macro error handling failed");
     }
     
-    printf("Macro execution tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Macro execution tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 // Test command binding dynamics
 int test_command_binding_dynamics(void) {
-    printf("\n%s=== Testing Command Binding Dynamics ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Command Binding Dynamics ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Basic key binding
     total++;
-    printf("Testing basic key binding...\n");
+    LOG_INFO("Testing basic key binding...");
     
     key_binding_t bindings[50];
     int binding_count = 0;
@@ -301,16 +291,15 @@ int test_command_binding_dynamics(void) {
     binding_count++;
     
     if (binding_count == 2) {
-        printf("[%sSUCCESS%s] Basic binding: %d bindings active\n", 
-               GREEN, RESET, binding_count);
+        LOG_INFOF("[SUCCESS] Basic binding: %d bindings active", binding_count);
         passed++;
     } else {
-        printf("[%sFAIL%s] Basic binding setup failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Basic binding setup failed");
     }
     
     // Test 2: Dynamic binding changes
     total++;
-    printf("Testing dynamic binding changes...\n");
+    LOG_INFO("Testing dynamic binding changes...");
     
     // Change binding for save-file
     for (int i = 0; i < binding_count; i++) {
@@ -331,16 +320,15 @@ int test_command_binding_dynamics(void) {
     }
     
     if (binding_changed) {
-        printf("[%sSUCCESS%s] Dynamic binding: save-file rebound to C-s\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Dynamic binding: save-file rebound to C-s");
         passed++;
     } else {
-        printf("[%sFAIL%s] Dynamic binding change failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Dynamic binding change failed");
     }
     
     // Test 3: Binding conflicts detection
     total++;
-    printf("Testing binding conflict detection...\n");
+    LOG_INFO("Testing binding conflict detection...");
     
     // Try to bind another command to same key
     strcpy(bindings[binding_count].command, "exit-editor");
@@ -357,17 +345,16 @@ int test_command_binding_dynamics(void) {
     }
     
     if (conflict_detected) {
-        printf("[%sSUCCESS%s] Conflict detection: C-s binding conflict identified\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Conflict detection: C-s binding conflict identified");
         passed++;
     } else {
-        printf("[%sFAIL%s] Conflict detection failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Conflict detection failed");
     }
     binding_count++;
     
     // Test 4: Prefix key handling
     total++;
-    printf("Testing prefix key handling...\n");
+    LOG_INFO("Testing prefix key handling...");
     
     strcpy(bindings[binding_count].command, "prefix-c-x");
     strcpy(bindings[binding_count].binding, "C-x");
@@ -388,25 +375,24 @@ int test_command_binding_dynamics(void) {
     }
     
     if (prefix_found && extended_found) {
-        printf("[%sSUCCESS%s] Prefix keys: C-x prefix structure established\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Prefix keys: C-x prefix structure established");
         passed++;
     } else {
-        printf("[%sFAIL%s] Prefix key handling failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Prefix key handling failed");
     }
     
-    printf("Command binding tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Command binding tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 // Test configuration file parsing
 int test_configuration_file_parsing(void) {
-    printf("\n%s=== Testing Configuration File Parsing ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Configuration File Parsing ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Basic config file creation and parsing
     total++;
-    printf("Testing basic configuration file parsing...\n");
+    LOG_INFO("Testing basic configuration file parsing...");
     
     const char* config_file = "/tmp/uemacs_test.conf";
     FILE* f = fopen(config_file, "w");
@@ -444,24 +430,23 @@ int test_configuration_file_parsing(void) {
             fclose(f);
             
             if (lines_parsed >= 6 && settings_count == 4 && bindings_count == 2) {
-                printf("[%sSUCCESS%s] Config parsing: %d lines, %d settings, %d bindings\n", 
-                       GREEN, RESET, lines_parsed, settings_count, bindings_count);
+                LOG_INFOF("[SUCCESS] Config parsing: %d lines, %d settings, %d bindings", lines_parsed, settings_count, bindings_count);
                 passed++;
             } else {
-                printf("[%sFAIL%s] Config parsing: unexpected counts\n", RED, RESET);
+                LOG_ERROR("[FAIL] Config parsing: unexpected counts");
             }
         } else {
-            printf("[%sFAIL%s] Cannot read config file for parsing\n", RED, RESET);
+            LOG_ERROR("[FAIL] Cannot read config file for parsing");
         }
         
         unlink(config_file);
     } else {
-        printf("[%sFAIL%s] Cannot create test config file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Cannot create test config file");
     }
     
     // Test 2: Error handling in config parsing
     total++;
-    printf("Testing configuration parsing error handling...\n");
+    LOG_INFO("Testing configuration parsing error handling...");
     
     f = fopen(config_file, "w");
     if (f) {
@@ -492,12 +477,10 @@ int test_configuration_file_parsing(void) {
             fclose(f);
             
             if (error_count == 4) {
-                printf("[%sSUCCESS%s] Error handling: %d parsing errors detected\n", 
-                       GREEN, RESET, error_count);
+                LOG_INFOF("[SUCCESS] Error handling: %d parsing errors detected", error_count);
                 passed++;
             } else {
-                printf("[%sFAIL%s] Error handling: expected 4 errors, got %d\n", 
-                       RED, RESET, error_count);
+                LOG_ERRORF("[FAIL] Error handling: expected 4 errors, got %d", error_count);
             }
         }
         
@@ -506,7 +489,7 @@ int test_configuration_file_parsing(void) {
     
     // Test 3: Include file support
     total++;
-    printf("Testing include file support...\n");
+    LOG_INFO("Testing include file support...");
     
     const char* include_file = "/tmp/uemacs_include.conf";
     f = fopen(include_file, "w");
@@ -527,11 +510,10 @@ int test_configuration_file_parsing(void) {
             int total_settings = 3; // main + included + final
             
             if (include_processed && total_settings == 3) {
-                printf("[%sSUCCESS%s] Include support: %d settings from main + included\n", 
-                       GREEN, RESET, total_settings);
+                LOG_INFOF("[SUCCESS] Include support: %d settings from main + included", total_settings);
                 passed++;
             } else {
-                printf("[%sFAIL%s] Include support failed\n", RED, RESET);
+                LOG_ERROR("[FAIL] Include support failed");
             }
         }
         
@@ -539,18 +521,18 @@ int test_configuration_file_parsing(void) {
         unlink(config_file);
     }
     
-    printf("Configuration parsing tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Configuration parsing tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 // Test variable scope and lifetime management  
 int test_variable_scope_management(void) {
-    printf("\n%s=== Testing Variable Scope Management ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Variable Scope Management ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Global vs local variable scope
     total++;
-    printf("Testing global vs local variable scope...\n");
+    LOG_INFO("Testing global vs local variable scope...");
     
     // Simulate nested scopes
     typedef struct {
@@ -581,7 +563,7 @@ int test_variable_scope_management(void) {
     local_scope.count++;
     
     // Test variable resolution (local should shadow global)
-    const char* resolved_value = nullptr;
+    const char* resolved_value = NULL;
     for (int i = 0; i < local_scope.count; i++) {
         if (strcmp(local_scope.vars[i].name, "global-setting") == 0) {
             resolved_value = local_scope.vars[i].value;
@@ -590,16 +572,15 @@ int test_variable_scope_management(void) {
     }
     
     if (resolved_value && strcmp(resolved_value, "local-value") == 0) {
-        printf("[%sSUCCESS%s] Variable scope: local variable shadows global\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Variable scope: local variable shadows global");
         passed++;
     } else {
-        printf("[%sFAIL%s] Variable scope resolution failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Variable scope resolution failed");
     }
     
     // Test 2: Variable lifetime management
     total++;
-    printf("Testing variable lifetime management...\n");
+    LOG_INFO("Testing variable lifetime management...");
     
     int initial_count = global_scope.count + local_scope.count;
     
@@ -609,16 +590,15 @@ int test_variable_scope_management(void) {
     int remaining_count = global_scope.count + local_scope.count;
     
     if (remaining_count < initial_count) {
-        printf("[%sSUCCESS%s] Variable lifetime: %d variables cleaned up\n", 
-               GREEN, RESET, initial_count - remaining_count);
+        LOG_INFOF("[SUCCESS] Variable lifetime: %d variables cleaned up", initial_count - remaining_count);
         passed++;
     } else {
-        printf("[%sFAIL%s] Variable lifetime: cleanup failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Variable lifetime: cleanup failed");
     }
     
     // Test 3: Memory management for variable values
     total++;
-    printf("Testing memory management for variable values...\n");
+    LOG_INFO("Testing memory management for variable values...");
     
     // Simulate dynamic string allocation for large values
     char large_value[1024];
@@ -632,25 +612,24 @@ int test_variable_scope_management(void) {
         global_scope.vars[global_scope.count].type = 0;
         global_scope.count++;
         
-        printf("[%sSUCCESS%s] Memory management: large variable value handled\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Memory management: large variable value handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] Memory management failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Memory management failed");
     }
     
-    printf("Variable scope tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Variable scope tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 // Test error handling in config system
 int test_error_handling_config_system(void) {
-    printf("\n%s=== Testing Config System Error Handling ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Config System Error Handling ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Invalid syntax error recovery
     total++;
-    printf("Testing invalid syntax error recovery...\n");
+    LOG_INFO("Testing invalid syntax error recovery...");
     
     const char* bad_configs[] = {
         "set without-value",
@@ -678,17 +657,15 @@ int test_error_handling_config_system(void) {
     }
     
     if (errors_caught == 5 && recovery_successful == 5) {
-        printf("[%sSUCCESS%s] Error recovery: %d syntax errors caught and recovered\n", 
-               GREEN, RESET, errors_caught);
+        LOG_INFOF("[SUCCESS] Error recovery: %d syntax errors caught and recovered", errors_caught);
         passed++;
     } else {
-        printf("[%sFAIL%s] Error recovery: %d caught, %d recovered\n", 
-               RED, RESET, errors_caught, recovery_successful);
+        LOG_ERRORF("[FAIL] Error recovery: %d caught, %d recovered", errors_caught, recovery_successful);
     }
     
     // Test 2: Resource exhaustion handling
     total++;
-    printf("Testing resource exhaustion handling...\n");
+    LOG_INFO("Testing resource exhaustion handling...");
     
     // Simulate resource limits
     const int MAX_VARS = 100;
@@ -713,16 +690,15 @@ int test_error_handling_config_system(void) {
     }
     
     if (limit_enforced) {
-        printf("[%sSUCCESS%s] Resource limits: variable limit enforced at %d\n", 
-               GREEN, RESET, var_count);
+        LOG_INFOF("[SUCCESS] Resource limits: variable limit enforced at %d", var_count);
         passed++;
     } else {
-        printf("[%sFAIL%s] Resource limits: limit enforcement failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Resource limits: limit enforcement failed");
     }
     
     // Test 3: Circular dependency detection
     total++;
-    printf("Testing circular dependency detection...\n");
+    LOG_INFO("Testing circular dependency detection...");
     
     // Simulate variable dependencies
     strcpy(vars[0].name, "var-a");
@@ -741,25 +717,24 @@ int test_error_handling_config_system(void) {
     int cycle_detected = 1; // Simulate detection
     
     if (cycle_detected) {
-        printf("[%sSUCCESS%s] Circular dependency: cycle detected and handled\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Circular dependency: cycle detected and handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] Circular dependency detection failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Circular dependency detection failed");
     }
     
-    printf("Config error handling tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Config error handling tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 // Test conditional execution
 int test_conditional_execution(void) {
-    printf("\n%s=== Testing Conditional Execution ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Conditional Execution ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: If-then-else statements
     total++;
-    printf("Testing if-then-else statements...\n");
+    LOG_INFO("Testing if-then-else statements...");
     
     // Simulate conditional execution
     struct {
@@ -788,17 +763,15 @@ int test_conditional_execution(void) {
     }
     
     if (conditional_passed >= 3) {
-        printf("[%sSUCCESS%s] Conditional execution: %d/4 conditions handled correctly\n", 
-               GREEN, RESET, conditional_passed);
+        LOG_INFOF("[SUCCESS] Conditional execution: %d/4 conditions handled correctly", conditional_passed);
         passed++;
     } else {
-        printf("[%sFAIL%s] Conditional execution: only %d/4 correct\n", 
-               RED, RESET, conditional_passed);
+        LOG_ERRORF("[FAIL] Conditional execution: only %d/4 correct", conditional_passed);
     }
     
     // Test 2: While loop execution
     total++;
-    printf("Testing while loop execution...\n");
+    LOG_INFO("Testing while loop execution...");
     
     // Simulate while loop
     int counter = 0;
@@ -810,23 +783,21 @@ int test_conditional_execution(void) {
     }
     
     if (counter == max_iterations) {
-        printf("[%sSUCCESS%s] While loop: executed %d iterations correctly\n", 
-               GREEN, RESET, counter);
+        LOG_INFOF("[SUCCESS] While loop: executed %d iterations correctly", counter);
         passed++;
     } else {
-        printf("[%sFAIL%s] While loop: unexpected iteration count %d\n", 
-               RED, RESET, counter);
+        LOG_ERRORF("[FAIL] While loop: unexpected iteration count %d", counter);
     }
     
     // Test 3: Nested conditional statements
     total++;
-    printf("Testing nested conditional statements...\n");
+    LOG_INFO("Testing nested conditional statements...");
     
     // Simulate nested conditions
     const char* file_type = "c";
     const char* buffer_state = "modified";
     
-    const char* action_result = nullptr;
+    const char* action_result = NULL;
     if (strcmp(file_type, "c") == 0) {
         if (strcmp(buffer_state, "modified") == 0) {
             action_result = "compile-and-save";
@@ -838,26 +809,24 @@ int test_conditional_execution(void) {
     }
     
     if (action_result && strcmp(action_result, "compile-and-save") == 0) {
-        printf("[%sSUCCESS%s] Nested conditionals: correct action '%s'\n", 
-               GREEN, RESET, action_result);
+        LOG_INFOF("[SUCCESS] Nested conditionals: correct action '%s'", action_result);
         passed++;
     } else {
-        printf("[%sFAIL%s] Nested conditionals: unexpected action '%s'\n", 
-               RED, RESET, action_result ? action_result : "nullptr");
+        LOG_ERRORF("[FAIL] Nested conditionals: unexpected action '%s'", action_result ? action_result : "NULL");
     }
     
-    printf("Conditional execution tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Conditional execution tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 // Test nested macro scenarios
 int test_nested_macro_scenarios(void) {
-    printf("\n%s=== Testing Nested Macro Scenarios ===%s\n", BLUE, RESET);
+    LOG_INFOF("\n%s=== Testing Nested Macro Scenarios ===%s", BLUE, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Macro calling another macro
     total++;
-    printf("Testing macro calling another macro...\n");
+    LOG_INFO("Testing macro calling another macro...");
     
     macro_def_t macros[10];
     int macro_count = 0;
@@ -882,16 +851,15 @@ int test_nested_macro_scenarios(void) {
     call_depth++; // insert-comment
     
     if (call_depth <= max_depth) {
-        printf("[%sSUCCESS%s] Nested macros: call depth %d within limit %d\n", 
-               GREEN, RESET, call_depth, max_depth);
+        LOG_INFOF("[SUCCESS] Nested macros: call depth %d within limit %d", call_depth, max_depth);
         passed++;
     } else {
-        printf("[%sFAIL%s] Nested macros: call depth exceeded\n", RED, RESET);
+        LOG_ERROR("[FAIL] Nested macros: call depth exceeded");
     }
     
     // Test 2: Recursive macro detection
     total++;
-    printf("Testing recursive macro detection...\n");
+    LOG_INFO("Testing recursive macro detection...");
     
     // Recursive macro (should be detected and prevented)
     strcpy(macros[macro_count].name, "recursive-macro");
@@ -905,16 +873,15 @@ int test_nested_macro_scenarios(void) {
     int recursion_detected = (strcmp(calling_macro, called_macro) == 0) ? 1 : 0;
     
     if (recursion_detected) {
-        printf("[%sSUCCESS%s] Recursion detection: infinite recursion prevented\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Recursion detection: infinite recursion prevented");
         passed++;
     } else {
-        printf("[%sFAIL%s] Recursion detection failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Recursion detection failed");
     }
     
     // Test 3: Complex nested scenario with parameters
     total++;
-    printf("Testing complex nested scenario with parameters...\n");
+    LOG_INFO("Testing complex nested scenario with parameters...");
     
     strcpy(macros[macro_count].name, "format-function");
     strcpy(macros[macro_count].commands, 
@@ -935,16 +902,15 @@ int test_nested_macro_scenarios(void) {
     int param_count = 4;
     
     if (param_count == 4) {
-        printf("[%sSUCCESS%s] Complex nested: %d parameters processed correctly\n", 
-               GREEN, RESET, param_count);
+        LOG_INFOF("[SUCCESS] Complex nested: %d parameters processed correctly", param_count);
         passed++;
     } else {
-        printf("[%sFAIL%s] Complex nested scenario failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Complex nested scenario failed");
     }
     
     // Test 4: Error propagation in nested macros
     total++;
-    printf("Testing error propagation in nested macros...\n");
+    LOG_INFO("Testing error propagation in nested macros...");
     
     strcpy(macros[macro_count].name, "error-prone");
     strcpy(macros[macro_count].commands, "invalid-command; insert-string \"after-error\"");
@@ -962,13 +928,12 @@ int test_nested_macro_scenarios(void) {
     int execution_stopped = 1;
     
     if (error_occurred && error_propagated && execution_stopped) {
-        printf("[%sSUCCESS%s] Error propagation: nested error correctly handled\n", 
-               GREEN, RESET);
+        LOG_INFO("[SUCCESS] Error propagation: nested error correctly handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] Error propagation failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Error propagation failed");
     }
     
-    printf("Nested macro tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Nested macro tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }

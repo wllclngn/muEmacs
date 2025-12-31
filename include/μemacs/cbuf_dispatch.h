@@ -7,7 +7,8 @@
 #define UEMACS_CBUF_DISPATCH_H
 
 #include <stdint.h>
-#include "core.h"
+#include <stdbool.h>
+#include <stdatomic.h>
 
 // C23 unified buffer dispatch context
 struct cbuf_dispatch_context {

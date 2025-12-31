@@ -35,7 +35,7 @@ FILE* safe_fopen(const char* filename, file_mode_t mode) {
     CHECK_PTR_RET_NULL(filename);
     
     if (mode >= sizeof(file_mode_strings) / sizeof(file_mode_strings[0])) {
-        REPORT_ERROR(ERR_SYNTAX_ERROR, "Invalid file mode");
+        REPORT_ERROR(ERR_SYNTAX_ERROR, "INVALID FILE MODE");
         return nullptr;
     }
     
@@ -69,7 +69,7 @@ bool safe_fclose(FILE** fp) {
     *fp = nullptr;  /* Prevent double close */
     
     if (result != 0) {
-        REPORT_ERROR(ERR_FILE_WRITE, "Close failed");
+        REPORT_ERROR(ERR_FILE_WRITE, "CLOSE FAILED");
         return false;
     }
     
@@ -119,7 +119,7 @@ size_t get_file_size(const char* filename) {
     }
     
     if (!S_ISREG(st.st_mode)) {
-        REPORT_ERROR(ERR_SYNTAX_ERROR, "Not a regular file");
+        REPORT_ERROR(ERR_SYNTAX_ERROR, "NOT A REGULAR FILE");
         return 0;
     }
     
@@ -254,7 +254,7 @@ FILE* safe_temp_file(char* temp_name, size_t name_size) {
     
     int fd = mkstemp(temp_name);
     if (fd < 0) {
-        REPORT_ERROR(ERR_FILE_WRITE, "Cannot create temporary file");
+        REPORT_ERROR(ERR_FILE_WRITE, "CANNOT CREATE TEMPORARY FILE");
         return nullptr;
     }
     
@@ -262,7 +262,7 @@ FILE* safe_temp_file(char* temp_name, size_t name_size) {
     if (!fp) {
         close(fd);
         unlink(temp_name);
-        REPORT_ERROR(ERR_FILE_WRITE, "Cannot open temporary file");
+        REPORT_ERROR(ERR_FILE_WRITE, "CANNOT OPEN TEMPORARY FILE");
         return nullptr;
     }
     
@@ -275,7 +275,7 @@ bool lock_file(FILE* fp) {
     
     int fd = fileno(fp);
     if (fd < 0) {
-        REPORT_ERROR(ERR_FILE_WRITE, "Invalid file descriptor");
+        REPORT_ERROR(ERR_FILE_WRITE, "INVALID FILE DESCRIPTOR");
         return false;
     }
     
@@ -287,9 +287,9 @@ bool lock_file(FILE* fp) {
     
     if (fcntl(fd, F_SETLK, &lock) < 0) {
         if (errno == EAGAIN || errno == EACCES) {
-            REPORT_ERROR(ERR_FILE_PERMISSION, "File is locked");
+            REPORT_ERROR(ERR_FILE_PERMISSION, "FILE IS LOCKED");
         } else {
-            REPORT_ERROR(ERR_FILE_WRITE, "Lock failed");
+            REPORT_ERROR(ERR_FILE_WRITE, "LOCK FAILED");
         }
         return false;
     }

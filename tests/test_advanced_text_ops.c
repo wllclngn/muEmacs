@@ -10,10 +10,10 @@
 // Test region operations
 int test_region_operations(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Region Operations ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Region Operations ===%s", BLUE, RESET);
     
     // Test region selection and boundaries
-    printf("Testing region selection and boundaries...\n");
+    LOG_INFO("Testing region selection and boundaries...");
     total++;
     
     typedef struct {
@@ -42,14 +42,13 @@ int test_region_operations(void) {
         selected_text[region_size] = '\0';
         
         if (strstr(selected_text, "Line 2 with some text")) {
-            printf("[%sSUCCESS%s] Region selection: %d chars selected (%s...)\n", 
-                   GREEN, RESET, region_size, strndup(selected_text, 15));
+            LOG_INFOF("[SUCCESS] Region selection: %d chars selected (%s...)", region_size, strndup(selected_text, 15));
             passed++;
         }
     }
     
     // Test region copy operation
-    printf("Testing region copy operation...\n");
+    LOG_INFO("Testing region copy operation...");
     total++;
     
     char clipboard[1024] = {0};
@@ -62,13 +61,13 @@ int test_region_operations(void) {
         clipboard[copy_length] = '\0';
         
         if (strcmp(clipboard, "text") == 0) {
-            printf("[%sSUCCESS%s] Region copy: copied '%s' to clipboard\n", GREEN, RESET, clipboard);
+            LOG_INFOF("[SUCCESS] Region copy: copied '%s' to clipboard", clipboard);
             passed++;
         }
     }
     
     // Test region deletion
-    printf("Testing region deletion...\n");
+    LOG_INFO("Testing region deletion...");
     total++;
     
     char delete_text[256];
@@ -81,22 +80,22 @@ int test_region_operations(void) {
         memmove(delete_pos, delete_pos + delete_len, strlen(delete_pos + delete_len) + 1);
         
         if (strcmp(delete_text, "Before  After") == 0) {
-            printf("[%sSUCCESS%s] Region deletion: text removed, result: '%s'\n", GREEN, RESET, delete_text);
+            LOG_INFOF("[SUCCESS] Region deletion: text removed, result: '%s'", delete_text);
             passed++;
         }
     }
     
-    printf("Region operation tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Region operation tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test word operations
 int test_word_operations(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Word Operations ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Word Operations ===%s", BLUE, RESET);
     
     // Test word boundary detection
-    printf("Testing word boundary detection...\n");
+    LOG_INFO("Testing word boundary detection...");
     total++;
     
     const char* test_text = "Hello, world! This is a test-case with numbers123 and symbols.";
@@ -119,12 +118,12 @@ int test_word_operations(void) {
     }
     
     if (word_count == expected_word_count) {
-        printf("[%sSUCCESS%s] Word boundaries: detected %d words correctly\n", GREEN, RESET, word_count);
+        LOG_INFOF("[SUCCESS] Word boundaries: detected %d words correctly", word_count);
         passed++;
     }
     
     // Test word case operations
-    printf("Testing word case operations...\n");
+    LOG_INFO("Testing word case operations...");
     total++;
     
     char case_text[256];
@@ -146,12 +145,12 @@ int test_word_operations(void) {
     
     if (strcmp(lowercase_text, "mixed case words for testing") == 0 &&
         strcmp(uppercase_text, "MIXED CASE WORDS FOR TESTING") == 0) {
-        printf("[%sSUCCESS%s] Case operations: lowercase and uppercase conversion work\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Case operations: lowercase and uppercase conversion work");
         passed++;
     }
     
     // Test word wrapping
-    printf("Testing word wrapping...\n");
+    LOG_INFO("Testing word wrapping...");
     total++;
     
     const char* long_line = "This is a very long line that should be wrapped at word boundaries to fit within a specified width limit for proper display formatting";
@@ -186,21 +185,21 @@ int test_word_operations(void) {
     }
     
     if (line_count >= 3) {
-        printf("[%sSUCCESS%s] Word wrapping: %d lines created from long text\n", GREEN, RESET, line_count);
+        LOG_INFOF("[SUCCESS] Word wrapping: %d lines created from long text", line_count);
         passed++;
     }
     
-    printf("Word operation tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Word operation tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test paragraph operations
 int test_paragraph_operations(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Paragraph Operations ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Paragraph Operations ===%s", BLUE, RESET);
     
     // Test paragraph detection
-    printf("Testing paragraph detection...\n");
+    LOG_INFO("Testing paragraph detection...");
     total++;
     
     const char* multi_para_text = "First paragraph with some text.\nMore text in first paragraph.\n\nSecond paragraph starts here.\nContinuation of second paragraph.\n\n\nThird paragraph after blank lines.\nFinal sentence.";
@@ -227,12 +226,12 @@ int test_paragraph_operations(void) {
     }
     
     if (paragraph_count == 3) {
-        printf("[%sSUCCESS%s] Paragraph detection: found %d paragraphs correctly\n", GREEN, RESET, paragraph_count);
+        LOG_INFOF("[SUCCESS] Paragraph detection: found %d paragraphs correctly", paragraph_count);
         passed++;
     }
     
     // Test paragraph formatting/justification
-    printf("Testing paragraph formatting...\n");
+    LOG_INFO("Testing paragraph formatting...");
     total++;
     
     const char* unformatted = "This is an unformatted paragraph that needs to be justified and properly formatted with appropriate spacing and alignment for better readability.";
@@ -262,12 +261,12 @@ int test_paragraph_operations(void) {
     }
     
     if (formatted_lines >= 2) {
-        printf("[%sSUCCESS%s] Paragraph formatting: created %d lines from long paragraph\n", GREEN, RESET, formatted_lines);
+        LOG_INFOF("[SUCCESS] Paragraph formatting: created %d lines from long paragraph", formatted_lines);
         passed++;
     }
     
     // Test paragraph selection
-    printf("Testing paragraph selection...\n");
+    LOG_INFO("Testing paragraph selection...");
     total++;
     
     const char* para_text = "Para 1 line 1.\nPara 1 line 2.\n\nPara 2 line 1.\nPara 2 line 2.\n\nPara 3 line 1.";
@@ -283,22 +282,22 @@ int test_paragraph_operations(void) {
         selected_para[para2_length] = '\0';
         
         if (strstr(selected_para, "Para 2 line 1") && strstr(selected_para, "Para 2 line 2")) {
-            printf("[%sSUCCESS%s] Paragraph selection: selected paragraph 2 (%zu chars)\n", GREEN, RESET, para2_length);
+            LOG_INFOF("[SUCCESS] Paragraph selection: selected paragraph 2 (%zu chars)", para2_length);
             passed++;
         }
     }
     
-    printf("Paragraph operation tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Paragraph operation tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test advanced search and replace
 int test_advanced_search_replace(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Advanced Search & Replace ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Advanced Search & Replace ===%s", BLUE, RESET);
     
     // Test regex pattern matching
-    printf("Testing regex pattern matching...\n");
+    LOG_INFO("Testing regex pattern matching...");
     total++;
     
     const char* text = "Contact: john@example.com or call 555-1234 for more info. Email: admin@test.org";
@@ -318,14 +317,14 @@ int test_advanced_search_replace(void) {
         regfree(&email_regex);
         
         if (email_count == 2) {
-            printf("[%sSUCCESS%s] Regex search: found %d email addresses\n", GREEN, RESET, email_count);
+            LOG_INFOF("[SUCCESS] Regex search: found %d email addresses", email_count);
             passed++;
         }
     }
     total++;
     
     // Test case-insensitive search
-    printf("Testing case-insensitive search...\n");
+    LOG_INFO("Testing case-insensitive search...");
     
     const char* case_text = "The Quick BROWN fox jumps over the lazy DOG";
     const char* search_term = "brown";
@@ -339,12 +338,12 @@ int test_advanced_search_replace(void) {
     for (char* p = lower_search; *p; p++) *p = tolower(*p);
     
     if (strstr(lower_text, lower_search)) {
-        printf("[%sSUCCESS%s] Case-insensitive: found '%s' in mixed case text\n", GREEN, RESET, search_term);
+        LOG_INFOF("[SUCCESS] Case-insensitive: found '%s' in mixed case text", search_term);
         passed++;
     }
     
     // Test global replace operation
-    printf("Testing global replace operation...\n");
+    LOG_INFO("Testing global replace operation...");
     total++;
     
     char replace_text[256];
@@ -355,7 +354,7 @@ int test_advanced_search_replace(void) {
     char* pos = replace_text;
     int replacements = 0;
     
-    while ((pos = strstr(pos, find_str)) != nullptr) {
+    while ((pos = strstr(pos, find_str)) != NULL) {
         // Create new string with replacement
         char temp[256];
         size_t prefix_len = pos - replace_text;
@@ -370,21 +369,21 @@ int test_advanced_search_replace(void) {
     }
     
     if (replacements == 3 && strstr(replace_text, "dog")) {
-        printf("[%sSUCCESS%s] Global replace: %d replacements made\n", GREEN, RESET, replacements);
+        LOG_INFOF("[SUCCESS] Global replace: %d replacements made", replacements);
         passed++;
     }
     
-    printf("Advanced search & replace tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Advanced search & replace tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test text transformation operations
 int test_text_transformation(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Text Transformation ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Text Transformation ===%s", BLUE, RESET);
     
     // Test text sorting
-    printf("Testing text sorting...\n");
+    LOG_INFO("Testing text sorting...");
     total++;
     
     const char* unsorted_lines[] = {
@@ -422,7 +421,7 @@ int test_text_transformation(void) {
     }
     
     if (sort_correct) {
-        printf("[%sSUCCESS%s] Text sorting: 5 lines sorted correctly\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Text sorting: 5 lines sorted correctly");
         passed++;
     }
     
@@ -432,7 +431,7 @@ int test_text_transformation(void) {
     }
     
     // Test text reversal
-    printf("Testing text reversal...\n");
+    LOG_INFO("Testing text reversal...");
     total++;
     
     char reverse_text[256];
@@ -447,12 +446,12 @@ int test_text_transformation(void) {
     }
     
     if (strcmp(reverse_text, "dlroW olleH") == 0) {
-        printf("[%sSUCCESS%s] Text reversal: '%s' correctly reversed\n", GREEN, RESET, reverse_text);
+        LOG_INFOF("[SUCCESS] Text reversal: '%s' correctly reversed", reverse_text);
         passed++;
     }
     
     // Test text statistics calculation
-    printf("Testing text statistics calculation...\n");
+    LOG_INFO("Testing text statistics calculation...");
     total++;
     
     const char* stats_text = "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the alphabet!";
@@ -476,22 +475,21 @@ int test_text_transformation(void) {
     }
     
     if (char_count > 90 && word_count >= 15 && letter_count >= 70) {
-        printf("[%sSUCCESS%s] Text statistics: %d chars, %d words, %d letters, %d lines\n", 
-               GREEN, RESET, char_count, word_count, letter_count, line_count);
+        LOG_INFOF("[SUCCESS] Text statistics: %d chars, %d words, %d letters, %d lines", char_count, word_count, letter_count, line_count);
         passed++;
     }
     
-    printf("Text transformation tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Text transformation tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test macro text processing
 int test_macro_text_processing(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Macro Text Processing ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Macro Text Processing ===%s", BLUE, RESET);
     
     // Test recorded macro operations
-    printf("Testing recorded macro operations...\n");
+    LOG_INFO("Testing recorded macro operations...");
     total++;
     
     typedef struct {
@@ -523,12 +521,12 @@ int test_macro_text_processing(void) {
     }
     
     if (strstr(macro_result, "Hello") && strstr(macro_result, "World!")) {
-        printf("[%sSUCCESS%s] Macro execution: result '%s'\n", GREEN, RESET, macro_result);
+        LOG_INFOF("[SUCCESS] Macro execution: result '%s'", macro_result);
         passed++;
     }
     
     // Test macro with loops
-    printf("Testing macro with loops...\n");
+    LOG_INFO("Testing macro with loops...");
     total++;
     
     char loop_result[256] = {0};
@@ -540,12 +538,12 @@ int test_macro_text_processing(void) {
     }
     
     if (strcmp(loop_result, "XXXXX") == 0) {
-        printf("[%sSUCCESS%s] Macro loops: repeated '%s' %d times\n", GREEN, RESET, repeat_text, loop_count);
+        LOG_INFOF("[SUCCESS] Macro loops: repeated '%s' %d times", repeat_text, loop_count);
         passed++;
     }
     
     // Test conditional macro execution
-    printf("Testing conditional macro execution...\n");
+    LOG_INFO("Testing conditional macro execution...");
     total++;
     
     int condition_value = 42;
@@ -558,24 +556,24 @@ int test_macro_text_processing(void) {
     }
     
     if (strstr(conditional_result, "Condition met")) {
-        printf("[%sSUCCESS%s] Conditional macro: %s\n", GREEN, RESET, conditional_result);
+        LOG_INFOF("[SUCCESS] Conditional macro: %s", conditional_result);
         passed++;
     }
     
-    printf("Macro text processing tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Macro text processing tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test Unicode text handling
 int test_unicode_text_handling(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Unicode Text Handling ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Unicode Text Handling ===%s", BLUE, RESET);
     
     // Set locale for Unicode support
     setlocale(LC_ALL, "en_US.UTF-8");
     
     // Test UTF-8 character detection
-    printf("Testing UTF-8 character detection...\n");
+    LOG_INFO("Testing UTF-8 character detection...");
     total++;
     
     const char* utf8_text = "Hello 世界 🌍 café naïve résumé";
@@ -605,13 +603,12 @@ int test_unicode_text_handling(void) {
     }
     
     if (byte_count > char_count) {
-        printf("[%sSUCCESS%s] UTF-8 detection: %d bytes, %d characters (multi-byte detected)\n", 
-               GREEN, RESET, byte_count, char_count);
+        LOG_INFOF("[SUCCESS] UTF-8 detection: %d bytes, %d characters (multi-byte detected)", byte_count, char_count);
         passed++;
     }
     
     // Test Unicode normalization (basic check)
-    printf("Testing Unicode normalization...\n");
+    LOG_INFO("Testing Unicode normalization...");
     total++;
     
     const char* composed = "café";    // é as single character
@@ -622,13 +619,12 @@ int test_unicode_text_handling(void) {
     int decomposed_len = strlen(decomposed);
     
     if (composed_len != decomposed_len) {
-        printf("[%sSUCCESS%s] Unicode forms: composed=%d bytes, decomposed=%d bytes\n", 
-               GREEN, RESET, composed_len, decomposed_len);
+        LOG_INFOF("[SUCCESS] Unicode forms: composed=%d bytes, decomposed=%d bytes", composed_len, decomposed_len);
         passed++;
     }
     
     // Test Unicode text width calculation
-    printf("Testing Unicode text width calculation...\n");
+    LOG_INFO("Testing Unicode text width calculation...");
     total++;
     
     const char* width_test = "A世B界C🌍D"; // Mix of narrow, wide, and emoji
@@ -658,11 +654,10 @@ int test_unicode_text_handling(void) {
     
     // Expected: A(1) + 世(2) + B(1) + 界(2) + C(1) + 🌍(2) + D(1) = 10
     if (visual_width >= 9 && visual_width <= 11) {
-        printf("[%sSUCCESS%s] Unicode width: calculated width %d for mixed text\n", 
-               GREEN, RESET, visual_width);
+        LOG_INFOF("[SUCCESS] Unicode width: calculated width %d for mixed text", visual_width);
         passed++;
     }
     
-    printf("Unicode text handling tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Unicode text handling tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }

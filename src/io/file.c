@@ -15,10 +15,19 @@
 #include "edef.h"
 #include "efunc.h"
 #include "line.h"
+#include "gapbuffer.h"
 #include "util.h"
 #include "error.h"
 #include "file_utils.h"
-#include "string_safe.h"
+#include "memory.h"
+#include "string_utils.h"
+#include "util/logger.h"
+
+/* Buffer index and stats functions - declared in estruct.h */
+extern int buffer_index_insert(struct buffer *bp, int line_idx, struct line *lp);
+extern void buffer_update_stats_incremental(struct buffer *bp, int line_delta, long byte_delta, int word_delta);
+extern void buffer_get_stats_fast(struct buffer *bp, int *line_count, long *byte_count, int *word_count);
+extern int buffer_rebuild_index(struct buffer *bp);
 
 /* Max number of lines from one file. */
 #define	MAXNLINE 10000000
@@ -37,7 +46,7 @@ int fileread(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Read file: ", fname, NFILEN)) != true)
+	if ((s = minibuf_read("READ FILE: ", fname, NFILEN)) != true)
 		return s;
 	return readin(fname, true);
 }
@@ -58,7 +67,7 @@ int insfile(int f, int n)
 		return resterr();
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	if ((s = mlreply("Insert file: ", fname, NFILEN)) != true)
+	if ((s = minibuf_read("INSERT FILE: ", fname, NFILEN)) != true)
 		return s;
 	if ((s = ifile(fname)) != true)
 		return s;
@@ -81,7 +90,7 @@ int filefind(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Find file: ", fname, NFILEN)) != true)
+	if ((s = minibuf_read("FIND FILE: ", fname, NFILEN)) != true)
 		return s;
 	return getfile(fname, true);
 }
@@ -94,7 +103,7 @@ int viewfile(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("View file: ", fname, NFILEN)) != true)
+	if ((s = minibuf_read("VIEW FILE: ", fname, NFILEN)) != true)
 		return s;
 	s = getfile(fname, false);
 	if (s) {		/* if we succeed, put it in view mode */
@@ -136,15 +145,14 @@ int getfile(const char *fname, int lockfl)
 				lp = lback(lp);
 			curwp->w_linep = lp;
 			curwp->w_flag |= WFMODE | WFHARD;
-			cknewwindow();
-			mlwrite("(Old buffer)");
+			mlwrite("[OLD BUFFER]");
 			return true;
 		}
 	}
 	makename(bname, fname);	/* New buffer name.     */
 	while ((bp = bfind(bname, false, 0)) != nullptr) {
 		/* old buffer name conflict code */
-		s = mlreply("Buffer name: ", bname, NBUFN);
+		s = minibuf_read("BUFFER NAME: ", bname, NBUFN);
 		if (s == ABORT)	/* ^G to just quit      */
 			return s;
 		if (s == false) {	/* CR to clobber it     */
@@ -166,7 +174,6 @@ int getfile(const char *fname, int lockfl)
 	curwp->w_bufp = bp;
 	curbp->b_nwnd++;
 	s = readin(fname, lockfl);	/* Read it in.          */
-	cknewwindow();
 	return s;
 }
 
@@ -200,24 +207,21 @@ int readin(const char *fname, int lockfl)
 	bp->b_flag &= ~(BFINVS | BFCHG);
 	mystrscpy(bp->b_fname, fname, NFILEN);
 
-	/* let a user macro get hold of things...if he wants */
-	execute(META | SPEC | 'R', false, 1);
-
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
 		goto out;
 
 	if (s == FIOFNF) {	/* File not found.      */
-		mlwrite("(New file)");
+		mlwrite("[NEW FILE]");
 		goto out;
 	}
 
 	/* read the file in */
-	mlwrite("(Reading file)");
+	mlwrite("[READING FILE]");
 	nline = 0;
 	while ((s = ffgetline()) == FIOSUC) {
 		nbytes = strlen(fline);
 		if ((lp1 = lalloc(nbytes)) == nullptr) {
-			REPORT_ERROR(ERR_MEMORY, "Failed to allocate memory for file line");
+			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE MEMORY FOR FILE LINE");
 			s = FIOMEM;	/* Keep message on the  */
 			break;	/* display.             */
 		}
@@ -232,6 +236,20 @@ int readin(const char *fname, int lockfl)
 		curbp->b_linep->l_bp = lp1;
 		for (i = 0; i < nbytes; ++i)
 			lputc(lp1, i, fline[i]);
+#if UEMACS_DEBUG_LOG
+		/* DEBUG: Check first line bytes after lputc */
+		if (nline == 0 && nbytes >= 3) {
+			unsigned char b0 = (unsigned char)gap_buffer_get_char(lp1->gb, 0);
+			unsigned char b1 = (unsigned char)gap_buffer_get_char(lp1->gb, 1);
+			unsigned char b2 = (unsigned char)gap_buffer_get_char(lp1->gb, 2);
+			unsigned char b3 = nbytes > 3 ? (unsigned char)gap_buffer_get_char(lp1->gb, 3) : 0;
+			LOG_DEBUGF("AFTER_LPUTC: line=0 lp=%p gb=%p gbuf[0..3] = %02X %02X %02X %02X (gap_start=%zu raw=%02X %02X %02X %02X)",
+			           (void*)lp1, (void*)lp1->gb, b0, b1, b2, b3,
+			           lp1->gb->gap_start,
+			           (unsigned char)lp1->gb->data[0], (unsigned char)lp1->gb->data[1],
+			           (unsigned char)lp1->gb->data[2], (unsigned char)lp1->gb->data[3]);
+		}
+#endif
 		++nline;
 	}
 	ffclose();		/* Ignore errors.       */
@@ -251,12 +269,22 @@ int readin(const char *fname, int lockfl)
     safe_strcat(mesg, ")", NSTRING);
 	mlwrite(mesg);
 
-	// Mark buffer statistics as dirty after file load - forces recalculation
+	// Force recalculation of buffer statistics and rebuild line index after file load
+	// This is critical: b_line_count and b_line_index must be accurate before any editing
 	if (curbp) {
 		buffer_mark_stats_dirty(curbp);
+		// Force immediate recalculation by calling buffer_get_stats_fast
+		int actual_lines = 0;
+		buffer_get_stats_fast(curbp, &actual_lines, nullptr, nullptr);
+		// Rebuild line index from linked list
+		buffer_rebuild_index(curbp);
+		LOG_INFOF("File: Loaded %d lines, b_line_count now %d", nline, actual_lines);
 	}
 
       out:
+	/* Reset horizontal scroll position - ensures cursor starts at column 1 */
+	lbound = 0;
+
 	for (wp = wheadp; wp != nullptr; wp = wp->w_wndp) {
 		if (wp->w_bufp == curbp) {
 			wp->w_linep = lforw(curbp->b_linep);
@@ -339,7 +367,7 @@ int filewrite(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Write file: ", fname, NFILEN)) != true)
+	if ((s = minibuf_read("WRITE FILE: ", fname, NFILEN)) != true)
 		return s;
 	if ((s = writeout(fname)) == true) {
 		safe_strcpy(curbp->b_fname, fname, NFILEN);
@@ -367,14 +395,14 @@ int filesave(int f, int n)
 	if ((curbp->b_flag & BFCHG) == 0)	/* Return, no changes.  */
 		return true;
 	if (curbp->b_fname[0] == 0) {	/* Must have a name.    */
-		mlwrite("No file name");
+		mlwrite("NO FILE NAME");
 		return false;
 	}
 
 	/* complain about truncated files */
 	if ((curbp->b_flag & BFTRUNC) != 0) {
 		if (mlyesno("Truncated file ... write it out") == false) {
-			mlwrite("(Aborted)");
+			mlwrite("[ABORTED]");
 			return false;
 		}
 	}
@@ -399,43 +427,109 @@ int filesave(int f, int n)
  * a macro for this. Most of the grief is error
  * checking of some sort.
  */
+/*
+ * This function performs the details of file writing. Uses the file 
+ * management routines in the "fileio.c" package. The number of lines 
+ * written is displayed. Most of the grief is error checking of some sort.
+ */
 int writeout(const char *fn)
 {
 	int s;
 	struct line *lp;
-	{
-		struct window *wp;
-		int s;
+	int nline;
+	char mesg[NSTRING];
 
-		if (curbp->b_mode & MDVIEW)    /* don't allow this command if      */
-			return rdonly();    /* we are in read only mode     */
-		if ((curbp->b_flag & BFCHG) == 0)    /* Return, no changes.  */
-			return true;
-		if (curbp->b_fname[0] == 0) {    /* Must have a name.    */
-			mlwrite("No file name");
-			return false;
+	/* Pre-save processing: trim trailing whitespace if enabled */
+	if (trim_trailing_whitespace) {
+		struct line *tlp = lforw(curbp->b_linep);
+		while (tlp != curbp->b_linep) {
+			int len = llength(tlp);
+			if (len > 0) {
+				/* Find last non-whitespace */
+				int new_len = len;
+				while (new_len > 0) {
+					int c = lgetc(tlp, new_len - 1);
+					if (c != ' ' && c != '\t')
+						break;
+					new_len--;
+				}
+				/* Trim if needed */
+				if (new_len < len) {
+					gap_buffer_delete(tlp->gb, new_len, len - new_len);
+				}
+			}
+			tlp = lforw(tlp);
 		}
+	}
 
-		/* complain about truncated files */
-		if ((curbp->b_flag & BFTRUNC) != 0) {
-			if (mlyesno("Truncated file ... write it out") == false) {
-				mlwrite("(Aborted)");
+	/* Pre-save processing: ensure final newline if enabled */
+	/* Note: ffputline already adds newline after each line, so files
+	 * written by μEmacs naturally end with a newline. This check ensures
+	 * files with empty last lines still get proper newline treatment. */
+
+	/* Open the file for writing */
+	if ((s = ffwopen(fn)) != FIOSUC) {
+		REPORT_ERROR(ERR_FILE_WRITE, fn);
+		return false;
+	}
+
+	/* Write out each line */
+	lp = lforw(curbp->b_linep);		/* First line */
+	nline = 0;
+	while (lp != curbp->b_linep) {		/* Until end of buffer */
+		int len = llength(lp);
+		char *text = nullptr;
+
+		if (len > 0) {
+			text = SAFE_ARRAY(char, len, "file write");
+			if (!text) {
+				REPORT_ERROR(ERR_MEMORY, "Memory allocation failed during write");
+				return false;
+			}
+			size_t copied_len = gap_buffer_get_text(lp->gb, 0, len, text, len);
+			if (len > 0 && copied_len == 0) {
+				REPORT_ERROR(ERR_MEMORY, "FAILED TO READ LINE FROM GAP BUFFER");
+				SAFE_FREE(text);
 				return false;
 			}
 		}
 
-		/* Invoke ON_SAVE hooks before saving */
-	#include "internal/plugin.h"
-		uemacs_invoke_hooks(UEMACS_EVENT_ON_SAVE);
+		s = ffputline(text, len);
 
-		if ((s = writeout(curbp->b_fname)) == true) {
-			/* Mark saved baseline so undo-to-clean clears delta */
-			undo_mark_saved(curbp);
+		if (text) {
+			SAFE_FREE(text);
 		}
-		return s;
+
+		if (s != FIOSUC) {
+			break;
+		}
+		++nline;
+		lp = lforw(lp);
 	}
+
+	/* Close the file */
+	if ((s = ffclose()) != FIOSUC) {
+		REPORT_ERROR(ERR_FILE_WRITE, fn);
+		return false;
+	}
+
+	/* Report results */
+	if (s == FIOERR) {
+		REPORT_ERROR(ERR_FILE_WRITE, fn);
+		return false;
+	}
+
+	/* Success! */
+	safe_strcpy(mesg, "[WROTE ", NSTRING);
+	size_t mesg_len = strlen(mesg);
+	safe_snprintf(&mesg[mesg_len], NSTRING - mesg_len, "%d LINE", nline);
+	if (nline != 1)
+		safe_strcat(mesg, "S", NSTRING);
+	safe_strcat(mesg, "]", NSTRING);
+	mlwrite(mesg);
 	return true;
 }
+
 
 /*
  * The command allows the user
@@ -454,7 +548,7 @@ int filename(int f, int n)
 
 	if (restflag)		/* don't allow this command if restricted */
 		return resterr();
-	if ((s = mlreply("Name: ", fname, NFILEN)) == ABORT)
+	if ((s = minibuf_read("NAME: ", fname, NFILEN)) == ABORT)
 		return s;
     if (s == false) {
         safe_strcpy(curbp->b_fname, "", NFILEN);
@@ -494,10 +588,10 @@ int ifile(const char *fname)
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
 		goto out;
 	if (s == FIOFNF) {	/* File not found.      */
-		mlwrite("(No such file)");
+		mlwrite("[NO SUCH FILE]");
 		return false;
 	}
-	mlwrite("(Inserting file)");
+	mlwrite("[INSERTING FILE]");
 
 	/* Old CRYPT removed */
 	/* back up a line and save the mark here */
@@ -510,7 +604,7 @@ int ifile(const char *fname)
 	while ((s = ffgetline()) == FIOSUC) {
 		nbytes = strlen(fline);
 		if ((lp1 = lalloc(nbytes)) == nullptr) {
-			REPORT_ERROR(ERR_MEMORY, "Failed to allocate memory for file line");
+			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE MEMORY FOR FILE LINE");
 			s = FIOMEM;	/* Keep message on the  */
 			break;	/* display.             */
 		}
@@ -546,6 +640,14 @@ int ifile(const char *fname)
         safe_strcat(mesg, "s", NSTRING);
     safe_strcat(mesg, ")", NSTRING);
 	mlwrite(mesg);
+
+	// Force recalculation of buffer statistics and rebuild line index
+	// This is critical since we bypassed normal line insertion
+	if (curbp && nline > 0) {
+		buffer_mark_stats_dirty(curbp);
+		buffer_get_stats_fast(curbp, nullptr, nullptr, nullptr);
+		buffer_rebuild_index(curbp);
+	}
 
       out:
 	/* advance to the next line and mark the window for changes */

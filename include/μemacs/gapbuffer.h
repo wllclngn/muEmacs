@@ -40,10 +40,12 @@ struct gap_buffer {
 };
 
 // Gap buffer configuration
-#define GAP_BUFFER_MIN_SIZE    1024      // Minimum buffer size
-#define GAP_BUFFER_GROW_FACTOR 1.5       // Growth factor for expansion
-#define GAP_BUFFER_MAX_GAP     4096      // Maximum gap size before compaction
-#define LINE_INDEX_CHUNK       128       // Line index growth chunk size
+#define GAP_BUFFER_MIN_SIZE        1024           // Minimum buffer size
+#define GAP_BUFFER_GROW_FACTOR     1.5            // Growth factor for expansion
+#define GAP_BUFFER_MAX_GAP         4096           // Maximum gap size before compaction
+#define LINE_INDEX_CHUNK           128            // Line index growth chunk size
+#define GAP_BUFFER_LARGE_THRESHOLD (1024 * 1024)  // 1MB - use linear allocation above this
+#define GAP_BUFFER_MAX_SIZE        (SIZE_MAX / 2) // Safety limit to prevent overflow
 
 // Gap buffer management
 struct gap_buffer *gap_buffer_create(size_t initial_capacity);

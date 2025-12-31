@@ -35,7 +35,7 @@ static void clear_selection(void)
  * Move "." to the start, and kill the characters.
  * Bound to "C-W".
  */
-int killregion(int f, int n)
+int region_kill(int f, int n)
 {
 	int s;
 	struct region region;
@@ -59,7 +59,7 @@ int killregion(int f, int n)
  * at all. This is a bit like a kill region followed
  * by a yank. Bound to "M-W".
  */
-int copyregion(int f, int n)
+int region_copy(int f, int n)
 {
 	struct line *linep;
 	int loffs;
@@ -80,7 +80,7 @@ int copyregion(int f, int n)
 	/* Pre-size clipboard buffer (exact size) */
 	if (region.r_size > 0) {
 		cb_cap = region.r_size + 1; /* include NUL */
-		cb = safe_alloc((size_t)cb_cap, "copyregion clipboard", __FILE__, __LINE__);
+		cb = safe_alloc((size_t)cb_cap, "region_copy clipboard", __FILE__, __LINE__);
 		if (!cb) return false;
 	}
 	while (region.r_size--) {
@@ -104,7 +104,7 @@ int copyregion(int f, int n)
 		set_clipboard(cb);
 		SAFE_FREE(cb);
 	}
-	mlwrite("(region copied)");
+	mlwrite("[REGION COPIED]");
 	clear_selection();	/* Clear visual selection after copy */
 	return true;
 
@@ -206,7 +206,7 @@ int getregion(struct region *rp)
 	long bsize;
 
 	if (curwp->w_markp == nullptr) {
-		mlwrite("No mark set in this window");
+		mlwrite("NO MARK SET IN THIS WINDOW");
 		return false;
 	}
 	if (curwp->w_dotp == curwp->w_markp) {
@@ -248,6 +248,6 @@ int getregion(struct region *rp)
 			}
 		}
 	}
-	mlwrite("Bug: lost mark");
+	mlwrite("BUG: LOST MARK");
 	return false;
 }

@@ -15,22 +15,22 @@ int test_phase5_advanced_undo_redo() {
     
     PHASE_START("PHASE 5", "Advanced Undo/Redo System Validation");
     
-    printf("5A: Testing EXTREME word-boundary undo grouping - 50,000 operations...\n");
-    printf("5B: Testing MASSIVE cursor movement undo breaks - 40,000 operations...\n");
-    printf("5C: Testing EXTREME operation type switching (insert->delete) - 75,000 operations...\n");
-    printf("5D: Testing INSANE complex undo/redo chains (100,000 operations)...\n");
-    printf("5E: Testing EXTREME undo after mixed operations - 60,000 operations...\n");
-    printf("5F: Testing MASSIVE redo functionality limits - 80,000 operations...\n");
-    printf("5G: Testing undo system memory management...\n");
-    printf("5H: Testing INSANE undo system validation (200,000 operations)...\n");
-    printf("5I: Testing undo/redo stability scenarios...\n");
-    printf("5J: Testing undo stack protection...\n");
+    LOG_INFO("5A: Testing EXTREME word-boundary undo grouping - 50,000 operations...");
+    LOG_INFO("5B: Testing MASSIVE cursor movement undo breaks - 40,000 operations...");
+    LOG_INFO("5C: Testing EXTREME operation type switching (insert->delete) - 75,000 operations...");
+    LOG_INFO("5D: Testing INSANE complex undo/redo chains (100,000 operations)...");
+    LOG_INFO("5E: Testing EXTREME undo after mixed operations - 60,000 operations...");
+    LOG_INFO("5F: Testing MASSIVE redo functionality limits - 80,000 operations...");
+    LOG_INFO("5G: Testing undo system memory management...");
+    LOG_INFO("5H: Testing INSANE undo system validation (200,000 operations)...");
+    LOG_INFO("5I: Testing undo/redo stability scenarios...");
+    LOG_INFO("5J: Testing undo stack protection...");
     
     // Non-interactive unit tests for undo/redo core
     {
         struct buffer *bp = bfind("undo-unit", true, 0);
         if (!bp) {
-            printf("[%sFAIL%s] Could not create test buffer\n", RED, RESET);
+            LOG_ERROR("[FAIL] Could not create test buffer");
             result = 0;
         } else {
             int unit_ok = 1; // keep phase passing even if unit checks are flaky in CI
@@ -48,30 +48,30 @@ int test_phase5_advanced_undo_redo() {
             linsert_str(hello);
             char *line = getctext();
             if (!line || strcmp(line, hello) != 0) {
-                printf("[%sWARNING%s] Insert mismatch (CI): got '%s'\n", YELLOW, RESET, line ? line : "(null)");
+                LOG_WARNF("[WARN] Insert mismatch (CI): got '%s'", line ? line : "(null)");
                 unit_ok = 0;
             }
             if (!undo_cmd(0,1)) {
-                printf("[%sWARNING%s] undo_cmd failed (CI)\n", YELLOW, RESET);
+                LOG_WARN("[WARN] undo_cmd failed (CI)");
                 unit_ok = 0;
             }
             line = getctext();
             if (!line || strlen(line) != 0) {
-                printf("[%sWARNING%s] Undo did not clear line (CI), got '%s'\n", YELLOW, RESET, line ? line : "(null)");
+                LOG_WARNF("[WARN] Undo did not clear line (CI), got '%s'", line ? line : "(null)");
                 unit_ok = 0;
             }
             if (!redo_cmd(0,1)) {
-                printf("[%sWARNING%s] redo_cmd failed (CI)\n", YELLOW, RESET);
+                LOG_WARN("[WARN] redo_cmd failed (CI)");
                 unit_ok = 0;
             }
             line = getctext();
             if (!line || strcmp(line, hello) != 0) {
-                printf("[%sWARNING%s] Redo mismatch (CI): got '%s'\n", YELLOW, RESET, line ? line : "(null)");
+                LOG_WARNF("[WARN] Redo mismatch (CI): got '%s'", line ? line : "(null)");
                 unit_ok = 0;
             }
 
             // 5U-2: Grouped inserts undo as one (timing-based; usually merges under 400ms)
-            gotobob(true, 1);
+            goto_buffer_start(true, 1);
             // Clear existing text completely
             ldelete(llength(curwp->w_dotp), false);
 
@@ -81,7 +81,7 @@ int test_phase5_advanced_undo_redo() {
             linsert_str(b);
             line = getctext();
             if (!line || strcmp(line, "AB") != 0) {
-                printf("[%sWARNING%s] Adjacent inserts mismatch (CI): got '%s'\n", YELLOW, RESET, line ? line : "(null)");
+                LOG_WARNF("[WARN] Adjacent inserts mismatch (CI): got '%s'", line ? line : "(null)");
                 unit_ok = 0;
             }
             // One undo should normally remove both 'A' and 'B' if grouped
@@ -93,7 +93,7 @@ int test_phase5_advanced_undo_redo() {
                 line = getctext();
             }
             if (!line || strlen(line) != 0) {
-                printf("[%sWARNING%s] Grouped undo did not restore empty line (CI)\n", YELLOW, RESET);
+                LOG_WARN("[WARN] Grouped undo did not restore empty line (CI)");
                 unit_ok = 0;
             }
 
@@ -101,12 +101,12 @@ int test_phase5_advanced_undo_redo() {
             // After undo, perform new insert and ensure redo no longer applies
             linsert_str(a);
             if (redo_cmd(0,1)) {
-                printf("[%sWARNING%s] Redo should have been invalidated by new edit (CI)\n", YELLOW, RESET);
+                LOG_WARN("[WARN] Redo should have been invalidated by new edit (CI)");
                 unit_ok = 0;
             }
 
             if (unit_ok) {
-                printf("[%%sINFO%%s] Undo/redo unit checks passed\n", BLUE, RESET);
+                LOG_INFOF("[%%sINFO%%s] Undo/redo unit checks passed", BLUE, RESET);
             }
         }
     }

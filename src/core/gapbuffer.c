@@ -12,6 +12,7 @@
 #include "memory.h"
 #include "utf8.h"
 #include "../text/boyer_moore.h"
+#include "util/logger.h"
 
 // Global statistics
 struct gap_buffer_stats gap_buffer_global_stats = {0};
@@ -72,9 +73,18 @@ void gap_buffer_destroy(struct gap_buffer *gb) {
 // Move gap to specified position - O(n) worst case, but amortized O(1)
 static int move_gap_to(struct gap_buffer *gb, size_t pos) {
     if (pos == gb->gap_start) return GAP_BUFFER_SUCCESS;
-    
+
+#if UEMACS_DEBUG_LOG
+    static int move_count = 0;
+    int should_log = (move_count < 10 && gb->logical_size < 50 && gb->capacity >= 4);
+    if (should_log) {
+        LOG_DEBUGF("MOVE_GAP_BEFORE: gb=%p from=%zu to=%zu gap_end=%zu cap=%zu",
+                   (void*)gb, gb->gap_start, pos, gb->gap_end, gb->capacity);
+    }
+#endif
+
     size_t gap_size = gb->gap_end - gb->gap_start;
-    
+
     if (pos < gb->gap_start) {
         // Move gap left: shift text right
         size_t move_size = gb->gap_start - pos;
@@ -88,7 +98,15 @@ static int move_gap_to(struct gap_buffer *gb, size_t pos) {
         gb->gap_start = pos;
         gb->gap_end = pos + gap_size;
     }
-    
+
+#if UEMACS_DEBUG_LOG
+    if (should_log) {
+        LOG_DEBUGF("MOVE_GAP_AFTER: gb=%p gap=[%zu,%zu) logical=%zu",
+                   (void*)gb, gb->gap_start, gb->gap_end, gb->logical_size);
+        move_count++;
+    }
+#endif
+
     atomic_fetch_add(&gap_buffer_global_stats.cursor_moves, 1);
     atomic_fetch_add(&gb->generation, 1);
     return GAP_BUFFER_SUCCESS;
@@ -97,10 +115,25 @@ static int move_gap_to(struct gap_buffer *gb, size_t pos) {
 // Expand gap buffer capacity
 static int expand_gap_buffer(struct gap_buffer *gb, size_t min_additional) {
     size_t new_capacity = gb->capacity;
-    
-    // Calculate new capacity using growth factor
-    while (new_capacity - gb->logical_size < min_additional) {
-        new_capacity = (size_t)(new_capacity * GAP_BUFFER_GROW_FACTOR);
+
+    // For large inserts, use linear allocation (exact + 25% padding) to avoid
+    // wasting memory with geometric growth (e.g., 25MB paste would waste 12MB)
+    if (min_additional > GAP_BUFFER_LARGE_THRESHOLD) {
+        size_t needed = gb->logical_size + min_additional;
+        new_capacity = needed + (min_additional / 4);  // 25% padding for future edits
+        if (new_capacity < needed) {
+            return GAP_BUFFER_OUT_OF_MEM;  // Overflow check
+        }
+    } else {
+        // Normal geometric growth for small operations (amortized O(1))
+        while (new_capacity - gb->logical_size < min_additional) {
+            new_capacity = (size_t)(new_capacity * GAP_BUFFER_GROW_FACTOR);
+        }
+    }
+
+    // Safety limit to prevent integer overflow and unreasonable allocations
+    if (new_capacity > GAP_BUFFER_MAX_SIZE) {
+        return GAP_BUFFER_OUT_OF_MEM;
     }
     
     char *new_data = safe_alloc(new_capacity, "gap buffer expansion", __FILE__, __LINE__);
@@ -125,15 +158,26 @@ static int expand_gap_buffer(struct gap_buffer *gb, size_t min_additional) {
 }
 
 // Insert text at specified position
-int gap_buffer_insert(struct gap_buffer *gb, size_t pos, const char *text, size_t len) {
+int gap_buffer_insert(struct gap_buffer *restrict gb, size_t pos, const char *restrict text, size_t len) {
     if (!gb || !text || pos > gb->logical_size) {
         return GAP_BUFFER_INVALID;
     }
-    
+
+#if UEMACS_DEBUG_LOG
+    /* DEBUG: Log single-byte inserts at position 0 to trace UTF-8 corruption */
+    if (len == 1 && pos == 0 && gb->logical_size > 0 && gb->logical_size < 50) {
+        unsigned char byte = (unsigned char)text[0];
+        LOG_DEBUGF("INSERT@0: gb=%p byte=0x%02X logical_size=%zu gap=[%zu,%zu)",
+                   (void*)gb, byte, gb->logical_size, gb->gap_start, gb->gap_end);
+    }
+#endif
+
     // Ensure gap has enough space
     size_t gap_size = gb->gap_end - gb->gap_start;
     if (gap_size < len) {
-        if (expand_gap_buffer(gb, len - gap_size) != GAP_BUFFER_SUCCESS) {
+        // Pass total space needed (len), not delta (len - gap_size)
+        // The expansion function checks: new_capacity - logical_size >= min_additional
+        if (expand_gap_buffer(gb, len) != GAP_BUFFER_SUCCESS) {
             return GAP_BUFFER_OUT_OF_MEM;
         }
     }
@@ -214,22 +258,32 @@ char gap_buffer_get_char(struct gap_buffer *gb, size_t pos) {
 }
 
 // Get text range
-size_t gap_buffer_get_text(struct gap_buffer *gb, size_t pos, size_t len,
-                          char *buffer, size_t buffer_size) {
+size_t gap_buffer_get_text(struct gap_buffer *restrict gb, size_t pos, size_t len,
+                          char *restrict buffer, size_t buffer_size) {
     if (!gb || !buffer || pos > gb->logical_size) {
         return 0;
     }
-    
+
     if (pos + len > gb->logical_size) {
         len = gb->logical_size - pos;
     }
     if (len > buffer_size) {
         len = buffer_size;
     }
-    
+
     size_t copied = 0;
     size_t gap_size = gb->gap_end - gb->gap_start;
-    
+
+#if UEMACS_DEBUG_LOG
+    /* DEBUG: Log gap buffer metadata for first get_text call */
+    static int call_count = 0;
+    if (call_count == 0 && pos == 0 && len >= 4) {
+        LOG_DEBUGF("GAPBUF_GET: gb=%p gap_start=%zu gap_end=%zu logical=%zu",
+                   (void*)gb, gb->gap_start, gb->gap_end, gb->logical_size);
+        call_count = 1;
+    }
+#endif
+
     if (pos < gb->gap_start) {
         // Copy from before gap
         size_t before_gap = gb->gap_start - pos;
@@ -239,14 +293,14 @@ size_t gap_buffer_get_text(struct gap_buffer *gb, size_t pos, size_t len,
         len -= copy_before;
         pos = gb->gap_start;
     }
-    
+
     if (len > 0 && pos >= gb->gap_start) {
         // Copy from after gap
         size_t actual_pos = pos + gap_size;
         memcpy(&buffer[copied], &gb->data[actual_pos], len);
         copied += len;
     }
-    
+
     return copied;
 }
 
@@ -267,9 +321,12 @@ void gap_buffer_rebuild_line_index(struct gap_buffer *gb) {
             // Ensure capacity
             if (gb->line_idx.count >= gb->line_idx.capacity) {
                 size_t new_capacity = gb->line_idx.capacity + LINE_INDEX_CHUNK;
-                size_t *new_offsets = SAFE_REALLOC(gb->line_idx.offsets, 
+                size_t *new_offsets = SAFE_REALLOC(gb->line_idx.offsets,
                                             new_capacity * sizeof(size_t), "gapbuffer");
-                if (!new_offsets) return; // Keep old index
+                if (!new_offsets) {
+                    LOG_ERROR("GapBuffer: Line index realloc failed (before gap)");
+                    return; // Keep old index
+                }
                 gb->line_idx.offsets = new_offsets;
                 gb->line_idx.capacity = new_capacity;
             }
@@ -285,7 +342,10 @@ void gap_buffer_rebuild_line_index(struct gap_buffer *gb) {
                 size_t new_capacity = gb->line_idx.capacity + LINE_INDEX_CHUNK;
                 size_t *new_offsets = SAFE_REALLOC(gb->line_idx.offsets,
                                             new_capacity * sizeof(size_t), "gapbuffer");
-                if (!new_offsets) return; // Keep old index
+                if (!new_offsets) {
+                    LOG_ERROR("GapBuffer: Line index realloc failed (after gap)");
+                    return; // Keep old index
+                }
                 gb->line_idx.offsets = new_offsets;
                 gb->line_idx.capacity = new_capacity;
             }
@@ -394,9 +454,23 @@ int gap_buffer_compact(struct gap_buffer *gb) {
     return GAP_BUFFER_SUCCESS;
 }
 
+// Pre-allocate space for known large operations (e.g., file loading, large pastes)
+int gap_buffer_reserve(struct gap_buffer *gb, size_t additional_capacity) {
+    if (!gb) return GAP_BUFFER_INVALID;
+
+    // Check if we already have enough space
+    size_t current_gap = gb->gap_end - gb->gap_start;
+    if (current_gap >= additional_capacity) {
+        return GAP_BUFFER_SUCCESS;
+    }
+
+    // Expand to accommodate the requested capacity
+    return expand_gap_buffer(gb, additional_capacity);
+}
+
 // Boyer-Moore search forward
-size_t gap_buffer_search_forward(struct gap_buffer *gb, size_t start_pos,
-                                const char *pattern, size_t pattern_len) {
+size_t gap_buffer_search_forward(struct gap_buffer *restrict gb, size_t start_pos,
+                                const char *restrict pattern, size_t pattern_len) {
     if (!gb || !pattern || pattern_len == 0 || start_pos >= gb->logical_size) {
         return gb ? gb->logical_size : 0; // Not found
     }
@@ -441,21 +515,21 @@ void gap_buffer_invalidate_caches(struct gap_buffer *gb) {
 void gap_buffer_dump_stats(struct gap_buffer *gb) {
     if (!gb) return;
     
-    mlwrite("Gap Buffer Statistics:");
-    mlwrite("  Logical size: %zu bytes", gb->logical_size);
-    mlwrite("  Capacity: %zu bytes", gb->capacity);
-    mlwrite("  Gap: [%zu, %zu) = %zu bytes", 
+    mlwrite("GAP BUFFER STATISTICS:");
+    mlwrite("  LOGICAL SIZE: %zu BYTES", gb->logical_size);
+    mlwrite("  CAPACITY: %zu BYTES", gb->capacity);
+    mlwrite("  GAP: [%zu, %zu) = %zu BYTES", 
            gb->gap_start, gb->gap_end, gb->gap_end - gb->gap_start);
-    mlwrite("  Fragmentation: %.2f%%", gap_buffer_fragmentation(gb) * 100.0);
-    mlwrite("  Lines: %zu", gap_buffer_line_count(gb));
-    mlwrite("  Generation: %u", atomic_load(&gb->generation));
+    mlwrite("  FRAGMENTATION: %.2f%%", gap_buffer_fragmentation(gb) * 100.0);
+    mlwrite("  LINES: %zu", gap_buffer_line_count(gb));
+    mlwrite("  GENERATION: %u", atomic_load(&gb->generation));
     
-    mlwrite("Global Statistics:");
-    mlwrite("  Insertions: %zu", atomic_load(&gap_buffer_global_stats.insertions));
-    mlwrite("  Deletions: %zu", atomic_load(&gap_buffer_global_stats.deletions));
-    mlwrite("  Cursor moves: %zu", atomic_load(&gap_buffer_global_stats.cursor_moves));
-    mlwrite("  Expansions: %zu", atomic_load(&gap_buffer_global_stats.expansions));
-    mlwrite("  Compactions: %zu", atomic_load(&gap_buffer_global_stats.compactions));
+    mlwrite("GLOBAL STATISTICS:");
+    mlwrite("  INSERTIONS: %zu", atomic_load(&gap_buffer_global_stats.insertions));
+    mlwrite("  DELETIONS: %zu", atomic_load(&gap_buffer_global_stats.deletions));
+    mlwrite("  CURSOR MOVES: %zu", atomic_load(&gap_buffer_global_stats.cursor_moves));
+    mlwrite("  EXPANSIONS: %zu", atomic_load(&gap_buffer_global_stats.expansions));
+    mlwrite("  COMPACTIONS: %zu", atomic_load(&gap_buffer_global_stats.compactions));
 }
 // Validate gap buffer integrity
 void gap_buffer_validate(struct gap_buffer *gb) {
@@ -465,6 +539,6 @@ void gap_buffer_validate(struct gap_buffer *gb) {
     assert(gb->gap_end <= gb->capacity);
     assert(gb->logical_size == gb->gap_start + (gb->capacity - gb->gap_end));
     
-    mlwrite("Gap buffer validation: PASSED");
+    mlwrite("GAP BUFFER VALIDATION: PASSED");
 }
 #endif

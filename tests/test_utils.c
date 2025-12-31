@@ -9,11 +9,20 @@
 #endif
 #include <termios.h>
 
+// Include μEmacs internals for buffer/line helpers
+#include "estruct.h"
+#include "edef.h"
+#include "efunc.h"
+#include "line.h"
+
+// Logging support for test suite
+#include "util/logger.h"
+
 // Test statistics
 stats_t stats = {0};
 
 // Global path to uemacs binary
-const char* uemacs_path = nullptr;
+const char* uemacs_path = NULL;
 
 // Modern timeout-based error handling
 volatile int test_timeout_occurred = 0;
@@ -22,9 +31,9 @@ volatile int current_test_pid = 0;
 void timeout_handler(int sig) {
     if (sig == SIGALRM) {
         test_timeout_occurred = 1;
-        printf("\n[%sTIMEOUT%s] Test exceeded time limit\n", YELLOW, RESET);
+        LOG_WARN("[TIMEOUT] Test exceeded time limit");
         if (current_test_pid > 0) {
-            printf("[%sCLEANUP%s] Terminating child process %d\n", YELLOW, RESET, current_test_pid);
+            LOG_WARNF("[CLEANUP] Terminating child process %d", current_test_pid);
             kill(current_test_pid, SIGTERM);
             sleep(1);
             kill(current_test_pid, SIGKILL);
@@ -58,8 +67,8 @@ void log_memory_usage() {
         if ((unsigned long)usage.ru_maxrss > stats.memory_peak_kb) {
             stats.memory_peak_kb = (unsigned long)usage.ru_maxrss;
         }
-        printf("[MEMORY] Current: %ld KB, Peak: %lu KB\n", 
-               usage.ru_maxrss, stats.memory_peak_kb);
+        LOG_DEBUGF("[MEMORY] Current: %ld KB, Peak: %lu KB",
+                   usage.ru_maxrss, stats.memory_peak_kb);
     }
 }
 
@@ -82,13 +91,13 @@ static int interactive_allowed(void) {
 int run_expect_script(const char* script_name, const char* test_file) {
     // Global guard: only run interactive tests when explicitly enabled
     if (!interactive_allowed()) {
-        printf("[%sWARNING%s] Interactive tests disabled; skipping %s (set UEMACS_INTERACTIVE=1 to enable)\n", YELLOW, RESET, script_name);
+        LOG_WARNF("[SKIP] Interactive tests disabled; skipping %s (set UEMACS_INTERACTIVE=1)", script_name);
         return 1; // treat as skip/success in CI
     }
     char tmp_path[64] = "/tmp/expect_run_XXXXXX";
     int fd = mkstemp(tmp_path);
     if (fd == -1) {
-        fprintf(stderr, "[WARN] Could not create temp file for expect output. Running directly.\n");
+        LOG_WARN("[WARN] Could not create temp file for expect output. Running directly.");
         char fallback[512];
         snprintf(fallback, sizeof(fallback), "LSAN_OPTIONS=detect_leaks=0 ASAN_OPTIONS=detect_leaks=0 expect tests/%s %s %s", script_name, uemacs_path, test_file);
         int direct = system(fallback);
@@ -108,10 +117,10 @@ int run_expect_script(const char* script_name, const char* test_file) {
         memset(&tio, 0, sizeof(tio));
         tio.c_cflag = B38400 | CS8 | CREAD | CLOCAL;
     }
-    cpid = forkpty(&mfd, nullptr, &tio, nullptr);
+    cpid = forkpty(&mfd, NULL, &tio, NULL);
     if (cpid == -1) {
         // Fallback: no PTY available -> skip running expect entirely
-        printf("[%sWARNING%s] PTY unavailable; skipping expect script %s\n", YELLOW, RESET, script_name);
+        LOG_WARNF("[SKIP] PTY unavailable; skipping expect script %s", script_name);
         return 1;
     }
 
@@ -119,7 +128,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
         // Child: set env and exec shell to run the command
         setenv("LSAN_OPTIONS", "detect_leaks=0", 1);
         setenv("ASAN_OPTIONS", "detect_leaks=0", 1);
-        execl("/bin/sh", "sh", "-c", cmd, (char*)nullptr);
+        execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
         _exit(127);
     }
 
@@ -133,7 +142,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
 
     fd_set rfds;
     struct timeval tv;
-    time_t start = time(nullptr);
+    time_t start = time(NULL);
     char buf[1024];
     int finished = 0;
     while (!finished) {
@@ -141,7 +150,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
         FD_SET(mfd, &rfds);
         tv.tv_sec = 1;
         tv.tv_usec = 0;
-        int rv = select(mfd + 1, &rfds, nullptr, nullptr, &tv);
+        int rv = select(mfd + 1, &rfds, NULL, NULL, &tv);
         if (rv > 0 && FD_ISSET(mfd, &rfds)) {
             ssize_t n = read(mfd, buf, sizeof(buf));
             if (n > 0) {
@@ -151,8 +160,8 @@ int run_expect_script(const char* script_name, const char* test_file) {
             }
         }
         // Timeout guard (Phase timeout handler also exists)
-        if (difftime(time(nullptr), start) > PHASE_TIMEOUT_SECONDS) {
-            fprintf(out, "\n[PTyRunner] Timeout exceeded. Killing child...\n");
+        if (difftime(time(NULL), start) > PHASE_TIMEOUT_SECONDS) {
+            LOG_WARN("[PTyRunner] Timeout exceeded. Killing child...");
             kill(cpid, SIGKILL);
             finished = 1;
         }
@@ -171,7 +180,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
     }
     fclose(out);
     close(mfd);
-    printf("[%sWARNING%s] PTY-runner could not validate %s; see %s\n", YELLOW, RESET, script_name, tmp_path);
+    LOG_WARNF("[SKIP] PTY-runner could not validate %s; see %s", script_name, tmp_path);
     return 1; // Treat as skip in constrained environments
 }
 
@@ -462,15 +471,126 @@ void create_expect_scripts() {
 
 int test_keymap_validation() {
     int result = 1;
-    
+
     PHASE_START("Keymap Validation", "Testing Keymap System Functionality");
-    
-    printf("[%sINFO%s] Keymap validation simplified - atomic operations verified\n", YELLOW, RESET);
+
+    LOG_INFO("Keymap validation simplified - atomic operations verified");
     result = 1; // Pass - atomic keymap system is functional
-    
+
     stats.operations_completed += 100; // Small number for this test
     log_memory_usage();
-    
+
     PHASE_END("Keymap Validation", result);
     return result;
+}
+
+// =============================================================================
+// Shared Buffer/Line Test Helpers (E3: consolidate duplicate setup code)
+// =============================================================================
+
+// Create an empty test buffer
+struct buffer *test_setup_buffer(const char *name) {
+    struct buffer *bp = bfind((char *)name, true, 0);
+    if (!bp) return NULL;
+
+    // Switch to the new buffer
+    curbp = bp;
+    if (curwp) {
+        curwp->w_bufp = bp;
+        curwp->w_dotp = bp->b_linep;
+        curwp->w_doto = 0;
+    }
+
+    return bp;
+}
+
+// Create a test buffer with N lines of content
+struct buffer *test_setup_buffer_with_lines(const char *name, int num_lines) {
+    struct buffer *bp = bfind((char *)name, true, 0);
+    if (!bp) return NULL;
+
+    struct buffer *oldbp = curbp;
+    curbp = bp;
+    if (curwp) {
+        curwp->w_bufp = bp;
+        curwp->w_dotp = bp->b_linep;
+        curwp->w_doto = 0;
+    }
+
+    // Add content lines
+    for (int i = 1; i <= num_lines; i++) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Line %d content here", i);
+
+        if (curwp) {
+            curwp->w_dotp = lforw(bp->b_linep);
+            curwp->w_doto = 0;
+        }
+        linstr(buf);
+        if (i < num_lines) lnewline();
+    }
+
+    // Position at start of content
+    if (curwp) {
+        curwp->w_dotp = lforw(bp->b_linep);
+        curwp->w_doto = 0;
+    }
+
+    // Restore original buffer context (caller decides when to switch)
+    curbp = oldbp;
+    return bp;
+}
+
+// Cleanup a test buffer
+void test_cleanup_buffer(struct buffer *bp, struct buffer *oldbp) {
+    if (oldbp) {
+        curbp = oldbp;
+        if (curwp) {
+            curwp->w_bufp = oldbp;
+        }
+    }
+    if (bp) {
+        bp->b_flag &= ~BFCHG;  // Mark as unmodified to avoid prompts
+        zotbuf(bp);
+    }
+}
+
+// Create a standalone line with text (for line operation tests)
+struct line *test_make_line(const char *text) {
+    size_t len = text ? strlen(text) : 0;
+    struct line *lp = lalloc((int)len);
+    if (lp && text) {
+        for (size_t i = 0; i < len; i++) {
+            lputc(lp, (int)i, text[i]);
+        }
+    }
+    return lp;
+}
+
+// Initialize editor for unit tests - sets up terminal, buffers, windows
+void test_init_editor(const char *name) {
+    // Initialize logging if enabled
+    static int logger_initialized = 0;
+    if (!logger_initialized) {
+        logger_init();
+        logger_initialized = 1;
+        LOG_INFO("TEST: Logger initialized for test suite");
+    }
+
+    LOG_INFOF("TEST: Initializing editor for test '%s'", name ? name : "test");
+
+    // Set terminal dimensions BEFORE edinit
+    term.t_nrow = 24 - 1;  // rows minus modeline
+    term.t_ncol = 80;
+    term.t_mrow = 24;      // total rows
+    term.t_mcol = 80;      // total cols
+
+    // Initialize editor structures (creates curwp, curbp, etc.)
+    edinit((char *)(name ? name : "test"));
+
+    // Initialize variables
+    varinit();
+
+    LOG_DEBUGF("TEST: Editor initialized - curwp=%p, curbp=%p, t_nrow=%d, t_ncol=%d",
+               (void*)curwp, (void*)curbp, term.t_nrow, term.t_ncol);
 }

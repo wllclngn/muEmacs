@@ -1,4 +1,6 @@
 // git_status.c - Asynchronous Git status for μEmacs status line
+//
+// C23 modernization: Uses posix_spawn() instead of popen()
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,8 +8,66 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
+#include <spawn.h>
+#include <sys/wait.h>
 
 #include "git_status.h"
+
+extern char **environ;
+
+/*
+ * run_cmd_capture - Run a shell command and capture stdout
+ *
+ * Uses posix_spawn() with pipe redirection instead of popen().
+ * Returns bytes read, or -1 on error. Output is null-terminated.
+ */
+static int run_cmd_capture(const char *cmd, char *out, size_t out_sz)
+{
+    if (!out || out_sz == 0) return -1;
+    out[0] = '\0';
+
+    int pipefd[2];
+    if (pipe(pipefd) == -1) return -1;
+
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+
+    /* Redirect stderr to /dev/null */
+    posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", 1, 0);
+
+    pid_t pid;
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+
+    int err = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ);
+    posix_spawn_file_actions_destroy(&actions);
+
+    if (err != 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+
+    close(pipefd[1]);  /* Close write end in parent */
+
+    /* Read output */
+    ssize_t total = 0;
+    while ((size_t)total < out_sz - 1) {
+        ssize_t n = read(pipefd[0], out + total, out_sz - 1 - (size_t)total);
+        if (n <= 0) break;
+        total += n;
+    }
+    out[total] = '\0';
+    close(pipefd[0]);
+
+    /* Wait for child */
+    int status;
+    waitpid(pid, &status, 0);
+
+    return (int)total;
+}
 
 // Simple throttled background updater with cached result
 static int enabled = 0;
@@ -21,25 +81,17 @@ static void* updater(void* arg) {
     char branch[96] = {0};
     int is_dirty = 0;
 
-    // Use popen; blocking here is acceptable (background thread)
-    FILE* fp = popen("git rev-parse --abbrev-ref HEAD 2>/dev/null", "r");
-    if (fp) {
-        if (fgets(branch, (int)sizeof(branch), fp) != nullptr) {
-            // strip newline
-            size_t len = strlen(branch);
-            if (len && (branch[len-1] == '\n' || branch[len-1] == '\r')) branch[len-1] = '\0';
-        }
-        pclose(fp);
+    // Use posix_spawn-based capture; blocking here is acceptable (background thread)
+    if (run_cmd_capture("git rev-parse --abbrev-ref HEAD", branch, sizeof(branch)) > 0) {
+        // strip newline
+        size_t len = strlen(branch);
+        if (len && (branch[len-1] == '\n' || branch[len-1] == '\r')) branch[len-1] = '\0';
     }
 
     if (branch[0] != '\0') {
-        fp = popen("git status --porcelain -uno 2>/dev/null | head -n1", "r");
-        if (fp) {
-            char line[8];
-            if (fgets(line, (int)sizeof(line), fp) != nullptr) {
-                is_dirty = 1;
-            }
-            pclose(fp);
+        char line[8] = {0};
+        if (run_cmd_capture("git status --porcelain -uno | head -n1", line, sizeof(line)) > 0) {
+            is_dirty = 1;
         }
     }
 
@@ -55,10 +107,16 @@ static void* updater(void* arg) {
     return nullptr;
 }
 
-void git_status_init(void) {
-    const char* env = getenv("UEMACS_GIT_STATUS");
+/* Called after settings load to sync with TOML config */
+void git_status_set_enabled(int val) {
     const char* test_env = getenv("ENABLE_EXPECT"); // Disable during integration tests
-    enabled = (env && strcmp(env, "1") == 0 && !test_env) ? 1 : 0;
+    enabled = (val && !test_env) ? 1 : 0;
+}
+
+/* Legacy init - now a no-op, use git_status_set_enabled() after settings load */
+void git_status_init(void) {
+    /* Default disabled until settings_load() calls git_status_set_enabled() */
+    enabled = 0;
 }
 
 void git_status_request_async(const char* cwd) {

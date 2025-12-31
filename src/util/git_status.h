@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 void git_status_init(void);
+void git_status_set_enabled(int enabled);  /* Called after TOML settings load */
 void git_status_request_async(const char* cwd);
 int git_status_get_cached(char* out, size_t out_sz);
 

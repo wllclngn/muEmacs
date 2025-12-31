@@ -1,68 +1,49 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <sys/resource.h>
-#include <sys/wait.h>
-#include <errno.h>
+#include "test_utils.h"
 #include <setjmp.h>
-#include <time.h>
 #include <stdint.h>
-#include <sys/stat.h>
 #include "test_error_conditions.h"
-
-// ANSI color codes for output
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define RESET   "\x1b[0m"
 
 // Global signal handling test variables
 static volatile sig_atomic_t signal_received = 0;
-static jmp_buf signal_jump_buffer;
+static sigjmp_buf signal_jump_buffer;  // Use sigjmp_buf to save/restore signal mask
 static int signal_test_active = 0;
 
 // Signal handler for testing
 static void test_signal_handler(int sig) {
     signal_received = sig;
     if (signal_test_active) {
-        longjmp(signal_jump_buffer, sig);
+        siglongjmp(signal_jump_buffer, sig);  // Restore signal mask on jump
     }
 }
 
 int test_memory_exhaustion_scenarios(void) {
-    printf("\n%s=== Testing Memory Exhaustion Scenarios ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Memory Exhaustion Scenarios ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Large allocation failure handling
     total++;
-    printf("Testing large allocation failure handling...\n");
+    LOG_INFO("Testing large allocation failure handling...");
     size_t huge_size = SIZE_MAX / 2;  // Large but not overflow-causing size
     void *huge_ptr = malloc(huge_size);
-    if (huge_ptr == nullptr) {
-        printf("[%sSUCCESS%s] Large allocation properly failed\n", GREEN, RESET);
+    if (huge_ptr == NULL) {
+        LOG_INFO("[SUCCESS] Large allocation properly failed");
         passed++;
     } else {
-        printf("[%sWARNING%s] Large allocation succeeded (system has lots of virtual memory)\n", YELLOW, RESET);
+        LOG_WARN("[WARN] Large allocation succeeded (system has lots of virtual memory)");
         free(huge_ptr);
         passed++;  // Not a real failure, just system-dependent
     }
     
     // Test 2: Incremental allocation until exhaustion
     total++;
-    printf("Testing incremental allocation exhaustion...\n");
+    LOG_INFO("Testing incremental allocation exhaustion...");
     void **ptrs = malloc(10000 * sizeof(void*));
     int alloc_count = 0;
     size_t chunk_size = 1024 * 1024; // 1MB chunks
     
     for (int i = 0; i < 10000; i++) {
         ptrs[i] = malloc(chunk_size);
-        if (ptrs[i] == nullptr) {
+        if (ptrs[i] == NULL) {
             break;
         }
         alloc_count++;
@@ -77,45 +58,44 @@ int test_memory_exhaustion_scenarios(void) {
     free(ptrs);
     
     if (alloc_count > 0 && alloc_count < 10000) {
-        printf("[%sSUCCESS%s] Memory exhaustion detected after %d allocations\n", 
-               GREEN, RESET, alloc_count);
+        LOG_INFOF("[SUCCESS] Memory exhaustion detected after %d allocations", alloc_count);
         passed++;
     } else if (alloc_count == 10000) {
-        printf("[%sWARNING%s] System has enough memory for all allocations\n", YELLOW, RESET);
+        LOG_WARN("[WARN] System has enough memory for all allocations");
         passed++;  // Not a real failure, system has lots of memory
     } else {
-        printf("[%sFAIL%s] Memory exhaustion not properly detected\n", RED, RESET);
+        LOG_ERROR("[FAIL] Memory exhaustion not properly detected");
     }
     
     // Test 3: Realloc failure handling
     total++;
-    printf("Testing realloc failure scenarios...\n");
+    LOG_INFO("Testing realloc failure scenarios...");
     void *small_ptr = malloc(1024);
     if (small_ptr) {
         void *failed_realloc = realloc(small_ptr, SIZE_MAX / 2);
-        if (failed_realloc == nullptr) {
-            printf("[%sSUCCESS%s] Realloc properly failed on huge size\n", GREEN, RESET);
+        if (failed_realloc == NULL) {
+            LOG_INFO("[SUCCESS] Realloc properly failed on huge size");
             passed++;
             free(small_ptr); // Original pointer still valid
         } else {
-            printf("[%sFAIL%s] Realloc unexpectedly succeeded\n", RED, RESET);
+            LOG_ERROR("[FAIL] Realloc unexpectedly succeeded");
             free(failed_realloc);
         }
     } else {
-        printf("[%sFAIL%s] Initial malloc failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Initial malloc failed");
     }
     
-    printf("Memory exhaustion tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Memory exhaustion tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 int test_corrupted_file_handling(void) {
-    printf("\n%s=== Testing Corrupted File Handling ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Corrupted File Handling ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Binary data in text file
     total++;
-    printf("Testing binary data in text file...\n");
+    LOG_INFO("Testing binary data in text file...");
     const char *binary_file = "/tmp/uemacs_test_binary.txt";
     FILE *f = fopen(binary_file, "wb");
     if (f) {
@@ -132,23 +112,22 @@ int test_corrupted_file_handling(void) {
             fclose(f);
             
             if (bytes_read > 0) {
-                printf("[%sSUCCESS%s] Binary file read handling (read %zu bytes)\n", 
-                       GREEN, RESET, bytes_read);
+                LOG_INFOF("[SUCCESS] Binary file read handling (read %zu bytes)", bytes_read);
                 passed++;
             } else {
-                printf("[%sFAIL%s] Failed to read binary data\n", RED, RESET);
+                LOG_ERROR("[FAIL] Failed to read binary data");
             }
         } else {
-            printf("[%sFAIL%s] Failed to reopen binary file for reading\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to reopen binary file for reading");
         }
         unlink(binary_file);
     } else {
-        printf("[%sFAIL%s] Failed to create binary test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to create binary test file");
     }
     
     // Test 2: Truncated file scenarios
     total++;
-    printf("Testing truncated file scenarios...\n");
+    LOG_INFO("Testing truncated file scenarios...");
     const char *truncated_file = "/tmp/uemacs_test_truncated.txt";
     f = fopen(truncated_file, "w");
     if (f) {
@@ -164,26 +143,25 @@ int test_corrupted_file_handling(void) {
                 fclose(f);
                 
                 if (strlen(buffer) == 25) {
-                    printf("[%sSUCCESS%s] Truncated file handled correctly\n", GREEN, RESET);
+                    LOG_INFO("[SUCCESS] Truncated file handled correctly");
                     passed++;
                 } else {
-                    printf("[%sFAIL%s] Truncated file length unexpected: %zu\n", 
-                           RED, RESET, strlen(buffer));
+                    LOG_ERRORF("[FAIL] Truncated file length unexpected: %zu", strlen(buffer));
                 }
             } else {
-                printf("[%sFAIL%s] Failed to read truncated file\n", RED, RESET);
+                LOG_ERROR("[FAIL] Failed to read truncated file");
             }
         } else {
-            printf("[%sFAIL%s] Failed to truncate test file\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to truncate test file");
         }
         unlink(truncated_file);
     } else {
-        printf("[%sFAIL%s] Failed to create truncated test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to create truncated test file");
     }
     
     // Test 3: Permission denied scenarios
     total++;
-    printf("Testing permission denied scenarios...\n");
+    LOG_INFO("Testing permission denied scenarios...");
     const char *protected_file = "/tmp/uemacs_test_protected.txt";
     f = fopen(protected_file, "w");
     if (f) {
@@ -193,40 +171,40 @@ int test_corrupted_file_handling(void) {
         // Remove read permissions
         if (chmod(protected_file, 0000) == 0) {
             f = fopen(protected_file, "r");
-            if (f == nullptr && errno == EACCES) {
-                printf("[%sSUCCESS%s] Permission denied properly detected\n", GREEN, RESET);
+            if (f == NULL && errno == EACCES) {
+                LOG_INFO("[SUCCESS] Permission denied properly detected");
                 passed++;
             } else {
-                printf("[%sFAIL%s] Permission check failed or file opened unexpectedly\n", RED, RESET);
+                LOG_ERROR("[FAIL] Permission check failed or file opened unexpectedly");
                 if (f) fclose(f);
             }
             
             // Restore permissions for cleanup
             chmod(protected_file, 0644);
         } else {
-            printf("[%sFAIL%s] Failed to modify file permissions\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to modify file permissions");
         }
         unlink(protected_file);
     } else {
-        printf("[%sFAIL%s] Failed to create protected test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to create protected test file");
     }
     
-    printf("Corrupted file handling tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Corrupted file handling tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 int test_signal_handling_robustness(void) {
-    printf("\n%s=== Testing Signal Handling Robustness ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Signal Handling Robustness ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: SIGINT handling
     total++;
-    printf("Testing SIGINT handling...\n");
+    LOG_INFO("Testing SIGINT handling...");
     signal(SIGINT, test_signal_handler);
     signal_received = 0;
     signal_test_active = 1;
     
-    if (setjmp(signal_jump_buffer) == 0) {
+    if (sigsetjmp(signal_jump_buffer, 1) == 0) {  // 1 = save signal mask
         raise(SIGINT);
         // Should not reach here
         usleep(100000); // Wait 100ms
@@ -234,50 +212,50 @@ int test_signal_handling_robustness(void) {
     
     signal_test_active = 0;
     if (signal_received == SIGINT) {
-        printf("[%sSUCCESS%s] SIGINT properly handled\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] SIGINT properly handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] SIGINT not properly handled\n", RED, RESET);
+        LOG_ERROR("[FAIL] SIGINT not properly handled");
     }
     
     // Test 2: SIGTERM handling
     total++;
-    printf("Testing SIGTERM handling...\n");
+    LOG_INFO("Testing SIGTERM handling...");
     signal(SIGTERM, test_signal_handler);
     signal_received = 0;
     signal_test_active = 1;
     
-    if (setjmp(signal_jump_buffer) == 0) {
+    if (sigsetjmp(signal_jump_buffer, 1) == 0) {
         raise(SIGTERM);
         usleep(100000);
     }
     
     signal_test_active = 0;
     if (signal_received == SIGTERM) {
-        printf("[%sSUCCESS%s] SIGTERM properly handled\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] SIGTERM properly handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] SIGTERM not properly handled\n", RED, RESET);
+        LOG_ERROR("[FAIL] SIGTERM not properly handled");
     }
     
     // Test 3: SIGUSR1 handling
     total++;
-    printf("Testing SIGUSR1 handling...\n");
+    LOG_INFO("Testing SIGUSR1 handling...");
     signal(SIGUSR1, test_signal_handler);
     signal_received = 0;
     signal_test_active = 1;
     
-    if (setjmp(signal_jump_buffer) == 0) {
+    if (sigsetjmp(signal_jump_buffer, 1) == 0) {
         raise(SIGUSR1);
         usleep(100000);
     }
     
     signal_test_active = 0;
     if (signal_received == SIGUSR1) {
-        printf("[%sSUCCESS%s] SIGUSR1 properly handled\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] SIGUSR1 properly handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] SIGUSR1 not properly handled\n", RED, RESET);
+        LOG_ERROR("[FAIL] SIGUSR1 not properly handled");
     }
     
     // Restore default signal handlers
@@ -285,27 +263,30 @@ int test_signal_handling_robustness(void) {
     signal(SIGTERM, SIG_DFL);
     signal(SIGUSR1, SIG_DFL);
     
-    printf("Signal handling tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Signal handling tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 int test_resource_limits(void) {
-    printf("\n%s=== Testing Resource Limits ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Resource Limits ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: File descriptor limits
     total++;
-    printf("Testing file descriptor limits...\n");
+    LOG_INFO("Testing file descriptor limits...");
     struct rlimit fd_limit;
     if (getrlimit(RLIMIT_NOFILE, &fd_limit) == 0) {
-        printf("Current FD limit: soft=%ld, hard=%ld\n", 
-               (long)fd_limit.rlim_cur, (long)fd_limit.rlim_max);
-        
+        LOG_INFOF("Current FD limit: soft=%ld, hard=%ld", (long)fd_limit.rlim_cur, (long)fd_limit.rlim_max);
+
+        // Cap at reasonable test size for ASAN (256 fds is enough to prove the point)
+        size_t test_limit = fd_limit.rlim_cur;
+        if (test_limit > 256) test_limit = 256;
+
         // Try to open files up to the limit
-        int *fds = malloc(fd_limit.rlim_cur * sizeof(int));
+        int *fds = malloc(test_limit * sizeof(int));
         int opened_count = 0;
-        
-        for (int i = 0; i < (int)fd_limit.rlim_cur - 10; i++) { // Leave some margin
+
+        for (int i = 0; i < (int)test_limit - 10; i++) { // Leave some margin
             int fd = open("/dev/null", O_RDONLY);
             if (fd >= 0) {
                 fds[opened_count++] = fd;
@@ -321,59 +302,58 @@ int test_resource_limits(void) {
         free(fds);
         
         if (opened_count > 0) {
-            printf("[%sSUCCESS%s] FD limit handling tested (opened %d files)\n", 
-                   GREEN, RESET, opened_count);
+            LOG_INFOF("[SUCCESS] FD limit handling tested (opened %d files)", opened_count);
             passed++;
         } else {
-            printf("[%sFAIL%s] Failed to test FD limits\n", RED, RESET);
+            LOG_ERROR("[FAIL] Failed to test FD limits");
         }
     } else {
-        printf("[%sFAIL%s] Failed to get FD limits\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to get FD limits");
     }
     
     // Test 2: Virtual memory limits
     total++;
-    printf("Testing virtual memory limits...\n");
+    LOG_INFO("Testing virtual memory limits...");
     struct rlimit vm_limit;
     if (getrlimit(RLIMIT_AS, &vm_limit) == 0) {
         if (vm_limit.rlim_cur != RLIM_INFINITY) {
-            printf("VM limit: %ld bytes\n", (long)vm_limit.rlim_cur);
+            LOG_INFOF("VM limit: %ld bytes", (long)vm_limit.rlim_cur);
         } else {
-            printf("VM limit: unlimited\n");
+            LOG_INFO("VM limit: unlimited");
         }
-        printf("[%sSUCCESS%s] VM limit information retrieved\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] VM limit information retrieved");
         passed++;
     } else {
-        printf("[%sFAIL%s] Failed to get VM limits\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to get VM limits");
     }
     
     // Test 3: CPU time limits
     total++;
-    printf("Testing CPU time limits...\n");
+    LOG_INFO("Testing CPU time limits...");
     struct rlimit cpu_limit;
     if (getrlimit(RLIMIT_CPU, &cpu_limit) == 0) {
         if (cpu_limit.rlim_cur != RLIM_INFINITY) {
-            printf("CPU limit: %ld seconds\n", (long)cpu_limit.rlim_cur);
+            LOG_INFOF("CPU limit: %ld seconds", (long)cpu_limit.rlim_cur);
         } else {
-            printf("CPU limit: unlimited\n");
+            LOG_INFO("CPU limit: unlimited");
         }
-        printf("[%sSUCCESS%s] CPU limit information retrieved\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] CPU limit information retrieved");
         passed++;
     } else {
-        printf("[%sFAIL%s] Failed to get CPU limits\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to get CPU limits");
     }
     
-    printf("Resource limit tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Resource limit tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 int test_malicious_input_protection(void) {
-    printf("\n%s=== Testing Malicious Input Protection ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Malicious Input Protection ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Very long input lines
     total++;
-    printf("Testing very long input line handling...\n");
+    LOG_INFO("Testing very long input line handling...");
     const size_t long_line_size = 1000000; // 1MB line
     char *long_line = malloc(long_line_size + 1);
     if (long_line) {
@@ -383,32 +363,32 @@ int test_malicious_input_protection(void) {
         // Test that we can handle the long line without crashing
         size_t len = strlen(long_line);
         if (len == long_line_size) {
-            printf("[%sSUCCESS%s] Long line handling (1MB line processed)\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Long line handling (1MB line processed)");
             passed++;
         } else {
-            printf("[%sFAIL%s] Long line length mismatch\n", RED, RESET);
+            LOG_ERROR("[FAIL] Long line length mismatch");
         }
         free(long_line);
     } else {
-        printf("[%sFAIL%s] Failed to allocate long line buffer\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to allocate long line buffer");
     }
     
     // Test 2: Unicode exploits and overlong sequences
     total++;
-    printf("Testing Unicode exploit protection...\n");
+    LOG_INFO("Testing Unicode exploit protection...");
     const char *unicode_tests[] = {
-        "\xC0\x80",           // Overlong nullptr
-        "\xE0\x80\x80",       // Overlong nullptr (3-byte)
-        "\xF0\x80\x80\x80",   // Overlong nullptr (4-byte)
+        "\xC0\x80",           // Overlong NULL
+        "\xE0\x80\x80",       // Overlong NULL (3-byte)
+        "\xF0\x80\x80\x80",   // Overlong NULL (4-byte)
         "\xED\xA0\x80",       // High surrogate (invalid in UTF-8)
         "\xED\xB0\x80",       // Low surrogate (invalid in UTF-8)
         "\xFF\xFE",           // BOM-like sequence
-        "\x00\x41",           // Embedded nullptr
-        nullptr
+        "\x00\x41",           // Embedded NULL
+        NULL
     };
     
     int unicode_handled = 0;
-    for (int i = 0; unicode_tests[i] != nullptr; i++) {
+    for (int i = 0; unicode_tests[i] != NULL; i++) {
         // Just test that we can process these without crashing
         size_t len = strlen(unicode_tests[i]);
         if (len >= 0) { // Basic validation that string functions work
@@ -417,26 +397,26 @@ int test_malicious_input_protection(void) {
     }
     
     if (unicode_handled == 7) {
-        printf("[%sSUCCESS%s] Unicode exploit sequences handled\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Unicode exploit sequences handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] Unicode handling issues detected\n", RED, RESET);
+        LOG_ERROR("[FAIL] Unicode handling issues detected");
     }
     
     // Test 3: Format string attack protection
     total++;
-    printf("Testing format string attack protection...\n");
+    LOG_INFO("Testing format string attack protection...");
     const char *format_attacks[] = {
         "%s%s%s%s%s%s%s%s%s%s",
         "%x%x%x%x%x%x%x%x%x%x",
         "%n%n%n%n%n%n%n%n%n%n",
         "%.1000000s",
         "%*.*s",
-        nullptr
+        NULL
     };
     
     int format_safe = 0;
-    for (int i = 0; format_attacks[i] != nullptr; i++) {
+    for (int i = 0; format_attacks[i] != NULL; i++) {
         // Test safe handling of format strings
         char buffer[1024];
         // Use snprintf with controlled format to avoid actual format string vulnerability
@@ -447,30 +427,30 @@ int test_malicious_input_protection(void) {
     }
     
     if (format_safe == 5) {
-        printf("[%sSUCCESS%s] Format string attacks safely handled\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Format string attacks safely handled");
         passed++;
     } else {
-        printf("[%sFAIL%s] Format string protection issues\n", RED, RESET);
+        LOG_ERROR("[FAIL] Format string protection issues");
     }
     
-    printf("Malicious input protection tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Malicious input protection tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 int test_system_call_failures(void) {
-    printf("\n%s=== Testing System Call Failure Handling ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing System Call Failure Handling ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: Failed malloc simulation
     total++;
-    printf("Testing malloc failure scenarios...\n");
-    // Test with reasonable size that might fail under memory pressure
-    void *ptr = malloc(SIZE_MAX / 4);
-    if (ptr == nullptr) {
-        printf("[%sSUCCESS%s] Large malloc properly failed\n", GREEN, RESET);
+    LOG_INFO("Testing malloc failure scenarios...");
+    // Test with large but ASAN-friendly size (1GB, not SIZE_MAX/4 which is ~4 exabytes)
+    void *ptr = malloc((size_t)1024 * 1024 * 1024);
+    if (ptr == NULL) {
+        LOG_INFO("[SUCCESS] Large malloc properly failed");
         passed++;
     } else {
-        printf("[%sWARNING%s] Large malloc succeeded (system has lots of memory)\n", YELLOW, RESET);
+        LOG_WARN("[WARN] Large malloc succeeded (system has lots of memory)");
         free(ptr);
         // Still count as pass since the system handled it correctly
         passed++;
@@ -478,20 +458,20 @@ int test_system_call_failures(void) {
     
     // Test 2: Invalid file descriptor operations
     total++;
-    printf("Testing invalid file descriptor operations...\n");
+    LOG_INFO("Testing invalid file descriptor operations...");
     int invalid_fd = 9999;
     char buffer[100];
     ssize_t result = read(invalid_fd, buffer, sizeof(buffer));
     if (result == -1 && errno == EBADF) {
-        printf("[%sSUCCESS%s] Invalid FD properly rejected\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Invalid FD properly rejected");
         passed++;
     } else {
-        printf("[%sFAIL%s] Invalid FD not properly handled\n", RED, RESET);
+        LOG_ERROR("[FAIL] Invalid FD not properly handled");
     }
     
     // Test 3: Directory operations on files
     total++;
-    printf("Testing directory operations on files...\n");
+    LOG_INFO("Testing directory operations on files...");
     const char *test_file = "/tmp/uemacs_test_not_dir.txt";
     FILE *f = fopen(test_file, "w");
     if (f) {
@@ -500,48 +480,48 @@ int test_system_call_failures(void) {
         
         // Try to chdir to the file (should fail)
         if (chdir(test_file) == -1 && errno == ENOTDIR) {
-            printf("[%sSUCCESS%s] File/directory confusion properly handled\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] File/directory confusion properly handled");
             passed++;
         } else {
-            printf("[%sFAIL%s] File/directory confusion not detected\n", RED, RESET);
+            LOG_ERROR("[FAIL] File/directory confusion not detected");
         }
         unlink(test_file);
     } else {
-        printf("[%sFAIL%s] Failed to create test file\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to create test file");
     }
     
     // Test 4: Write to read-only file descriptor
     total++;
-    printf("Testing write to read-only file descriptor...\n");
+    LOG_INFO("Testing write to read-only file descriptor...");
     int readonly_fd = open("/dev/null", O_RDONLY);
     if (readonly_fd >= 0) {
         ssize_t write_result = write(readonly_fd, "test", 4);
         if (write_result == -1 && (errno == EBADF || errno == EPERM)) {
-            printf("[%sSUCCESS%s] Write to read-only FD properly rejected\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Write to read-only FD properly rejected");
             passed++;
         } else if (write_result >= 0) {
             // /dev/null might allow writes even when opened read-only
-            printf("[%sWARNING%s] Write to /dev/null succeeded (expected behavior)\n", YELLOW, RESET);
+            LOG_WARN("[WARN] Write to /dev/null succeeded (expected behavior)");
             passed++; // Still count as pass for /dev/null special case
         } else {
-            printf("[%sFAIL%s] Unexpected error on read-only write: %s\n", RED, RESET, strerror(errno));
+            LOG_ERRORF("[FAIL] Unexpected error on read-only write: %s", strerror(errno));
         }
         close(readonly_fd);
     } else {
-        printf("[%sFAIL%s] Failed to open /dev/null for read-only test\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to open /dev/null for read-only test");
     }
     
-    printf("System call failure tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("System call failure tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }
 
 int test_buffer_overflow_protection(void) {
-    printf("\n%s=== Testing Buffer Overflow Protection ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Buffer Overflow Protection ===%s", CYAN, RESET);
     int passed = 0, total = 0;
     
     // Test 1: String copy boundary checking
     total++;
-    printf("Testing string copy boundary checking...\n");
+    LOG_INFO("Testing string copy boundary checking...");
     char dest[10];
     const char *long_src = "This string is much longer than the destination buffer";
     
@@ -550,15 +530,15 @@ int test_buffer_overflow_protection(void) {
     dest[sizeof(dest) - 1] = '\0';
     
     if (strlen(dest) == sizeof(dest) - 1) {
-        printf("[%sSUCCESS%s] String copy properly bounded\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] String copy properly bounded");
         passed++;
     } else {
-        printf("[%sFAIL%s] String copy boundary issue\n", RED, RESET);
+        LOG_ERROR("[FAIL] String copy boundary issue");
     }
     
     // Test 2: Array bounds checking simulation
     total++;
-    printf("Testing array bounds checking...\n");
+    LOG_INFO("Testing array bounds checking...");
     int test_array[10];
     int bounds_safe = 1;
     
@@ -577,15 +557,15 @@ int test_buffer_overflow_protection(void) {
     }
     
     if (bounds_safe) {
-        printf("[%sSUCCESS%s] Array bounds properly checked\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Array bounds properly checked");
         passed++;
     } else {
-        printf("[%sFAIL%s] Array bounds checking failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Array bounds checking failed");
     }
     
     // Test 3: Stack overflow detection simulation
     total++;
-    printf("Testing stack overflow detection...\n");
+    LOG_INFO("Testing stack overflow detection...");
     // We can't actually trigger stack overflow in tests, but we can check
     // stack usage patterns
     char stack_buffer[8192]; // Reasonable stack usage
@@ -598,12 +578,12 @@ int test_buffer_overflow_protection(void) {
     }
     
     if (stack_sum == (long)(sizeof(stack_buffer) * 0xAA)) {
-        printf("[%sSUCCESS%s] Stack buffer allocation correct\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Stack buffer allocation correct");
         passed++;
     } else {
-        printf("[%sFAIL%s] Stack buffer allocation issue\n", RED, RESET);
+        LOG_ERROR("[FAIL] Stack buffer allocation issue");
     }
     
-    printf("Buffer overflow protection tests: %d/%d passed\n", passed, total);
+    LOG_INFOF("Buffer overflow protection tests: %d/%d passed", passed, total);
     return passed == total ? 0 : 1;
 }

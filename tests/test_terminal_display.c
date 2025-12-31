@@ -1,21 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
+#include "test_utils.h"
 #include <sys/ioctl.h>
 #include <termios.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "test_terminal_display.h"
-
-// ANSI color codes for output
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define RESET   "\x1b[0m"
 
 // Mock terminal capabilities for testing
 static int mock_nrow = 24;
@@ -25,16 +11,15 @@ static int sigwinch_received = 0;
 // Test terminal capability detection
 int test_terminal_capability_detection(void) {
     int ok = 1;
-    printf("\n%s=== Testing Terminal Capability Detection ===%s\n", CYAN, RESET);
+    LOG_INFOF("\n%s=== Testing Terminal Capability Detection ===%s", CYAN, RESET);
 
     // Test 1: Basic terminal size detection
     struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
         if (ws.ws_row > 0 && ws.ws_col > 0) {
-            printf("[%sSUCCESS%s] Terminal size detection: %dx%d\n", 
-                   GREEN, RESET, ws.ws_row, ws.ws_col);
+            LOG_INFOF("[SUCCESS] Terminal size detection: %dx%d", ws.ws_row, ws.ws_col);
         } else {
-            printf("[%sFAIL%s] Invalid terminal dimensions\n", RED, RESET);
+            LOG_ERROR("[FAIL] Invalid terminal dimensions");
             ok = 0;
         }
     } else {
@@ -42,52 +27,48 @@ int test_terminal_capability_detection(void) {
         const char* lines = getenv("LINES");
         const char* cols = getenv("COLUMNS");
         if (lines && cols) {
-            printf("[%sSUCCESS%s] Environment fallback: %sx%s\n", 
-                   GREEN, RESET, lines, cols);
+            LOG_INFOF("[SUCCESS] Environment fallback: %sx%s", lines, cols);
         } else {
-            printf("[%sWARNING%s] No terminal size detection available - using defaults\n", 
-                   YELLOW, RESET);
+            LOG_WARN("[WARN] No terminal size detection available - using defaults");
         }
     }
 
     // Test 2: Terminal type detection
     const char* term_type = getenv("TERM");
     if (term_type) {
-        printf("[%sSUCCESS%s] Terminal type detected: %s\n", GREEN, RESET, term_type);
+        LOG_INFOF("[SUCCESS] Terminal type detected: %s", term_type);
         
         // Test common terminal capabilities
         if (strstr(term_type, "xterm") || strstr(term_type, "screen") || strstr(term_type, "tmux")) {
-            printf("[%sSUCCESS%s] Modern terminal capabilities available\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Modern terminal capabilities available");
         } else if (strstr(term_type, "vt")) {
-            printf("[%sINFO%s] VT-compatible terminal detected\n", BLUE, RESET);
+            LOG_INFO("[INFO] VT-compatible terminal detected");
         } else {
-            printf("[%sWARNING%s] Unknown terminal type - may have limited capabilities\n", 
-                   YELLOW, RESET);
+            LOG_WARN("[WARN] Unknown terminal type - may have limited capabilities");
         }
     } else {
-        printf("[%sFAIL%s] No TERM environment variable set\n", RED, RESET);
+        LOG_ERROR("[FAIL] No TERM environment variable set");
         ok = 0;
     }
 
     // Test 3: Color capability detection
     const char* colorterm = getenv("COLORTERM");
     if (colorterm || (term_type && (strstr(term_type, "color") || strstr(term_type, "256")))) {
-        printf("[%sSUCCESS%s] Color terminal capabilities detected\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Color terminal capabilities detected");
     } else {
-        printf("[%sINFO%s] No color capabilities detected - monochrome mode\n", BLUE, RESET);
+        LOG_INFO("[INFO] No color capabilities detected - monochrome mode");
     }
 
     // Test 4: UTF-8 support detection
     const char* lang = getenv("LANG");
     const char* lc_ctype = getenv("LC_CTYPE");
     if ((lang && strstr(lang, "UTF-8")) || (lc_ctype && strstr(lc_ctype, "UTF-8"))) {
-        printf("[%sSUCCESS%s] UTF-8 terminal support detected\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] UTF-8 terminal support detected");
     } else {
-        printf("[%sWARNING%s] UTF-8 support uncertain - may have display issues\n", 
-               YELLOW, RESET);
+        LOG_WARN("[WARN] UTF-8 support uncertain - may have display issues");
     }
 
-    printf("Terminal capability tests: passed\n");
+    LOG_INFO("Terminal capability tests: passed");
     return 0;
 }
 
@@ -100,12 +81,12 @@ int test_alternate_screen_mode(void) {
     const char* enter_alt_screen = "\033[?1049h";
     const char* exit_alt_screen = "\033[?1049l";
     
-    printf("[%sINFO%s] Alternate screen sequences available\n", BLUE, RESET);
-    printf("[%sINFO%s] Enter: \\033[?1049h, Exit: \\033[?1049l\n", BLUE, RESET);
+    LOG_INFO("[INFO] Alternate screen sequences available");
+    LOG_INFO("[INFO] Enter: \\033[?1049h, Exit: \\033[?1049l");
 
     // Test 2: Screen mode switching simulation
     // (We can't actually test this without interfering with the test output)
-    printf("[%sSUCCESS%s] Alternate screen mode sequences validated\n", GREEN, RESET);
+    LOG_INFO("[SUCCESS] Alternate screen mode sequences validated");
 
     // Test 3: Content preservation verification
     // Simulate the need to preserve/restore screen content
@@ -113,7 +94,7 @@ int test_alternate_screen_mode(void) {
     size_t content_len = strlen(test_content);
     
     if (content_len > 0) {
-        printf("[%sSUCCESS%s] Content preservation mechanism ready\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Content preservation mechanism ready");
     }
 
     // Test 4: Mode switching reliability
@@ -122,9 +103,9 @@ int test_alternate_screen_mode(void) {
     snprintf(mode_buffer, sizeof(mode_buffer), "%s%s", enter_alt_screen, exit_alt_screen);
     
     if (strlen(mode_buffer) > 10) {
-        printf("[%sSUCCESS%s] Mode switching sequences properly formatted\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] Mode switching sequences properly formatted");
     } else {
-        printf("[%sFAIL%s] Mode switching sequence generation failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Mode switching sequence generation failed");
         ok = 0;
     }
 
@@ -150,14 +131,14 @@ int test_display_matrix_operations(void) {
     
     struct display_cell** matrix = malloc(rows * sizeof(struct display_cell*));
     if (!matrix) {
-        printf("[%sFAIL%s] Display matrix allocation failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Display matrix allocation failed");
         return 0;
     }
 
     for (int i = 0; i < rows; i++) {
         matrix[i] = calloc(cols, sizeof(struct display_cell));
         if (!matrix[i]) {
-            printf("[%sFAIL%s] Display row allocation failed at row %d\n", RED, RESET, i);
+            LOG_ERRORF("[FAIL] Display row allocation failed at row %d", i);
             // Cleanup
             for (int j = 0; j < i; j++) {
                 free(matrix[j]);
@@ -167,7 +148,7 @@ int test_display_matrix_operations(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Display matrix allocated: %dx%d\n", GREEN, RESET, rows, cols);
+    LOG_INFOF("[SUCCESS] Display matrix allocated: %dx%d", rows, cols);
 
     // Test 2: Incremental update simulation
     int updates = 0;
@@ -186,7 +167,7 @@ int test_display_matrix_operations(void) {
     matrix[10][20].dirty = 1;
     updates += 2;
 
-    printf("[%sSUCCESS%s] Incremental updates tracked: %d changes\n", GREEN, RESET, updates);
+    LOG_INFOF("[SUCCESS] Incremental updates tracked: %d changes", updates);
 
     // Test 3: Damage tracking optimization
     int dirty_regions = 0;
@@ -204,8 +185,7 @@ int test_display_matrix_operations(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Damage tracking: %d dirty regions identified\n", 
-           GREEN, RESET, dirty_regions);
+    LOG_INFOF("[SUCCESS] Damage tracking: %d dirty regions identified", dirty_regions);
 
     // Test 4: Optimization correctness
     // Clear dirty flags (simulate refresh)
@@ -220,11 +200,9 @@ int test_display_matrix_operations(void) {
     }
 
     if (cleared == updates) {
-        printf("[%sSUCCESS%s] Display refresh optimization correct: %d/%d cleared\n", 
-               GREEN, RESET, cleared, updates);
+        LOG_INFOF("[SUCCESS] Display refresh optimization correct: %d/%d cleared", cleared, updates);
     } else {
-        printf("[%sFAIL%s] Display refresh mismatch: %d cleared, %d expected\n", 
-               RED, RESET, cleared, updates);
+        LOG_ERRORF("[FAIL] Display refresh mismatch: %d cleared, %d expected", cleared, updates);
         ok = 0;
     }
 
@@ -259,9 +237,9 @@ int test_sigwinch_handling(void) {
     new_action.sa_flags = SA_RESTART;
     
     if (sigaction(SIGWINCH, &new_action, &old_action) == 0) {
-        printf("[%sSUCCESS%s] SIGWINCH handler installed\n", GREEN, RESET);
+        LOG_INFO("[SUCCESS] SIGWINCH handler installed");
     } else {
-        printf("[%sFAIL%s] Failed to install SIGWINCH handler\n", RED, RESET);
+        LOG_ERROR("[FAIL] Failed to install SIGWINCH handler");
         ok = 0;
     }
 
@@ -271,8 +249,7 @@ int test_sigwinch_handling(void) {
     struct winsize new_size = {30, 100, 0, 0};
 
     if (new_size.ws_row != old_size.ws_row || new_size.ws_col != old_size.ws_col) {
-        printf("[%sSUCCESS%s] Resize detected: %dx%d -> %dx%d\n", 
-               GREEN, RESET, old_size.ws_row, old_size.ws_col, 
+        LOG_INFOF("[SUCCESS] Resize detected: %dx%d -> %dx%d", old_size.ws_row, old_size.ws_col, 
                new_size.ws_row, new_size.ws_col);
 
         // Test 3: Buffer reflow simulation
@@ -281,8 +258,7 @@ int test_sigwinch_handling(void) {
         int new_wrap_point = new_size.ws_col;
         
         if (new_wrap_point != old_wrap_point) {
-            printf("[%sSUCCESS%s] Buffer reflow required: wrap point %d -> %d\n", 
-                   GREEN, RESET, old_wrap_point, new_wrap_point);
+            LOG_INFOF("[SUCCESS] Buffer reflow required: wrap point %d -> %d", old_wrap_point, new_wrap_point);
         }
 
         // Test 4: Display coordinate recalculation
@@ -290,20 +266,19 @@ int test_sigwinch_handling(void) {
         int new_max_line = new_size.ws_row - 1;
         
         if (new_max_line != old_max_line) {
-            printf("[%sSUCCESS%s] Display coordinates updated: max line %d -> %d\n", 
-                   GREEN, RESET, old_max_line, new_max_line);
+            LOG_INFOF("[SUCCESS] Display coordinates updated: max line %d -> %d", old_max_line, new_max_line);
         }
     }
 
     // Test 5: Signal safety verification
     // Ensure signal handler is async-safe
-    printf("[%sSUCCESS%s] Signal handler async-safety verified\n", GREEN, RESET);
+    LOG_INFO("[SUCCESS] Signal handler async-safety verified");
 
     // Restore original signal handler
-    if (sigaction(SIGWINCH, &old_action, nullptr) == 0) {
-        printf("[%sSUCCESS%s] Original SIGWINCH handler restored\n", GREEN, RESET);
+    if (sigaction(SIGWINCH, &old_action, NULL) == 0) {
+        LOG_INFO("[SUCCESS] Original SIGWINCH handler restored");
     } else {
-        printf("[%sWARNING%s] Failed to restore original SIGWINCH handler\n", YELLOW, RESET);
+        LOG_WARN("[WARN] Failed to restore original SIGWINCH handler");
     }
 
     
@@ -320,15 +295,13 @@ int test_color_system(void) {
     const char* color_256_bg = "\033[48;5;21m";  // Bright blue
     const char* color_reset = "\033[0m";
 
-    printf("[%sINFO%s] 256-color sequences: FG=%s, BG=%s\n", 
-           BLUE, RESET, "\\033[38;5;Nm", "\\033[48;5;Nm");
+    LOG_INFOF("[INFO] 256-color sequences: FG=%s, BG=%s", "\\033[38;5;Nm", "\\033[48;5;Nm");
 
     // Test 2: RGB color support
     const char* rgb_fg = "\033[38;2;255;128;0m"; // Orange
     const char* rgb_bg = "\033[48;2;0;128;255m"; // Blue
     
-    printf("[%sINFO%s] RGB color sequences: FG=%s, BG=%s\n", 
-           BLUE, RESET, "\\033[38;2;R;G;Bm", "\\033[48;2;R;G;Bm");
+    LOG_INFOF("[INFO] RGB color sequences: FG=%s, BG=%s", "\\033[38;2;R;G;Bm", "\\033[48;2;R;G;Bm");
 
     // Test 3: High-contrast accessibility mode
     struct color_pair {
@@ -352,8 +325,7 @@ int test_color_system(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] High-contrast pairs available: %d/4 meet WCAG AA\n", 
-           GREEN, RESET, accessible_pairs);
+    LOG_INFOF("[SUCCESS] High-contrast pairs available: %d/4 meet WCAG AA", accessible_pairs);
 
     // Test 4: Color attribute combinations
     struct color_attr {
@@ -371,16 +343,14 @@ int test_color_system(void) {
         {"Strikethrough", "\033[9m"}
     };
 
-    printf("[%sSUCCESS%s] Text attributes available: %d styles\n", 
-           GREEN, RESET, (int)(sizeof(attributes) / sizeof(attributes[0])));
+    LOG_INFOF("[SUCCESS] Text attributes available: %d styles", (int)(sizeof(attributes) / sizeof(attributes[0])));
 
     // Test 5: Color palette validation
     int basic_colors = 8;  // Standard ANSI colors
     int extended_colors = 256; // Extended color palette
     int rgb_colors = 16777216; // RGB color space
 
-    printf("[%sSUCCESS%s] Color palette support: Basic=%d, Extended=%d, RGB=%d\n", 
-           GREEN, RESET, basic_colors, extended_colors, rgb_colors);
+    LOG_INFOF("[SUCCESS] Color palette support: Basic=%d, Extended=%d, RGB=%d", basic_colors, extended_colors, rgb_colors);
 
     
     return ok;
@@ -408,8 +378,7 @@ int test_cursor_operations(void) {
         {"Home position", "\033[H"}
     };
 
-    printf("[%sSUCCESS%s] Cursor positioning: %d operations available\n", 
-           GREEN, RESET, (int)(sizeof(operations) / sizeof(operations[0])));
+    LOG_INFOF("[SUCCESS] Cursor positioning: %d operations available", (int)(sizeof(operations) / sizeof(operations[0])));
 
     // Test 2: Atomic positioning verification
     int target_row = 10;
@@ -419,9 +388,9 @@ int test_cursor_operations(void) {
     snprintf(pos_sequence, sizeof(pos_sequence), "\033[%d;%dH", target_row, target_col);
     
     if (strlen(pos_sequence) > 5) {
-        printf("[%sSUCCESS%s] Atomic positioning sequence: %s\n", GREEN, RESET, pos_sequence);
+        LOG_INFOF("[SUCCESS] Atomic positioning sequence: %s", pos_sequence);
     } else {
-        printf("[%sFAIL%s] Atomic positioning sequence generation failed\n", RED, RESET);
+        LOG_ERROR("[FAIL] Atomic positioning sequence generation failed");
         ok = 0;
     }
 
@@ -429,8 +398,7 @@ int test_cursor_operations(void) {
     const char* cursor_hide = "\033[?25l";
     const char* cursor_show = "\033[?25h";
     
-    printf("[%sSUCCESS%s] Cursor visibility: Hide=%s, Show=%s\n", 
-           GREEN, RESET, cursor_hide, cursor_show);
+    LOG_INFOF("[SUCCESS] Cursor visibility: Hide=%s, Show=%s", cursor_hide, cursor_show);
 
     // Test 4: Cursor shape changes
     struct cursor_shape {
@@ -444,8 +412,7 @@ int test_cursor_operations(void) {
         {"Bar", "\033[6 q"}
     };
 
-    printf("[%sSUCCESS%s] Cursor shapes: %d types available\n", 
-           GREEN, RESET, (int)(sizeof(shapes) / sizeof(shapes[0])));
+    LOG_INFOF("[SUCCESS] Cursor shapes: %d types available", (int)(sizeof(shapes) / sizeof(shapes[0])));
 
     // Test 5: Cursor position bounds checking
     int max_row = 24;
@@ -472,8 +439,7 @@ int test_cursor_operations(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Position bounds checking: %d/5 valid positions identified\n", 
-           GREEN, RESET, valid_positions);
+    LOG_INFOF("[SUCCESS] Position bounds checking: %d/5 valid positions identified", valid_positions);
 
     
     return ok;
@@ -490,7 +456,7 @@ int test_screen_refresh(void) {
     const char* clear_below = "\033[0J";
     const char* clear_above = "\033[1J";
 
-    printf("[%sSUCCESS%s] Clear operations: Line, Screen, Below, Above\n", GREEN, RESET);
+    LOG_INFO("[SUCCESS] Clear operations: Line, Screen, Below, Above");
 
     // Test 2: Full redraw capability
     struct redraw_stats {
@@ -514,8 +480,7 @@ int test_screen_refresh(void) {
         stats.lines_updated++;
     }
 
-    printf("[%sSUCCESS%s] Full redraw: %d lines, %d chars, %d sequences\n", 
-           GREEN, RESET, stats.lines_updated, stats.chars_written, stats.escape_sequences);
+    LOG_INFOF("[SUCCESS] Full redraw: %d lines, %d chars, %d sequences", stats.lines_updated, stats.chars_written, stats.escape_sequences);
 
     // Test 3: Flicker prevention techniques
     struct flicker_prevention {
@@ -538,8 +503,7 @@ int test_screen_refresh(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Flicker prevention: %d/4 highly effective techniques\n", 
-           GREEN, RESET, effective_techniques);
+    LOG_INFOF("[SUCCESS] Flicker prevention: %d/4 highly effective techniques", effective_techniques);
 
     // Test 4: Refresh rate optimization
     struct refresh_timing {
@@ -562,8 +526,7 @@ int test_screen_refresh(void) {
         }
     }
 
-    printf("[%sSUCCESS%s] Refresh rates: %d/4 acceptable performance targets\n", 
-           GREEN, RESET, acceptable_rates);
+    LOG_INFOF("[SUCCESS] Refresh rates: %d/4 acceptable performance targets", acceptable_rates);
 
     // Test 5: Screen update batching
     struct batch_operation {
@@ -583,9 +546,8 @@ int test_screen_refresh(void) {
     
     int efficiency = ((unbatched - batched) * 100) / unbatched;
     
-    printf("[%sSUCCESS%s] Update batching: %d%% reduction (%d -> %d sequences)\n", 
-           GREEN, RESET, efficiency, unbatched, batched);
+    LOG_INFOF("[SUCCESS] Update batching: %d%% reduction (%d -> %d sequences)", efficiency, unbatched, batched);
 
-    printf("Terminal refresh tests: passed\n");
+    LOG_INFO("Terminal refresh tests: passed");
     return 0;
 }

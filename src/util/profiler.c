@@ -12,12 +12,13 @@
 #include "efunc.h"
 #include "memory.h"
 
+#define MAX_PERF_TIMERS 1024
+
 typedef struct perf_timer {
     const char* operation;
     struct timespec start;
     struct timespec end;
     uint64_t elapsed_ns;
-    struct perf_timer* next;
 } perf_timer_t;
 
 typedef struct perf_counters {
@@ -30,7 +31,8 @@ typedef struct perf_counters {
     uint64_t file_reads;
     uint64_t file_writes;
     struct timespec start_time;
-    perf_timer_t* timers;
+    perf_timer_t timers[MAX_PERF_TIMERS];
+    int timer_count;
 } perf_counters_t;
 
 static perf_counters_t perf_stats = {0};
@@ -43,12 +45,6 @@ void perf_init(void) {
 }
 
 void perf_shutdown(void) {
-    perf_timer_t* timer = perf_stats.timers;
-    while (timer) {
-        perf_timer_t* next = timer->next;
-        SAFE_FREE(timer);
-        timer = next;
-    }
     perf_enabled = false;
 }
 
@@ -98,30 +94,25 @@ void perf_count_file_write(void) {
 }
 
 void perf_start_timing(const char* operation) {
-    if (!perf_enabled) return;
+    if (!perf_enabled || perf_stats.timer_count >= MAX_PERF_TIMERS) return;
     
-    perf_timer_t* timer = (perf_timer_t*)safe_alloc(sizeof(perf_timer_t), "perf timer", __FILE__, __LINE__);
-    if (!timer) return;
-    
+    perf_timer_t* timer = &perf_stats.timers[perf_stats.timer_count++];
     timer->operation = operation;
     clock_gettime(CLOCK_MONOTONIC, &timer->start);
     timer->elapsed_ns = 0;
-    timer->next = perf_stats.timers;
-    perf_stats.timers = timer;
 }
 
 void perf_end_timing(const char* operation) {
     if (!perf_enabled) return;
     
-    perf_timer_t* timer = perf_stats.timers;
-    while (timer) {
+    for (int i = perf_stats.timer_count - 1; i >= 0; i--) {
+        perf_timer_t* timer = &perf_stats.timers[i];
         if (timer->operation == operation && timer->elapsed_ns == 0) {
             clock_gettime(CLOCK_MONOTONIC, &timer->end);
             timer->elapsed_ns = (timer->end.tv_sec - timer->start.tv_sec) * 1000000000ULL +
                               (timer->end.tv_nsec - timer->start.tv_nsec);
             break;
         }
-        timer = timer->next;
     }
 }
 
@@ -133,23 +124,22 @@ void perf_report(void) {
     uint64_t total_ns = (now.tv_sec - perf_stats.start_time.tv_sec) * 1000000000ULL +
                        (now.tv_nsec - perf_stats.start_time.tv_nsec);
     
-    mlwrite("=== Performance Report ===");
-    mlwrite("Total runtime: %llu ms", total_ns / 1000000);
-    mlwrite("Memory allocated: %llu bytes", perf_stats.memory_allocated);
-    mlwrite("Memory peak: %llu bytes", perf_stats.memory_peak);
-    mlwrite("Buffer allocations: %llu", perf_stats.buffer_allocations);
-    mlwrite("Line allocations: %llu", perf_stats.line_allocations);
-    mlwrite("Key lookups: %llu", perf_stats.key_lookups);
-    mlwrite("Display updates: %llu", perf_stats.display_updates);
-    mlwrite("File reads: %llu", perf_stats.file_reads);
-    mlwrite("File writes: %llu", perf_stats.file_writes);
+    mlwrite("=== PERFORMANCE REPORT ===");
+    mlwrite("TOTAL RUNTIME: %llu MS", total_ns / 1000000);
+    mlwrite("MEMORY ALLOCATED: %llu BYTES", perf_stats.memory_allocated);
+    mlwrite("MEMORY PEAK: %llu BYTES", perf_stats.memory_peak);
+    mlwrite("BUFFER ALLOCATIONS: %llu", perf_stats.buffer_allocations);
+    mlwrite("LINE ALLOCATIONS: %llu", perf_stats.line_allocations);
+    mlwrite("KEY LOOKUPS: %llu", perf_stats.key_lookups);
+    mlwrite("DISPLAY UPDATES: %llu", perf_stats.display_updates);
+    mlwrite("FILE READS: %llu", perf_stats.file_reads);
+    mlwrite("FILE WRITES: %llu", perf_stats.file_writes);
     
-    mlwrite("=== Timing Details ===");
-    perf_timer_t* timer = perf_stats.timers;
-    while (timer) {
+    mlwrite("=== TIMING DETAILS ===");
+    for (int i = 0; i < perf_stats.timer_count; i++) {
+        perf_timer_t* timer = &perf_stats.timers[i];
         if (timer->elapsed_ns > 0) {
-            mlwrite("%s: %llu ms", timer->operation, timer->elapsed_ns / 1000000);
+            mlwrite("%s: %llu MS", timer->operation, timer->elapsed_ns / 1000000);
         }
-        timer = timer->next;
     }
 }

@@ -15,23 +15,22 @@
 // Test Linux terminal features
 int test_linux_terminal_features(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Linux Terminal Features ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Linux Terminal Features ===%s", BLUE, RESET);
     
     // Test Linux-specific terminal capabilities
-    printf("Testing Linux terminal capabilities...\n");
+    LOG_INFO("Testing Linux terminal capabilities...");
     total++;
     
     struct utsname system_info;
     if (uname(&system_info) == 0) {
         if (strcmp(system_info.sysname, "Linux") == 0) {
-            printf("[%sSUCCESS%s] Linux detection: running on %s %s\n", 
-                   GREEN, RESET, system_info.sysname, system_info.release);
+            LOG_INFOF("[SUCCESS] Linux detection: running on %s %s", system_info.sysname, system_info.release);
             passed++;
         }
     }
     
     // Test epoll for terminal event handling
-    printf("Testing epoll for terminal events...\n");
+    LOG_INFO("Testing epoll for terminal events...");
     total++;
     
     int epoll_fd = epoll_create1(EPOLL_CLOEXEC);
@@ -41,23 +40,23 @@ int test_linux_terminal_features(void) {
         event.data.fd = STDIN_FILENO;
         
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, STDIN_FILENO, &event) == 0) {
-            printf("[%sSUCCESS%s] Epoll setup: terminal stdin added to epoll\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Epoll setup: terminal stdin added to epoll");
             passed++;
         }
         close(epoll_fd);
     }
     
-    printf("Linux terminal feature tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Linux terminal feature tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test filesystem specific features
 int test_filesystem_specific(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Filesystem Specific Features ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Filesystem Specific Features ===%s", BLUE, RESET);
     
     // Test inotify for file watching
-    printf("Testing inotify file watching...\n");
+    LOG_INFO("Testing inotify file watching...");
     total++;
     
     int inotify_fd = inotify_init1(IN_CLOEXEC);
@@ -66,7 +65,7 @@ int test_filesystem_specific(void) {
         int watch_fd = inotify_add_watch(inotify_fd, watch_dir, IN_CREATE | IN_DELETE | IN_MODIFY);
         
         if (watch_fd >= 0) {
-            printf("[%sSUCCESS%s] Inotify setup: watching %s for file changes\n", GREEN, RESET, watch_dir);
+            LOG_INFOF("[SUCCESS] Inotify setup: watching %s for file changes", watch_dir);
             inotify_rm_watch(inotify_fd, watch_fd);
             passed++;
         }
@@ -74,7 +73,7 @@ int test_filesystem_specific(void) {
     }
     
     // Test Linux-specific file attributes
-    printf("Testing Linux file attributes...\n");
+    LOG_INFO("Testing Linux file attributes...");
     total++;
     
     const char* test_file = "/tmp/uemacs_attr_test.txt";
@@ -87,81 +86,84 @@ int test_filesystem_specific(void) {
         if (stat(test_file, &st) == 0) {
             // Check if it's a regular file
             if (S_ISREG(st.st_mode)) {
-                printf("[%sSUCCESS%s] File attributes: regular file detected, size=%ld\n", 
-                       GREEN, RESET, st.st_size);
+                LOG_INFOF("[SUCCESS] File attributes: regular file detected, size=%ld", st.st_size);
                 passed++;
             }
         }
         unlink(test_file);
     }
     
-    printf("Filesystem specific tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Filesystem specific tests: %d/%d passed\n", passed, total);
     return (passed == total);
+}
+
+// File-scope volatile for signal handler (moved from nested function)
+static volatile int rt_signal_received = 0;
+
+// Signal handler (moved to file scope to comply with ISO C)
+static void rt_signal_handler(int sig) {
+    if (sig >= SIGRTMIN && sig <= SIGRTMAX) {
+        rt_signal_received = 1;
+    }
 }
 
 // Test signal handling (Linux-specific)
 int test_signal_handling_linux(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Linux Signal Handling ===%s\n", BLUE, RESET);
-    
+    LOG_INFOF("%s=== Testing Linux Signal Handling ===%s", BLUE, RESET);
+
     // Test signalfd (Linux-specific)
-    printf("Testing signalfd functionality...\n");
+    LOG_INFO("Testing signalfd functionality...");
     total++;
-    
+
     sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGUSR1);
-    
-    if (sigprocmask(SIG_BLOCK, &mask, nullptr) == 0) {
+
+    if (sigprocmask(SIG_BLOCK, &mask, NULL) == 0) {
         int signal_fd = signalfd(-1, &mask, SFD_CLOEXEC);
         if (signal_fd >= 0) {
-            printf("[%sSUCCESS%s] Signalfd: created signal file descriptor\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Signalfd: created signal file descriptor");
             close(signal_fd);
             passed++;
         }
-        
+
         // Restore signal mask
-        sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+        sigprocmask(SIG_UNBLOCK, &mask, NULL);
     }
-    
+
     // Test real-time signals
-    printf("Testing real-time signals...\n");
+    LOG_INFO("Testing real-time signals...");
     total++;
-    
-    static volatile int rt_signal_received = 0;
-    
-    void rt_signal_handler(int sig) {
-        if (sig >= SIGRTMIN && sig <= SIGRTMAX) {
-            rt_signal_received = 1;
-        }
-    }
-    
+
+    rt_signal_received = 0;  // Reset before test
+
     if (signal(SIGRTMIN, rt_signal_handler) != SIG_ERR) {
         kill(getpid(), SIGRTMIN);
         usleep(10000); // 10ms for signal delivery
         
         if (rt_signal_received) {
-            printf("[%sSUCCESS%s] Real-time signals: SIGRTMIN handled correctly\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Real-time signals: SIGRTMIN handled correctly");
             passed++;
         }
         
         signal(SIGRTMIN, SIG_DFL);
     }
     
-    printf("Linux signal handling tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Linux signal handling tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test memory management (Linux-specific)
 int test_memory_management_linux(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Linux Memory Management ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Linux Memory Management ===%s", BLUE, RESET);
     
     // Test mmap with specific Linux flags
-    printf("Testing mmap with Linux flags...\n");
+    LOG_INFO("Testing mmap with Linux flags...");
     total++;
     
-    void* mapped = mmap(nullptr, 4096, PROT_READ | PROT_WRITE, 
+    void* mapped = mmap(NULL, 4096, PROT_READ | PROT_WRITE, 
                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mapped != MAP_FAILED) {
         // Test memory access
@@ -169,7 +171,7 @@ int test_memory_management_linux(void) {
         strcpy(mem, "mmap test data");
         
         if (strcmp(mem, "mmap test data") == 0) {
-            printf("[%sSUCCESS%s] Mmap: 4096 bytes mapped and accessible\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Mmap: 4096 bytes mapped and accessible");
             passed++;
         }
         
@@ -177,7 +179,7 @@ int test_memory_management_linux(void) {
     }
     
     // Test system memory info
-    printf("Testing system memory information...\n");
+    LOG_INFO("Testing system memory information...");
     total++;
     
     struct sysinfo info;
@@ -186,47 +188,45 @@ int test_memory_management_linux(void) {
         unsigned long free_mb = info.freeram / (1024 * 1024);
         
         if (total_mb > 0 && free_mb > 0) {
-            printf("[%sSUCCESS%s] System memory: %lu MB total, %lu MB free\n", 
-                   GREEN, RESET, total_mb, free_mb);
+            LOG_INFOF("[SUCCESS] System memory: %lu MB total, %lu MB free", total_mb, free_mb);
             passed++;
         }
     }
     
-    printf("Linux memory management tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Linux memory management tests: %d/%d passed\n", passed, total);
     return (passed == total);
+}
+
+// Thread function (moved to file scope to comply with ISO C)
+static void* thread_function(void* arg) {
+    int* value = (int*)arg;
+    *value = 42;
+    return NULL;
 }
 
 // Test threading primitives
 int test_threading_primitives(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Threading Primitives ===%s\n", BLUE, RESET);
-    
+    LOG_INFOF("%s=== Testing Threading Primitives ===%s", BLUE, RESET);
+
     // Test pthread creation and joining
-    printf("Testing pthread operations...\n");
+    LOG_INFO("Testing pthread operations...");
     total++;
-    
-    static int thread_result = 0;
-    
-    void* thread_function(void* arg) {
-        int* value = (int*)arg;
-        *value = 42;
-        return nullptr;
-    }
-    
+
     pthread_t thread;
     int thread_data = 0;
     
-    if (pthread_create(&thread, nullptr, thread_function, &thread_data) == 0) {
-        if (pthread_join(thread, nullptr) == 0) {
+    if (pthread_create(&thread, NULL, thread_function, &thread_data) == 0) {
+        if (pthread_join(thread, NULL) == 0) {
             if (thread_data == 42) {
-                printf("[%sSUCCESS%s] Pthread: thread created, executed, and joined\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Pthread: thread created, executed, and joined");
                 passed++;
             }
         }
     }
     
     // Test semaphore operations
-    printf("Testing semaphore operations...\n");
+    LOG_INFO("Testing semaphore operations...");
     total++;
     
     sem_t semaphore;
@@ -235,24 +235,24 @@ int test_threading_primitives(void) {
             // Semaphore acquired
             if (sem_post(&semaphore) == 0) {
                 // Semaphore released
-                printf("[%sSUCCESS%s] Semaphore: wait/post operations successful\n", GREEN, RESET);
+                LOG_INFO("[SUCCESS] Semaphore: wait/post operations successful");
                 passed++;
             }
         }
         sem_destroy(&semaphore);
     }
     
-    printf("Threading primitive tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Threading primitive tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test IPC mechanisms
 int test_ipc_mechanisms(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing IPC Mechanisms ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing IPC Mechanisms ===%s", BLUE, RESET);
     
     // Test message queue (POSIX)
-    printf("Testing POSIX message queue...\n");
+    LOG_INFO("Testing POSIX message queue...");
     total++;
     
     const char* mq_name = "/uemacs_test_mq";
@@ -266,7 +266,7 @@ int test_ipc_mechanisms(void) {
         const char* test_msg = "IPC test message";
         
         if (mq_send(mq, test_msg, strlen(test_msg), 0) == 0) {
-            printf("[%sSUCCESS%s] Message queue: message sent successfully\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Message queue: message sent successfully");
             passed++;
         }
         
@@ -275,10 +275,10 @@ int test_ipc_mechanisms(void) {
     }
     
     // Test shared memory
-    printf("Testing shared memory...\n");
+    LOG_INFO("Testing shared memory...");
     total++;
     
-    void* shared_mem = mmap(nullptr, 4096, PROT_READ | PROT_WRITE,
+    void* shared_mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE,
                            MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if (shared_mem != MAP_FAILED) {
         char* shared_data = (char*)shared_mem;
@@ -286,24 +286,24 @@ int test_ipc_mechanisms(void) {
         
         // Simulate access from another process (in this case, same process)
         if (strcmp(shared_data, "Shared memory test data") == 0) {
-            printf("[%sSUCCESS%s] Shared memory: data accessible across processes\n", GREEN, RESET);
+            LOG_INFO("[SUCCESS] Shared memory: data accessible across processes");
             passed++;
         }
         
         munmap(shared_mem, 4096);
     }
     
-    printf("IPC mechanism tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("IPC mechanism tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }
 
 // Test kernel interfaces
 int test_kernel_interfaces(void) {
     int passed = 0, total = 0;
-    printf("%s=== Testing Kernel Interfaces ===%s\n", BLUE, RESET);
+    LOG_INFOF("%s=== Testing Kernel Interfaces ===%s", BLUE, RESET);
     
     // Test system call interface
-    printf("Testing direct system calls...\n");
+    LOG_INFO("Testing direct system calls...");
     total++;
     
     // Test getpid system call
@@ -311,13 +311,12 @@ int test_kernel_interfaces(void) {
     pid_t pid2 = syscall(SYS_getpid);
     
     if (pid1 == pid2 && pid1 > 0) {
-        printf("[%sSUCCESS%s] System calls: getpid via syscall matches libc (pid=%d)\n", 
-               GREEN, RESET, pid1);
+        LOG_INFOF("[SUCCESS] System calls: getpid via syscall matches libc (pid=%d)", pid1);
         passed++;
     }
     
     // Test /proc filesystem access
-    printf("Testing /proc filesystem access...\n");
+    LOG_INFO("Testing /proc filesystem access...");
     total++;
     
     char proc_path[64];
@@ -330,8 +329,7 @@ int test_kernel_interfaces(void) {
             // Parse PID from /proc/self/stat
             int proc_pid;
             if (sscanf(proc_data, "%d", &proc_pid) == 1 && proc_pid == getpid()) {
-                printf("[%sSUCCESS%s] /proc access: read process info for PID %d\n", 
-                       GREEN, RESET, proc_pid);
+                LOG_INFOF("[SUCCESS] /proc access: read process info for PID %d", proc_pid);
                 passed++;
             }
         }
@@ -339,7 +337,7 @@ int test_kernel_interfaces(void) {
     }
     
     // Test /sys filesystem access
-    printf("Testing /sys filesystem access...\n");
+    LOG_INFO("Testing /sys filesystem access...");
     total++;
     
     FILE* sys_f = fopen("/sys/kernel/hostname", "r");
@@ -349,13 +347,13 @@ int test_kernel_interfaces(void) {
             // Remove newline
             hostname[strcspn(hostname, "\n")] = '\0';
             if (strlen(hostname) > 0) {
-                printf("[%sSUCCESS%s] /sys access: hostname '%s'\n", GREEN, RESET, hostname);
+                LOG_INFOF("[SUCCESS] /sys access: hostname '%s'", hostname);
                 passed++;
             }
         }
         fclose(sys_f);
     }
     
-    printf("Kernel interface tests: %d/%d passed\n\n", passed, total);
+    LOG_INFOF("Kernel interface tests: %d/%d passed\n", passed, total);
     return (passed == total);
 }

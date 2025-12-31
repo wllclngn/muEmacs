@@ -48,12 +48,12 @@ int namedcmd(int f, int n)
 	fn_t kfunc;	/* ptr to the requexted function to bind to */
 
 	/* prompt the user to type a named command */
-	mlwrite(": ");
+	mlwrite("M-x: ");
 
 	/* and now get the function name to execute */
 	kfunc = getname();
 	if (kfunc == nullptr) {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "No such function");
+		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
 		return false;
 	}
 
@@ -74,7 +74,7 @@ int execcmd(int f, int n)
 	char cmdstr[NSTRING];	/* string holding command to execute */
 
 	/* get the line wanted */
-	if ((status = mlreply(": ", cmdstr, NSTRING)) != true)
+	if ((status = minibuf_read("M-x: ", cmdstr, NSTRING)) != true)
 		return status;
 
 	execlevel = 0;
@@ -123,7 +123,7 @@ int docmd(const char *cline)
 	}
 
 	/* process leadin argument */
-	if (gettyp(tkn) != TKCMD) {
+	if (token_get_type(tkn) != TKCMD) {
 		f = true;
 		getval(tkn, tkn, sizeof(tkn));
 		n = atoi(tkn);
@@ -239,7 +239,7 @@ int macarg(char *tok)
 
 	savcle = clexec;	/* save execution mode */
 	clexec = true;		/* get the argument */
-	status = nextarg("", tok, NSTRING, ctoec('\n'));
+	status = nextarg("", tok, NSTRING);
 	clexec = savcle;	/* restore execution mode */
 	return status;
 }
@@ -248,16 +248,15 @@ int macarg(char *tok)
  * nextarg:
  *	get the next argument
  *
- * char *prompt;		prompt to use if we must be interactive
- * char *buffer;		buffer to put token into
- * int size;			size of the buffer
- * int terminator;		terminating char to be used on interactive fetch
+ * prompt: prompt to use if we must be interactive
+ * buffer: buffer to put token into
+ * size: size of the buffer
  */
-int nextarg(const char *prompt, char *buffer, int size, int terminator)
+int nextarg(const char *prompt, char *buffer, int size)
 {
 	/* if we are interactive, go get it! */
 	if (clexec == false)
-		return getstring(prompt, buffer, size, terminator);
+		return minibuf_read(prompt, buffer, size);
 
 	/* grab token and advance past */
 	execstr = token(execstr, buffer, size);
@@ -282,13 +281,13 @@ int storemac(int f, int n)
 
 	/* must have a numeric argument to this function */
 	if (f == false) {
-		mlwrite("No macro specified");
+		mlwrite("NO MACRO SPECIFIED");
 		return false;
 	}
 
 	/* range check the macro number */
 	if (n < 1 || n > 40) {
-		mlwrite("Macro number out of range");
+		mlwrite("MACRO NUMBER OUT OF RANGE");
 		return false;
 	}
 
@@ -299,7 +298,7 @@ int storemac(int f, int n)
 
 	/* set up the new macro buffer */
 	if ((bp = bfind(bname, true, BFINVS)) == nullptr) {
-		mlwrite("Can not create macro");
+		mlwrite("CANNOT CREATE MACRO");
 		return false;
 	}
 
@@ -312,7 +311,6 @@ int storemac(int f, int n)
 	return true;
 }
 
-#if	PROC
 /*
  * storeproc:
  *	Set up a procedure buffer and flag to store all
@@ -333,7 +331,7 @@ int storeproc(int f, int n)
 
 	/* get the name of the procedure */
 	if ((status =
-	     mlreply("Procedure name: ", &bname[1], NBUFN - 2)) != true)
+	     minibuf_read("PROCEDURE NAME: ", &bname[1], NBUFN - 2)) != true)
 		return status;
 
 	/* construct the macro buffer name */
@@ -342,7 +340,7 @@ int storeproc(int f, int n)
 
 	/* set up the new macro buffer */
 	if ((bp = bfind(bname, true, BFINVS)) == nullptr) {
-		mlwrite("Can not create macro");
+		mlwrite("CANNOT CREATE MACRO");
 		return false;
 	}
 
@@ -369,7 +367,7 @@ int execproc(int f, int n)
 
 	/* find out what buffer the user wants to execute */
 	if ((status =
-	     mlreply("Execute procedure: ", &bufn[1], NBUFN)) != true)
+	     minibuf_read("EXECUTE PROCEDURE: ", &bufn[1], NBUFN)) != true)
 		return status;
 
 	/* construct the buffer name */
@@ -378,7 +376,7 @@ int execproc(int f, int n)
 
 	/* find the pointer to that buffer */
 	if ((bp = bfind(bufn, false, 0)) == nullptr) {
-		mlwrite("No such procedure");
+		mlwrite("NO SUCH PROCEDURE");
 		return false;
 	}
 
@@ -388,7 +386,6 @@ int execproc(int f, int n)
 			return status;
 	return true;
 }
-#endif
 
 /*
  * execbuf:
@@ -403,12 +400,12 @@ int execbuf(int f, int n)
 	char bufn[NSTRING];	/* name of buffer to execute */
 
 	/* find out what buffer the user wants to execute */
-	if ((status = mlreply("Execute buffer: ", bufn, NBUFN)) != true)
+	if ((status = minibuf_read("EXECUTE BUFFER: ", bufn, NBUFN)) != true)
 		return status;
 
 	/* find the pointer to that buffer */
 	if ((bp = bfind(bufn, false, 0)) == nullptr) {
-		mlwrite("No such buffer");
+		mlwrite("NO SUCH BUFFER");
 		return false;
 	}
 
@@ -507,7 +504,7 @@ static int scan_while_blocks(struct buffer *bp, struct exec_state *state)
 		if (eline[0] == '!' && eline[1] == 'w' && eline[2] == 'h') {
 			whtemp = (struct while_block *)safe_alloc(sizeof(struct while_block), "while block", __FILE__, __LINE__);
 			if (whtemp == nullptr) {
-				mlwrite("%%Out of memory during while scan");
+				mlwrite("OUT OF MEMORY DURING WHILE SCAN");
 				return false;
 			}
 			whtemp->w_begin = lp;
@@ -518,12 +515,12 @@ static int scan_while_blocks(struct buffer *bp, struct exec_state *state)
 		// Handle BREAK directive
 		else if (eline[0] == '!' && eline[1] == 'b' && eline[2] == 'r') {
 			if (state->scanner == nullptr) {
-				mlwrite("%%!BREAK outside of any !WHILE loop");
+				mlwrite("!BREAK OUTSIDE OF ANY !WHILE LOOP");
 				return false;
 			}
 			whtemp = (struct while_block *)safe_alloc(sizeof(struct while_block), "while block", __FILE__, __LINE__);
 			if (whtemp == nullptr) {
-				mlwrite("%%Out of memory during while scan");
+				mlwrite("OUT OF MEMORY DURING WHILE SCAN");
 				return false;
 			}
 			whtemp->w_begin = lp;
@@ -534,7 +531,7 @@ static int scan_while_blocks(struct buffer *bp, struct exec_state *state)
 		// Handle ENDWHILE directive
 		else if (eline[0] == '!' && strncmp(&eline[1], "endw", 4) == 0) {
 			if (state->scanner == nullptr) {
-				mlwrite("%%!ENDWHILE with no preceding !WHILE in '%s'", bp->b_bname);
+				mlwrite("!ENDWHILE WITHOUT MATCHING !WHILE IN '%s'", bp->b_bname);
 				return false;
 			}
 			do {
@@ -551,7 +548,7 @@ static int scan_while_blocks(struct buffer *bp, struct exec_state *state)
 
 	// Check for unmatched WHILE blocks
 	if (state->scanner != nullptr) {
-		mlwrite("%%!WHILE with no matching !ENDWHILE in '%s'", bp->b_bname);
+		mlwrite("!WHILE WITHOUT MATCHING !ENDWHILE IN '%s'", bp->b_bname);
 		return false;
 	}
 
@@ -575,7 +572,7 @@ static int execute_buffer_lines(struct buffer *bp, struct exec_state *state)
 		// Allocate and copy line
 		ctx.linlen = llength(ctx.lp);
 		if ((ctx.einit = ctx.eline = (char*)safe_alloc(ctx.linlen + 1, "execution line buffer", __FILE__, __LINE__)) == nullptr) {
-			REPORT_ERROR(ERR_MEMORY, "Out of Memory during macro execution");
+			REPORT_ERROR(ERR_MEMORY, "OUT OF MEMORY DURING MACRO EXECUTION");
 			return false;
 		}
     if (ctx.linlen > 0) {
@@ -641,17 +638,17 @@ static int process_line_directive(struct line_context *ctx, struct exec_state *s
 	ctx->dirnum = -1;
 	if (*ctx->eline == '!') {
 		++ctx->eline;
-		for (ctx->dirnum = 0; ctx->dirnum < NUMDIRS; ctx->dirnum++)
+		for (ctx->dirnum = 0; ctx->dirnum < DIR_COUNT; ctx->dirnum++)
 			if (strncmp(ctx->eline, dname[ctx->dirnum], strlen(dname[ctx->dirnum])) == 0)
 				break;
 
-		if (ctx->dirnum == NUMDIRS) {
-			mlwrite("%%Unknown Directive");
+		if (ctx->dirnum == DIR_COUNT) {
+			mlwrite("UNKNOWN DIRECTIVE");
 			return false;
 		}
 
 		// Handle !ENDM macro
-		if (ctx->dirnum == DENDM) {
+		if (ctx->dirnum == DIR_ENDM) {
 			mstore = false;
 			bstore = nullptr;
 			return -1; // Continue to next line
@@ -664,7 +661,7 @@ static int process_line_directive(struct line_context *ctx, struct exec_state *s
 	if (mstore) {
 		ctx->linlen = strlen(ctx->eline);
 		if ((ctx->mp = lalloc(ctx->linlen)) == nullptr) {
-			REPORT_ERROR(ERR_MEMORY, "Out of memory while storing macro");
+			REPORT_ERROR(ERR_MEMORY, "OUT OF MEMORY WHILE STORING MACRO");
 			return false;
 		}
 
@@ -709,28 +706,28 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 	execstr = ctx->eline;
 
 	switch (ctx->dirnum) {
-		case DIF:
+		case DIR_IF:
 			if (state->execlevel == 0) {
 				if (macarg(state->tkn) != true)
 					return true; // Exit execution
-				if (stol(state->tkn) == false)
+				if (string_to_bool(state->tkn) == false)
 					++state->execlevel;
 			} else {
 				++state->execlevel;
 			}
 			return -1; // Continue to next line
 
-		case DWHILE:
+		case DIR_WHILE:
 			if (state->execlevel == 0) {
 				if (macarg(state->tkn) != true)
 					return true; // Exit execution
-				if (stol(state->tkn) == true)
+				if (string_to_bool(state->tkn) == true)
 					return -1; // Continue to next line
 			}
 			[[fallthrough]];
 
-		case DBREAK:
-			if (ctx->dirnum == DBREAK && state->execlevel)
+		case DIR_BREAK:
+			if (ctx->dirnum == DIR_BREAK && state->execlevel)
 				return -1; // Continue to next line
 
 			whtemp = state->whlist;
@@ -741,26 +738,27 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 			}
 
 			if (whtemp == nullptr) {
-				mlwrite("%%Internal While loop error");
+				LOG_ERROR("Exec: While loop state corrupted - missing begin marker");
+				mlwrite("INTERNAL WHILE LOOP ERROR");
 				return false;
 			}
 
 			ctx->lp = whtemp->w_end;
 			return -1; // Continue to next line
 
-		case DELSE:
+		case DIR_ELSE:
 			if (state->execlevel == 1)
 				--state->execlevel;
 			else if (state->execlevel == 0)
 				++state->execlevel;
 			return -1; // Continue to next line
 
-		case DENDIF:
+		case DIR_ENDIF:
 			if (state->execlevel)
 				--state->execlevel;
 			return -1; // Continue to next line
 
-		case DGOTO:
+		case DIR_GOTO:
 			if (state->execlevel == 0) {
 				ctx->eline = (char *)token(ctx->eline, golabel, NPAT);
 				linlen = strlen(golabel);
@@ -782,17 +780,17 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 					}
 					ctx->glp = ctx->glp->l_fp;
 				}
-				mlwrite("%%No such label");
+				mlwrite("NO SUCH LABEL");
 				return false;
 			}
 			return -1; // Continue to next line
 
-		case DRETURN:
+		case DIR_RETURN:
 			if (state->execlevel == 0)
 				return true; // Exit execution
 			return -1; // Continue to next line
 
-		case DENDWHILE:
+		case DIR_ENDWHILE:
 			if (state->execlevel) {
 				--state->execlevel;
 				return -1; // Continue to next line
@@ -805,7 +803,8 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 				}
 
 				if (whtemp == nullptr) {
-					mlwrite("%%Internal While loop error");
+					LOG_ERROR("Exec: While loop state corrupted - missing end marker");
+					mlwrite("INTERNAL WHILE LOOP ERROR");
 					return false;
 				}
 
@@ -813,7 +812,7 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 				return -1; // Continue to next line
 			}
 
-		case DFORCE:
+		case DIR_FORCE:
 			state->force = true;
 			return -1; // Continue to next line
 
@@ -857,18 +856,16 @@ int execfile(int f, int n)
 	const char *fspec;		/* full file spec */
 
 	if ((status =
-	     mlreply("File to execute: ", fname, NSTRING - 1)) != true)
+	     minibuf_read("FILE TO EXECUTE: ", fname, NSTRING - 1)) != true)
 		return status;
 
-#if	1
 	/* look up the path for the file */
-	fspec = flook(fname, false);	/* used to by true, P.K. */
+	fspec = flook(fname, false);
 
 	/* if it isn't around */
 	if (fspec == nullptr)
 		return false;
 
-#endif
 	/* otherwise, execute it */
 	while (n-- > 0)
 		if ((status = dofile(fspec)) != true)
@@ -935,7 +932,7 @@ int cbuf(int f, int n, int bufnum)
 
 	/* find the pointer to that buffer */
 	if ((bp = bfind(bufname, false, 0)) == nullptr) {
-		mlwrite("Macro not defined");
+		mlwrite("MACRO NOT DEFINED");
 		return false;
 	}
 

@@ -1,6 +1,6 @@
 /*
  * μEmacs - C23 type-safe terminal operations
- * Modern replacement for 18 terminal macros
+ * Modern replacement for terminal macros
  */
 
 #ifndef UEMACS_TERMINAL_OPS_H
@@ -8,7 +8,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "core.h"
+#include "estruct.h"
 
 // Forward declarations for error checking
 struct terminal;
@@ -77,10 +77,9 @@ static inline void tt_rev(int state)
 
 static inline int tt_rez(const char* resolution)
 {
-    return term.t_rez ? term.t_rez((char*)resolution) : true;
+    return term.t_rez ? term.t_rez(resolution) : true;
 }
 
-#if COLOR
 static inline void tt_setfor(int color)
 {
     if (term.t_setfor) term.t_setfor(color);
@@ -90,9 +89,8 @@ static inline void tt_setback(int color)
 {
     if (term.t_setback) term.t_setback(color);
 }
-#endif
 
-// Legacy macro compatibility - can be removed in Phase 6
+// Legacy macro compatibility
 #define TTopen       tt_open
 #define TTclose      tt_close  
 #define TTkopen      tt_kopen
@@ -106,9 +104,7 @@ static inline void tt_setback(int color)
 #define TTbeep       tt_beep
 #define TTrev        tt_rev
 #define TTrez        tt_rez
-#if COLOR
 #define TTforg       tt_setfor
 #define TTbacg       tt_setback
-#endif
 
 #endif // UEMACS_TERMINAL_OPS_H

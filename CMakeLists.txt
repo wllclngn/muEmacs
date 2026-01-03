@@ -2,8 +2,8 @@
 # Pure Linux implementation with modern terminal support
 
 cmake_minimum_required(VERSION 3.20)
-project(μEmacs 
-    VERSION 0.0.23 
+project(μEmacs
+    VERSION 1.0.0
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -68,7 +68,6 @@ set(CORE_SOURCES
     src/core/cbuf_dispatch.c
     src/core/gapbuffer.c
     src/core/window_hash.c
-    src/core/plugin.c
 )
 
 # Text processing
@@ -80,7 +79,6 @@ set(TEXT_SOURCES
     src/text/word.c
     src/text/random.c
     src/text/boyer_moore.c
-    src/text/writeedit.c
 )
 
 if(ENABLE_SEARCH_NFA)
@@ -112,6 +110,7 @@ set(CONFIG_SOURCES
 set(PLATFORM_SOURCES
     src/platform/spawn.c
     src/platform/linux-modern.c
+    src/platform/clipboard.c
 )
 
 # Terminal handling - Linux only (pure raw ANSI, no ncurses dependency)
@@ -162,6 +161,19 @@ set(UTIL_SOURCES
     src/util/logger.c
 )
 
+# UEP - uEmacs Extension Protocol
+set(UEP_SOURCES
+    src/uep/tiny_json.c
+    src/uep/uep.c
+    src/uep/uep_providers.c
+    src/uep/uep_format.c
+    # Layer 2: Script Extensions
+    src/uep/uep_scripts.c
+    # Layer 3: C23 Extension System
+    src/uep/extension.c
+    src/uep/extension_api.c
+)
+
 # All sources
 set(ALL_SOURCES
     ${CORE_SOURCES}
@@ -171,6 +183,7 @@ set(ALL_SOURCES
     ${PLATFORM_SOURCES}
     ${TERMINAL_SOURCES}
     ${UTIL_SOURCES}
+    ${UEP_SOURCES}
 )
 
 # Configuration header
@@ -297,7 +310,6 @@ set(TEST_SOURCES
     tests/unit/test_util_memory.c
     tests/unit/test_text_writing.c
     tests/unit/test_core_basic.c
-    tests/unit/test_core_plugin.c
     tests/unit/test_core_window_hash.c
     tests/unit/test_io_lock.c
     tests/unit/test_util_git_status.c
@@ -489,6 +501,7 @@ target_link_libraries(uemacs
     m                           # Math library
     Threads::Threads           # pthreads for mutex/signal masking
     util                        # PTY functions (forkpty, openpty)
+    dl                          # dlopen/dlsym for extension loading
 )
 if(ENABLE_LIBVTERM)
     target_link_libraries(uemacs ${VTERM_LIBRARIES})
@@ -514,11 +527,13 @@ endif()
 target_include_directories(uemacs PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 target_include_directories(full_integration_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
@@ -616,10 +631,24 @@ install(CODE [[
 ]])
 
 # Install configuration files
-install(DIRECTORY config/ 
+install(DIRECTORY config/
     DESTINATION ${CMAKE_INSTALL_DATADIR}/muemacs
     PATTERN "*.md" EXCLUDE
     PATTERN "*.txt" EXCLUDE
+)
+
+# Install extension builder script (universal language support)
+install(FILES scripts/uep_build.py
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/muemacs
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                GROUP_READ GROUP_EXECUTE
+                WORLD_READ WORLD_EXECUTE
+)
+
+# Install extension API headers (for building extensions)
+install(DIRECTORY include/uep
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
 )
 
 # Install documentation

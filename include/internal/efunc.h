@@ -59,6 +59,7 @@ extern int vim_change_operator(int f, int n);
 extern int vim_yank_operator(int f, int n);
 extern int vim_enter_visual_mode(int f, int n);
 extern int vim_enter_visual_line_mode(int f, int n);
+extern int vim_enter_visual_block_mode(int f, int n);
 extern int vim_exit_visual_mode(int f, int n);
 extern int vim_visual_delete(int f, int n);
 extern int vim_visual_yank(int f, int n);
@@ -253,6 +254,8 @@ extern void sizesignal(int signr);
 /* region.c */
 extern int region_kill(int f, int n);
 extern int region_copy(int f, int n);
+extern int copy_to_clipboard(int f, int n);
+extern int clipboard_provider_cmd(int f, int n);
 extern int lowerregion(int f, int n);
 extern int upperregion(int f, int n);
 extern int getregion(struct region *rp);
@@ -281,16 +284,6 @@ extern void input_reset_parser_state(void);
 extern void writing_mode_reset(void);
 extern int writing_mode_enable(int f, int n);
 extern int writing_mode_disable(int f, int n);
-
-/* WriteEdit prose mode */
-extern void writeedit_reset(void);
-extern int write_edit_cmd(int f, int n);
-extern int writeedit_transform_char(int c, int *out_codepoint);
-extern void writeedit_set_default_wrap_col(int col);
-extern void writeedit_set_default_smart_typography(bool enabled);
-extern void writeedit_set_default_em_dash(bool enabled);
-extern void writeedit_set_default_smart_quotes(bool enabled);
-extern void writeedit_set_default_curly_apostrophe(bool enabled);
 
 /* User settings (JSON) and friendly commands */
 extern int settings_load(int f, int n);
@@ -497,6 +490,58 @@ extern char *undolock(char *fname);
 
 /* terminal.c */
 extern int terminal_buffer_open(int f, int n);
+extern int terminal_capture(int f, int n);
 extern int terminal_close(int f, int n);
+extern int terminal_create(int f, int n);
+extern int terminal_list(int f, int n);
+extern int terminal_send_buffer(int f, int n);
+extern int terminal_send_line(int f, int n);
+extern int terminal_send_region(int f, int n);
+extern int terminal_switch(int f, int n);
+extern int terminal_toggle(int f, int n);
+
+/* uep_format.c - UEP Extension Protocol */
+extern int uep_format_buffer(int f, int n);
+
+/* terminal.c - REPL integration */
+extern int repl_start(int f, int n);
+extern int repl_eval_line(int f, int n);
+extern int repl_eval_region(int f, int n);
+extern int repl_eval_buffer(int f, int n);
+
+/* terminal.c - Build integration */
+extern int build_run(int f, int n);
+extern int build_next_error(int f, int n);
+extern int build_prev_error(int f, int n);
+
+/* extension.c - Extension system */
+extern int extension_load_cmd(int f, int n);
+extern int extension_unload_cmd(int f, int n);
+extern int extension_list_cmd(int f, int n);
+extern void extension_init(void);
+extern void extension_cleanup(void);
+extern void extension_autoload(void);
+extern void extension_set_autoload_dir(const char *dir);
+extern const char *extension_get_autoload_dir(void);
+
+/* extension_api.c - Extension API */
+typedef int (*uemacs_cmd_fn)(int f, int n);
+extern uemacs_cmd_fn extension_find_command(const char *name);
+
+/* uep_scripts.c - Layer 2 Script Extensions */
+extern int uep_scripts_list_cmd(int f, int n);
+extern int uep_scripts_reload_cmd(int f, int n);
+extern void uep_scripts_init(void);
+extern void uep_scripts_set_dir(const char *dir);
+extern int uep_scripts_load(void);
+extern void uep_scripts_cleanup(void);
+extern int uep_scripts_try_execute(const char *name);
+extern void extension_fire_buffer_save(struct buffer *bp);
+extern void extension_fire_buffer_load(struct buffer *bp);
+extern bool extension_fire_key(int key);  /* Returns true if key was consumed */
+extern void extension_fire_idle(void);
+extern int extension_fire_char_transform(int c, int *out);  /* 0=no transform, 1=use out, -1=delete+insert */
+extern void extension_api_init(void);
+extern void extension_api_cleanup(void);
 
 #endif  /* EFUNC_H_ */

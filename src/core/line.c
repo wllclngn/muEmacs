@@ -24,11 +24,10 @@
 #include "utf8.h"
 #include "memory.h"
 #include "undo.h"
+#include "clipboard.h"
 
 /* Forward declarations for kill ring functions */
 static void kill_ring_add(const char *text, size_t len);
-extern int set_clipboard(const char *text);  /* Linux platform clipboard */
-extern int get_clipboard(char *buf, int maxlen); /* Linux platform clipboard */
 
 #define	BLOCK_SIZE 16 /* Line block chunk size. */
 
@@ -651,7 +650,7 @@ int ldelete(long n, int kflag)
 
 	undo_record_delete(curbp, lnum, doto, deleted_text, collected_len);
 	if (kflag != false && collected_len > 0) {
-		set_clipboard(deleted_text);
+		clipboard_set(deleted_text, (size_t)collected_len);
 	}
     SAFE_FREE(deleted_text);
 	return n == 0;
@@ -745,7 +744,7 @@ void kdelete(void)
 	if (temp_kill_len > 0) {
 		temp_kill_buf[temp_kill_len] = '\0';
 		kill_ring_add(temp_kill_buf, temp_kill_len);
-		set_clipboard(temp_kill_buf);
+		clipboard_set(temp_kill_buf, temp_kill_len);
 		temp_kill_len = 0;
 	}
 }
@@ -793,7 +792,8 @@ int yank_clipboard(int f, int n)
 	char buf[8192];
 	(void)f; (void)n;
 	if (curbp->b_mode & MDVIEW) return rdonly();
-	if (!get_clipboard(buf, (int)sizeof(buf))) {
+	int len = clipboard_get(buf, sizeof(buf));
+	if (len <= 0) {
 		mlwrite("[CLIPBOARD EMPTY]");
 		return true; /* not an error */
 	}
@@ -817,20 +817,25 @@ int yank_clipboard(int f, int n)
 
 static void kill_ring_add(const char *text, size_t len) {
 	if (len == 0 || len >= KILL_ENTRY_MAX) return;
-	
+
 	size_t head = atomic_fetch_add_explicit(&g_kill_ring.head, 1, memory_order_acq_rel);
 	head &= (KILL_RING_MAX - 1);
-	
+
 	struct kill_ring_entry *entry = &g_kill_ring.entries[head];
-	
+
 	memcpy(entry->text, text, len);
 	entry->text[len] = '\0';
-	
+
 	atomic_store_explicit(&entry->length, len, memory_order_release);
 	atomic_store_explicit(&entry->valid, true, memory_order_release);
-	
+
 	atomic_fetch_add_explicit(&g_kill_ring.count, 1, memory_order_relaxed);
 	atomic_store_explicit(&g_kill_ring.yank_index, head, memory_order_release);
+
+	/* Sync to system clipboard if enabled (configurable via TOML) */
+	if (g_clipboard_config.sync_kills) {
+		clipboard_set(text, len);
+	}
 }
 
 static const char *kill_ring_get(size_t index, size_t *out_len) {

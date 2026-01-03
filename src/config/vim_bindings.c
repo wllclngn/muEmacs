@@ -28,12 +28,19 @@ static void vim_store_to_register(int is_delete, int linewise);
 static void vim_record_change(char op, char motion, int count, int linewise);
 static void vim_record_text_object_change(char op, char prefix, char object, int count);
 static void vim_record_replace_change(char ch, int count);
+static int vim_block_delete(int f, int n);
+static int vim_block_yank(int f, int n);
 
 /* Helper: get next key character using unified parser */
 static int vim_getkey(void) {
     input_key_event_t evt;
-    if (input_read_event(&evt) < 0) return -1;
-    return evt_char(&evt);
+    LOG_DEBUGF("VIM_GETKEY: waiting for input...");
+    int ret = input_read_event(&evt);
+    LOG_DEBUGF("VIM_GETKEY: input_read_event returned %d", ret);
+    if (ret < 0) return -1;
+    int ch = evt_char(&evt);
+    LOG_DEBUGF("VIM_GETKEY: evt_char returned 0x%02x ('%c')", ch, (ch >= 32 && ch < 127) ? ch : '?');
+    return ch;
 }
 
 /*
@@ -484,25 +491,100 @@ int vim_exit_visual_mode(int f, int n) {
     return true;
 }
 
+/* Helper: Normalize mark/cursor to cover full lines for linewise operations.
+ * Saves both endpoints before manipulation, determines line order, then
+ * sets up cursor at start of first line and mark at start of line after last.
+ * Returns true if region was set up correctly. */
+static bool vim_setup_linewise_region(void)
+{
+    if (curwp->w_markp == nullptr) return false;
+
+    struct line *mark_line = curwp->w_markp;
+    struct line *dot_line = curwp->w_dotp;
+
+    /* Same line case - just expand to full line */
+    if (mark_line == dot_line) {
+        curwp->w_doto = 0;
+        struct line *next = lforw(dot_line);
+        if (next == curbp->b_linep) {
+            /* Last line in buffer - mark at end + 1 for newline */
+            curwp->w_markp = dot_line;
+            curwp->w_marko = llength(dot_line);
+        } else {
+            curwp->w_markp = next;
+            curwp->w_marko = 0;
+        }
+        return true;
+    }
+
+    /* Multi-line: determine which line comes first by scanning buffer */
+    struct line *start_line, *end_line;
+    bool mark_first = false;
+
+    for (struct line *scan = lforw(curbp->b_linep);
+         scan != curbp->b_linep; scan = lforw(scan)) {
+        if (scan == mark_line) { mark_first = true; break; }
+        if (scan == dot_line) { mark_first = false; break; }
+    }
+
+    if (mark_first) {
+        start_line = mark_line;
+        end_line = dot_line;
+    } else {
+        start_line = dot_line;
+        end_line = mark_line;
+    }
+
+    /* Set cursor to beginning of first line */
+    curwp->w_dotp = start_line;
+    curwp->w_doto = 0;
+
+    /* Set mark to beginning of line AFTER last line */
+    struct line *after_end = lforw(end_line);
+    if (after_end == curbp->b_linep) {
+        /* end_line is last line in buffer - mark at end of it */
+        curwp->w_markp = end_line;
+        curwp->w_marko = llength(end_line);
+    } else {
+        curwp->w_markp = after_end;
+        curwp->w_marko = 0;
+    }
+    return true;
+}
+
 /* Delete selection in visual mode */
 int vim_visual_delete(int f, int n) {
     (void)f; (void)n;
     enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
     int linewise = (mode == MODE_VISUAL_LINE);
 
+    LOG_DEBUGF("VIM_VISUAL_DELETE: mode=%d linewise=%d", mode, linewise);
+    LOG_DEBUGF("VIM_VISUAL_DELETE: mark=%p marko=%d dot=%p doto=%d",
+               (void*)curwp->w_markp, curwp->w_marko,
+               (void*)curwp->w_dotp, curwp->w_doto);
+
     if (linewise) {
-        /* Extend selection to full lines */
-        swapmark(false, 0);  /* Go to start */
-        goto_line_start(false, 0);
-        setmark(false, 0);
-        swapmark(false, 0);  /* Go to end */
-        goto_line_end(false, 0);
-        move_char_forward(false, 1);  /* Include newline */
+        LOG_DEBUG("VIM_VISUAL_DELETE: calling vim_setup_linewise_region");
+        vim_setup_linewise_region();
+    } else if (mode == MODE_VISUAL_BLOCK) {
+        LOG_DEBUG("VIM_VISUAL_DELETE: calling vim_block_delete");
+        return vim_block_delete(f, n);
+    } else {
+        /* MODE_VISUAL (char-wise): Vim visual is inclusive on both ends,
+         * but emacs region_kill is exclusive at cursor. Move cursor +1
+         * to include the character under cursor in the deletion. */
+        if (curwp->w_doto < llength(curwp->w_dotp)) {
+            curwp->w_doto++;
+        }
     }
 
+    LOG_DEBUG("VIM_VISUAL_DELETE: calling region_kill");
     region_kill(false, 1);
+    LOG_DEBUG("VIM_VISUAL_DELETE: calling vim_store_to_register");
     vim_store_to_register(1, linewise);  /* Delete */
+    LOG_DEBUG("VIM_VISUAL_DELETE: calling vim_exit_visual_mode");
     vim_exit_visual_mode(false, 1);
+    LOG_DEBUG("VIM_VISUAL_DELETE: complete");
     return true;
 }
 
@@ -513,12 +595,14 @@ int vim_visual_yank(int f, int n) {
     int linewise = (mode == MODE_VISUAL_LINE);
 
     if (linewise) {
-        swapmark(false, 0);
-        goto_line_start(false, 0);
-        setmark(false, 0);
-        swapmark(false, 0);
-        goto_line_end(false, 0);
-        move_char_forward(false, 1);
+        vim_setup_linewise_region();
+    } else if (mode == MODE_VISUAL_BLOCK) {
+        return vim_block_yank(f, n);
+    } else {
+        /* MODE_VISUAL (char-wise): Vim visual is inclusive on both ends */
+        if (curwp->w_doto < llength(curwp->w_dotp)) {
+            curwp->w_doto++;
+        }
     }
 
     region_copy(false, 1);
@@ -532,6 +616,176 @@ int vim_visual_change(int f, int n) {
     (void)f; (void)n;
     vim_visual_delete(false, 1);
     vim_enter_insert_mode(false, 1);
+    return true;
+}
+
+/*
+ * Visual Block Mode (Ctrl-V)
+ */
+
+/* Enter visual block mode */
+int vim_enter_visual_block_mode(int f, int n) {
+    (void)f; (void)n;
+    LOG_INFO("Vim: Entering Visual Block Mode");
+    atomic_store(&g_vim_state.current_mode, MODE_VISUAL_BLOCK);
+    g_vim_state.block_start_col = getccol(false);  /* Save starting virtual column */
+    curwp->w_flag |= WFMODE;  /* Trigger modeline refresh */
+    setmark(false, 0);  /* Set mark at current position (anchor) */
+    mlwrite("[EVIL: VISUAL BLOCK]");
+    return true;
+}
+
+/* Helper: Get byte offset for a virtual column on a line */
+static int col_to_offset(struct line *lp, int vcol)
+{
+    int len = llength(lp);
+    int offset = 0;
+    int col = 0;
+
+    while (offset < len && col < vcol) {
+        int ch = lgetc(lp, offset);
+        if (ch == '\t') {
+            col = (col / 8 + 1) * 8;  /* Tab stops at multiples of 8 */
+        } else {
+            col++;
+        }
+        offset++;
+    }
+    return offset;
+}
+
+/* Delete block selection - removes rectangular region from each line */
+static int vim_block_delete(int f, int n) {
+    (void)f; (void)n;
+
+    if (curwp->w_markp == nullptr) {
+        mlwrite("NO MARK SET");
+        return false;
+    }
+
+    struct line *mark_line = curwp->w_markp;
+    struct line *dot_line = curwp->w_dotp;
+
+    /* Determine line range */
+    struct line *start_line, *end_line;
+    bool mark_first = false;
+
+    if (mark_line == dot_line) {
+        start_line = end_line = mark_line;
+    } else {
+        for (struct line *scan = lforw(curbp->b_linep);
+             scan != curbp->b_linep; scan = lforw(scan)) {
+            if (scan == mark_line) { mark_first = true; break; }
+            if (scan == dot_line) { mark_first = false; break; }
+        }
+        if (mark_first) {
+            start_line = mark_line;
+            end_line = dot_line;
+        } else {
+            start_line = dot_line;
+            end_line = mark_line;
+        }
+    }
+
+    /* Get column range */
+    int cur_col = getccol(false);
+    int left_col = (g_vim_state.block_start_col < cur_col) ?
+                   g_vim_state.block_start_col : cur_col;
+    int right_col = (g_vim_state.block_start_col > cur_col) ?
+                    g_vim_state.block_start_col : cur_col;
+
+    /* Delete block from each line */
+    for (struct line *lp = start_line; ; lp = lforw(lp)) {
+        int len = llength(lp);
+        int start_byte = col_to_offset(lp, left_col);
+        int end_byte = col_to_offset(lp, right_col + 1);
+
+        if (start_byte < len && end_byte > start_byte) {
+            /* Position cursor on this line and delete the range */
+            curwp->w_dotp = lp;
+            curwp->w_doto = start_byte;
+            int delete_count = (end_byte <= len) ? (end_byte - start_byte) :
+                                                   (len - start_byte);
+            if (delete_count > 0) {
+                ldelete((long)delete_count, false);
+            }
+        }
+
+        if (lp == end_line) break;
+    }
+
+    /* Position cursor at top-left of deleted block */
+    curwp->w_dotp = start_line;
+    curwp->w_doto = col_to_offset(start_line, left_col);
+
+    lchange(WFHARD);
+    vim_exit_visual_mode(false, 1);
+    return true;
+}
+
+/* Yank block selection - copies rectangular region to kill buffer */
+static int vim_block_yank(int f, int n) {
+    (void)f; (void)n;
+
+    if (curwp->w_markp == nullptr) {
+        mlwrite("NO MARK SET");
+        return false;
+    }
+
+    struct line *mark_line = curwp->w_markp;
+    struct line *dot_line = curwp->w_dotp;
+
+    /* Determine line range */
+    struct line *start_line, *end_line;
+    bool mark_first = false;
+
+    if (mark_line == dot_line) {
+        start_line = end_line = mark_line;
+    } else {
+        for (struct line *scan = lforw(curbp->b_linep);
+             scan != curbp->b_linep; scan = lforw(scan)) {
+            if (scan == mark_line) { mark_first = true; break; }
+            if (scan == dot_line) { mark_first = false; break; }
+        }
+        if (mark_first) {
+            start_line = mark_line;
+            end_line = dot_line;
+        } else {
+            start_line = dot_line;
+            end_line = mark_line;
+        }
+    }
+
+    /* Get column range */
+    int cur_col = getccol(false);
+    int left_col = (g_vim_state.block_start_col < cur_col) ?
+                   g_vim_state.block_start_col : cur_col;
+    int right_col = (g_vim_state.block_start_col > cur_col) ?
+                    g_vim_state.block_start_col : cur_col;
+
+    /* Clear kill buffer and copy block */
+    kdelete();
+
+    for (struct line *lp = start_line; ; lp = lforw(lp)) {
+        int len = llength(lp);
+        int start_byte = col_to_offset(lp, left_col);
+        int end_byte = col_to_offset(lp, right_col + 1);
+
+        /* Copy characters from this line */
+        for (int i = start_byte; i < end_byte && i < len; i++) {
+            kinsert(lgetc(lp, i));
+        }
+        /* Pad with spaces if line is shorter than selection */
+        for (int i = len; i < end_byte; i++) {
+            kinsert(' ');
+        }
+
+        if (lp == end_line) break;
+        kinsert('\n');  /* Newline between block rows */
+    }
+
+    mlwrite("[BLOCK YANKED]");
+    vim_exit_visual_mode(false, 1);
     return true;
 }
 
@@ -632,8 +886,10 @@ int vim_find_char_forward(int f, int n) {
     int count = vim_get_effective_count();
     char pending = g_vim_state.pending_op;
 
+    LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: entering, count=%d pending=%d", count, pending);
     mlwrite("[f-]");
     int ch = vim_getkey();
+    LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: got ch=0x%02x ('%c')", ch, (ch >= 32 && ch < 127) ? ch : '?');
 
     if (pending) {
         /* Operator pending - set mark at start, find char, execute op */
@@ -647,6 +903,7 @@ int vim_find_char_forward(int f, int n) {
     }
 
     int result = vim_find_char_impl('f', ch, count);
+    LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: impl returned %d, cursor now at doto=%d", result, curwp->w_doto);
     vim_clear_pending_state();
     return result;
 }
@@ -1990,6 +2247,9 @@ void vim_init_keymaps(void) {
 
     /* ONLY prefix binding stays in code - 'g' is structural routing for gg/G commands */
     keymap_bind(nkm, keymap_key_make('g', 0), vim_goto_prefix);
+
+    /* Ctrl-V for visual block mode - bind here since TOML parser has issues with ^V in normal section */
+    keymap_bind(nkm, keymap_key_make('V', MOD_CTRL), vim_enter_visual_block_mode);
 
     atomic_store(&vim_normal_keymap, nkm);
 

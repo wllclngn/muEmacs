@@ -3,6 +3,7 @@
  *
  * Implements terminal emulation with:
  * - Split window at configurable height (settings.toml)
+ * - Multiple named terminal buffers (*Terminal:name*)
  * - Line-based output with scrollback
  * - Graphics tunneling (Kitty/Sixel passthrough)
  * - Basic ANSI/VT100 parsing
@@ -16,6 +17,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/types.h>
+
+/* Maximum number of concurrent terminals */
+#define MAX_TERMINALS 8
 
 /* Forward declarations */
 struct buffer;
@@ -37,6 +41,33 @@ int terminal_close(int f, int n);
 
 /* Close terminal associated with a buffer (called when buffer killed) */
 void terminal_buffer_close(struct buffer *bp);
+
+/* --- Multiple Terminal API --- */
+
+/* Create a named terminal (M-x: terminal-create)
+ * Name is appended to buffer: "*Terminal:name*"
+ * If name is NULL or empty, uses default "*Terminal*"
+ */
+int terminal_create(int f, int n);
+
+/* Switch to a named terminal (M-x: terminal-switch)
+ * Prompts for terminal name from active terminals
+ */
+int terminal_switch(int f, int n);
+
+/* List all active terminals (M-x: terminal-list)
+ * Shows terminal name, shell, and status
+ */
+int terminal_list(int f, int n);
+
+/* Internal: Create terminal with specific name */
+int terminal_create_named(const char *name);
+
+/* Internal: Find terminal buffer by name */
+struct buffer *terminal_find(const char *name);
+
+/* Internal: Get count of active terminals */
+int terminal_count(void);
 
 /* --- I/O & Emulation --- */
 

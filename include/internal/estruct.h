@@ -385,7 +385,6 @@ extern struct buffer_hash_entry *buffer_hash_table[BUFFER_HASH_SIZE];
 #define	MDCRYPT	0x0080		/* encrytion mode active        */
 #define	MDASAVE	0x0100		/* auto-save mode               */
 #define	MDTBUFFER 0x0200	/* terminal emulator buffer     */
-#define	MDWRITEEDIT 0x0400	/* WriteEdit prose mode         */
 
 /*
  * The starting position of a region, and the size of the region in

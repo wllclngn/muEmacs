@@ -18,6 +18,8 @@
 #include "util/logger.h"
 #include "terminal/palette.h"
 #include "git_status.h"
+#include "clipboard.h"
+#include "uep/uep_providers.h"
 
 // Settings loader with XDG Base Directory support
 // Priority order:
@@ -291,25 +293,6 @@ static void apply_setting(const char *section, const char *key, const char *valu
         sgarbf = true;
     }
 
-    /* [writeedit] section - WriteEdit prose mode settings */
-    else if (strcmp(section, "writeedit") == 0) {
-        if (strcmp(key, "soft_wrap_column") == 0 && int_val > 0) {
-            writeedit_set_default_wrap_col(int_val);
-        }
-        if (strcmp(key, "smart_typography") == 0) {
-            writeedit_set_default_smart_typography(bool_val);
-        }
-        if (strcmp(key, "em_dash") == 0) {
-            writeedit_set_default_em_dash(bool_val);
-        }
-        if (strcmp(key, "smart_quotes") == 0) {
-            writeedit_set_default_smart_quotes(bool_val);
-        }
-        if (strcmp(key, "curly_apostrophe") == 0) {
-            writeedit_set_default_curly_apostrophe(bool_val);
-        }
-    }
-
     /* [terminal] section */
     else if (strcmp(section, "terminal") == 0) {
         if (strcmp(key, "enabled") == 0) terminal_enabled = bool_val;
@@ -323,6 +306,25 @@ static void apply_setting(const char *section, const char *key, const char *valu
             terminal_scrollback = int_val;
         }
         if (strcmp(key, "close_on_exit") == 0) terminal_close_on_exit = bool_val;
+    }
+
+    /* [clipboard] section - clipboard provider configuration */
+    else if (strcmp(section, "clipboard") == 0) {
+        if (strcmp(key, "provider") == 0 && type == TOML_STRING) {
+            clipboard_set_provider(value);
+        }
+        else if (strcmp(key, "sync_kills") == 0) {
+            clipboard_set_sync_kills(bool_val);
+        }
+        else if (strcmp(key, "osc52_enabled") == 0) {
+            clipboard_set_osc52_enabled(bool_val);
+        }
+        else if (strcmp(key, "copy_command") == 0 && type == TOML_STRING) {
+            clipboard_set_custom_copy(value);
+        }
+        else if (strcmp(key, "paste_command") == 0 && type == TOML_STRING) {
+            clipboard_set_custom_paste(value);
+        }
     }
 
     /* [keys] section - legacy key configuration (removed, use [bindings]) */
@@ -353,6 +355,41 @@ static void apply_setting(const char *section, const char *key, const char *valu
         }
         else if (strcmp(key, "max_threads") == 0 && int_val >= 1 && int_val <= 32) {
             perf_max_threads = int_val;
+        }
+    }
+
+    /* [extensions] global settings */
+    else if (strcmp(section, "extensions") == 0) {
+        if (strcmp(key, "timeout") == 0 && int_val > 0) {
+            uep_set_timeout(int_val);
+            LOG_DEBUGF("UEP: Set timeout to %d ms", int_val);
+        }
+        else if (strcmp(key, "extension_dir") == 0 && type == TOML_STRING) {
+            /* Store extension directory for auto-loading */
+            extern void extension_set_autoload_dir(const char *dir);
+            extension_set_autoload_dir(value);
+            LOG_DEBUGF("Extension: Set autoload dir to %s", value);
+        }
+        else if (strcmp(key, "scripts_dir") == 0 && type == TOML_STRING) {
+            /* Store scripts directory for Layer 2 */
+            extern void uep_scripts_set_dir(const char *dir);
+            uep_scripts_set_dir(value);
+            LOG_DEBUGF("Scripts: Set scripts dir to %s", value);
+        }
+        else if (strcmp(key, "auto_build") == 0) {
+            /* Enable/disable auto-building of extensions from source */
+            extern void extension_set_auto_build(bool enabled);
+            extension_set_auto_build(bool_val);
+            LOG_DEBUGF("Extension: Set auto_build to %s", bool_val ? "true" : "false");
+        }
+    }
+
+    /* [extensions.*] filetype-specific providers */
+    else if (strncmp(section, "extensions.", 11) == 0) {
+        const char *filetype = section + 11;  /* "python", "c", "rust", etc. */
+        if (type == TOML_STRING && *filetype && *key && *value) {
+            uep_register_provider(filetype, key, value);
+            LOG_DEBUGF("UEP: Registered %s/%s = %s", filetype, key, value);
         }
     }
 
@@ -447,6 +484,9 @@ int settings_load(int f, int n) {
 
     /* Sync git status with TOML setting */
     git_status_set_enabled(modeline_show_git);
+
+    /* Initialize clipboard subsystem (auto-detect if needed) */
+    clipboard_init();
 
     SAFE_FREE(buf);
     return true;
@@ -554,6 +594,17 @@ int save_settings_cmd(int f, int n) {
     }
     toml_write_int(fp, "scrollback", terminal_scrollback);
     toml_write_bool(fp, "close_on_exit", terminal_close_on_exit);
+
+    toml_write_section(fp, "clipboard");
+    toml_write_string(fp, "provider", clipboard_provider_name());
+    toml_write_bool(fp, "sync_kills", g_clipboard_config.sync_kills);
+    toml_write_bool(fp, "osc52_enabled", g_clipboard_config.osc52_enabled);
+    if (g_clipboard_config.copy_cmd[0] != '\0') {
+        toml_write_string(fp, "copy_command", g_clipboard_config.copy_cmd);
+    }
+    if (g_clipboard_config.paste_cmd[0] != '\0') {
+        toml_write_string(fp, "paste_command", g_clipboard_config.paste_cmd);
+    }
 
     fclose(fp);
     mlwrite("[SETTINGS SAVED TO %s]", path);

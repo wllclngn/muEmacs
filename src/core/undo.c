@@ -150,7 +150,7 @@ struct atomic_undo_stack *undo_stack_create(void) {
     atomic_store(&stack->tail, 0);
     atomic_store(&stack->undo_ptr, -1);
     atomic_store(&stack->count, 0);
-    atomic_store(&stack->version, 1);
+    atomic_store(&stack->version, 2);  /* Start at 2 so first op gets version_id=2, not 1 (the saved baseline) */
     atomic_store(&stack->in_operation, false);
     atomic_store(&stack->group_forced, false);
     atomic_store(&stack->resize_failed, false);
@@ -189,7 +189,7 @@ void undo_stack_clear(struct atomic_undo_stack *stack) {
     atomic_store(&stack->tail, 0);
     atomic_store(&stack->undo_ptr, -1);
     atomic_store(&stack->count, 0);
-    atomic_store(&stack->version, 1);
+    atomic_store(&stack->version, 2);  /* Start at 2 so first op gets version_id=2, not 1 (the saved baseline) */
     atomic_store(&stack->in_operation, false);
     atomic_store(&stack->group_forced, false);
     atomic_store(&stack->current_group_id, 1);
@@ -433,12 +433,21 @@ int undo_operation(struct buffer *bp) {
             }
             cursor = prev;
         }
-        atomic_store(&stack->undo_ptr, (cursor - 1 + cap) % cap);
+        int new_undo_ptr = (cursor - 1 + cap) % cap;
+        atomic_store(&stack->undo_ptr, new_undo_ptr);
 
-        // Clean/dirty decision: if current version equals saved_version, we are clean
-        uint64_t cur_version = (atomic_load(&stack->undo_ptr) == -1)
-            ? 1
-            : stack->operations[atomic_load(&stack->undo_ptr)].version_id;
+        /* Clean/dirty decision: if current version equals saved_version, we are clean.
+         * The sentinel value for "undone all the way back" is when undo_ptr equals
+         * (tail - 1 + cap) % cap - this is the value that would cause the next undo
+         * to return "nothing to undo". In this case, we're at the clean baseline. */
+        int tail = atomic_load(&stack->tail);
+        int sentinel = (tail - 1 + cap) % cap;
+        uint64_t cur_version;
+        if (new_undo_ptr == sentinel || new_undo_ptr == -1) {
+            cur_version = 1;  /* Undone to beginning = clean baseline */
+        } else {
+            cur_version = stack->operations[new_undo_ptr].version_id;
+        }
         if (cur_version == atomic_load(&bp->b_saved_version_id)) {
             bp->b_flag &= ~BFCHG;
         } else {

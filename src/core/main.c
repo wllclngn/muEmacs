@@ -172,6 +172,22 @@ static void initialize_editor(void)
     // Initialize palette (environment overrides after TOML)
     extern void palette_init(void);
     palette_init();
+
+    // Initialize extension system (Layer 3)
+    extern void extension_init(void);
+    extern void extension_api_init(void);
+    extern void extension_autoload(void);
+    extension_api_init();
+    extension_init();
+
+    // Auto-load extensions from configured directory
+    extension_autoload();
+
+    // Initialize and load scripts (Layer 2)
+    extern void uep_scripts_init(void);
+    extern int uep_scripts_load(void);
+    uep_scripts_init();
+    uep_scripts_load();
 }
 
 // Parse command line arguments
@@ -343,11 +359,30 @@ loop:
 		mark_display_clean();
 	}
 
+	/* Fire extension idle hooks before blocking on input */
+	extern void extension_fire_idle(void);
+	extension_fire_idle();
+
 	/* Get the next command from the keyboard (unified parser) */
 	if (input_read_event(&state->evt) < 0) {
 		return EXIT_SUCCESS;  /* EOF or error */
 	}
 	state->c = evt_char(&state->evt);  /* Character code only */
+
+	/* Fire extension key hooks - if any hook consumes the key, skip normal processing */
+	/* Map control chars back to raw values for hooks (parser converts Enter→Ctrl-M, Tab→Ctrl-I) */
+	int hook_key;
+	if (evt_is_enter(&state->evt)) {
+		hook_key = '\r';
+	} else if (evt_is_tab(&state->evt)) {
+		hook_key = '\t';
+	} else {
+		hook_key = state->c;
+	}
+	extern bool extension_fire_key(int key);
+	if (extension_fire_key(hook_key)) {
+		goto loop;  /* Key was handled by extension */
+	}
 
 	/* Clear command line if something is displayed */
 	if (mpresf != false) {
@@ -539,9 +574,9 @@ int execute_event(input_key_event_t *evt, int f, int n)
 		     (curwp->w_doto) % 8 == 7))
 			ldelchar(1, false);
 
-		/* WriteEdit smart typography transform (only when mode active) */
+		/* Smart typography transform via extension hook */
 		int transformed_char = c;
-		int transform_result = writeedit_transform_char(c, &transformed_char);
+		int transform_result = extension_fire_char_transform(c, &transformed_char);
 		if (transform_result != 0) {
 			/* Transform requested - need to insert as UTF-8 */
 			if (transform_result == -1) {
@@ -636,6 +671,13 @@ int quit(int f, int n)
 		mlyesno("Modified buffers exist. Leave anyway")) == true) {
 /* Session saving removed - keeping exit clean and simple */
 		LOG_INFO("uEmacs: Exiting via quit command");
+
+		/* Cleanup extension system */
+		extern void extension_cleanup(void);
+		extern void extension_api_cleanup(void);
+		extension_cleanup();
+		extension_api_cleanup();
+
 		logger_close();
 		vttidy();
 		if (f)

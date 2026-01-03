@@ -1,0 +1,47 @@
+# Build directories
+build/
+cmake-build-*/
+
+# Generated config (contains machine-specific paths)
+include/config.h
+
+# Editor backup/swap files
+*~
+*.swp
+*.swo
+\#*\#
+.#*
+
+# Compile artifacts
+*.o
+*.a
+*.so
+*.dylib
+
+# Debug/test artifacts
+*.log
+core
+core.*
+vgcore.*
+*.dSYM/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+.ccls-cache/
+compile_commands.json
+
+# Screenshots (test artifacts)
+*.png
+
+# OS
+.DS_Store
+Thumbs.db

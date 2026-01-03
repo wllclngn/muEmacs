@@ -46,14 +46,23 @@ static void cleanup_exec_state(struct exec_state *state);
 int namedcmd(int f, int n)
 {
 	fn_t kfunc;	/* ptr to the requexted function to bind to */
+	char cmdbuf[NSTRING];	/* buffer to capture command name */
 
 	/* prompt the user to type a named command */
-	mlwrite("M-x: ");
+	if (minibuf_read("M-x: ", cmdbuf, NSTRING) != true) {
+		return false;
+	}
 
-	/* and now get the function name to execute */
-	kfunc = getname();
+	/* and now get the function to execute */
+	kfunc = fncmatch(cmdbuf);
 	if (kfunc == nullptr) {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
+		/* Check if it's a script command (Layer 2) */
+		extern int uep_scripts_try_execute(const char *name);
+		int script_result = uep_scripts_try_execute(cmdbuf);
+		if (script_result) {
+			return true;
+		}
+		REPORT_ERROR(ERR_COMMAND_UNKNOWN, cmdbuf);
 		return false;
 	}
 
@@ -137,6 +146,13 @@ int docmd(const char *cline)
 
 	/* and match the token to see if it exists */
 	if ((fnc = fncmatch(tkn)) == nullptr) {
+		/* Check if it's a script command (Layer 2) */
+		extern int uep_scripts_try_execute(const char *name);
+		int script_result = uep_scripts_try_execute(tkn);
+		if (script_result) {
+			execstr = oldestr;
+			return true;
+		}
 		REPORT_ERROR(ERR_COMMAND_UNKNOWN, tkn);
 		execstr = oldestr;
 		return false;

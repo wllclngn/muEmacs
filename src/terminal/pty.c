@@ -76,6 +76,10 @@ int pty_spawn(const char *shell, pid_t *child_pid, int rows, int cols) {
         setenv("TERM", "xterm-256color", 1);
         setenv("COLORTERM", "truecolor", 1);
 
+        /* Set $UE_* environment variables for editor integration
+         * Note: This is in the forked child, so we can safely setenv() */
+        setenv("UE_TERMINAL", "1", 1);  /* Indicate we're in μEmacs terminal */
+
         /* Clear signals to defaults using sigaction */
         struct sigaction sa;
         sa.sa_handler = SIG_DFL;
@@ -93,7 +97,7 @@ int pty_spawn(const char *shell, pid_t *child_pid, int rows, int cols) {
         _exit(127);
     }
 
-    /* Parent process - set non-blocking I/O on master */
+    /* Parent process - set non-blocking I/O and close-on-exec on master */
     LOG_DEBUGF("PTY: Parent process, child pid=%d, master_fd=%d", (int)pid, master_fd);
     int flags = fcntl(master_fd, F_GETFL, 0);
     if (flags >= 0) {
@@ -101,6 +105,13 @@ int pty_spawn(const char *shell, pid_t *child_pid, int rows, int cols) {
         LOG_DEBUG("PTY: Set non-blocking I/O on master fd");
     } else {
         LOG_WARN("PTY: Failed to get/set non-blocking flags");
+    }
+
+    /* Set close-on-exec to prevent fd leak to child processes */
+    int fd_flags = fcntl(master_fd, F_GETFD, 0);
+    if (fd_flags >= 0) {
+        fcntl(master_fd, F_SETFD, fd_flags | FD_CLOEXEC);
+        LOG_DEBUG("PTY: Set close-on-exec on master fd");
     }
 
     *child_pid = pid;

@@ -15,8 +15,7 @@
 #include "efunc.h"
 #include "line.h"
 #include "memory.h"
-/* Platform clipboard API (Linux implementation in platform/linux-modern.c) */
-extern int set_clipboard(const char *text);
+#include "clipboard.h"
 
 /* Clear the visual selection mark */
 static void clear_selection(void)
@@ -101,7 +100,7 @@ int region_copy(int f, int n)
 	/* Push to system clipboard (copy does not consume temp kill buffer) */
 	if (cb) {
 		cb[cb_len] = '\0';
-		set_clipboard(cb);
+		clipboard_set(cb, (size_t)cb_len);
 		SAFE_FREE(cb);
 	}
 	mlwrite("[REGION COPIED]");
@@ -250,4 +249,33 @@ int getregion(struct region *rp)
 	}
 	mlwrite("BUG: LOST MARK");
 	return false;
+}
+
+/*
+ * Copy region directly to system clipboard (same as region_copy but
+ * explicit about clipboard destination). Bound to nothing by default.
+ */
+int copy_to_clipboard(int f, int n)
+{
+	return region_copy(f, n);
+}
+
+/*
+ * Display the current clipboard provider.
+ * Useful for debugging clipboard configuration.
+ */
+int clipboard_provider_cmd(int f, int n)
+{
+	(void)f; (void)n;
+	const char *provider = clipboard_provider_name();
+	bool available = clipboard_available();
+
+	if (available) {
+		mlwrite("[CLIPBOARD PROVIDER: %s%s]",
+			provider,
+			g_clipboard_config.sync_kills ? " (sync enabled)" : "");
+	} else {
+		mlwrite("[CLIPBOARD: NOT AVAILABLE]");
+	}
+	return true;
 }

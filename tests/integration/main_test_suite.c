@@ -268,7 +268,6 @@ int main(int argc, char *argv[]) {
 
     TEST_SECTION("Core Globals");
     TEST_RUN(test_core_globals, "Global variables", 30);
-    TEST_RUN(test_core_plugin, "Plugin system", 30);
     TEST_RUN(test_atomic_cursor, "Atomic cursor", 30);
 
     TEST_SUITE_END();

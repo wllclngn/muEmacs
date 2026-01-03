@@ -279,7 +279,6 @@ int main(int argc, char* argv[]) {
     all_phases_passed &= test_core_basic();
     all_phases_passed &= test_core_globals();
     all_phases_passed &= test_atomic_cursor();
-    all_phases_passed &= test_core_plugin();
     all_phases_passed &= test_core_window_hash();
     all_phases_passed &= test_text_isearch();
     all_phases_passed &= test_text_region();

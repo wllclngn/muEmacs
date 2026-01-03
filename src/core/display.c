@@ -895,8 +895,123 @@ static bool get_line_selection_bounds(struct line *lp, int *sel_start, int *sel_
 	*sel_start = -1;
 	*sel_end = -1;
 
-	/* No mark set or same position - no selection */
-	if (markp == nullptr || (markp == dotp && marko == doto))
+	/* No mark set - no selection */
+	if (markp == nullptr)
+		return false;
+
+	/* Check current visual mode */
+	enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
+	bool linewise = (mode == MODE_VISUAL_LINE);
+	bool blockwise = (mode == MODE_VISUAL_BLOCK);
+
+	/* For Visual Line mode: entire lines from col 0 to EOL */
+	if (linewise) {
+		/* Same line case */
+		if (markp == dotp) {
+			if (lp != markp) return false;
+			*sel_start = 0;
+			*sel_end = llength(lp);
+			return true;
+		}
+
+		/* Multi-line: determine which lines are in selection */
+		struct line *start_line, *end_line;
+		bool mark_before_cursor = false;
+
+		struct line *scan = wp->w_bufp->b_linep;
+		while ((scan = lforw(scan)) != wp->w_bufp->b_linep) {
+			if (scan == markp) { mark_before_cursor = true; break; }
+			else if (scan == dotp) { mark_before_cursor = false; break; }
+		}
+
+		if (mark_before_cursor) {
+			start_line = markp;
+			end_line = dotp;
+		} else {
+			start_line = dotp;
+			end_line = markp;
+		}
+
+		/* Check if lp is the start or end line */
+		if (lp == start_line || lp == end_line) {
+			*sel_start = 0;
+			*sel_end = llength(lp);
+			return true;
+		}
+
+		/* Check if lp is between start and end */
+		struct line *between_scan = start_line;
+		while ((between_scan = lforw(between_scan)) != wp->w_bufp->b_linep &&
+		       between_scan != end_line) {
+			if (between_scan == lp) {
+				*sel_start = 0;
+				*sel_end = llength(lp);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/* For Visual Block mode: fixed column range on each line in range */
+	if (blockwise) {
+		/* Same line case */
+		if (markp == dotp) {
+			if (lp != markp) return false;
+		} else {
+			/* Multi-line: check if lp is in the line range */
+			struct line *start_line, *end_line;
+			bool mark_before_cursor = false;
+
+			struct line *scan = wp->w_bufp->b_linep;
+			while ((scan = lforw(scan)) != wp->w_bufp->b_linep) {
+				if (scan == markp) { mark_before_cursor = true; break; }
+				else if (scan == dotp) { mark_before_cursor = false; break; }
+			}
+
+			if (mark_before_cursor) {
+				start_line = markp;
+				end_line = dotp;
+			} else {
+				start_line = dotp;
+				end_line = markp;
+			}
+
+			/* Check if lp is in range */
+			bool in_range = false;
+			if (lp == start_line || lp == end_line) {
+				in_range = true;
+			} else {
+				struct line *between_scan = start_line;
+				while ((between_scan = lforw(between_scan)) != wp->w_bufp->b_linep &&
+				       between_scan != end_line) {
+					if (between_scan == lp) {
+						in_range = true;
+						break;
+					}
+				}
+			}
+			if (!in_range) return false;
+		}
+
+		/* Line is in range - use block column bounds */
+		int left_col = g_vim_state.block_start_col;
+		int right_col = getccol(false);  /* Current cursor virtual column */
+		if (left_col > right_col) {
+			int tmp = left_col;
+			left_col = right_col;
+			right_col = tmp;
+		}
+		/* Clamp to line length */
+		int len = llength(lp);
+		*sel_start = (left_col < len) ? left_col : len;
+		*sel_end = (right_col < len) ? right_col + 1 : len;
+		return true;
+	}
+
+	/* Character-wise visual mode (MODE_VISUAL) or non-visual with mark set */
+
+	/* Same position - no selection */
+	if (markp == dotp && marko == doto)
 		return false;
 
 	/* For single-line selections, handle directly */
@@ -2770,8 +2885,6 @@ static void modern_modeline(struct window *wp)
 	// Format left: [MODE] FILENAME  TYPE  ENCODING  [MODIFIED] [WE] (with leading spacing buffer)
 	// Delta symbol for modified files - modern Unicode modification indicator
 	const char *mod_indicator = (bp->b_flag & BFCHG) ? "    Δ" : "";
-	// WriteEdit mode indicator
-	const char *we_indicator = (bp->b_mode & MDWRITEEDIT) ? "    :WE" : "";
 
 	// --- GIT STATUS INTEGRATION ---
 	char git_info[64] = "";
@@ -2813,25 +2926,25 @@ static void modern_modeline(struct window *wp)
 		// Include vim mode in status line BEFORE filename
 		if (modeline_show_modes) {
 			if (git_info[0])
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s    %s    UTF-8%s%s", vim_prefix, fname, git_info, ftype, mod_indicator, we_indicator);
+				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s    %s    UTF-8%s", vim_prefix, fname, git_info, ftype, mod_indicator);
 			else
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s    UTF-8%s%s", vim_prefix, fname, ftype, mod_indicator, we_indicator);
+				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s    UTF-8%s", vim_prefix, fname, ftype, mod_indicator);
 		} else {
 			if (git_info[0])
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s%s%s", vim_prefix, fname, git_info, mod_indicator, we_indicator);
+				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s%s", vim_prefix, fname, git_info, mod_indicator);
 			else
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s%s%s", vim_prefix, fname, mod_indicator, we_indicator);
+				safe_snprintf(left_info, sizeof(left_info), "%s    %s%s", vim_prefix, fname, mod_indicator);
 		}
 	} else if (modeline_show_modes) {
 		if (git_info[0])
-			safe_snprintf(left_info, sizeof(left_info), "   %s    %s    %s    UTF-8%s%s", fname, git_info, ftype, mod_indicator, we_indicator);
+			safe_snprintf(left_info, sizeof(left_info), "   %s    %s    %s    UTF-8%s", fname, git_info, ftype, mod_indicator);
 		else
-			safe_snprintf(left_info, sizeof(left_info), "   %s    %s    UTF-8%s%s", fname, ftype, mod_indicator, we_indicator);
+			safe_snprintf(left_info, sizeof(left_info), "   %s    %s    UTF-8%s", fname, ftype, mod_indicator);
 	} else {
 		if (git_info[0])
-			safe_snprintf(left_info, sizeof(left_info), "   %s    %s%s%s", fname, git_info, mod_indicator, we_indicator);
+			safe_snprintf(left_info, sizeof(left_info), "   %s    %s%s", fname, git_info, mod_indicator);
 		else
-			safe_snprintf(left_info, sizeof(left_info), "   %s%s%s", fname, mod_indicator, we_indicator);
+			safe_snprintf(left_info, sizeof(left_info), "   %s%s", fname, mod_indicator);
 	}
 
 	// Format right: C{COL} L{LINE}/{TOTAL}  {SIZE} {WORDS}

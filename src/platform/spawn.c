@@ -15,14 +15,99 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <spawn.h>
+#include <fcntl.h>
 
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
 #include "file_utils.h"
 #include "string_utils.h"
+#include "line.h"
+#include "memory.h"
+#include "gapbuffer.h"
 
 extern char **environ;
+
+/*
+ * set_editor_env - Set $UE_* environment variables for spawned commands
+ *
+ * Enables shell scripts and external tools to access editor state:
+ *   $UE_FILENAME  - Current file path (empty for scratch buffers)
+ *   $UE_FILETYPE  - Detected filetype (e.g., "c", "python")
+ *   $UE_LINE      - Cursor line (1-indexed)
+ *   $UE_COL       - Cursor column (0-indexed)
+ *   $UE_BUFNAME   - Buffer name
+ *   $UE_MODIFIED  - "1" if buffer modified, "0" otherwise
+ */
+static void set_editor_env(void) {
+    char buf[32];
+
+    /* Current filename (may be empty for scratch buffers) */
+    if (curbp && curbp->b_fname[0]) {
+        setenv("UE_FILENAME", curbp->b_fname, 1);
+    } else {
+        setenv("UE_FILENAME", "", 1);
+    }
+
+    /* Buffer name */
+    if (curbp && curbp->b_bname[0]) {
+        setenv("UE_BUFNAME", curbp->b_bname, 1);
+    } else {
+        setenv("UE_BUFNAME", "", 1);
+    }
+
+    /* Cursor line (1-indexed) */
+    snprintf(buf, sizeof(buf), "%d", getcline());
+    setenv("UE_LINE", buf, 1);
+
+    /* Cursor column (0-indexed) */
+    snprintf(buf, sizeof(buf), "%d", getccol(false));
+    setenv("UE_COL", buf, 1);
+
+    /* Buffer modified state */
+    setenv("UE_MODIFIED", (curbp && (curbp->b_flag & BFCHG)) ? "1" : "0", 1);
+
+    /* Filetype detection - simple extension-based */
+    if (curbp && curbp->b_fname[0]) {
+        const char *ext = strrchr(curbp->b_fname, '.');
+        if (ext && ext[1]) {
+            ext++;  /* Skip the dot */
+            /* Map common extensions to filetypes */
+            if (strcmp(ext, "c") == 0 || strcmp(ext, "h") == 0) {
+                setenv("UE_FILETYPE", "c", 1);
+            } else if (strcmp(ext, "cpp") == 0 || strcmp(ext, "hpp") == 0 ||
+                       strcmp(ext, "cc") == 0 || strcmp(ext, "cxx") == 0) {
+                setenv("UE_FILETYPE", "cpp", 1);
+            } else if (strcmp(ext, "py") == 0) {
+                setenv("UE_FILETYPE", "python", 1);
+            } else if (strcmp(ext, "rs") == 0) {
+                setenv("UE_FILETYPE", "rust", 1);
+            } else if (strcmp(ext, "go") == 0) {
+                setenv("UE_FILETYPE", "go", 1);
+            } else if (strcmp(ext, "js") == 0) {
+                setenv("UE_FILETYPE", "javascript", 1);
+            } else if (strcmp(ext, "ts") == 0) {
+                setenv("UE_FILETYPE", "typescript", 1);
+            } else if (strcmp(ext, "sh") == 0 || strcmp(ext, "bash") == 0) {
+                setenv("UE_FILETYPE", "sh", 1);
+            } else if (strcmp(ext, "md") == 0) {
+                setenv("UE_FILETYPE", "markdown", 1);
+            } else if (strcmp(ext, "toml") == 0) {
+                setenv("UE_FILETYPE", "toml", 1);
+            } else if (strcmp(ext, "json") == 0) {
+                setenv("UE_FILETYPE", "json", 1);
+            } else if (strcmp(ext, "yaml") == 0 || strcmp(ext, "yml") == 0) {
+                setenv("UE_FILETYPE", "yaml", 1);
+            } else {
+                setenv("UE_FILETYPE", ext, 1);  /* Use extension as-is */
+            }
+        } else {
+            setenv("UE_FILETYPE", "", 1);
+        }
+    } else {
+        setenv("UE_FILETYPE", "", 1);
+    }
+}
 
 #ifdef SIGWINCH
 extern int chg_width, chg_height;
@@ -35,6 +120,8 @@ extern void sizesignal(int);
  * This is a modern replacement for fork()/exec() patterns.
  * If shell is NULL, uses $SHELL or falls back to /bin/sh.
  * If cmd is NULL, spawns an interactive shell.
+ *
+ * Sets $UE_* environment variables so shell scripts can access editor state.
  */
 static int run_shell(const char *shell, const char *cmd)
 {
@@ -62,6 +149,9 @@ static int run_shell(const char *shell, const char *cmd)
         argv[0] = (char *)sh;
         argv[1] = NULL;
     }
+
+    /* Set editor environment variables for child process */
+    set_editor_env();
 
     if (posix_spawn(&pid, sh, NULL, NULL, argv, environ) != 0) {
         return -1;
@@ -276,73 +366,265 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 }
 
 /*
- * filter a buffer through an external DOS program
+ * filter_direct - Pipe input through a command and capture output
+ *
+ * Uses direct pipe I/O instead of temp files for efficiency.
+ * Returns dynamically allocated output buffer (caller must free).
+ *
+ * cmd: Shell command to execute
+ * input: Input data to send to command's stdin
+ * input_len: Length of input data
+ * output: Output pointer set to result (caller frees)
+ * output_len: Output length
+ *
+ * Returns: 0 on success, -1 on error
+ */
+static int filter_direct(const char *cmd, const char *input, size_t input_len,
+                         char **output, size_t *output_len) {
+    int stdin_pipe[2] = {-1, -1};
+    int stdout_pipe[2] = {-1, -1};
+    pid_t pid;
+    int status = -1;
+
+    *output = NULL;
+    *output_len = 0;
+
+    /* Create pipes */
+    if (pipe(stdin_pipe) < 0 || pipe(stdout_pipe) < 0) {
+        goto cleanup;
+    }
+
+    /* Set close-on-exec for pipe ends */
+    fcntl(stdin_pipe[0], F_SETFD, FD_CLOEXEC);
+    fcntl(stdin_pipe[1], F_SETFD, FD_CLOEXEC);
+    fcntl(stdout_pipe[0], F_SETFD, FD_CLOEXEC);
+    fcntl(stdout_pipe[1], F_SETFD, FD_CLOEXEC);
+
+    pid = fork();
+    if (pid < 0) {
+        goto cleanup;
+    }
+
+    if (pid == 0) {
+        /* Child process */
+
+        /* Redirect stdin from pipe */
+        dup2(stdin_pipe[0], STDIN_FILENO);
+        close(stdin_pipe[0]);
+        close(stdin_pipe[1]);
+
+        /* Redirect stdout to pipe */
+        dup2(stdout_pipe[1], STDOUT_FILENO);
+        close(stdout_pipe[0]);
+        close(stdout_pipe[1]);
+
+        /* Get shell */
+        const char *shell = getenv("SHELL");
+        if (!shell || !*shell) shell = "/bin/sh";
+
+        /* Execute command */
+        execlp(shell, shell, "-c", cmd, (char *)NULL);
+        _exit(127);
+    }
+
+    /* Parent process */
+
+    /* Close unused pipe ends */
+    close(stdin_pipe[0]);
+    stdin_pipe[0] = -1;
+    close(stdout_pipe[1]);
+    stdout_pipe[1] = -1;
+
+    /* Write input to child's stdin */
+    size_t written = 0;
+    while (written < input_len) {
+        ssize_t n = write(stdin_pipe[1], input + written, input_len - written);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            break;  /* Write error - child may have closed stdin */
+        }
+        written += n;
+    }
+    close(stdin_pipe[1]);
+    stdin_pipe[1] = -1;
+
+    /* Read output from child's stdout */
+    size_t out_capacity = 4096;
+    size_t out_len = 0;
+    char *out_buf = malloc(out_capacity);
+    if (!out_buf) {
+        waitpid(pid, &status, 0);
+        goto cleanup;
+    }
+
+    for (;;) {
+        if (out_len + 4096 > out_capacity) {
+            out_capacity *= 2;
+            char *new_buf = realloc(out_buf, out_capacity);
+            if (!new_buf) {
+                free(out_buf);
+                waitpid(pid, &status, 0);
+                goto cleanup;
+            }
+            out_buf = new_buf;
+        }
+
+        ssize_t n = read(stdout_pipe[0], out_buf + out_len, 4096);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if (n == 0) break;  /* EOF */
+        out_len += n;
+    }
+
+    close(stdout_pipe[0]);
+    stdout_pipe[0] = -1;
+
+    /* Wait for child */
+    waitpid(pid, &status, 0);
+
+    /* Null-terminate for convenience */
+    if (out_len + 1 > out_capacity) {
+        char *new_buf = realloc(out_buf, out_len + 1);
+        if (new_buf) out_buf = new_buf;
+    }
+    out_buf[out_len] = '\0';
+
+    *output = out_buf;
+    *output_len = out_len;
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+cleanup:
+    if (stdin_pipe[0] >= 0) close(stdin_pipe[0]);
+    if (stdin_pipe[1] >= 0) close(stdin_pipe[1]);
+    if (stdout_pipe[0] >= 0) close(stdout_pipe[0]);
+    if (stdout_pipe[1] >= 0) close(stdout_pipe[1]);
+    return -1;
+}
+
+/*
+ * filter a buffer through an external program
  * Bound to ^X #
+ *
+ * Uses direct pipe I/O for efficiency - no temp files.
  */
 int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
-	int s;		/* return status from CLI */
-	struct buffer *bp;	/* pointer to buffer to zot */
-	char line[NLINE];	/* command line send to shell */
-	char tmpnam[NFILEN];	/* place to store real file name */
-	static char bname1[] = "fltinp";
+    int s;
+    char line[NLINE];
+    char tmpnam[NFILEN];
 
-	static char filnam1[] = "fltinp";
-	static char filnam2[] = "fltout";
+    /* don't allow this command if restricted */
+    if (restflag)
+        return resterr();
 
-	/* don't allow this command if restricted */
-	if (restflag)
-		return resterr();
+    if (curbp->b_mode & MDVIEW)
+        return rdonly();
 
-	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
-		return rdonly();	/* we are in read only mode     */
+    /* get the filter name and its args */
+    if ((s = minibuf_read("#", line, NLINE)) != true)
+        return s;
 
-	/* get the filter name and its args */
-	if ((s = minibuf_read("#", line, NLINE)) != true)
-		return s;
+    struct buffer *bp = curbp;
+    safe_strcpy(tmpnam, bp->b_fname, sizeof(tmpnam));
 
-	/* setup the proper file names */
-	bp = curbp;
-	safe_strcpy(tmpnam, bp->b_fname, sizeof(tmpnam));	/* save the original name */
-	safe_strcpy(bp->b_fname, bname1, NFILEN);	/* set it to our new one */
+    /* Collect buffer contents into a string */
+    size_t total_len = 0;
+    struct line *lp;
 
-	/* write it out, checking for errors */
-	if (writeout(filnam1) != true) {
-		mlwrite("[CANNOT WRITE FILTER FILE]");
-		safe_strcpy(bp->b_fname, tmpnam, NFILEN);
-		return false;
-	}
+    /* First pass: calculate total size */
+    for (lp = lforw(bp->b_linep); lp != bp->b_linep; lp = lforw(lp)) {
+        total_len += llength(lp) + 1;  /* +1 for newline */
+    }
 
-	TTputc('\n');		/* Already have '\r'    */
-	TTflush();
-	TTclose();		/* stty to old modes    */
-	TTkclose();
-	safe_strcat(line, " <fltinp >fltout", NLINE);
+    /* Allocate buffer for content */
+    char *content = malloc(total_len + 1);
+    if (!content) {
+        mlwrite("[OUT OF MEMORY]");
+        return false;
+    }
 
-	/* Execute filter command with I/O redirection using posix_spawn */
-	run_shell(NULL, line);
+    /* Second pass: copy content using gap buffer API */
+    char *p = content;
+    for (lp = lforw(bp->b_linep); lp != bp->b_linep; lp = lforw(lp)) {
+        int len = llength(lp);
+        if (len > 0) {
+            gap_buffer_get_text(lp->gb, 0, len, p, len);
+            p += len;
+        }
+        *p++ = '\n';
+    }
+    *p = '\0';
 
-	TTopen();
-	TTkopen();
-	TTflush();
-	sgarbf = true;
-	s = true;
+    /* Set editor environment variables */
+    set_editor_env();
 
-	/* on failure, escape gracefully */
-	if (s != true || (readin(filnam2, false) == false)) {
-		mlwrite("[EXECUTION FAILED]");
-		safe_strcpy(bp->b_fname, tmpnam, NFILEN);
-		unlink(filnam1);
-		unlink(filnam2);
-		return s;
-	}
+    /* Run filter with direct pipe I/O */
+    char *output = NULL;
+    size_t output_len = 0;
+    int result = filter_direct(line, content, total_len, &output, &output_len);
+    free(content);
 
-	/* reset file name */
-    safe_strcpy(bp->b_fname, tmpnam, NFILEN);	/* restore name */
-	bp->b_flag |= BFCHG;	/* flag it as changed */
+    if (result < 0 || !output) {
+        mlwrite("[FILTER FAILED]");
+        if (output) free(output);
+        return false;
+    }
 
-	/* and get rid of the temporary file */
-	unlink(filnam1);
-	unlink(filnam2);
-	return true;
+    /* Clear buffer and insert filtered output */
+    if (bclear(bp) != true) {
+        free(output);
+        mlwrite("[CANNOT CLEAR BUFFER]");
+        return false;
+    }
+
+    /* Parse output line by line and insert into buffer */
+    char *line_start = output;
+    char *end = output + output_len;
+
+    while (line_start < end) {
+        /* Find end of line */
+        char *line_end = line_start;
+        while (line_end < end && *line_end != '\n') {
+            line_end++;
+        }
+
+        /* Create line and insert */
+        int line_len = (int)(line_end - line_start);
+        struct line *newlp = lalloc(0);  /* Create empty line */
+        if (newlp) {
+            /* Insert text into the line's gap buffer */
+            if (line_len > 0) {
+                gap_buffer_insert(newlp->gb, 0, line_start, line_len);
+            }
+            /* Insert before header line */
+            struct line *last = lback(bp->b_linep);
+            newlp->l_fp = bp->b_linep;
+            newlp->l_bp = last;
+            last->l_fp = newlp;
+            bp->b_linep->l_bp = newlp;
+        }
+
+        /* Move to next line */
+        line_start = line_end + 1;
+    }
+
+    free(output);
+
+    /* Reset buffer state */
+    safe_strcpy(bp->b_fname, tmpnam, NFILEN);
+    bp->b_dotp = lforw(bp->b_linep);
+    bp->b_doto = 0;
+    bp->b_flag |= BFCHG;
+
+    /* Update window */
+    curwp->w_linep = lforw(bp->b_linep);
+    curwp->w_dotp = lforw(bp->b_linep);
+    curwp->w_doto = 0;
+    curwp->w_flag |= WFHARD;
+
+    sgarbf = true;
+    mlwrite("[Filtered through: %s]", line);
+    return true;
 }

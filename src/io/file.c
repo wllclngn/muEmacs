@@ -299,6 +299,11 @@ int readin(const char *fname, int lockfl)
 		return false;
 	/* Successful read: mark current state as saved baseline */
 	undo_mark_saved(curbp);
+
+	/* Fire extension load hooks */
+	extern void extension_fire_buffer_load(struct buffer *bp);
+	extension_fire_buffer_load(curbp);
+
 	return true;
 }
 
@@ -408,13 +413,18 @@ int filesave(int f, int n)
 	}
 
 	if ((s = writeout(curbp->b_fname)) == true) {
-		curbp->b_flag &= ~BFCHG;
+		/* Mark saved baseline for undo version tracking */
+		undo_mark_saved(curbp);
 		wp = wheadp;	/* Update mode lines.   */
 		while (wp != nullptr) {
 			if (wp->w_bufp == curbp)
 				wp->w_flag |= WFMODE;
 			wp = wp->w_wndp;
 		}
+
+		/* Fire extension save hooks */
+		extern void extension_fire_buffer_save(struct buffer *bp);
+		extension_fire_buffer_save(curbp);
 	}
 	return s;
 }

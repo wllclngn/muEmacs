@@ -222,6 +222,10 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 "x" = "execute-named-command"
 "X" = "execute-named-command"
 
+# Terminal
+"t" = "terminal-toggle"
+"T" = "terminal-toggle"
+
 # Buffer navigation
 "^V" = "previous-page"
 
@@ -345,6 +349,7 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 # Visual mode
 "v" = "vim-enter-visual-mode"
 "V" = "vim-enter-visual-line-mode"
+"^V" = "vim-enter-visual-block-mode"
 
 # Goto
 "g" = "vim-goto-prefix"
@@ -418,9 +423,11 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 "c" = "vim-visual-change"
 "y" = "vim-visual-yank"
 
-# Exit visual mode
+# Exit visual mode (pressing the mode key again or ESC)
 "^[" = "vim-exit-visual-mode"
 "v" = "vim-exit-visual-mode"
+"V" = "vim-exit-visual-mode"
+"^V" = "vim-exit-visual-mode"
 
 # =============================================================================
 # HELP PREFIX KEYBINDINGS (C-h prefix)
@@ -446,12 +453,75 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 "BACKSPACE" = "delete-previous-character"
 "^H" = "delete-previous-character"
 
+# =============================================================================
+# UEP EXTENSION PROTOCOL
+# =============================================================================
+# Configure external tool integration for formatting, linting, etc.
+# Use M-x uep-format-buffer to format the current buffer.
+
+[extensions]
+timeout = 5000              # Provider timeout in milliseconds
+auto_build = true           # Auto-compile extensions from source (20+ languages supported)
+
+# Per-filetype format providers (command receives buffer on stdin, outputs on stdout)
+[extensions.python]
+format = "black -q -"
+
+[extensions.rust]
+format = "rustfmt"
+
+[extensions.c]
+format = "clang-format"
+
+[extensions.cpp]
+format = "clang-format"
+
+[extensions.go]
+format = "gofmt"
+
+[extensions.javascript]
+format = "prettier --stdin-filepath=file.js"
+
+[extensions.typescript]
+format = "prettier --stdin-filepath=file.ts"
+
+[extensions.json]
+format = "jq ."
+
+[extensions.yaml]
+format = "yq -P"
+
+[extensions.sh]
+format = "shfmt -i 2"
+
+[extensions.lua]
+format = "stylua -"
+
+[extensions.zig]
+format = "zig fmt --stdin"
+
 [terminal]
 enabled = true              # Allow terminal feature
 height_percent = 45         # Window height as % of screen (10-80)
 shell = ""                  # Shell to use ("" = $SHELL or /bin/sh)
 scrollback = 1000           # Lines of scrollback history
 close_on_exit = true        # Close terminal window when shell exits
+
+[clipboard]
+# Provider selection: "auto", "osc52", "xclip", "xsel", "wl-copy", "none"
+# "auto" = detect best available (osc52 > wl-copy > xclip > xsel)
+provider = "auto"
+
+# Sync kill ring to system clipboard (every C-k, C-w, etc.)
+sync_kills = false
+
+# Use OSC 52 when available (works over SSH/tmux)
+# Supported by: kitty, alacritty, foot, iTerm2, Windows Terminal
+osc52_enabled = true
+
+# Custom commands (used when provider = "custom")
+# copy_command = "pbcopy"
+# paste_command = "pbpaste"
 
 [keys]
 # Control key overrides (format: "C-X" for Ctrl-X, or raw char)

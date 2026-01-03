@@ -56,7 +56,11 @@ def test_undo_single_change():
 
 
 def test_redo_after_undo():
-    """Ctrl-R should redo after undo."""
+    """Redo command should restore undone change.
+
+    Note: Uses 'r' for redo per user's custom settings.
+    Standard vim uses Ctrl-R, but settings.toml has r=redo.
+    """
     filename = '/tmp/uemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
@@ -82,14 +86,14 @@ def test_redo_after_undo():
             print(f"FAIL: After u, expected 'hello', got: '{line}'")
             return False
 
-        # Redo with Ctrl-R (0x12)
-        emu.send('\x12')
+        # Redo with 'r' (per user's settings.toml: r=redo)
+        emu.send('r')
         time.sleep(0.1)
         emu._read_output()
 
         line = emu.get_line(0)
         if not line.startswith("ello"):
-            print(f"FAIL: After Ctrl-R, expected 'ello', got: '{line}'")
+            print(f"FAIL: After redo, expected 'ello', got: '{line}'")
             emu.dump_screen()
             return False
 
@@ -232,6 +236,212 @@ def test_undo_with_count():
         emu.quit()
 
 
+def has_delta(emu):
+    """Check if the delta (modified) indicator is shown in the modeline."""
+    for i in range(emu.rows - 1, -1, -1):
+        line = emu.get_line(i)
+        if 'Δ' in line:
+            return True
+    return False
+
+
+def test_undo_to_original_clears_delta():
+    """Undo to original state should clear the delta (modified) indicator."""
+    import tempfile
+    # Use short temp filename so delta fits in modeline
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write("original\n")
+        filename = f.name
+
+    emu = UEmacsTest()
+    try:
+        emu.start(filename=filename, evil_mode=True)
+
+        # Initially no delta
+        if has_delta(emu):
+            print("FAIL: Delta should not be shown initially")
+            return False
+
+        # Insert 'X' at start (with proper timing for each keystroke)
+        emu.send('i')
+        time.sleep(0.15)
+        emu.send('X')
+        time.sleep(0.15)
+        emu.send('\x1b')  # ESC
+        time.sleep(0.2)
+        emu._read_output(timeout=0.1)  # Longer timeout to catch modeline update
+
+        # Should have delta now
+        if not has_delta(emu):
+            print("FAIL: Delta should be shown after edit")
+            emu.dump_screen()
+            return False
+
+        # Undo
+        emu.send('u')
+        time.sleep(0.2)
+        emu._read_output(timeout=0.1)
+
+        # Delta should be cleared (back to original state)
+        if has_delta(emu):
+            print("FAIL: Delta should be cleared after undo to original state")
+            emu.dump_screen()
+            return False
+
+        return True
+    finally:
+        emu.quit()
+        os.unlink(filename)
+
+
+def test_redo_restores_delta():
+    """Redo should restore the delta indicator.
+
+    Note: Uses 'r' for redo per user's settings.toml.
+    """
+    import tempfile
+    # Use short temp filename so delta fits in modeline
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write("original\n")
+        filename = f.name
+
+    emu = UEmacsTest()
+    try:
+        emu.start(filename=filename, evil_mode=True)
+
+        # Insert 'X' at start
+        emu.send('i')
+        time.sleep(0.15)
+        emu.send('X')
+        time.sleep(0.15)
+        emu.send('\x1b')  # ESC
+        time.sleep(0.2)
+        emu._read_output(timeout=0.1)
+
+        line = emu.get_line(0)
+        if not line.startswith("Xoriginal"):
+            print(f"FAIL: After insert, expected 'Xoriginal', got: '{line}'")
+            emu.dump_screen()
+            return False
+
+        # Undo
+        emu.send('u')
+        time.sleep(0.2)
+        emu._read_output(timeout=0.1)
+
+        # Delta should be cleared
+        if has_delta(emu):
+            print("FAIL: Delta should be cleared after undo")
+            return False
+
+        # Redo with 'r' (per user's settings.toml: r=redo)
+        emu.send('r')
+        time.sleep(0.2)
+        emu._read_output(timeout=0.1)
+
+        line = emu.get_line(0)
+        if not line.startswith("Xoriginal"):
+            print(f"FAIL: After redo, expected 'Xoriginal', got: '{line}'")
+            emu.dump_screen()
+            return False
+
+        # Delta should be restored
+        if not has_delta(emu):
+            print("FAIL: Delta should be restored after redo")
+            emu.dump_screen()
+            return False
+
+        return True
+    finally:
+        emu.quit()
+        os.unlink(filename)
+
+
+def test_undo_to_saved_state_clears_delta():
+    """Undo to saved state (after save) should clear the delta indicator.
+
+    Note: Tests must complete quickly (within 3s of evil-mode enable) because
+    after 3s the "EVIL" splash expires and the modeline format changes, which
+    can affect delta indicator visibility due to display formatting issues.
+    """
+    import tempfile
+    # Use short temp filename so delta fits in modeline
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write("start\n")
+        filename = f.name
+
+    emu = UEmacsTest()
+    try:
+        emu.start(filename=filename, evil_mode=True)
+
+        # Insert 'X' at start
+        emu.send('i')
+        time.sleep(0.1)
+        emu.send('X')
+        time.sleep(0.1)
+        emu.send('\x1b')
+        time.sleep(0.15)
+        emu._read_output(timeout=0.1)
+
+        line = emu.get_line(0)
+        if not line.startswith("Xstart"):
+            print(f"FAIL: After insert, expected 'Xstart', got: '{line}'")
+            emu.dump_screen()
+            return False
+
+        # Save with Ctrl-X Ctrl-S
+        emu.send('\x18\x13')
+        time.sleep(0.25)
+        emu._read_output(timeout=0.1)
+
+        # Delta should be cleared after save
+        if has_delta(emu):
+            print("FAIL: Delta should be cleared after save")
+            emu.dump_screen()
+            return False
+
+        # Insert 'Y' quickly
+        emu.send('iY')
+        time.sleep(0.1)
+        emu.send('\x1b')
+        time.sleep(0.15)
+        emu._read_output(timeout=0.1)
+
+        line = emu.get_line(0)
+        if not line.startswith("XYstart"):
+            print(f"FAIL: After second insert, expected 'XYstart', got: '{line}'")
+            emu.dump_screen()
+            return False
+
+        # Should have delta now
+        if not has_delta(emu):
+            print("FAIL: Delta should be shown after edit")
+            emu.dump_screen()
+            return False
+
+        # Undo - should go back to saved state "Xstart" and clear delta
+        emu.send('u')
+        time.sleep(0.15)
+        emu._read_output(timeout=0.1)
+
+        line = emu.get_line(0)
+        if not line.startswith("Xstart"):
+            print(f"FAIL: After undo, expected 'Xstart', got: '{line}'")
+            emu.dump_screen()
+            return False
+
+        # Delta should be cleared (back to saved state)
+        if has_delta(emu):
+            print("FAIL: Delta should be cleared when undo reaches saved state")
+            emu.dump_screen()
+            return False
+
+        return True
+    finally:
+        emu.quit()
+        os.unlink(filename)
+
+
 def run_tests():
     """Run all tests and report results."""
     tests = [
@@ -240,6 +450,9 @@ def run_tests():
         ("multiple_undo (u u u)", test_multiple_undo),
         ("undo_insert_mode_change (u)", test_undo_insert_mode_change),
         ("undo_with_count (3u)", test_undo_with_count),
+        ("undo_to_original_clears_delta", test_undo_to_original_clears_delta),
+        ("redo_restores_delta", test_redo_restores_delta),
+        ("undo_to_saved_state_clears_delta", test_undo_to_saved_state_clears_delta),
     ]
 
     passed = 0

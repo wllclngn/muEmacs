@@ -246,6 +246,12 @@ static void raw_open(void) {
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
 
+    /* Set close-on-exec on stdin to prevent fd leak to spawned processes */
+    int fd_flags = fcntl(STDIN_FILENO, F_GETFD, 0);
+    if (fd_flags >= 0) {
+        fcntl(STDIN_FILENO, F_SETFD, fd_flags | FD_CLOEXEC);
+    }
+
     /* Save termios for signal-safe restoration and install unified signal handlers */
     signal_save_termios(&orig_termios);
     signal_handlers_init();
@@ -272,6 +278,13 @@ static void raw_open(void) {
     obuf_puts("\033[0m");      /* Reset all attributes - start clean */
     obuf_puts("\033[?25h");    /* Show cursor */
     cursor_hidden = 0;
+
+    /* Enable bracketed paste mode (DEC 2004)
+     * Terminal wraps pasted text with ESC[200~ ... ESC[201~
+     * This allows us to detect and handle pastes specially
+     * Supported by: xterm, kitty, iTerm2, Alacritty, most modern terminals */
+    obuf_puts("\033[?2004h");
+
     raw_flush();
 
     /* Initialize palette system - colors are configured via settings.toml or env vars */
@@ -301,6 +314,8 @@ static void raw_close(void) {
     /* Cleanup unified signal handlers first */
     signal_handlers_cleanup();
 
+    /* Disable bracketed paste mode */
+    obuf_puts("\033[?2004l");
     /* Show cursor */
     obuf_puts("\033[?25h");
     cursor_hidden = 0;

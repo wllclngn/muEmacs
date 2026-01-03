@@ -363,6 +363,123 @@ def test_visual_o_swaps_anchor():
         emu.quit()
 
 
+def test_visual_line_multiline_delete():
+    """'d' in visual line mode with multiple lines should delete all selected lines."""
+    filename = '/tmp/uemacs_evil_test.txt'
+    with open(filename, 'w') as f:
+        f.write("line 1\n")
+        f.write("line 2\n")
+        f.write("line 3\n")
+        f.write("line 4\n")
+        f.write("line 5\n")
+
+    emu = UEmacsTest()
+    try:
+        emu.start(filename=filename, evil_mode=True)
+
+        # Enter visual line mode
+        emu.send('V')
+        time.sleep(0.1)
+
+        # Extend selection to include 2 more lines
+        emu.send('jj')  # Now lines 1, 2, 3 are selected
+        time.sleep(0.1)
+
+        # Delete all selected lines
+        emu.send('d')
+        time.sleep(0.1)
+        emu._read_output()
+
+        # Line 1 should now be "line 4" (lines 1-3 deleted)
+        line0 = emu.get_line(0)
+        if not line0.startswith("line 4"):
+            print(f"FAIL: Expected 'line 4' at line 0, got: '{line0}'")
+            emu.dump_screen()
+            return False
+
+        return True
+    finally:
+        emu.quit()
+
+
+def test_visual_block_entry():
+    """Ctrl-V should enter visual block mode."""
+    filename = '/tmp/uemacs_evil_test.txt'
+    with open(filename, 'w') as f:
+        f.write("hello world\n")
+        f.write("hello world\n")
+        f.write("hello world\n")
+
+    emu = UEmacsTest()
+    try:
+        emu.start(filename=filename, evil_mode=True)
+
+        # Enter visual block mode (Ctrl-V = \x16)
+        emu.send('\x16')
+        time.sleep(0.1)
+        emu._read_output()
+
+        # Check for BLOCK indicator
+        msg = emu.get_message_line()
+        status = emu.get_line(emu.rows - 2)
+
+        if 'BLOCK' not in msg and 'BLOCK' not in status:
+            print(f"FAIL: Expected VISUAL BLOCK indicator")
+            print(f"Message: '{msg}'")
+            print(f"Status: '{status}'")
+            emu.dump_screen()
+            return False
+
+        return True
+    finally:
+        emu.quit()
+
+
+def test_visual_block_delete():
+    """Block delete should remove rectangular region from all lines."""
+    filename = '/tmp/uemacs_evil_test.txt'
+    with open(filename, 'w') as f:
+        f.write("hello world\n")
+        f.write("hello world\n")
+        f.write("hello world\n")
+
+    emu = UEmacsTest()
+    try:
+        emu.start(filename=filename, evil_mode=True)
+
+        # Enter visual block mode (Ctrl-V = \x16)
+        emu.send('\x16')
+        time.sleep(0.1)
+
+        # Extend right 4 chars and down 2 lines
+        emu.send('lllljj')
+        time.sleep(0.1)
+
+        # Delete block
+        emu.send('d')
+        time.sleep(0.1)
+        emu._read_output()
+
+        # All three lines should have "hello" removed, leaving " world"
+        line0 = emu.get_line(0)
+        line1 = emu.get_line(1)
+        line2 = emu.get_line(2)
+
+        if not (line0.startswith(" world") and
+                line1.startswith(" world") and
+                line2.startswith(" world")):
+            print(f"FAIL: Expected ' world' on all lines")
+            print(f"Line 0: '{line0}'")
+            print(f"Line 1: '{line1}'")
+            print(f"Line 2: '{line2}'")
+            emu.dump_screen()
+            return False
+
+        return True
+    finally:
+        emu.quit()
+
+
 def run_tests():
     """Run all tests and report results."""
     tests = [
@@ -373,8 +490,11 @@ def run_tests():
         ("visual_yank (vy)", test_visual_yank),
         ("visual_change (vc)", test_visual_change),
         ("visual_line_delete (Vd)", test_visual_line_delete),
+        ("visual_line_multiline_delete (Vjjd)", test_visual_line_multiline_delete),
         ("visual_motion_extends (vw)", test_visual_motion_extends),
         ("visual_o_swaps_anchor (o)", test_visual_o_swaps_anchor),
+        ("visual_block_entry (Ctrl-V)", test_visual_block_entry),
+        ("visual_block_delete (Ctrl-V block d)", test_visual_block_delete),
     ]
 
     passed = 0

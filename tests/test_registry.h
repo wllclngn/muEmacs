@@ -54,7 +54,6 @@ int test_config_names(void);    // Name binding table tests
 
 // Core module tests (additional)
 int test_core_globals(void);    // Global variable tests
-int test_core_plugin(void);     // Plugin/hook system tests
 int test_core_window_hash(void); // Window hash table tests
 
 // Util module tests (additional)

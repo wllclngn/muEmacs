@@ -5,11 +5,12 @@
 
 /* Editor Modes for Modal Editing (Vim-style) */
 enum editor_mode {
-    MODE_NORMAL = 0,      /* Vim Normal Mode (Navigation/Command) */
-    MODE_INSERT = 1,      /* Emacs Standard Mode (Editing) */
-    MODE_VISUAL = 2,      /* Character-wise selection */
-    MODE_VISUAL_LINE = 3, /* Line-wise selection */
-    MODE_REPLACE = 4      /* Overwrite mode */
+    MODE_NORMAL = 0,       /* Vim Normal Mode (Navigation/Command) */
+    MODE_INSERT = 1,       /* Emacs Standard Mode (Editing) */
+    MODE_VISUAL = 2,       /* Character-wise selection */
+    MODE_VISUAL_LINE = 3,  /* Line-wise selection */
+    MODE_VISUAL_BLOCK = 4, /* Block/column selection (Ctrl-V) */
+    MODE_REPLACE = 5       /* Overwrite mode */
 };
 
 /* Vim State Machine */
@@ -18,6 +19,7 @@ struct vim_state {
     _Atomic int operator_pending;    /* e.g., 'd' waiting for movement */
     int visual_anchor_line;          /* Start line of visual selection */
     int visual_anchor_col;           /* Start col of visual selection */
+    int block_start_col;             /* Virtual column where block selection started (Ctrl-V) */
 
     /* Count prefix system (5j, 3dw, etc.) - C23 atomic for signal safety */
     _Atomic int count;                       /* Accumulated count (0 = no count given) */

@@ -235,96 +235,15 @@ char *get_home_directory(void) {
     return "/tmp";
 }
 
-/* Get system clipboard content using posix_spawn */
-int get_clipboard(char *buf, int maxlen) {
-    int pipefd[2];
-    pid_t pid;
-    int len = 0;
-
-    if (pipe(pipefd) == -1) return false;
-
-    /* Set up file actions to redirect stdout to pipe */
-    posix_spawn_file_actions_t actions;
-    if (posix_spawn_file_actions_init(&actions) != 0) {
-        close(pipefd[0]);
-        close(pipefd[1]);
-        return false;
-    }
-    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
-    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
-    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
-
-    /* Use shell with fallback: xclip or xsel */
-    char *argv[] = {"/bin/sh", "-c",
-        "xclip -selection clipboard -o 2>/dev/null || xsel --clipboard --output 2>/dev/null",
-        NULL};
-
-    if (posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ) != 0) {
-        posix_spawn_file_actions_destroy(&actions);
-        close(pipefd[0]);
-        close(pipefd[1]);
-        return false;
-    }
-    posix_spawn_file_actions_destroy(&actions);
-    close(pipefd[1]); /* Close write end in parent */
-
-    FILE *fp = fdopen(pipefd[0], "r");
-    if (fp) {
-        if (safe_fread_line(buf, maxlen, fp) > 0) {
-            len = strlen(buf);
-            /* Remove trailing newline if present */
-            if (len > 0 && buf[len-1] == '\n') {
-                buf[len-1] = '\0';
-                len--;
-            }
-        }
-        fclose(fp);
-    }
-
-    waitpid(pid, NULL, 0);
-    return len > 0;
-}
-
-/* Set system clipboard content using posix_spawn */
-int set_clipboard(const char *text) {
-    int pipefd[2];
-    pid_t pid;
-
-    if (pipe(pipefd) == -1) return false;
-
-    /* Set up file actions to redirect stdin from pipe */
-    posix_spawn_file_actions_t actions;
-    if (posix_spawn_file_actions_init(&actions) != 0) {
-        close(pipefd[0]);
-        close(pipefd[1]);
-        return false;
-    }
-    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
-    posix_spawn_file_actions_adddup2(&actions, pipefd[0], STDIN_FILENO);
-    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
-
-    /* Use shell with fallback: xclip or xsel */
-    char *argv[] = {"/bin/sh", "-c",
-        "xclip -selection clipboard 2>/dev/null || xsel --clipboard --input 2>/dev/null",
-        NULL};
-
-    if (posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ) != 0) {
-        posix_spawn_file_actions_destroy(&actions);
-        close(pipefd[0]);
-        close(pipefd[1]);
-        return false;
-    }
-    posix_spawn_file_actions_destroy(&actions);
-    close(pipefd[0]); /* Close read end in parent */
-
-    /* Write text to clipboard process */
-    ssize_t bytes_written = write(pipefd[1], text, strlen(text));
-    (void)bytes_written;
-    close(pipefd[1]);
-
-    waitpid(pid, NULL, 0);
-    return true;
-}
+/* Clipboard functions moved to platform/clipboard.c
+ * The new implementation supports:
+ *   - OSC 52 (works over SSH/tmux)
+ *   - Wayland (wl-copy/wl-paste)
+ *   - X11 (xclip/xsel)
+ *   - Custom commands
+ *   - TOML configuration
+ * See include/internal/clipboard.h for the API.
+ */
 
 /* Get Git branch for current file using posix_spawn */
 int get_git_branch(char *branch, int maxlen) {

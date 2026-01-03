@@ -716,14 +716,14 @@ fn_t getbind_event(input_key_event_t *evt)
 
     // Select keymap based on modifiers
     struct keymap *map = nullptr;
-    const char *map_name = "global";
+    const char *map_name __attribute__((unused)) = "global";
 
     if (vim_mode_active) {
         enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
         if (mode == MODE_NORMAL) {
             map = atomic_load_explicit(&vim_normal_keymap, memory_order_acquire);
             map_name = "vim-normal";
-        } else if (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE) {
+        } else if (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE || mode == MODE_VISUAL_BLOCK) {
             map = atomic_load_explicit(&vim_visual_keymap, memory_order_acquire);
             map_name = "vim-visual";
         }
@@ -887,7 +887,14 @@ int (*fncmatch(const char *fname)) (int, int)
 		}
 	}
 	
-	/* Not found */
+	/* Not found in static table - check dynamic extension commands */
+	extern fn_t extension_find_command(const char *name);
+	fn_t ext_func = extension_find_command(fname);
+	if (ext_func) {
+		return ext_func;
+	}
+
+	/* Not found anywhere */
 	return nullptr;
 }
 

@@ -1,12 +1,12 @@
-# μEmacs v0.0.23
+# μEmacs v1.0.0
 
-A modern C23 text editor for Linux terminals, descended from Linus Torvalds' personal μEmacs. ~35,000 lines of C23 deliver O(1) keymap lookup, built-in terminal emulator, optional Vim emulation, "write-edit" mode and optimal rendering driven by a user's TOML.
+A modern, extensible C23 text editor for Linux terminals, descended from Linus Torvalds' personal uemacs project.
 
 ---
 
 **Key Features:**
 
-### Keymap System (Complete Rewrite)
+### Keymap System
 - **O(1) Hash-Based Lookup**: Replaced legacy O(n) linear keytab search with hash table
 - **Hierarchical Prefix Keys**: Multi-level key sequences (C-x C-c, C-x 4 f, etc.) with recursive keymap nesting
 - **Buffer-Local Bindings**: Per-buffer key overrides with automatic fallback to global map
@@ -18,6 +18,8 @@ A modern C23 text editor for Linux terminals, descended from Linus Torvalds' per
 - **Full VT100/xterm Emulation**: CSI sequences, cursor addressing, scroll regions
 - **PTY Management**: Proper pseudo-terminal allocation with signal handling
 - **Seamless Integration**: `C-x o` switches focus, terminal output doesn't corrupt editor state
+- **Build Integration**: `build-run`, `build-next-error`, `build-prev-error` for compile-edit cycles
+- **REPL Integration**: `repl-start`, `repl-eval-line`, `repl-eval-region`, `repl-eval-buffer`
 
 ### VT500 Input State Machine
 - **Modern Escape Parsing**: CSI, SS3, DCS sequence handling with timeout-based disambiguation
@@ -26,14 +28,14 @@ A modern C23 text editor for Linux terminals, descended from Linus Torvalds' per
 - **Kitty Protocol Groundwork**: Foundation for extended keyboard protocol support
 
 ### Display System
-- **DEC 2026 Synchronized Updates**: `\e[?2026h` batching eliminates flicker on modern terminals
+- **Synchronized Updates**: Batching eliminates flicker on modern terminals
 - **Cursor Line Highlight**: Configurable styles (underline, background, intensity)
 - **Atomic Cursor Tracking**: Lock-free `_Atomic` cursor position for thread-safe updates
 - **Palette System**: Theme-aware 256-color and truecolor with terminal palette integration
 - **Legacy Optimization Removed**: Deleted buggy 1980s scroll optimization (~150 lines of complexity)
 
 ### Vim/Evil Mode (~2,100 lines)
-- **Full Modal Editing**: Normal, Insert, Visual, Visual-Line, Replace modes
+- **Full Modal Editing**: Normal, Insert, Visual, Visual-Line, Visual-Block, Replace modes
 - **Motion Commands**: h/j/k/l, w/b/e/W/B/E, 0/$, ^/g_, gg/G, f/F/t/T, %
 - **Operators**: d (delete), c (change), y (yank) - composable with motions
 - **Text Objects**: iw/aw (word), i"/a" (quotes), i'/a', i(/a), i{/a}, i[/a]
@@ -60,11 +62,46 @@ A modern C23 text editor for Linux terminals, descended from Linus Torvalds' per
 - **Kill Ring**: 32-entry circular buffer (8KB per entry) with clipboard sync
 - **System Clipboard**: Automatic xclip/xsel integration for copy/paste
 
+### Extension System (UEP)
+Three-layer μEmacs Extension Protocol:
+
+| Layer | Type | Location | Use Case |
+|-------|------|----------|----------|
+| 1 | Core API | Internal | Editor primitives for Layers 2-3 |
+| 2 | Lua Scripts | `~/.config/muemacs/scripts/` | Lightweight, hot-reloadable |
+| 3 | Native (.so) | `~/.config/muemacs/extensions/` | Full C access via dlopen |
+
+- **Commands**: `extension-load`, `extension-unload`, `extension-list`, `scripts-list`, `scripts-reload`
+- **Per-Filetype Formatting**: `uep-format-buffer` pipes to external formatters (black, rustfmt, clang-format)
+
+### AI Agent Orchestration
+Built-in AI agent spawning via `posix_spawn()` with streaming output:
+- **agent-spawn**: Spawn Claude, Gemini, or Ollama agent with a prompt
+- **agent-list**: Show running agents with status
+- **agent-kill**: Terminate a running agent
+- **agent-output**: Switch to agent's output buffer
+- Up to 4 concurrent agents, output polled in main loop (non-blocking)
+
+### Encryption
+Shell out to battle-tested system tools:
+- **GPG**: `encrypt-buffer`, `decrypt-file` (AES256 symmetric)
+- **age**: `encrypt-buffer-age`, `decrypt-file-age`
+- **Auto-detect**: `encrypt-buffer-auto` finds best available tool
+- **show-encryption-tools**: Display available encryption tools
+
+### Clipboard
+Multiple providers with automatic detection:
+- **OSC 52**: Terminal escape sequence - works over SSH/tmux (kitty, alacritty, foot, iTerm2)
+- **Wayland**: wl-copy/wl-paste native support
+- **X11**: xclip, xsel integration
+- **Commands**: `copy-to-clipboard`, `yank-clipboard`, `clipboard-provider`
+
 ### Configuration
 - **TOML Format**: Clean, readable config replacing legacy JSON
 - **Embedded Parser**: Zero external dependencies for config parsing
 - **XDG Compliant**: `~/.config/muemacs/settings.toml` with proper fallback chain
 - **Runtime Settings**: `M-x set-variable` for live configuration changes
+- **Commands**: `open-user-config`, `list-settings`, `save-settings`
 
 ### C23 Architecture
 - **Modern C23**: `nullptr`, `_Atomic`, `static_assert`, `alignas`
@@ -93,7 +130,7 @@ sudo cmake --install build
 
 - **Compiler**: GCC 12+ or Clang 15+ with C23 support
 - **Libraries**: ncursesw
-- **Optional**: xclip or xsel for system clipboard
+- **Optional**: xclip or xsel for system clipboard, gpg or age for encryption
 
 **Arch Linux:**
 ```bash
@@ -124,6 +161,23 @@ highlight_line = true
 [terminal]
 enabled = true              # Allow C-x t terminal
 height_percent = 45
+
+[clipboard]
+provider = "auto"           # auto, osc52, xclip, xsel, wl-copy
+osc52_enabled = true        # Works over SSH/tmux
+
+[wrap]
+soft_wrap = false
+soft_wrap_column = 80
+
+[extensions.python]
+format = "black -q -"
+
+[extensions.rust]
+format = "rustfmt"
+
+[extensions.c]
+format = "clang-format"
 
 [performance]
 parallel_threshold = 1000   # Min lines for parallel search
@@ -187,12 +241,12 @@ max_threads = 8
 
 ## Vim Mode
 
-Enable with `evil_mode = true` in settings.toml.
+Enable with `evil_mode = true` in settings.toml or `M-x evil-mode`.
 
 ### Modes
 - **Normal**: Navigation and commands (default)
 - **Insert**: Text entry (`i`, `a`, `o`, `A`, `O`)
-- **Visual**: Selection (`v`, `V`)
+- **Visual**: Selection (`v`, `V`, `C-v`)
 - **Replace**: Overwrite (`R`)
 
 ### Commands
@@ -217,6 +271,24 @@ Press `C-x t` to open a shell in a split window:
 - Run builds, git, tests while editing
 - `C-x o` switches between editor and terminal
 - `C-x 0` closes terminal window
+- `build-run` runs make/build command
+- `build-next-error` / `build-prev-error` jump to errors
+
+## Shell Integration
+
+μEmacs exports environment variables to spawned processes:
+
+| Variable | Content |
+|----------|---------|
+| `$UE_FILENAME` | Current file path |
+| `$UE_BUFNAME` | Current buffer name |
+| `$UE_LINE` | Cursor line (1-indexed) |
+| `$UE_COL` | Cursor column (0-indexed) |
+| `$UE_FILETYPE` | Detected type (c, python, rust...) |
+| `$UE_MODIFIED` | "1" if buffer modified |
+| `$UE_TERMINAL` | "1" when inside μEmacs terminal |
+
+Use in shell scripts for editor-aware tooling.
 
 ## Testing
 
@@ -228,25 +300,51 @@ Press `C-x t` to open a shell in a split window:
 cd tests/tui && python -m pytest
 ```
 
+## Architecture
+
+```
+~35,000 lines C23
+├── src/core/       # Buffer, window, display, undo, keymap
+├── src/terminal/   # PTY, VT100 emulation, input state machine
+├── src/text/       # Search, NFA regex, word operations
+├── src/config/     # TOML parser, settings, vim bindings
+├── src/io/         # File I/O, encryption
+├── src/platform/   # Clipboard, spawn
+├── src/uep/        # Extension system, Lua bridge
+└── src/neuroxus/   # AI agent orchestration
+```
+
 ## Technical Highlights
 
 - **35,000 lines** of C23 (src/ + include/)
 - **O(1) keymap** with hash-based lookup
 - **Zero legacy code** - all MSDOS/VMS/termcap removed
 - **Atomic operations** throughout (cursor, display, undo)
-- **DEC 2026 sync** for flicker-free rendering
+- **Sync** for flicker-free rendering
 - **Gap buffer** with dynamic resizing
 - **Thompson NFA** regex with zero-heap runtime
 
 ## History
 
+```
+MicroEMACS (1985)
+    ↓
+uEmacs/PK (Petri Kutvonen)
+    ↓
+μEmacs (Linus Torvalds' personal fork)
+    ↓
+μEmacs v1.0 (C23 modernization)
+```
+
 μEmacs traces from MicroEMACS (1985) through Petri Kutvonen's uEmacs/PK to Linus Torvalds' personal fork. This project modernizes for 2025 while preserving the small, fast, keyboard-driven editor philosophy.
 
 ## Credits
 
-- Original μEmacs: Linus Torvalds
-- C23 Modernization: Will Clingan
-- v0.0.23: Terminal emulator, Vim mode, modern keymap system
+- **Original μEmacs**: Linus Torvalds
+- **MicroEMACS**: Dave G. Conroy, Daniel M. Lawrence
+- **uEmacs/PK**: Petri H. Kutvonen
+- **C23 Modernization**: Will Clingan
+- v1.0: Terminal emulator, Vim mode, polyglot extensions, CI/CD, modern keymap system, AI agents
 
 ## License
 

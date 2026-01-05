@@ -517,7 +517,7 @@ int uep_scripts_exec(const char *name) {
 
     /* Write input to script's stdin */
     if (input && input_len > 0) {
-        write(stdin_pipe[1], input, input_len);
+        if (write(stdin_pipe[1], input, input_len) < 0) { /* ignore */ }
     }
     close(stdin_pipe[1]);
     free(input);

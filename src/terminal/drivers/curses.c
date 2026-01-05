@@ -85,8 +85,6 @@ static void raw_eeop(void);
 static void raw_beep(void);
 static void raw_rev(int state);
 static int raw_rez(const char *res);
-static int raw_fcol(int color);
-static int raw_bcol(int color);
 static void raw_scroll(int from, int to, int count);
 
 /* The terminal structure definition */
@@ -108,8 +106,6 @@ struct terminal term = {
     raw_beep,
     raw_rev,
     raw_rez,
-    raw_fcol,
-    raw_bcol,
     raw_scroll
 };
 
@@ -738,23 +734,6 @@ static void raw_scroll(int from, int to, int count) {
 
     /* Reset scroll region to full screen */
     obuf_printf("\033[1;%dr", term.t_nrow + 1);
-}
-
-/*
- * Color functions - NO-OPS for theme inheritance.
- *
- * Modern approach: Don't set explicit ANSI colors (30-37, 40-47).
- * Instead, let the terminal's theme colors show through.
- * Only use ANSI attributes (reverse video, bold, etc.) for styling.
- */
-static int raw_fcol(int color) {
-    (void)color;  /* Intentionally ignore - inherit terminal theme */
-    return true;
-}
-
-static int raw_bcol(int color) {
-    (void)color;  /* Intentionally ignore - inherit terminal theme */
-    return true;
 }
 
 /*

@@ -80,19 +80,9 @@ static inline int tt_rez(const char* resolution)
     return term.t_rez ? term.t_rez(resolution) : true;
 }
 
-static inline void tt_setfor(int color)
-{
-    if (term.t_setfor) term.t_setfor(color);
-}
-
-static inline void tt_setback(int color)
-{
-    if (term.t_setback) term.t_setback(color);
-}
-
 // Legacy macro compatibility
 #define TTopen       tt_open
-#define TTclose      tt_close  
+#define TTclose      tt_close
 #define TTkopen      tt_kopen
 #define TTkclose     tt_kclose
 #define TTgetc       tt_getc
@@ -104,7 +94,5 @@ static inline void tt_setback(int color)
 #define TTbeep       tt_beep
 #define TTrev        tt_rev
 #define TTrez        tt_rez
-#define TTforg       tt_setfor
-#define TTbacg       tt_setback
 
 #endif // UEMACS_TERMINAL_OPS_H

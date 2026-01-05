@@ -38,8 +38,11 @@
 #include "terminal/palette.h"
 #include "terminal/sequences.h"
 #include "display_internal.h"
+#include "internal/syntax.h"
+#include "μemacs/buffer_utils.h"
 
 #include "../util/git_status.h"
+#include "uep/extension_api.h"
 
 /* C23 atomic snapshot helper for terminal dimensions
  * Captures all dimensions at once to prevent SIGWINCH corruption mid-loop */
@@ -290,8 +293,6 @@ static void allocate_screens(void)
 			return;
 		}
 		vp->v_flag = 0;
-		vp->v_rfcolor = 7;
-		vp->v_rbcolor = 0;
 		atomic_store(&vp->v_checksum, 0);
 		vscreen[i] = vp;
 		vp = (struct video*)safe_alloc(sizeof(struct video) + term.t_mcol*4, "physical video row", __FILE__, __LINE__);
@@ -430,6 +431,66 @@ static void vtputc(int c)
 /* Put character with highlighting (truecolor background) */
 #define HIGHLIGHT_BIT 0x80000000U  /* High bit indicates cursor line/ruler highlight */
 #define SELECTION_BIT 0x40000000U  /* Selection highlight (different from cursor line) */
+
+/* Syntax highlighting face encoding (4 bits = 16 faces) */
+#define SYNTAX_FACE_MASK  0x0F000000U  /* Bits 24-27: syntax face ID */
+#define SYNTAX_FACE_SHIFT 24
+#define SYNTAX_ENCODE_FACE(c, face) ((c) | (((unicode_t)(face) & 0x0F) << SYNTAX_FACE_SHIFT))
+#define SYNTAX_DECODE_FACE(c) (((c) & SYNTAX_FACE_MASK) >> SYNTAX_FACE_SHIFT)
+#define SYNTAX_STRIP_BITS(c) ((c) & ~(HIGHLIGHT_BIT | SELECTION_BIT | SYNTAX_FACE_MASK))
+
+/*
+ * vtputc_syntax:
+ * 	put a character with syntax face encoding into virtual screen
+ *
+ * c:    character to display
+ * face: syntax face ID (FACE_DEFAULT, FACE_KEYWORD, etc.)
+ */
+static void vtputc_syntax(int c, int face)
+{
+	struct video *vp;
+
+	/* In case somebody passes us a signed char.. */
+	if (c < 0) {
+		c += 256;
+		if (c < 0)
+			return;
+	}
+
+	vp = vscreen[vtrow];
+
+	if (vtcol >= term.t_ncol) {
+		++vtcol;
+		vp->v_text[term.t_ncol - 1] = '$';
+		return;
+	}
+
+	if (c == '\t') {
+		do {
+			vtputc_syntax(' ', face);
+		} while (((vtcol + taboff) & tabmask) != 0);
+		return;
+	}
+
+	if (c < 0x20) {
+		vtputc_syntax('^', face);
+		vtputc_syntax(c ^ 0x40, face);
+		return;
+	}
+
+	if (c == 0x7f) {
+		vtputc_syntax('^', face);
+		vtputc_syntax('?', face);
+		return;
+	}
+
+	if (vtcol >= 0) {
+		/* Encode face into the character */
+		vp->v_text[vtcol] = SYNTAX_ENCODE_FACE(c, face);
+		vp->v_flag |= VFCHG;
+	}
+	++vtcol;
+}
 
 static void vtputc_highlighted(int c)
 {
@@ -1075,8 +1136,9 @@ static int in_region(struct line *lp, int pos)
 }
 
 /* Show a line with optional soft-wrap. Returns number of screen rows consumed.
- * wp parameter is the window being rendered (NOT necessarily curwp!) */
-static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows)
+ * wp parameter is the window being rendered (NOT necessarily curwp!)
+ * line_num is 0-indexed line number for syntax lookup (-1 = unknown) */
+static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, int line_num)
 {
 	/* CRITICAL: Null check before dereferencing lp */
 	if (!lp) {
@@ -1091,6 +1153,17 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows)
 	int i = 0, len = llength(lp);
 	int in_selection = false;
 	int rows_used = 1;
+	int char_col = 0;  /* Character column for syntax lookup */
+
+	/* Get syntax state for this buffer (may be NULL if no highlighting) */
+	buffer_syntax_t *syn = NULL;
+	if (wp && wp->w_bufp && wp->w_bufp->b_syntax && line_num >= 0) {
+		syn = wp->w_bufp->b_syntax;
+	}
+	/* Debug: log syntax state for first 3 lines */
+	if (vtrow < 3) {
+		LOG_DEBUGF("SYNTAX_LOOKUP: vtrow=%d line_num=%d syn=%p", vtrow, line_num, (void*)syn);
+	}
 
 	/* Get wrap column from the window being rendered (NOT curwp!)
 	 * CRITICAL FIX: When soft-wrap is disabled (w_wrap_col == 0), use INT_MAX
@@ -1230,23 +1303,36 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows)
 			i += bytes;
 			continue;
 		}
+
+		/* Look up syntax face for this character column */
+		int face = FACE_DEFAULT;
+		if (syn && line_num >= 0) {
+			face = syntax_get_face(syn, line_num, char_col);
+			/* Debug: log face for first 10 chars of first 3 lines */
+			if (vtrow < 3 && char_col < 10 && face != FACE_DEFAULT) {
+				LOG_DEBUGF("FACE: row=%d col=%d face=%d char='%c'",
+				           vtrow, char_col, face, c >= 32 && c < 127 ? c : '?');
+			}
+		}
+
 		if (c < 32 && c != '\t') {
 			// Display other control chars as printable to avoid corruption
 			if (in_selection) {
 				vtputc_selected('^');
 				vtputc_selected('@' + c);
 			} else {
-				vtputc('^');
-				vtputc('@' + c);
+				vtputc_syntax('^', face);
+				vtputc_syntax('@' + c, face);
 			}
 		} else {
 			if (in_selection) {
 				vtputc_selected(c);
 			} else {
-				vtputc(c);
+				vtputc_syntax(c, face);
 			}
 		}
 		i += bytes;
+		char_col++;  /* Advance character column for syntax lookup */
 	}
 
 	/* Hot path - logging disabled for performance
@@ -1254,10 +1340,13 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows)
 	return rows_used;
 }
 
-/* Legacy wrapper for non-wrapped callers - uses curwp */
+/* Legacy wrapper for non-wrapped callers - uses curwp
+ * NOTE: Passes -1 for line_num, disabling syntax highlighting.
+ * This is OK since show_line is only used for single-line updates
+ * where we don't track line numbers. For full syntax, use updall(). */
 static void show_line(struct line *lp)
 {
-	show_line_wrapped(curwp, lp, 1);  /* Single row, no wrap */
+	show_line_wrapped(curwp, lp, 1, -1);  /* Single row, no wrap, no syntax */
 }
 
 /*
@@ -1332,9 +1421,6 @@ static void updone(struct window *wp)
 	vscreen[sline]->v_flag &= ~VFREQ;
 	vtmove(sline, 0);
 	show_line(lp);
-	
-	vscreen[sline]->v_rfcolor = wp->w_fcolor;
-	vscreen[sline]->v_rbcolor = wp->w_bcolor;
 	vteeol();
 
 	/* Apply cursor line highlighting if enabled (after vteeol to cover full width) */
@@ -1372,6 +1458,7 @@ static void updall(struct window *wp)
 	struct line *lp;	/* line to update */
 	int sline;	/* physical screen line to update */
 	int rows_remaining;
+	int line_num;	/* 0-indexed line number for syntax highlighting */
 
 	/* COMPREHENSIVE DEBUG: Full window state dump at start of refresh */
 	LOG_DEBUGF("UPDALL: START window rows=%d-%d ntrows=%d buf=%s dotp=%p wrap_col=%d",
@@ -1382,6 +1469,15 @@ static void updall(struct window *wp)
 	/* search down the lines, updating them */
 	lp = wp->w_linep;
 	sline = wp->w_toprow;
+
+	/* Compute starting line number for syntax highlighting.
+	 * get_line_number() returns 1-indexed, we need 0-indexed. */
+	line_num = get_line_number(wp->w_bufp, wp->w_linep);
+	if (line_num > 0) {
+		line_num--;  /* Convert to 0-indexed */
+	} else {
+		line_num = -1;  /* Unknown - disable syntax for this window */
+	}
 
 	/* CRITICAL: Validate pointers before loop to catch null dereferences */
 	if (!vscreen) {
@@ -1416,10 +1512,13 @@ static void updall(struct window *wp)
 
 		if (has_content) {
 			/* Render actual buffer line - pass wp to get correct wrap_col */
-			rows_used = show_line_wrapped(wp, lp, rows_remaining);
-			LOG_DEBUGF("UPDALL: sline=%d rendered lp=%p rows_used=%d vtrow=%d vtcol=%d",
-			           sline, (void*)lp, rows_used, vtrow, vtcol);
+			rows_used = show_line_wrapped(wp, lp, rows_remaining, line_num);
+			LOG_DEBUGF("UPDALL: sline=%d rendered lp=%p rows_used=%d vtrow=%d vtcol=%d line_num=%d",
+			           sline, (void*)lp, rows_used, vtrow, vtcol, line_num);
 			lp = lforw(lp);
+			if (line_num >= 0) {
+				line_num++;  /* Advance to next line for syntax */
+			}
 		} else {
 			/* Beyond buffer content - show tilde and clear v_linep */
 			vtmove(sline, 0);
@@ -1438,9 +1537,6 @@ static void updall(struct window *wp)
 			if (has_content) {
 				vscreen[row]->v_linep = current_lp;
 			}
-
-			vscreen[row]->v_rfcolor = wp->w_fcolor;
-			vscreen[row]->v_rbcolor = wp->w_bcolor;
 
 			/* vteeol for the last row of this line (only if we have content) */
 			if (has_content && r == rows_used - 1) {
@@ -1786,8 +1882,6 @@ void updgar(void)
 	for (i = 0; i < term.t_nrow; ++i) {
 		vscreen[i]->v_flag |= VFCHG;
 		vscreen[i]->v_flag &= ~VFREV;
-		vscreen[i]->v_fcolor = gfcolor;
-		vscreen[i]->v_bcolor = gbcolor;
 		txt = pscreen[i]->v_text;
 		for (j = 0; j < term.t_ncol; ++j)
 			txt[j] = ' ';
@@ -1958,9 +2052,6 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	LOG_DEBUGF("UPDATELINE: row=%d currow=%d range=[%d,%d] is_cursor=%d needs_clear=%d",
 	           row, currow, cursor_row_min, cursor_row_max, row_is_cursor_line, row_needs_highlight_clear);
 
-    TTforg(vp1->v_rfcolor);
-    TTbacg(vp1->v_rbcolor);
-
 	/* if status line state changed or colors changed, re-write entire line */
 	rev = (vp1->v_flag & VFREV) == VFREV;
 	req = (vp1->v_flag & VFREQ) == VFREQ;
@@ -1968,8 +2059,6 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	    || req  /* Status line ALWAYS needs full render for truecolor background */
 	    || row_is_cursor_line  /* Cursor line ALWAYS needs full render for highlight */
 	    || row_needs_highlight_clear  /* Any row in cursor range needs full render to CLEAR highlight */
-	    || (vp1->v_fcolor != vp1->v_rfcolor)
-	    || (vp1->v_bcolor != vp1->v_rbcolor)
 	    ) {
 		movecursor(row, 0);	/* Go to start of line. */
 
@@ -2013,7 +2102,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
             char line_preview[61];
             int preview_len = (term.t_ncol < 60) ? term.t_ncol : 60;
             for (int pi = 0; pi < preview_len; pi++) {
-                unicode_t ch = cp1[pi] & ~(HIGHLIGHT_BIT | SELECTION_BIT);
+                unicode_t ch = SYNTAX_STRIP_BITS(cp1[pi]);
                 line_preview[pi] = (ch >= 0x20 && ch < 0x7f) ? (char)ch : '.';
             }
             line_preview[preview_len] = '\0';
@@ -2022,11 +2111,22 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
         }
 #endif
 
+        /* Track current syntax face to minimize SGR escape sequences */
+        int current_face = FACE_DEFAULT;
+        bool syntax_active = !req && !row_is_cursor_line && g_palette.syntax_enabled;
+
+        /* Debug: log syntax_active state for first 3 rows */
+        if (row < 3) {
+            LOG_DEBUGF("UPDATELINE: row=%d syntax_active=%d (req=%d cursor=%d enabled=%d)",
+                       row, syntax_active, req, row_is_cursor_line, g_palette.syntax_enabled);
+        }
+
         while (cp1 < cp3) {
             unicode_t ch = *cp1;
             bool char_highlighted = (ch & HIGHLIGHT_BIT) != 0;
             bool char_selected = (ch & SELECTION_BIT) != 0;
-            ch &= ~(HIGHLIGHT_BIT | SELECTION_BIT);  /* Strip both bits */
+            int face = SYNTAX_DECODE_FACE(ch);
+            ch = SYNTAX_STRIP_BITS(ch);  /* Strip all style bits */
 
             /* EVIL text coloring in modeline */
             if (col_pos == evil_start) {
@@ -2048,6 +2148,26 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
                 emit_ruler_bg();  /* Palette-based ruler background */
             }
 
+            /* Apply syntax highlighting color if face changed */
+            if (syntax_active && face != current_face) {
+                /* Debug: log face change for first 3 rows */
+                if (row < 3) {
+                    LOG_DEBUGF("FACE_EMIT: row=%d col=%d face=%d->%d",
+                               row, col_pos, current_face, face);
+                }
+                if (face != FACE_DEFAULT) {
+                    /* Apply new face color and style */
+                    const char *style = sgr_syntax_style(face);
+                    if (style[0]) ttputs(style);
+                    ttputs(sgr_syntax_fg(face));
+                } else {
+                    /* Reset to default */
+                    ttputs(sgr_syntax_style_reset());
+                    ttputs("\033[39m");  /* Default foreground */
+                }
+                current_face = face;
+            }
+
             TTputc(ch);
 
             /* Reset after highlighted/selected character */
@@ -2058,6 +2178,12 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
             ++ttcol;
             ++col_pos;
             *cp2++ = *cp1++;
+        }
+
+        /* Reset syntax style at end of line if active */
+        if (syntax_active && current_face != FACE_DEFAULT) {
+            ttputs(sgr_syntax_style_reset());
+            ttputs("\033[39m");
         }
 
         /* Turn off highlight/modeline background at end of line */
@@ -2073,8 +2199,6 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 			vp1->v_flag |= VFREV;
 		else
 			vp1->v_flag &= ~VFREV;
-		vp1->v_fcolor = vp1->v_rfcolor;
-		vp1->v_bcolor = vp1->v_rbcolor;
 		return true;
 	}
 
@@ -2153,17 +2277,35 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 		}
 	}
 
+	/* Track current syntax face for incremental updates */
+	int current_face = FACE_DEFAULT;
+	bool syntax_active = !req && !row_is_cursor_line && g_palette.syntax_enabled;
+
 	while (cp1 != cp5) {	/* Ordinary. */
 		unicode_t ch = *cp1;
 		bool char_highlighted = (ch & HIGHLIGHT_BIT) != 0;
 		bool char_selected = (ch & SELECTION_BIT) != 0;
-		ch &= ~(HIGHLIGHT_BIT | SELECTION_BIT);  /* Strip both bits */
+		int face = SYNTAX_DECODE_FACE(ch);
+		ch = SYNTAX_STRIP_BITS(ch);  /* Strip ALL style bits */
 
 		/* Selection highlighting takes priority over ruler highlighting */
 		if (char_selected && !row_is_cursor_line && !req) {
 			ttputs(sgr_selection_bg());  /* Palette-based selection background */
 		} else if (char_highlighted && !row_is_cursor_line && !req) {
 			emit_ruler_bg();  /* Palette-based ruler background */
+		}
+
+		/* Apply syntax highlighting color if face changed */
+		if (syntax_active && face != current_face) {
+			if (face != FACE_DEFAULT) {
+				const char *style = sgr_syntax_style(face);
+				if (style[0]) ttputs(style);
+				ttputs(sgr_syntax_fg(face));
+			} else {
+				ttputs(sgr_syntax_style_reset());
+				ttputs("\033[39m");
+			}
+			current_face = face;
 		}
 
 		TTputc(ch);
@@ -2175,6 +2317,12 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 
 		++ttcol;
 		*cp2++ = *cp1++;
+	}
+
+	/* Reset syntax style at end of incremental update */
+	if (syntax_active && current_face != FACE_DEFAULT) {
+		ttputs(sgr_syntax_style_reset());
+		ttputs("\033[39m");
 	}
 
 	if (cp5 != cp3) {	/* Erase. */
@@ -2226,7 +2374,7 @@ static void modeline(struct window *wp)
 		LOG_WARN("Display: modeline() row out of bounds!");
 		return;  // Safety: don't access beyond vscreen bounds
 	}
-	vscreen[n]->v_flag |= VFCHG | VFREQ | VFCOL;	/* Redraw next time. */
+	vscreen[n]->v_flag |= VFCHG | VFREQ;	/* Redraw next time. */
 	// Don't force modeline colors - use terminal defaults
 	vtmove(n, 0);		/* Seek to right line. */
 	lchar = '-';		/* modeline border character */
@@ -2452,14 +2600,11 @@ void movecursor(int row, int col)
  */
 void mlerase(void)
 {
-	int i;
-
 	movecursor(term.t_nrow, 0);
 	if (discmd == false)
 		return;
 
-	TTforg(7);
-	TTbacg(0);
+	ttputs("\033[0m");  /* Reset to terminal defaults */
 	TTeeol();  /* Modern terminals always support clear-to-EOL */
 	TTflush();
 	mpresf = false;
@@ -2484,11 +2629,9 @@ void mlwrite(const char *restrict fmt, ...)
 		movecursor(term.t_nrow, 0);
 		return;
 	}
-	/* set up the proper colors for the command line */
-	TTforg(7);
-	TTbacg(0);
 
 	movecursor(term.t_nrow, 0);
+	ttputs("\033[0m");  /* Reset to terminal defaults */
 	va_start(ap, fmt);
 	while ((c = *fmt++) != 0) {
 		if (c != '%') {
@@ -2893,6 +3036,23 @@ static void modern_modeline(struct window *wp)
 		git_status_get_cached(git_info, sizeof(git_info));
 	}
 
+	// --- EXTENSION MODELINE SEGMENTS ---
+	char *ext_high = NULL;  // High urgency (mode indicators)
+	char *ext_low = NULL;   // Low urgency (informational)
+
+	// modeline_ext_position: 0=left, 1=right, 2=auto
+	if (modeline_ext_position == 0) {
+		// All segments on left
+		ext_high = extension_get_modeline_segments(-1);  // All
+	} else if (modeline_ext_position == 1) {
+		// All segments on right
+		ext_low = extension_get_modeline_segments(-1);   // All
+	} else {
+		// Auto: high urgency left, low urgency right
+		ext_high = extension_get_modeline_segments(UEMACS_MODELINE_URGENCY_HIGH);
+		ext_low = extension_get_modeline_segments(UEMACS_MODELINE_URGENCY_LOW);
+	}
+
 	// Compose left_info with vim mode and git
 	const char* fname = bp->b_fname[0] ? bp->b_fname : bp->b_bname;
 
@@ -2947,6 +3107,15 @@ static void modern_modeline(struct window *wp)
 			safe_snprintf(left_info, sizeof(left_info), "   %s%s", fname, mod_indicator);
 	}
 
+	// Append high-urgency extension segments to left side
+	if (ext_high && ext_high[0]) {
+		size_t curr_len = strlen(left_info);
+		if (curr_len + strlen(ext_high) + 5 < sizeof(left_info)) {
+			strncat(left_info, "    ", sizeof(left_info) - curr_len - 1);
+			strncat(left_info, ext_high, sizeof(left_info) - strlen(left_info) - 1);
+		}
+	}
+
 	// Format right: C{COL} L{LINE}/{TOTAL}  {SIZE} {WORDS}
 	char size_str[32];
 	if (file_size < 1024) {
@@ -2965,6 +3134,11 @@ static void modern_modeline(struct window *wp)
 	int current_col = calculate_display_column_cached(wp->w_dotp, wp->w_doto, 8) + 1;
 
 	right_info[0] = '\0';
+	// Prepend low-urgency extension segments to right side
+	if (ext_low && ext_low[0]) {
+		strncat(right_info, ext_low, sizeof(right_info) - 1);
+		strncat(right_info, "    ", sizeof(right_info) - strlen(right_info) - 1);
+	}
 	if (modeline_show_position) {
 		char pos[64];
 		snprintf(pos, sizeof(pos), "C%d    L%d/%d", current_col, current_line, total_lines);
@@ -3040,6 +3214,10 @@ static void modern_modeline(struct window *wp)
 		vtputc(' ');
 		col_pos++;
 	}
+
+	// Cleanup extension segment strings
+	if (ext_high) free(ext_high);
+	if (ext_low) free(ext_low);
 	/* VFREQ flag tells updateline() to apply dark truecolor background */
 }
 

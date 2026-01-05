@@ -22,6 +22,8 @@
 #include "memory.h"
 #include "string_utils.h"
 #include "util/logger.h"
+#include "internal/syntax.h"
+#include "terminal/palette.h"
 
 /* Buffer index and stats functions - declared in estruct.h */
 extern int buffer_index_insert(struct buffer *bp, int line_idx, struct line *lp);
@@ -301,8 +303,67 @@ int readin(const char *fname, int lockfl)
 	undo_mark_saved(curbp);
 
 	/* Fire extension load hooks */
-	extern void extension_fire_buffer_load(struct buffer *bp);
-	extension_fire_buffer_load(curbp);
+	extension_emit_buffer_load(curbp);
+
+	/* Initialize syntax highlighting for the loaded file */
+	if (curbp && g_palette.syntax_enabled) {
+		int lang_id = syntax_detect_language(curbp->b_fname);
+		if (lang_id >= 0) {
+			/* Get line count for syntax state allocation */
+			int line_count = 0;
+			buffer_get_stats_fast(curbp, &line_count, NULL, NULL);
+			if (line_count < 1) line_count = 1;
+
+			/* Free any existing syntax state */
+			if (curbp->b_syntax) {
+				syntax_free(curbp->b_syntax);
+			}
+
+			/* Create new syntax state */
+			curbp->b_syntax = syntax_create(line_count);
+			curbp->b_lang_id = lang_id;
+
+			if (curbp->b_syntax) {
+				/* Build array of line text pointers for lexing */
+				const char **lines = malloc(line_count * sizeof(char *));
+				char **line_bufs = malloc(line_count * sizeof(char *));
+				if (lines && line_bufs) {
+					struct line *lp = lforw(curbp->b_linep);
+					for (int i = 0; i < line_count && lp != curbp->b_linep; i++) {
+						int len = llength(lp);
+						line_bufs[i] = malloc(len + 1);
+						if (line_bufs[i]) {
+							gap_buffer_get_text(lp->gb, 0, len, line_bufs[i], len + 1);
+							line_bufs[i][len] = '\0';
+							lines[i] = line_bufs[i];
+						} else {
+							lines[i] = "";
+						}
+						lp = lforw(lp);
+					}
+
+					/* Run the lexer on the entire buffer */
+					syntax_lex_buffer(curbp->b_syntax, lang_id, curbp, lines, line_count);
+
+					/* Free line buffers */
+					for (int i = 0; i < line_count; i++) {
+						free(line_bufs[i]);
+					}
+					free(line_bufs);
+					free(lines);
+
+					LOG_INFOF("Syntax: Initialized %s highlighting for %s (%d lines)",
+					          syntax_get_language(lang_id)->name, curbp->b_fname, line_count);
+				} else {
+					free(lines);
+					free(line_bufs);
+				}
+			}
+		} else {
+			curbp->b_syntax = NULL;
+			curbp->b_lang_id = -1;
+		}
+	}
 
 	return true;
 }
@@ -423,8 +484,7 @@ int filesave(int f, int n)
 		}
 
 		/* Fire extension save hooks */
-		extern void extension_fire_buffer_save(struct buffer *bp);
-		extension_fire_buffer_save(curbp);
+		extension_emit_buffer_save(curbp);
 	}
 	return s;
 }

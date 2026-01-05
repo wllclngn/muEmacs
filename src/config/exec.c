@@ -10,6 +10,7 @@
 #include "line.h"
 #include "memory.h"
 #include "error.h"
+#include "uep/ext_host.h"
 
 // Structures for dobuf refactoring
 struct exec_state {
@@ -56,6 +57,12 @@ int namedcmd(int f, int n)
 	/* and now get the function to execute */
 	kfunc = fncmatch(cmdbuf);
 	if (kfunc == nullptr) {
+		/* Check if it's a remote extension command (out-of-process) */
+		if (ext_host_has_command(cmdbuf)) {
+			int result = ext_host_invoke_command(cmdbuf, f, n);
+			return (result >= 0) ? true : false;
+		}
+
 		/* Check if it's a script command (Layer 2) */
 		extern int uep_scripts_try_execute(const char *name);
 		int script_result = uep_scripts_try_execute(cmdbuf);
@@ -146,6 +153,13 @@ int docmd(const char *cline)
 
 	/* and match the token to see if it exists */
 	if ((fnc = fncmatch(tkn)) == nullptr) {
+		/* Check if it's a remote extension command (out-of-process) */
+		if (ext_host_has_command(tkn)) {
+			int result = ext_host_invoke_command(tkn, f, n);
+			execstr = oldestr;
+			return (result >= 0) ? true : false;
+		}
+
 		/* Check if it's a script command (Layer 2) */
 		extern int uep_scripts_try_execute(const char *name);
 		int script_result = uep_scripts_try_execute(tkn);

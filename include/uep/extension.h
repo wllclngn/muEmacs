@@ -21,7 +21,7 @@ struct buffer;
 #define UEMACS_EXTENSION_ENTRY uemacs_extension_entry
 
 /* API version for compatibility checking */
-#define UEMACS_API_VERSION 2
+#define UEMACS_API_VERSION 3
 
 /* Maximum loaded extensions */
 #define UEMACS_MAX_EXTENSIONS 64

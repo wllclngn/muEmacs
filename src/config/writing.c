@@ -34,7 +34,7 @@ int writing_mode_enable(int f, int n)
         curbp->b_mode |= MDWRAP;
         upmode();
     }
-    mlwrite("COLUMN WIDTH ENABLED AT %d", fillcol);
+    /* Silent - no need to announce */
     return true;
 }
 

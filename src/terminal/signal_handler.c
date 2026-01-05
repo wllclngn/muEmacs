@@ -196,12 +196,12 @@ void signal_restore_terminal_safe(void) {
      * Do NOT use: printf, malloc, free, syslog, etc.
      */
 
-    /* Reset terminal modes */
-    (void)write(STDOUT_FILENO, seq_bracketed_off, sizeof(seq_bracketed_off) - 1);
-    (void)write(STDOUT_FILENO, seq_focus_off, sizeof(seq_focus_off) - 1);
-    (void)write(STDOUT_FILENO, seq_reset_attrs, sizeof(seq_reset_attrs) - 1);
-    (void)write(STDOUT_FILENO, seq_show_cursor, sizeof(seq_show_cursor) - 1);
-    (void)write(STDOUT_FILENO, seq_exit_alt_screen, sizeof(seq_exit_alt_screen) - 1);
+    /* Reset terminal modes - best effort, ignore failures */
+    if (write(STDOUT_FILENO, seq_bracketed_off, sizeof(seq_bracketed_off) - 1) < 0) {}
+    if (write(STDOUT_FILENO, seq_focus_off, sizeof(seq_focus_off) - 1) < 0) {}
+    if (write(STDOUT_FILENO, seq_reset_attrs, sizeof(seq_reset_attrs) - 1) < 0) {}
+    if (write(STDOUT_FILENO, seq_show_cursor, sizeof(seq_show_cursor) - 1) < 0) {}
+    if (write(STDOUT_FILENO, seq_exit_alt_screen, sizeof(seq_exit_alt_screen) - 1) < 0) {}
 
     /* Restore original termios */
     if (termios_saved) {

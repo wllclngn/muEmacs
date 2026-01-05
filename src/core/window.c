@@ -345,9 +345,6 @@ int window_split(int f, int n)
 	wp->w_flag = 0;
 	wp->w_force = 0;
 	wp->w_wrap_col = curwp->w_wrap_col;  /* Inherit wrap setting */
-	/* set the colors of the new window */
-	wp->w_fcolor = gfcolor;
-	wp->w_bcolor = gbcolor;
 	ntru = (curwp->w_ntrows - 1) / 2;	/* Upper size           */
 	ntrl = (curwp->w_ntrows - 1) - ntru;	/* Lower size           */
 	lp = curwp->w_linep;
@@ -957,8 +954,6 @@ struct window *terminal_split_bottom(int height_rows) {
 	term_wp->w_ntrows = height_rows;
 	term_wp->w_flag = WFMODE | WFHARD;
 	term_wp->w_force = 0;
-	term_wp->w_fcolor = gfcolor;
-	term_wp->w_bcolor = gbcolor;
 	term_wp->w_wrap_col = 0;
 
 	/* Shrink bottom window to make room (minus 1 for mode line) */

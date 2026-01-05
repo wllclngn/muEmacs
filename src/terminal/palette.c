@@ -14,6 +14,7 @@
 #include <errno.h>
 
 #include "terminal/palette.h"
+#include "internal/syntax.h"
 
 /*
  * Global palette instance with default values.
@@ -58,8 +59,33 @@ ui_palette_t g_palette = {
     .warning_rgb = {0xFF, 0xA5, 0x61},      /* #FFA561 - orange */
     .success_rgb = {0x00, 0xFF, 0xA6},      /* #00FFA6 - bright green */
 
+    /* Syntax highlighting colors (dome theme from ~/.vim/colors/dome.vim) */
+    .syntax_keyword_rgb = {0x03, 0xFE, 0xAF},   /* #03FEAF - domeGreen */
+    .syntax_string_rgb = {0x6A, 0x64, 0xFF},    /* #6A64FF - domePurple */
+    .syntax_comment_rgb = {0x78, 0x78, 0x78},   /* #787878 - domeComment */
+    .syntax_number_rgb = {0xFF, 0xF6, 0xA7},    /* #FFF6A7 - domeYellow */
+    .syntax_type_rgb = {0x6B, 0x8C, 0xFF},      /* #6B8CFF - domeFadePurp */
+    .syntax_function_rgb = {0x8F, 0x00, 0xFF},  /* #8F00FF - domeHyperPurp */
+    .syntax_operator_rgb = {0x00, 0xCD, 0xF0},  /* #00CDF0 - domeCyan */
+    .syntax_preproc_rgb = {0x00, 0xCD, 0xF0},   /* #00CDF0 - domeCyan */
+    .syntax_constant_rgb = {0xFF, 0xA5, 0x61},  /* #FFA561 - domeOrange (Boolean) */
+    .syntax_variable_rgb = {0xC8, 0xC8, 0xC8},  /* #C8C8C8 - domeFg */
+    .syntax_attribute_rgb = {0xEA, 0x8F, 0xFF}, /* #EA8FFF - domePink */
+    .syntax_escape_rgb = {0x00, 0xA0, 0xFF},    /* #00A0FF - domeHyperCyan */
+    .syntax_regex_rgb = {0x21, 0x7C, 0xFA},     /* #217CFA - domeBlue */
+    .syntax_special_rgb = {0x00, 0xA0, 0xFF},   /* #00A0FF - domeHyperCyan */
+
+    /* Syntax font styles (0=none, STYLE_BOLD=0x10, STYLE_ITALIC=0x20) */
+    .syntax_keyword_style = 0x10,   /* bold keywords */
+    .syntax_comment_style = 0x20,   /* italic comments */
+    .syntax_string_style = 0x00,    /* normal strings */
+    .syntax_type_style = 0x00,      /* normal types */
+    .syntax_function_style = 0x00,  /* normal functions */
+
     /* Flags */
-    .search_fg_set = false
+    .search_fg_set = false,
+    .syntax_enabled = true,
+    .syntax_prefer_builtin = true  /* Built-in lexers first for immediate highlighting */
 };
 
 /* Cached color capability */
@@ -439,4 +465,138 @@ const char* sgr_message_color(int type) {
     /* Always use truecolor */
     snprintf(buf, sizeof(buf), "\033[38;2;%d;%d;%dm", rgb[0], rgb[1], rgb[2]);
     return buf;
+}
+
+/*
+ * Generate SGR escape sequence for syntax face foreground color.
+ */
+const char* sgr_syntax_fg(int face_id) {
+    static _Thread_local char buf[32];
+    const unsigned char *rgb;
+
+    if (!g_palette.syntax_enabled) {
+        return "";
+    }
+
+    switch (face_id) {
+        case FACE_KEYWORD:
+            rgb = g_palette.syntax_keyword_rgb;
+            break;
+        case FACE_STRING:
+            rgb = g_palette.syntax_string_rgb;
+            break;
+        case FACE_COMMENT:
+            rgb = g_palette.syntax_comment_rgb;
+            break;
+        case FACE_NUMBER:
+            rgb = g_palette.syntax_number_rgb;
+            break;
+        case FACE_TYPE:
+            rgb = g_palette.syntax_type_rgb;
+            break;
+        case FACE_FUNCTION:
+            rgb = g_palette.syntax_function_rgb;
+            break;
+        case FACE_OPERATOR:
+            rgb = g_palette.syntax_operator_rgb;
+            break;
+        case FACE_PREPROCESSOR:
+            rgb = g_palette.syntax_preproc_rgb;
+            break;
+        case FACE_CONSTANT:
+            rgb = g_palette.syntax_constant_rgb;
+            break;
+        case FACE_VARIABLE:
+            rgb = g_palette.syntax_variable_rgb;
+            break;
+        case FACE_ATTRIBUTE:
+            rgb = g_palette.syntax_attribute_rgb;
+            break;
+        case FACE_ESCAPE:
+            rgb = g_palette.syntax_escape_rgb;
+            break;
+        case FACE_REGEX:
+            rgb = g_palette.syntax_regex_rgb;
+            break;
+        case FACE_SPECIAL:
+            rgb = g_palette.syntax_special_rgb;
+            break;
+        case FACE_DEFAULT:
+        default:
+            return "";  /* No color - use terminal default */
+    }
+
+    snprintf(buf, sizeof(buf), "\033[38;2;%d;%d;%dm", rgb[0], rgb[1], rgb[2]);
+    return buf;
+}
+
+/*
+ * Generate SGR escape sequence for syntax face style (bold/italic/underline).
+ */
+const char* sgr_syntax_style(int face_id) {
+    static _Thread_local char buf[32];
+    unsigned char style = 0;
+
+    if (!g_palette.syntax_enabled) {
+        return "";
+    }
+
+    /* Get style for this face */
+    switch (face_id) {
+        case FACE_KEYWORD:
+            style = g_palette.syntax_keyword_style;
+            break;
+        case FACE_COMMENT:
+            style = g_palette.syntax_comment_style;
+            break;
+        case FACE_STRING:
+            style = g_palette.syntax_string_style;
+            break;
+        case FACE_TYPE:
+            style = g_palette.syntax_type_style;
+            break;
+        case FACE_FUNCTION:
+            style = g_palette.syntax_function_style;
+            break;
+        default:
+            return "";  /* No style */
+    }
+
+    if (style == 0) {
+        return "";
+    }
+
+    /* Build style sequence */
+    int pos = 0;
+    buf[pos++] = '\033';
+    buf[pos++] = '[';
+
+    bool need_sep = false;
+    if (style & STYLE_BOLD) {
+        buf[pos++] = '1';
+        need_sep = true;
+    }
+    if (style & STYLE_ITALIC) {
+        if (need_sep) buf[pos++] = ';';
+        buf[pos++] = '3';
+        need_sep = true;
+    }
+    if (style & STYLE_UNDERLINE) {
+        if (need_sep) buf[pos++] = ';';
+        buf[pos++] = '4';
+    }
+    buf[pos++] = 'm';
+    buf[pos] = '\0';
+
+    return buf;
+}
+
+/*
+ * Reset syntax style (turn off bold/italic/underline).
+ */
+const char* sgr_syntax_style_reset(void) {
+    /* SGR 22 = normal intensity (not bold/dim)
+     * SGR 23 = not italic
+     * SGR 24 = not underlined */
+    return "\033[22;23;24m";
 }

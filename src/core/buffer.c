@@ -14,6 +14,7 @@
 #include "string_utils.h"
 #include "util/logger.h"
 #include "terminal/terminal.h"
+#include "internal/syntax.h"
 
 /*
  * Hash table functions for O(1) buffer lookup by name
@@ -253,6 +254,12 @@ int zotbuf(struct buffer *bp)
 	/* If this is a terminal buffer, cleanup PTY and state */
 	if (bp->b_mode & MDTBUFFER) {
 		terminal_buffer_close(bp);
+	}
+
+	/* Free syntax highlighting state */
+	if (bp->b_syntax) {
+		syntax_free(bp->b_syntax);
+		bp->b_syntax = NULL;
 	}
 
 	/* Release undo stack memory */
@@ -620,6 +627,10 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 
 		// Initialize terminal integration fields (used only when MDTBUFFER set)
 		bp->b_term_data = nullptr;
+
+		// Initialize syntax highlighting fields
+		bp->b_syntax = NULL;
+		bp->b_lang_id = -1;
 
 		// Add buffer to hash table for instant O(1) lookup
 		buffer_hash_insert(bp);

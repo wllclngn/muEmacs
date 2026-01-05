@@ -53,6 +53,18 @@ def find_include_path() -> Optional[str]:
     return None
 
 
+def get_api_header_mtime() -> float:
+    """Get mtime of extension_api.h - forces rebuild when API changes."""
+    inc = find_include_path()
+    if not inc:
+        return 0.0
+    api_header = Path(inc) / "uep" / "extension_api.h"
+    try:
+        return api_header.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def get_so_name(ext_dir: Path) -> str:
     """Derive .so filename from extension directory or source file."""
     # If it's a file (e.g., foo.c), use its base name
@@ -76,15 +88,29 @@ def get_newest_mtime(ext_dir: Path, patterns: List[str]) -> float:
     return newest
 
 
-def needs_rebuild(ext_dir: Path, so_path: Path, source_patterns: List[str]) -> bool:
-    """Check if extension needs rebuilding (source newer than .so)."""
+def needs_rebuild(ext_dir: Path, so_path: Path, source_patterns: List[str]) -> tuple[bool, bool]:
+    """Check if extension needs rebuilding.
+
+    Returns:
+        (needs_rebuild, api_changed) tuple
+        - needs_rebuild: True if rebuild is needed
+        - api_changed: True if API header change triggered rebuild (forces cache clear)
+    """
     if not so_path.exists():
-        return True
+        return (True, False)
 
     so_mtime = so_path.stat().st_mtime
     src_mtime = get_newest_mtime(ext_dir, source_patterns)
+    api_mtime = get_api_header_mtime()
 
-    return src_mtime > so_mtime
+    # Rebuild if source is newer
+    if src_mtime > so_mtime:
+        return (True, False)
+    # Rebuild if API header changed (need to clear build caches)
+    if api_mtime > so_mtime:
+        print(f"[uep_build] API header changed - forcing rebuild")
+        return (True, True)
+    return (False, False)
 
 
 def run_cmd(cmd: List[str], cwd: Path, desc: str) -> int:
@@ -143,8 +169,12 @@ def build_cpp(ext_dir: Path, so_name: str) -> int:
     return run_cmd(cmd, ext_dir, "Compiling C++")
 
 
-def build_cargo(ext_dir: Path, so_name: str) -> int:
+def build_cargo(ext_dir: Path, so_name: str, force_clean: bool = False) -> int:
     """Build Rust extension with cargo."""
+    # If force_clean (API changed), clear cargo cache to force full rebuild
+    if force_clean:
+        run_cmd(["cargo", "clean", "--release"], ext_dir, "Cleaning Rust cache")
+
     result = run_cmd(["cargo", "build", "--release"], ext_dir, "Building Rust")
     if result != 0:
         return result
@@ -381,10 +411,16 @@ def detect_and_build(ext_path: Path) -> int:
         so_name = ext_path.stem + ".so"
         so_path = ext_dir / so_name
 
-        # Check if rebuild needed
-        if so_path.exists() and so_path.stat().st_mtime > ext_path.stat().st_mtime:
-            print(f"[uep_build] {so_name} is up-to-date")
-            return 0
+        # Check if rebuild needed (source mtime OR api header mtime)
+        if so_path.exists():
+            so_mtime = so_path.stat().st_mtime
+            src_mtime = ext_path.stat().st_mtime
+            api_mtime = get_api_header_mtime()
+            if src_mtime <= so_mtime and api_mtime <= so_mtime:
+                print(f"[uep_build] {so_name} is up-to-date")
+                return 0
+            if api_mtime > so_mtime:
+                print(f"[uep_build] API header changed - forcing rebuild")
 
         # Detect by file extension
         suffix = ext_path.suffix.lower()
@@ -408,9 +444,20 @@ def detect_and_build(ext_path: Path) -> int:
             print(f"[uep_build] Detected: {lang_name} in {ext_dir.name}")
 
             # Check if rebuild needed
-            if not needs_rebuild(ext_dir, so_path, patterns):
+            rebuild_needed, api_changed = needs_rebuild(ext_dir, so_path, patterns)
+            if not rebuild_needed:
                 print(f"[uep_build] {so_name} is up-to-date")
                 return 0
+
+            # For Rust: pass api_changed flag to clear cargo cache
+            if lang_name == "Rust" and api_changed:
+                return build_cargo(ext_dir, so_name, force_clean=True)
+
+            # For other cached build systems (Go, Zig), delete .so to force rebuild
+            if api_changed and lang_name in ("Go", "Zig", "D/Dub", "Nim/Nimble", "Swift"):
+                if so_path.exists():
+                    print(f"[uep_build] Deleting {so_name} to force full rebuild")
+                    so_path.unlink()
 
             # Build it
             return builder(ext_dir, so_name)
@@ -420,9 +467,13 @@ def detect_and_build(ext_path: Path) -> int:
 
 
 def main() -> int:
-    """Main entry point."""
+    """Main entry point.
+
+    Supports batch mode: python3 uep_build.py path1 path2 path3 ...
+    Returns 0 if ALL builds succeed, 1 if ANY fail.
+    """
     if len(sys.argv) < 2:
-        print("Usage: uep_build.py <extension_dir_or_file>", file=sys.stderr)
+        print("Usage: uep_build.py <extension_dir_or_file> [more paths...]", file=sys.stderr)
         print("       uep_build.py --help", file=sys.stderr)
         return 1
 
@@ -430,13 +481,30 @@ def main() -> int:
         print(__doc__)
         return 0
 
-    ext_path = Path(sys.argv[1]).resolve()
+    # Batch mode: process all provided paths
+    paths = sys.argv[1:]
+    failed = 0
+    total = len(paths)
 
-    if not ext_path.exists():
-        print(f"[uep_build] ERROR: Path does not exist: {ext_path}", file=sys.stderr)
-        return 1
+    if total > 1:
+        print(f"[uep_build] Batch building {total} extension(s)")
 
-    return detect_and_build(ext_path)
+    for path_str in paths:
+        ext_path = Path(path_str).resolve()
+
+        if not ext_path.exists():
+            print(f"[uep_build] ERROR: Path does not exist: {ext_path}", file=sys.stderr)
+            failed += 1
+            continue
+
+        result = detect_and_build(ext_path)
+        if result != 0:
+            failed += 1
+
+    if total > 1:
+        print(f"[uep_build] Batch complete: {total - failed}/{total} succeeded")
+
+    return 1 if failed > 0 else 0
 
 
 if __name__ == "__main__":

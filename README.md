@@ -63,24 +63,83 @@ A modern, extensible C23 text editor for Linux terminals, descended from Linus T
 - **System Clipboard**: Automatic xclip/xsel integration for copy/paste
 
 ### Extension System (UEP)
-Three-layer μEmacs Extension Protocol:
+
+The μEmacs Extension Protocol is a **polyglot extension system supporting 11 programming languages** with hybrid process isolation. Write extensions in whatever language fits the task - from C for tight editor integration to Haskell for complex project analysis.
+
+**Three-Layer Architecture:**
 
 | Layer | Type | Location | Use Case |
 |-------|------|----------|----------|
-| 1 | Core API | Internal | Editor primitives for Layers 2-3 |
-| 2 | Lua Scripts | `~/.config/muemacs/scripts/` | Lightweight, hot-reloadable |
-| 3 | Native (.so) | `~/.config/muemacs/extensions/` | Full C access via dlopen |
+| 1 | Core API | Internal | Editor primitives exposed to Layers 2-3 |
+| 2 | Lua Scripts | `~/.config/muemacs/scripts/` | Lightweight automation, hot-reloadable |
+| 3 | Native Extensions | `~/.config/muemacs/extensions/` | Full-featured plugins via shared objects |
 
-- **Commands**: `extension-load`, `extension-unload`, `extension-list`, `scripts-list`, `scripts-reload`
-- **Per-Filetype Formatting**: `uep-format-buffer` pipes to external formatters (black, rustfmt, clang-format)
+**Hybrid Process Isolation:**
 
-### AI Agent Orchestration
-Built-in AI agent spawning via `posix_spawn()` with streaming output:
-- **agent-spawn**: Spawn Claude, Gemini, or Ollama agent with a prompt
-- **agent-list**: Show running agents with status
-- **agent-kill**: Terminate a running agent
-- **agent-output**: Switch to agent's output buffer
-- Up to 4 concurrent agents, output polled in main loop (non-blocking)
+Extensions run either in-process or out-of-process depending on their runtime:
+
+| Mode | Languages | Mechanism | Trade-off |
+|------|-----------|-----------|-----------|
+| **In-Process** | C, Rust, Zig | Direct `dlopen()` | Lowest latency, shared memory |
+| **Out-of-Process** | Go, Ada, Haskell, Crystal, Pascal | IPC bridge | Crash isolation, GC freedom |
+
+Out-of-process extensions communicate via modern Linux primitives:
+- **memfd**: Anonymous shared memory for zero-copy data transfer
+- **eventfd**: Low-latency signaling between editor and extension
+- **pidfd**: Clean process lifecycle management
+
+Extensions load in parallel at startup with thread-safe command registration.
+
+Write extensions in C for performance, Rust for safety, Go for concurrency, or Haskell for elegance - whatever fits your problem.
+
+**Bundled Extensions:**
+
+| Extension | Lang | Description |
+|-----------|------|-------------|
+| `c_git` | C | Git integration - status, stage, commit, diff, log, blame |
+| `c_lint` | C | Unified diagnostics aggregating pattern rules, tree-sitter, and LSP |
+| `c_mouse` | C | Full mouse support - click, double/triple-click, drag select, scroll |
+| `c_write_edit` | C | Prose editing - soft wrap, smart quotes, em-dashes |
+| `rust_search` | Rust | Ripgrep-powered project search with result navigation |
+| `zig_treesitter` | Zig | Tree-sitter syntax highlighting for C, Python, Rust, JS, Bash |
+| `go_lsp` | Go | Language Server Protocol - completion, go-to-def, hover, diagnostics |
+| `ada_fuzzy` | Ada | Fuzzy file finder with ranked matching |
+| `pascal_multicursor` | Pascal | Multiple cursor editing |
+| `haskell_project` | Haskell | Project detection and file navigation |
+| `crystal_ai` | Crystal | AI code assistance via Claude CLI agents |
+
+**Event Bus:**
+
+Extensions communicate through a publish-subscribe event system:
+```
+buffer:load, buffer:save, buffer:close
+input:key, input:mouse
+lsp:diagnostics, treesitter:parsed
+```
+
+**Extension API (v3):**
+```c
+struct uemacs_api {
+    // Buffer operations
+    int (*get_buffer_content)(char **out, size_t *len);
+    int (*set_buffer_content)(const char *text, size_t len);
+    int (*get_cursor_pos)(int *line, int *col);
+
+    // Commands & events
+    int (*register_command)(const char *name, uemacs_cmd_fn func);
+    int (*on)(const char *event, uemacs_event_fn handler, void *data, int priority);
+    int (*emit)(const char *event, void *data);
+
+    // UI
+    int (*message)(const char *fmt, ...);
+    int (*create_buffer)(const char *name);
+    // ... 40+ functions
+};
+```
+
+**Naming Convention:** `language_tool/` directories containing `language_tool.so`
+
+**Commands:** `extension-load`, `extension-unload`, `extension-list`, `scripts-reload`
 
 ### Encryption
 Shell out to battle-tested system tools:
@@ -182,6 +241,14 @@ format = "clang-format"
 [performance]
 parallel_threshold = 1000   # Min lines for parallel search
 max_threads = 8
+
+# Native UEP extensions (in ~/.config/muemacs/extensions/)
+[extension.c_mouse]
+enabled = true
+scroll_lines = 3
+
+[extension.c_git]
+auto_status = true
 ```
 
 **Locations:**
@@ -303,24 +370,26 @@ cd tests/tui && python -m pytest
 ## Architecture
 
 ```
-~35,000 lines C23
+~50,000 lines C23
 ├── src/core/       # Buffer, window, display, undo, keymap
 ├── src/terminal/   # PTY, VT100 emulation, input state machine
 ├── src/text/       # Search, NFA regex, word operations
 ├── src/config/     # TOML parser, settings, vim bindings
 ├── src/io/         # File I/O, encryption
 ├── src/platform/   # Clipboard, spawn
-├── src/uep/        # Extension system, Lua bridge
-└── src/neuroxus/   # AI agent orchestration
+├── src/syntax/     # Lexer, syntax highlighting
+├── src/uep/        # Extension system, polyglot bridge
+└── src/util/       # UTF-8, memory, logging
 ```
 
 ## Technical Highlights
 
-- **35,000 lines** of C23 (src/ + include/)
+- **50,000 lines** of C23 (src/ + include/)
 - **O(1) keymap** with hash-based lookup
 - **Zero legacy code** - all MSDOS/VMS/termcap removed
+- **Thread-safe** extension loading with mutex-protected command registry
 - **Atomic operations** throughout (cursor, display, undo)
-- **Sync** for flicker-free rendering
+- **Polyglot extensions** - 11 languages via hybrid in-process/IPC architecture
 - **Gap buffer** with dynamic resizing
 - **Thompson NFA** regex with zero-heap runtime
 
@@ -336,7 +405,7 @@ uEmacs/PK (Petri Kutvonen)
 μEmacs v1.0 (C23 modernization)
 ```
 
-μEmacs traces from MicroEMACS (1985) through Petri Kutvonen's uEmacs/PK to Linus Torvalds' personal fork. This project modernizes for 2025 while preserving the small, fast, keyboard-driven editor philosophy.
+μEmacs traces from MicroEMACS (1985) through Petri Kutvonen's uEmacs/PK to Linus Torvalds' personal fork. This project modernizes for 2026 while preserving the small, fast, keyboard-driven editor philosophy.
 
 ## Credits
 
@@ -344,7 +413,7 @@ uEmacs/PK (Petri Kutvonen)
 - **MicroEMACS**: Dave G. Conroy, Daniel M. Lawrence
 - **uEmacs/PK**: Petri H. Kutvonen
 - **C23 Modernization**: Will Clingan
-- v1.0: Terminal emulator, Vim mode, polyglot extensions, CI/CD, modern keymap system, AI agents
+- v1.0: Terminal emulator, Vim mode, polyglot extensions, CI/CD, modern keymap system
 
 ## License
 

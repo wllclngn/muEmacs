@@ -20,6 +20,7 @@
 #include "git_status.h"
 #include "clipboard.h"
 #include "uep/uep_providers.h"
+#include "uep/extension_api.h"
 
 // Settings loader with XDG Base Directory support
 // Priority order:
@@ -249,13 +250,84 @@ static void apply_setting(const char *section, const char *key, const char *valu
 
         sgarbf = true;
     }
-    
+
+    /* [theme.syntax] section - syntax highlighting colors */
+    else if (strcmp(section, "theme.syntax") == 0) {
+        LOG_DEBUGF("SYNTAX THEME: Parsing key='%s' value='%s' type=%d", key, value, type);
+
+        /* Helper macro for syntax color parsing */
+        #define PARSE_SYNTAX_RGB(keyname, rgb_field) \
+            if (strcmp(key, keyname) == 0 && palette_parse_hex(value, &r, &g, &b)) { \
+                rgb_field[0] = (unsigned char)r; \
+                rgb_field[1] = (unsigned char)g; \
+                rgb_field[2] = (unsigned char)b; \
+            }
+
+        /* Helper for style parsing */
+        #define PARSE_STYLE(keyname, style_field) \
+            if (strcmp(key, keyname) == 0) { \
+                style_field = 0; \
+                if (strstr(value, "bold")) style_field |= 0x10; \
+                if (strstr(value, "italic")) style_field |= 0x20; \
+                if (strstr(value, "underline")) style_field |= 0x40; \
+            }
+
+        /* Boolean: enabled */
+        if (strcmp(key, "enabled") == 0) {
+            g_palette.syntax_enabled = bool_val;
+        }
+        /* Boolean: prefer_builtin (built-in lexers vs extension lexers) */
+        if (strcmp(key, "prefer_builtin") == 0) {
+            g_palette.syntax_prefer_builtin = bool_val;
+        }
+
+        /* Hex colors */
+        if (type == TOML_STRING) {
+            int r, g, b;
+
+            PARSE_SYNTAX_RGB("keyword", g_palette.syntax_keyword_rgb)
+            PARSE_SYNTAX_RGB("string", g_palette.syntax_string_rgb)
+            PARSE_SYNTAX_RGB("comment", g_palette.syntax_comment_rgb)
+            PARSE_SYNTAX_RGB("number", g_palette.syntax_number_rgb)
+            PARSE_SYNTAX_RGB("type", g_palette.syntax_type_rgb)
+            PARSE_SYNTAX_RGB("function", g_palette.syntax_function_rgb)
+            PARSE_SYNTAX_RGB("operator", g_palette.syntax_operator_rgb)
+            PARSE_SYNTAX_RGB("preprocessor", g_palette.syntax_preproc_rgb)
+            PARSE_SYNTAX_RGB("constant", g_palette.syntax_constant_rgb)
+            PARSE_SYNTAX_RGB("variable", g_palette.syntax_variable_rgb)
+            PARSE_SYNTAX_RGB("attribute", g_palette.syntax_attribute_rgb)
+            PARSE_SYNTAX_RGB("escape", g_palette.syntax_escape_rgb)
+            PARSE_SYNTAX_RGB("regex", g_palette.syntax_regex_rgb)
+            PARSE_SYNTAX_RGB("special", g_palette.syntax_special_rgb)
+
+            /* Style flags */
+            PARSE_STYLE("keyword_style", g_palette.syntax_keyword_style)
+            PARSE_STYLE("comment_style", g_palette.syntax_comment_style)
+            PARSE_STYLE("string_style", g_palette.syntax_string_style)
+            PARSE_STYLE("type_style", g_palette.syntax_type_style)
+            PARSE_STYLE("function_style", g_palette.syntax_function_style)
+        }
+
+        #undef PARSE_SYNTAX_RGB
+        #undef PARSE_STYLE
+
+        sgarbf = true;
+    }
+
     /* [modeline] section */
     else if (strcmp(section, "modeline") == 0) {
         if (strcmp(key, "show_git") == 0) modeline_show_git = bool_val;
         if (strcmp(key, "show_stats") == 0) modeline_show_stats = bool_val;
         if (strcmp(key, "show_modes") == 0) modeline_show_modes = bool_val;
         if (strcmp(key, "show_position") == 0) modeline_show_position = bool_val;
+        if (strcmp(key, "extension_position") == 0 && type == TOML_STRING) {
+            if (strcmp(value, "left") == 0) modeline_ext_position = 0;
+            else if (strcmp(value, "right") == 0) modeline_ext_position = 1;
+            else if (strcmp(value, "auto") == 0) modeline_ext_position = 2;
+        }
+        if (strcmp(key, "extension_max_width") == 0 && int_val >= 0) {
+            modeline_ext_max_width = int_val;
+        }
         sgarbf = true;
     }
 
@@ -390,6 +462,37 @@ static void apply_setting(const char *section, const char *key, const char *valu
         if (type == TOML_STRING && *filetype && *key && *value) {
             uep_register_provider(filetype, key, value);
             LOG_DEBUGF("UEP: Registered %s/%s = %s", filetype, key, value);
+        }
+    }
+
+    /* [extension.*] per-extension configuration settings
+     * e.g., [extension.mouse] scroll_lines = 3
+     * Extensions query these via api->config_int("mouse", "scroll_lines", default) */
+    else if (strncmp(section, "extension.", 10) == 0) {
+        const char *ext_name = section + 10;  /* "mouse", "lsp", etc. */
+        if (*ext_name && *key) {
+            if (type == TOML_INT) {
+                char *endptr;
+                long val = strtol(value, &endptr, 10);
+                if (endptr != value) {
+                    extension_config_set_int(ext_name, key, (int)val);
+                }
+            }
+            else if (type == TOML_BOOL) {
+                extension_config_set_bool(ext_name, key, strcmp(value, "true") == 0);
+            }
+            else if (type == TOML_STRING) {
+                extension_config_set_string(ext_name, key, value);
+            }
+        }
+    }
+
+    /* [hooks.*] declarative event hooks
+     * e.g., [hooks.buffer_save] command = "trim-whitespace" */
+    else if (strncmp(section, "hooks.", 6) == 0) {
+        const char *hook_name = section + 6;  /* "buffer_save", "idle", etc. */
+        if (*hook_name && type == TOML_STRING && strcmp(key, "command") == 0) {
+            extension_register_hook_command(hook_name, value);
         }
     }
 
@@ -575,6 +678,10 @@ int save_settings_cmd(int f, int n) {
     toml_write_bool(fp, "show_stats", modeline_show_stats);
     toml_write_bool(fp, "show_modes", modeline_show_modes);
     toml_write_bool(fp, "show_position", modeline_show_position);
+    const char *ext_pos = modeline_ext_position == 0 ? "left" :
+                          modeline_ext_position == 1 ? "right" : "auto";
+    toml_write_string(fp, "extension_position", ext_pos);
+    toml_write_int(fp, "extension_max_width", modeline_ext_max_width);
 
     toml_write_section(fp, "backup");
     toml_write_bool(fp, "enabled", make_backup);

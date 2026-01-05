@@ -30,6 +30,7 @@
 /* Forward declarations */
 struct edit_stack;
 struct keymap;
+struct buffer_syntax;
 
 /* Configuration options not in config.h */
 #define CVMVAS  1  /* arguments to page forward/back in pages      */
@@ -41,15 +42,8 @@ struct keymap;
 #define	CFENCE	1  /* fence matching in CMODE                      */
 #define	TYPEAH	1  /* type ahead causes update to be skipped       */
 #define DEBUGM	1  /* $debug triggers macro debugging              */
-#define	VISMAC	0  /* update display during keyboard macros        */
-// CTRLZ disabled (Linux‑only)
-#define ADDCR	0  /* ajout d'un CR en fin de chaque ligne (ST520) */
 #define	NBRACE	1  /* new style brace matching command             */
 #define	REVSTA	1  /* Status line appears in reverse video         */
-
-/* Memory tracking */
-#define	RAMSIZE	0		/* dynamic RAM memory usage tracking */
-#define	RAMSHOW	0		/* auto dynamic RAM reporting */
 
 /* Terminal capabilities from config.h are used */
 
@@ -283,8 +277,6 @@ struct window {
 	int w_wrap_col;		/* Soft wrap column (0 = disabled) */
 	char w_force;		/* If NZ, forcing row.          */
 	short w_flag;		/* Flags (expanded for WFTERM)  */
-	char w_fcolor;		/* current forground color      */
-	char w_bcolor;		/* current background color     */
 
 	// Atomic cursor position cache for instant status updates
 	_Atomic int w_line_cache;	/* Cached line number for w_dotp */
@@ -298,8 +290,7 @@ enum WindowFlags {
 	WFEDIT  = 0x04,		/* Editing within a line        */
 	WFHARD  = 0x08,		/* Better to a full display     */
 	WFMODE  = 0x10,		/* Update mode line.            */
-	WFCOLR  = 0x20,		/* Needs a color change         */
-	WFTERM  = 0x40		/* Terminal emulator window     */
+	WFTERM  = 0x20		/* Terminal emulator window     */
 };
 
 
@@ -353,6 +344,10 @@ struct buffer {
 
 	void *b_term_data;	/* Modern terminal state (terminal.h) */
 	struct keymap *b_local_keymap;	/* Buffer-local keybindings (NULL = use global) */
+
+	/* Syntax highlighting state (NULL = no highlighting) */
+	struct buffer_syntax *b_syntax;
+	int b_lang_id;	/* Language ID for syntax highlighting (-1 = unknown) */
 };
 
 /* Buffer flags - Standard enum */
@@ -377,13 +372,13 @@ extern struct buffer_hash_entry *buffer_hash_table[BUFFER_HASH_SIZE];
 
 #define	MDWRAP	0x0001		/* word wrap                    */
 #define	MDCMOD	0x0002		/* C indentation and fence match */
-#define	MDSPELL	0x0004		/* spell error parcing          */
+/* 0x0004 (SPELL) - reserved for modename[] array compatibility */
 #define	MDEXACT	0x0008		/* Exact matching for searches  */
 #define	MDVIEW	0x0010		/* read-only buffer             */
 #define MDOVER	0x0020		/* overwrite mode               */
 #define MDMAGIC	0x0040		/* regular expresions in search */
-#define	MDCRYPT	0x0080		/* encrytion mode active        */
-#define	MDASAVE	0x0100		/* auto-save mode               */
+/* 0x0080 (CRYPT) - reserved for modename[] array compatibility */
+/* 0x0100 (ASAVE) - reserved for modename[] array compatibility */
 #define	MDTBUFFER 0x0200	/* terminal emulator buffer     */
 
 /*
@@ -426,8 +421,6 @@ struct terminal {
 	void (*t_beep)(void);	/* Beep.                        */
 	void (*t_rev)(int);	/* set reverse video state      */
 	int (*t_rez)(const char *);	/* change screen resolution     */
-	int (*t_setfor) (int);	/* set forground color          */
-	int (*t_setback) (int);	/* set background color         */
 	void (*t_scroll)(int, int,int);	/* scroll a region of the screen */
 };
 

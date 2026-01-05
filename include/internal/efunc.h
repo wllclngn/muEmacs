@@ -536,11 +536,13 @@ extern void uep_scripts_set_dir(const char *dir);
 extern int uep_scripts_load(void);
 extern void uep_scripts_cleanup(void);
 extern int uep_scripts_try_execute(const char *name);
-extern void extension_fire_buffer_save(struct buffer *bp);
-extern void extension_fire_buffer_load(struct buffer *bp);
-extern bool extension_fire_key(int key);  /* Returns true if key was consumed */
-extern void extension_fire_idle(void);
-extern int extension_fire_char_transform(int c, int *out);  /* 0=no transform, 1=use out, -1=delete+insert */
+/* Event bus emit functions (extension_api.c) */
+extern void extension_emit_buffer_save(struct buffer *bp);
+extern void extension_emit_buffer_load(struct buffer *bp);
+extern bool extension_emit_key(int key);  /* Returns true if key was consumed */
+extern void extension_emit_idle(void);
+extern bool extension_emit_mouse(struct input_key_event *evt);  /* Returns true if consumed */
+extern int extension_emit_char_insert(int c, int *out);  /* 0=no transform, 1=use out, -1=delete+insert */
 extern void extension_api_init(void);
 extern void extension_api_cleanup(void);
 

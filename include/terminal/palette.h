@@ -77,8 +77,33 @@ typedef struct {
     unsigned char warning_rgb[3];
     unsigned char success_rgb[3];
 
+    /* Syntax highlighting colors (truecolor RGB) */
+    unsigned char syntax_keyword_rgb[3];
+    unsigned char syntax_string_rgb[3];
+    unsigned char syntax_comment_rgb[3];
+    unsigned char syntax_number_rgb[3];
+    unsigned char syntax_type_rgb[3];
+    unsigned char syntax_function_rgb[3];
+    unsigned char syntax_operator_rgb[3];
+    unsigned char syntax_preproc_rgb[3];
+    unsigned char syntax_constant_rgb[3];
+    unsigned char syntax_variable_rgb[3];
+    unsigned char syntax_attribute_rgb[3];
+    unsigned char syntax_escape_rgb[3];
+    unsigned char syntax_regex_rgb[3];
+    unsigned char syntax_special_rgb[3];
+
+    /* Syntax font styles (bold, italic, underline flags) */
+    unsigned char syntax_keyword_style;
+    unsigned char syntax_comment_style;
+    unsigned char syntax_string_style;
+    unsigned char syntax_type_style;
+    unsigned char syntax_function_style;
+
     /* Flags */
     bool search_fg_set;   /* true if user specified search foreground */
+    bool syntax_enabled;  /* syntax highlighting enabled */
+    bool syntax_prefer_builtin;  /* true = built-in lexers first, false = extensions first */
 } ui_palette_t;
 
 /* Global palette instance */
@@ -192,5 +217,28 @@ int palette_clamp(int idx);
  * @return         true if parsed successfully
  */
 bool palette_parse_hex(const char* hex, int* r, int* g, int* b);
+
+/*
+ * Generate SGR escape sequence for syntax face foreground color.
+ *
+ * @param face_id  Syntax face ID (from syntax_face_t enum)
+ * @return         Static buffer with foreground color escape sequence
+ */
+const char* sgr_syntax_fg(int face_id);
+
+/*
+ * Generate SGR escape sequence for syntax face style (bold/italic/underline).
+ *
+ * @param face_id  Syntax face ID (from syntax_face_t enum)
+ * @return         Static buffer with style escape sequence, or ""
+ */
+const char* sgr_syntax_style(int face_id);
+
+/*
+ * Reset syntax style (turn off bold/italic/underline).
+ *
+ * @return         Static buffer with reset sequence
+ */
+const char* sgr_syntax_style_reset(void);
 
 #endif /* TERMINAL_PALETTE_H */

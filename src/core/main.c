@@ -117,8 +117,14 @@ int uemacs_main_entry(int argc, char **argv)
 	// Run main editor loop
 	result = main_editor_loop(&args, &state);
 
-	// Close debug logging (no-op if UEMACS_DEBUG_LOG=0)
+	// Cleanup extension system
 	LOG_INFO("uEmacs: Shutting down...");
+	extern void extension_cleanup(void);
+	extern void extension_api_cleanup(void);
+	extension_cleanup();
+	extension_api_cleanup();
+
+	// Close debug logging (no-op if UEMACS_DEBUG_LOG=0)
 	logger_close();
 
 	return result;
@@ -360,8 +366,7 @@ loop:
 	}
 
 	/* Fire extension idle hooks before blocking on input */
-	extern void extension_fire_idle(void);
-	extension_fire_idle();
+	extension_emit_idle();
 
 	/* Get the next command from the keyboard (unified parser) */
 	if (input_read_event(&state->evt) < 0) {
@@ -379,8 +384,7 @@ loop:
 	} else {
 		hook_key = state->c;
 	}
-	extern bool extension_fire_key(int key);
-	if (extension_fire_key(hook_key)) {
+	if (extension_emit_key(hook_key)) {
 		goto loop;  /* Key was handled by extension */
 	}
 
@@ -510,9 +514,6 @@ void edinit(char *bname)
 	wp->w_markp = nullptr;
 	wp->w_marko = 0;
 	wp->w_toprow = 0;
-	/* initalize colors to global defaults */
-	wp->w_fcolor = gfcolor;
-	wp->w_bcolor = gbcolor;
 	wp->w_ntrows = term.t_nrow - 1;	/* "-1" for mode line.  */
 	wp->w_wrap_col = 0;		/* Soft wrap disabled by default */
 	wp->w_force = 0;
@@ -537,6 +538,12 @@ int execute_event(input_key_event_t *evt, int f, int n)
 		if (terminal_handle_key_event(evt)) {
 			return true;
 		}
+	}
+
+	/* Mouse event handling - dispatch to extension hooks */
+	if (evt->type == KEY_MOUSE) {
+		extension_emit_mouse(evt);
+		return true;  /* Always consume mouse events */
 	}
 
 	/* Event-based binding lookup - no legacy conversion needed */
@@ -576,7 +583,7 @@ int execute_event(input_key_event_t *evt, int f, int n)
 
 		/* Smart typography transform via extension hook */
 		int transformed_char = c;
-		int transform_result = extension_fire_char_transform(c, &transformed_char);
+		int transform_result = extension_emit_char_insert(c, &transformed_char);
 		if (transform_result != 0) {
 			/* Transform requested - need to insert as UTF-8 */
 			if (transform_result == -1) {

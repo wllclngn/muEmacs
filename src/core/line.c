@@ -25,6 +25,7 @@
 #include "memory.h"
 #include "undo.h"
 #include "clipboard.h"
+#include "internal/syntax.h"
 
 /* Forward declarations for kill ring functions */
 static void kill_ring_add(const char *text, size_t len);
@@ -161,6 +162,14 @@ void lchange(int flag)
 
 	/* Mark buffer dirty for display tracking (montauk/OUROBOROS pattern) */
 	mark_buffer_dirty(curbp);
+
+	/* Invalidate syntax highlighting from current line */
+	if (curbp->b_syntax && curbp->b_syntax->enabled) {
+		long lnum = getlinenum(curbp, curwp->w_dotp);
+		if (lnum > 0) {
+			syntax_invalidate_from_line(curbp->b_syntax, (int)(lnum - 1));
+		}
+	}
 
 	flag |= WFMODE;	/* Always update mode lines for instant status */
 	wp = wheadp;

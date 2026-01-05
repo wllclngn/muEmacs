@@ -24,6 +24,7 @@ static void emit_focus(input_parser_t *p, input_key_event_t *out, bool in);
 static int handle_csi_final(input_parser_t *p, uint8_t final, input_key_event_t *out);
 static int handle_ss3_final(input_parser_t *p, uint8_t final, input_key_event_t *out);
 static int handle_kitty_key(input_parser_t *p, input_key_event_t *out);
+static int parse_sgr_mouse(input_parser_t *p, uint8_t final, input_key_event_t *out);
 static int parse_csi_params(input_parser_t *p, int *params, int max_params);
 static uint16_t decode_modifiers(int modifier_param);
 static bool is_csi_param_byte(uint8_t c);
@@ -616,7 +617,11 @@ static int handle_csi_final(input_parser_t *p, uint8_t final, input_key_event_t 
 
     /* Check for private mode sequences */
     if (p->csi_private) {
-        /* DEC private sequences - mostly ignored for input */
+        /* SGR Mouse: CSI < Cb ; Cx ; Cy M/m */
+        if (p->csi_private_marker == '<' && (final == 'M' || final == 'm')) {
+            return parse_sgr_mouse(p, final, out);
+        }
+        /* Other DEC private sequences - ignored for input */
         return 0;
     }
 
@@ -883,5 +888,79 @@ static int handle_kitty_key(input_parser_t *p, input_key_event_t *out) {
     out->type = KEY_CSI_UNKNOWN;
     out->data = p->csi_buf;
     out->data_len = p->csi_len;
+    return 1;
+}
+
+/*
+ * Parse SGR 1006 extended mouse sequences: CSI < Cb ; Cx ; Cy M/m
+ *
+ * SGR 1006 format:
+ * - Cb: Button code with modifiers
+ *   - Bits 0-1: Button (0=left, 1=middle, 2=right, 3=release)
+ *   - Bit 2: Shift
+ *   - Bit 3: Alt/Meta
+ *   - Bit 4: Ctrl
+ *   - Bit 5: Motion (drag)
+ *   - Bits 6-7: Extended buttons (64=scroll up, 65=scroll down, etc.)
+ * - Cx, Cy: 1-indexed coordinates
+ * - M: Press/drag, m: Release
+ *
+ * Examples:
+ *   CSI < 0 ; 10 ; 5 M   - Left button press at (10,5)
+ *   CSI < 0 ; 10 ; 5 m   - Left button release at (10,5)
+ *   CSI < 32 ; 11 ; 5 M  - Left button drag to (11,5)
+ *   CSI < 64 ; 10 ; 5 M  - Scroll up at (10,5)
+ *   CSI < 65 ; 10 ; 5 M  - Scroll down at (10,5)
+ */
+static int parse_sgr_mouse(input_parser_t *p, uint8_t final, input_key_event_t *out) {
+    int params[3] = {0};
+    int count = parse_csi_params(p, params, 3);
+
+    if (count < 3) {
+        /* Need at least button, x, y */
+        atomic_fetch_add(&p->parse_errors, 1);
+        return 0;
+    }
+
+    int cb = params[0];
+    int x = params[1] - 1;  /* Convert from 1-indexed to 0-indexed */
+    int y = params[2] - 1;
+
+    /* Clamp coordinates to non-negative */
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+
+    /* Extract button (bits 0-1 + bits 6-7 for extended) */
+    uint8_t button = (cb & 0x03) | ((cb & 0xC0) >> 4);
+
+    /* Extract modifiers from button code (bits 2-4) */
+    uint16_t mods = MOD_NONE;
+    if (cb & 0x04) mods |= MOD_SHIFT;
+    if (cb & 0x08) mods |= MOD_ALT;
+    if (cb & 0x10) mods |= MOD_CTRL;
+
+    /* Determine action:
+     * - 'm' final = release
+     * - 'M' final with bit 5 set = drag/motion
+     * - 'M' final without bit 5 = press
+     */
+    uint8_t action;
+    if (final == 'm') {
+        action = 1;  /* MOUSE_RELEASE */
+    } else if (cb & 0x20) {
+        action = 2;  /* MOUSE_DRAG */
+    } else {
+        action = 0;  /* MOUSE_PRESS */
+    }
+
+    /* Fill output event */
+    out->type = KEY_MOUSE;
+    out->mouse_button = button;
+    out->mouse_x = (uint16_t)x;
+    out->mouse_y = (uint16_t)y;
+    out->modifiers = mods;
+    out->code = action;  /* Store action in code field */
+
+    atomic_fetch_add(&p->sequences_parsed, 1);
     return 1;
 }

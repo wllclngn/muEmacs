@@ -46,6 +46,34 @@ error = "#FF6347"              # Error messages (red)
 warning = "#FFA500"            # Warnings (orange)
 success = "#90EE90"            # Success messages (light green)
 
+# ─── Syntax Highlighting ──────────────────────────────────
+# Kitty-inspired cyberpunk palette (teals, pinks, oranges)
+[theme.syntax]
+enabled = true                 # Enable syntax highlighting
+prefer_builtin = true          # true = built-in lexers first (immediate colors)
+                               # false = extension lexers first (LSP semantic tokens)
+keyword = "#FF3CE6"            # Keywords (if, while, return) - hot pink (color4)
+string = "#03FEAF"             # String literals - bright teal (color5)
+comment = "#787878"            # Comments - gray (color15)
+number = "#FFA561"             # Numbers - orange (color6)
+type = "#EA8FFF"               # Types (int, String) - pink/magenta (color3)
+function = "#00CDF0"           # Function names - cyan (color10)
+operator = "#C8C8C8"           # Operators (+, -, &&) - foreground
+preprocessor = "#EA1717"       # Preprocessor (#include) - red (color1)
+constant = "#FFF6A7"           # Constants (NULL, true) - yellow (color9)
+variable = "#8EF5C2"           # Variables - light green (color13)
+attribute = "#6A64FF"          # Attributes (@decorator) - purple-blue (color2)
+escape = "#00FFA6"             # Escape sequences (\n) - bright green (color11)
+regex = "#217CFA"              # Regex patterns - blue (color14)
+special = "#02908C"            # Special tokens - teal (color7)
+
+# Font styles (bold, italic, underline - combine with |)
+keyword_style = "bold"         # Bold keywords
+comment_style = "italic"       # Italic comments
+# string_style = ""            # Normal strings
+# type_style = ""              # Normal types
+# function_style = ""          # Normal functions
+
 # Legacy intensity settings (deprecated)
 highlight_intensity = 10
 ruler_intensity = 10
@@ -500,6 +528,64 @@ format = "stylua -"
 [extensions.zig]
 format = "zig fmt --stdin"
 
+# =============================================================================
+# EXTENSION CONFIGURATION
+# =============================================================================
+# Per-extension settings. Extensions read these via api->config_*().
+# Use [extension.<name>] where <name> matches the extension's registered name.
+#
+# Example:
+#   [extension.mouse]
+#   enabled = true
+#   scroll_lines = 3
+#   double_click_ms = 400
+#
+#   [extension.lsp]
+#   server_timeout = 5000
+#   auto_complete = true
+
+[extension.c_mouse]
+enabled = true
+scroll_lines = 3
+double_click_ms = 400
+triple_click_ms = 600
+
+[extension.c_git]
+auto_status = true      # Show git status hints periodically on save
+status_interval = 5     # Check status every N saves
+
+[extension.c_write_edit]
+soft_wrap_col = 80            # Column for soft wrapping
+smart_typography = true       # Enable smart quotes/dashes
+em_dash = true                # -- becomes em-dash
+smart_quotes = true           # Curly double quotes
+curly_apostrophe = true       # Curly single quotes
+
+# =============================================================================
+# DECLARATIVE EVENT HOOKS
+# =============================================================================
+# Execute editor commands when events occur. No C code required!
+#
+# Supported events:
+#   buffer_save   - After buffer is saved
+#   buffer_load   - After file is loaded
+#   buffer_create - When new buffer is created
+#   cursor_move   - When cursor position changes
+#   idle          - When editor is idle
+#   startup       - When editor starts
+#   shutdown      - When editor shuts down
+#
+# Example:
+#   [hooks.buffer_save]
+#   command = "trim-whitespace"
+#
+#   [hooks.idle]
+#   command = "auto-save-all"
+
+# Uncomment to enable automatic whitespace trimming on save:
+# [hooks.buffer_save]
+# command = "trim-whitespace"
+
 [terminal]
 enabled = true              # Allow terminal feature
 height_percent = 45         # Window height as % of screen (10-80)
@@ -617,5 +703,82 @@ max_threads = 8             # Max parallel search threads (1-32)
 #   local-set-key compile ^C^C
 #
 # Or use the [keybindings.filetype] section (future feature).
+#
+# =============================================================================
+# UEP EXTENSION COMMANDS REFERENCE
+# =============================================================================
+# Commands provided by the polyglot extension system.
+# All commands are available via M-x (execute-named-command).
+#
+# Extension: ada_fuzzy (Ada)
+#   fuzzy-find          Find files by fuzzy matching
+#   fuzzy-grep          Search file contents with fuzzy matching
+#
+# Extension: c_git (C)
+#   git-status          Show working tree status
+#   git-status-full     Show full git status
+#   git-stage           Stage file for commit
+#   git-unstage         Unstage file
+#   git-commit          Create commit
+#   git-diff            Show file differences
+#   git-log             Show commit history
+#   git-pull            Pull from remote
+#   git-push            Push to remote
+#   git-branch          List/create branches
+#   git-stash           Stash changes
+#   git-stash-pop       Pop stashed changes
+#
+# Extension: c_lint (C)
+#   lint                Run linter on current buffer
+#   lint-clear          Clear lint diagnostics
+#
+# Extension: c_mouse (C)
+#   mouse-enable        Enable mouse support
+#   mouse-disable       Disable mouse support
+#   mouse-status        Show mouse status
+#
+# Extension: c_write_edit (C)
+#   write-edit          Toggle prose writing mode
+#
+# Extension: crystal_ai (Crystal)
+#   ai-spawn            Spawn AI agent
+#   ai-status           Show agent status
+#   ai-output           Show agent output
+#   ai-kill             Kill running agent
+#   ai-poll             Poll for agent updates
+#   ai-complete         AI code completion
+#   ai-explain          AI code explanation
+#   ai-fix              AI code fix
+#
+# Extension: go_lsp (Go)
+#   lsp-start           Start language server
+#   lsp-stop            Stop language server
+#   lsp-hover           Show hover documentation
+#   lsp-definition      Go to definition
+#   lsp-references      Find references
+#   lsp-refresh-tokens  Refresh semantic tokens
+#   lsp-completion      Trigger completion
+#   lsp-diagnostics     Show diagnostics
+#   lsp-code-action     Show code actions
+#   lsp-document-symbols  List document symbols
+#   lsp-workspace-symbols Search workspace symbols
+#
+# Extension: haskell_project (Haskell)
+#   project-root        Show/set project root
+#   project-files       List project files
+#   project-find        Find file in project
+#
+# Extension: pascal_multicursor (Pascal)
+#   mc-add              Add cursor at current position
+#   mc-clear            Clear all cursors
+#   mc-next             Jump to next cursor
+#   mc-insert           Insert at all cursor positions
+#
+# Extension: rust_search (Rust)
+#   rg-search           Search with ripgrep
+#   rg-search-word      Search word under cursor
+#
+# Extension: zig_treesitter (Zig)
+#   (Provides syntax highlighting via tree-sitter, no user commands)
 #
 # =============================================================================

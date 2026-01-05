@@ -369,7 +369,7 @@ static void parse_ansi(terminal_state_t *ts, struct buffer *bp, const char *data
 
         /* Graphics tunneling - pass through until terminator */
         if (ts->in_graphics) {
-            write(STDOUT_FILENO, &data[i], 1);
+            if (write(STDOUT_FILENO, &data[i], 1) < 0) { /* ignore */ }
             /* Check for terminator (ST = ESC \ or BEL for APC) */
             if (c == '\007' || (c == '\\' && i > 0 && data[i-1] == '\033')) {
                 ts->in_graphics = false;
@@ -409,12 +409,12 @@ static void parse_ansi(terminal_state_t *ts, struct buffer *bp, const char *data
                 ts->parse_state = PARSE_APC;
                 ts->in_graphics = true;
                 /* Pass through ESC _ */
-                write(STDOUT_FILENO, "\033_", 2);
+                if (write(STDOUT_FILENO, "\033_", 2) < 0) { /* ignore */ }
             } else if (c == 'P') {
                 /* DCS - Device Control String (Sixel) */
                 ts->parse_state = PARSE_DCS;
                 ts->in_graphics = true;
-                write(STDOUT_FILENO, "\033P", 2);
+                if (write(STDOUT_FILENO, "\033P", 2) < 0) { /* ignore */ }
             } else if (c == ']') {
                 /* OSC - Operating System Command */
                 ts->parse_state = PARSE_OSC;
@@ -471,7 +471,7 @@ void terminal_process_output(struct buffer *bp, const char *data, size_t len) {
     if (head_len > 0) {
         LOG_DEBUG("Terminal: Graphics sequence detected, tunneling to host");
         ts->in_graphics = true;
-        write(STDOUT_FILENO, data, len);
+        if (write(STDOUT_FILENO, data, len) < 0) { /* ignore */ }
         return;
     }
 
@@ -669,7 +669,7 @@ int terminal_close(int f, int n) {
             prev->w_ntrows += reclaimed_rows;
             prev->w_flag |= WFMODE | WFHARD;
             LOG_DEBUGF("Terminal: Gave %d rows back to window above", reclaimed_rows);
-        } else {
+        } else if (wp) {  /* wp guaranteed non-null by enclosing if, but silence analyzer */
             wheadp = wp->w_wndp;
         }
 

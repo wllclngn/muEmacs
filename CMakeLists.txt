@@ -10,13 +10,19 @@ project(μEmacs
 
 # Feature toggles (defined early so they affect source lists and targets)
 option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
-option(ENABLE_LIBVTERM "Enable full terminal emulator integration using libvterm" OFF)
 option(UEMACS_DEBUG_LOG "Enable debug logging to /tmp/uemacs_debug.log" OFF)
+option(ENABLE_IO_URING "Enable io_uring for async I/O (requires liburing)" OFF)
 
-if(ENABLE_LIBVTERM)
+# io_uring support (optional - for async batch syscalls)
+if(ENABLE_IO_URING)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(VTERM REQUIRED vterm)
-    message(STATUS "Full Terminal Integration (libvterm) ENABLED")
+    pkg_check_modules(URING liburing)
+    if(URING_FOUND)
+        message(STATUS "io_uring support ENABLED (Linux 2026 async I/O)")
+    else()
+        message(WARNING "liburing not found, disabling io_uring support")
+        set(ENABLE_IO_URING OFF)
+    endif()
 endif()
 
 # Tuning knob: minimum literal length for BMH fast path
@@ -68,6 +74,7 @@ set(CORE_SOURCES
     src/core/cbuf_dispatch.c
     src/core/gapbuffer.c
     src/core/window_hash.c
+    src/core/event_bus.c
 )
 
 # Text processing
@@ -132,10 +139,6 @@ set(TERMINAL_SOURCES
     src/terminal/signal_handler.c
 )
 
-if(ENABLE_LIBVTERM)
-    list(APPEND TERMINAL_SOURCES src/terminal/vterm_wrapper.c)
-endif()
-
 # Utilities - Phase 1 modernized utilities
 set(UTIL_SOURCES
     src/util/util.c
@@ -172,6 +175,16 @@ set(UEP_SOURCES
     # Layer 3: C23 Extension System
     src/uep/extension.c
     src/uep/extension_api.c
+    # Layer 4: Process Isolation (Hybrid IPC for polyglot extensions)
+    src/uep/ext_ipc.c
+    src/uep/ext_host.c
+)
+
+# Syntax Highlighting - Core C23 implementation
+set(SYNTAX_SOURCES
+    src/syntax/syntax.c
+    src/syntax/lexer.c
+    src/syntax/languages.c
 )
 
 # All sources
@@ -184,6 +197,7 @@ set(ALL_SOURCES
     ${TERMINAL_SOURCES}
     ${UTIL_SOURCES}
     ${UEP_SOURCES}
+    ${SYNTAX_SOURCES}
 )
 
 # Configuration header
@@ -211,6 +225,32 @@ endif()
 add_executable(muEmacs main.c)
 target_link_libraries(muEmacs uemacs m Threads::Threads) # Link against the static library
 set_target_properties(muEmacs PROPERTIES OUTPUT_NAME "μEmacs")
+
+# Extension runner executable (out-of-process extension host)
+# This binary loads extensions that require process isolation (Go, Ada, Haskell, etc.)
+# and proxies API calls back to the editor via IPC.
+add_executable(uemacs-ext-runner
+    src/uep/ext_runner.c
+    src/uep/ext_ipc.c
+)
+target_include_directories(uemacs-ext-runner PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+target_link_libraries(uemacs-ext-runner
+    dl                          # dlopen/dlsym for extension loading
+    Threads::Threads           # pthreads
+)
+target_compile_definitions(uemacs-ext-runner PRIVATE
+    LINUX=1
+    UNIX=1
+    POSIX=1
+    _GNU_SOURCE
+    _DEFAULT_SOURCE
+    HAVE_CONFIG_H=1
+)
 
 # Apply same compile definitions as the library so main.c builds consistently
 target_compile_definitions(muEmacs PRIVATE
@@ -313,11 +353,8 @@ set(TEST_SOURCES
     tests/unit/test_core_window_hash.c
     tests/unit/test_io_lock.c
     tests/unit/test_util_git_status.c
-    # Additional test files
-    # tests/unit/test_config_eval_extended.c  # FIXME: uses internal uv/MAXVARS
     tests/unit/test_core_display.c
     tests/unit/test_terminal_ansi.c
-    # tests/unit/test_tui_rendering.c  # FIXME: needs display internals
     tests/unit/test_util_string.c
 )
 
@@ -503,10 +540,12 @@ target_link_libraries(uemacs
     util                        # PTY functions (forkpty, openpty)
     dl                          # dlopen/dlsym for extension loading
 )
-if(ENABLE_LIBVTERM)
-    target_link_libraries(uemacs ${VTERM_LIBRARIES})
-    target_include_directories(uemacs PRIVATE ${VTERM_INCLUDE_DIRS})
-    target_compile_definitions(uemacs PRIVATE USE_LIBVTERM=1)
+
+# io_uring linkage (Linux 2026 async I/O)
+if(ENABLE_IO_URING AND URING_FOUND)
+    target_link_libraries(uemacs ${URING_LIBRARIES})
+    target_include_directories(uemacs PRIVATE ${URING_INCLUDE_DIRS})
+    target_compile_definitions(uemacs PRIVATE HAVE_LIBURING=1)
 endif()
 
 # Link libraries for integration tests  
@@ -575,6 +614,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT DISABLE_SANITIZERS)
         -fsanitize=undefined
     )
 
+    # Sanitizers for extension runner (out-of-process host)
+    # Note: The ext_runner intentionally does NOT use ASan so it can load
+    # polyglot extensions (Go, Ada, Haskell) that have incompatible runtimes.
+    # This is the whole point of process isolation!
+    # target_compile_options(uemacs-ext-runner PRIVATE ...)
+
     # Sanitizers for save_crash_test
     target_compile_options(save_crash_test PRIVATE
         -fsanitize=address
@@ -603,8 +648,8 @@ endif()
 # Modern Linux installation following FHS standards
 include(GNUInstallDirs)
 
-# Install executable
-install(TARGETS muEmacs 
+# Install executables
+install(TARGETS muEmacs uemacs-ext-runner
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 

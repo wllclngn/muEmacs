@@ -121,6 +121,8 @@ extern int modeline_show_git;
 extern int modeline_show_stats;
 extern int modeline_show_modes;
 extern int modeline_show_position;
+extern int modeline_ext_position;  /* 0=left, 1=right, 2=auto */
+extern int modeline_ext_max_width; /* Max chars for extension segments */
 extern int linus_mode;  /* Classic modeline + B&W colors */
 /* Backup settings */
 extern int make_backup;

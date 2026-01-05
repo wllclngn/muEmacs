@@ -125,6 +125,8 @@ int modeline_show_git = 0;  /* Off by default - spawns git processes */
 int modeline_show_stats = 1;
 int modeline_show_modes = 1;
 int modeline_show_position = 1;
+int modeline_ext_position = 2;  /* 0=left, 1=right, 2=auto (default) */
+int modeline_ext_max_width = 20; /* Max chars for extension segments */
 int linus_mode = 0;  /* Classic Linus-style modeline + B&W colors */
 
 /* Backup settings */

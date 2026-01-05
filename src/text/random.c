@@ -946,20 +946,13 @@ int adjustmode(int kind, int global)
 	/* test it first against the colors we know */
 	for (i = 0; i < NCOLORS; i++) {
 		if (strcmp(cbuf, cname[i]) == 0) {
-			/* finding the match, we set the color */
-			if (uflag) {
-				if (global)
-					gfcolor = i;
-				else
-					curwp->w_fcolor = i;
-			} else {
-				if (global)
-					gbcolor = i;
-				else
-					curwp->w_bcolor = i;
-			}
+			/* finding the match, we set the global color */
+			if (uflag)
+				gfcolor = i;
+			else
+				gbcolor = i;
 
-			curwp->w_flag |= WFCOLR;
+			curwp->w_flag |= WFHARD;
 			mlerase();
 			return true;
 		}

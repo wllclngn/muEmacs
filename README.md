@@ -174,16 +174,39 @@ Multiple providers with automatic detection:
 ### Large Display View: Default muEmacs
 ![Dense](2025-12-31_14-12.png)
 
-## Build
+## Installation
 
-### Quick Install
+### Simple Install
 
 ```bash
-cmake -B build && cmake --build build -j$(nproc)
-sudo cmake --install build
+./install.py
 ```
 
 **Run**: `μEmacs [FILE]` or `muEmacs [FILE]` (ASCII alias)
+
+### Advanced Install (CMake)
+
+```bash
+# Configure
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+# Build
+cmake --build build -j$(nproc)
+
+# Install (optional)
+sudo cmake --install build
+```
+
+### Other Commands
+
+```bash
+./install.py build       # Build only, don't install
+./install.py clean       # Clean build directory
+./install.py uninstall   # Remove installed binaries
+./install.py test        # Run tests
+./install.py --debug     # Debug build
+./install.py --debug-log # Debug build with logging enabled
+```
 
 ### Dependencies
 

@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -192,6 +193,14 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
         return -4;
     }
 
+    /* Create death pipe - when parent dies, child gets POLLHUP on read end */
+    if (pipe(ipc->death_pipe) < 0) {
+        ext_ipc_destroy(ipc);
+        free_entry(entry);
+        g_num_extensions--;
+        return -4;
+    }
+
     /* Get memfd for child */
     int memfd = ext_ipc_get_memfd(ipc);
 
@@ -206,6 +215,8 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
 
     pid_t pid = fork();
     if (pid < 0) {
+        close(ipc->death_pipe[0]);
+        close(ipc->death_pipe[1]);
         ext_ipc_destroy(ipc);
         free_entry(entry);
         g_num_extensions--;
@@ -213,15 +224,27 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
     }
 
     if (pid == 0) {
-        /* Child - clear CLOEXEC on memfd */
+        /* Child - close write end, keep read end for death detection */
+        close(ipc->death_pipe[1]);
+
+        /* Clear CLOEXEC on fds we need to pass */
         fcntl(memfd, F_SETFD, 0);
+        fcntl(ipc->death_pipe[0], F_SETFD, 0);
 
         char memfd_str[16];
         snprintf(memfd_str, sizeof(memfd_str), "%d", memfd);
 
-        execl(runner, runner, "--memfd", memfd_str, "--ext", exe_path, NULL);
+        char deathfd_str[16];
+        snprintf(deathfd_str, sizeof(deathfd_str), "%d", ipc->death_pipe[0]);
+
+        execl(runner, runner, "--memfd", memfd_str, "--ext", exe_path,
+              "--deathfd", deathfd_str, NULL);
         _exit(127);
     }
+
+    /* Parent - close read end, keep write end (just hold it open) */
+    close(ipc->death_pipe[0]);
+    ipc->death_pipe[0] = -1;
 
     /* Parent */
     ext_ipc_set_pid(ipc, pid);
@@ -291,22 +314,39 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
 void ext_host_shutdown_all(void) {
     LOG_DEBUGF("ext_host: Shutting down %d extensions", g_num_extensions);
 
-    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
-        if (!g_extensions[i].active || !g_extensions[i].ipc) continue;
-
-        /* Signal shutdown */
-        atomic_store(&g_extensions[i].ipc->shm->shutdown, 1);
-    }
-
-    /* Wait briefly for graceful shutdown */
-    usleep(100000);
-
-    /* Kill any remaining */
+    /* Phase 1: Signal shutdown to ALL extensions (atomic flag + SIGTERM) */
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
         if (!g_extensions[i].active) continue;
+        if (g_extensions[i].ipc) {
+            atomic_store(&g_extensions[i].ipc->shm->shutdown, 1);
+        }
         if (g_extensions[i].pid > 0) {
             kill(g_extensions[i].pid, SIGTERM);
-            waitpid(g_extensions[i].pid, NULL, WNOHANG);
+        }
+    }
+
+    /* Phase 2: Wait for ALL to exit concurrently (max 500ms total) */
+    for (int retry = 0; retry < 5; retry++) {
+        int alive = 0;
+        for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+            if (!g_extensions[i].active || g_extensions[i].pid <= 0) continue;
+            if (waitpid(g_extensions[i].pid, NULL, WNOHANG) > 0) {
+                g_extensions[i].pid = 0;  /* Reaped */
+            } else if (kill(g_extensions[i].pid, 0) == 0) {
+                alive++;
+            }
+        }
+        if (alive == 0) break;
+        usleep(100000);  /* 100ms */
+    }
+
+    /* Phase 3: Force kill any remaining */
+    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+        if (!g_extensions[i].active) continue;
+        if (g_extensions[i].pid > 0 && kill(g_extensions[i].pid, 0) == 0) {
+            LOG_WARNF("ext_host: Force killing pid %d", g_extensions[i].pid);
+            kill(g_extensions[i].pid, SIGKILL);
+            waitpid(g_extensions[i].pid, NULL, 0);
         }
         free_entry(&g_extensions[i]);
     }

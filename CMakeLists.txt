@@ -237,6 +237,7 @@ set_target_properties(muEmacs PROPERTIES OUTPUT_NAME "μEmacs")
 add_executable(uemacs-ext-runner
     src/uep/ext_runner.c
     src/uep/ext_ipc.c
+    src/util/logger.c
 )
 target_include_directories(uemacs-ext-runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -256,6 +257,12 @@ target_compile_definitions(uemacs-ext-runner PRIVATE
     _DEFAULT_SOURCE
     HAVE_CONFIG_H=1
 )
+# Share debug logging setting with main editor
+if(UEMACS_DEBUG_LOG)
+    target_compile_definitions(uemacs-ext-runner PRIVATE UEMACS_DEBUG_LOG=1)
+else()
+    target_compile_definitions(uemacs-ext-runner PRIVATE UEMACS_DEBUG_LOG=0)
+endif()
 
 # Apply same compile definitions as the library so main.c builds consistently
 target_compile_definitions(muEmacs PRIVATE

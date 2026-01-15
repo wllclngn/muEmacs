@@ -139,6 +139,7 @@ typedef struct {
     ext_ipc_shm_t *shm;
     size_t shm_size;
     pid_t child_pid;
+    int death_pipe[2];  /* Parent holds [1], child holds [0]. When parent dies, [0] gets POLLHUP */
 } ext_ipc_channel_t;
 
 /* =========================================================================

@@ -44,6 +44,10 @@ ext_ipc_channel_t *ext_ipc_create(void) {
     ext_ipc_channel_t *ch = calloc(1, sizeof(*ch));
     if (!ch) return NULL;
 
+    /* Initialize death pipe to invalid */
+    ch->death_pipe[0] = -1;
+    ch->death_pipe[1] = -1;
+
     /* Create memfd for shared memory */
     ch->memfd = memfd_create_wrapper("uemacs_ext_ipc", MFD_CLOEXEC);
     if (ch->memfd < 0) {
@@ -123,6 +127,9 @@ void ext_ipc_destroy(ext_ipc_channel_t *ch) {
     if (ch->memfd >= 0) {
         close(ch->memfd);
     }
+    /* Close death pipe (parent holds write end) */
+    if (ch->death_pipe[0] >= 0) close(ch->death_pipe[0]);
+    if (ch->death_pipe[1] >= 0) close(ch->death_pipe[1]);
     free(ch);
 }
 

@@ -65,20 +65,6 @@ unsigned utf8_to_unicode(const char *line, unsigned index, unsigned len, unicode
     return bytes;
 }
 
-static void reverse_string(char *begin, char *end)
-{
-	if (!begin || !end || end <= begin) return;
-	
-	end--; // Point to last valid character, not past-end
-	while (begin < end) {
-		char temp = *begin;
-		*begin = *end;
-		*end = temp;
-		begin++;
-		end--;
-	}
-}
-
 /*
  * unicode_to_utf8()
  *

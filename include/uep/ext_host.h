@@ -50,6 +50,7 @@ typedef enum {
  */
 typedef enum {
     EXT_STATE_INIT,         /* Being initialized */
+    EXT_STATE_PENDING,      /* Forked, waiting for READY (async spawn) */
     EXT_STATE_READY,        /* Ready to receive commands */
     EXT_STATE_BUSY,         /* Processing a request */
     EXT_STATE_ERROR,        /* Error state */
@@ -76,6 +77,7 @@ typedef struct {
     ext_ipc_channel_t *ipc;         /* IPC channel */
     ext_host_command_t commands[EXT_HOST_MAX_COMMANDS_PER_EXT];
     int num_commands;               /* Number of registered commands */
+    int pending_slot;               /* Slot index of pending command (-1 if none) */
     bool active;                    /* Is this slot in use? */
 } ext_host_entry_t;
 
@@ -134,7 +136,7 @@ const char *ext_host_runtime_name(ext_runtime_t runtime);
  * ========================================================================= */
 
 /*
- * Spawn an out-of-process extension
+ * Spawn an out-of-process extension (blocking)
  *
  * name: Extension name (for logging/lookup)
  * exe_path: Path to extension executable or .so to load in runner
@@ -143,6 +145,34 @@ const char *ext_host_runtime_name(ext_runtime_t runtime);
  * Returns: 0 on success, negative on error
  */
 int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime);
+
+/*
+ * Spawn an out-of-process extension asynchronously (non-blocking)
+ *
+ * Forks the extension process but does NOT wait for READY message.
+ * Extension is left in EXT_STATE_PENDING state.
+ * Call ext_host_await_pending() to complete initialization.
+ *
+ * name: Extension name (for logging/lookup)
+ * exe_path: Path to extension executable or .so to load in runner
+ * runtime: Runtime type (for configuration)
+ *
+ * Returns: 0 on success, negative on error
+ */
+int ext_host_spawn_async(const char *name, const char *exe_path, ext_runtime_t runtime);
+
+/*
+ * Wait for all pending extensions to become ready (parallel)
+ *
+ * Uses epoll to wait for READY messages from all extensions in
+ * EXT_STATE_PENDING state simultaneously. Much faster than sequential
+ * spawning when loading multiple out-of-process extensions.
+ *
+ * timeout_ms: Maximum time to wait for all extensions
+ *
+ * Returns: Number of extensions that became ready
+ */
+int ext_host_await_pending(int timeout_ms);
 
 /*
  * Shutdown a remote extension gracefully
@@ -163,6 +193,11 @@ void ext_host_shutdown_all(void);
  * Check if a remote extension is alive
  */
 bool ext_host_is_alive(const char *name);
+
+/*
+ * Check if an extension is loaded
+ */
+bool ext_host_is_loaded(const char *name);
 
 /*
  * Get extension state
@@ -255,20 +290,11 @@ int ext_host_emit_event(const char *event_name, const void *data, size_t data_le
 int ext_host_handle_message(const char *ext_name);
 
 /*
- * Process all pending messages from all extensions
- * Call periodically from main event loop.
+ * Process all pending messages from all extensions (non-blocking)
+ * Call from main event loop - checks all ring buffer slots for pending messages.
+ * Uses only atomics - no blocking syscalls.
  */
-void ext_host_poll_all(void);
-
-/*
- * Get file descriptors for poll() integration
- *
- * fds: Array to fill with file descriptors
- * max_fds: Maximum number of fds to return
- *
- * Returns: Number of fds written
- */
-int ext_host_get_poll_fds(int *fds, int max_fds);
+void ext_host_poll_nonblocking(void);
 
 /* =========================================================================
  * Extension iteration

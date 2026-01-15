@@ -69,11 +69,11 @@ static struct magic_replacement rmcpat[NPAT]; /* The replacement magic array. */
 #endif
 
 /* Helper: Extract line text into buffer for contiguous access */
-/* Made thread-safe by using caller-provided buffer */
+/* Made thread-safe by using caller-provided buffer - handles view mode lines */
 static inline const char* get_line_text(struct line *lp, char *buffer, size_t buf_size) {
     int len = llength(lp);
     if ((size_t)len > buf_size - 1) len = (int)buf_size - 1;
-    gap_buffer_get_text(lp->gb, 0, (size_t)len, buffer, buf_size);
+    lget_text(lp, 0, (size_t)len, buffer, buf_size);
     buffer[len] = '\0';
     return buffer;
 }

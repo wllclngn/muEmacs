@@ -15,6 +15,8 @@
 #include "util/logger.h"
 #include "terminal/terminal.h"
 #include "internal/syntax.h"
+#include "internal/text_storage.h"
+#include "internal/event_bus.h"
 
 /*
  * Hash table functions for O(1) buffer lookup by name
@@ -187,6 +189,8 @@ int swbuffer(struct buffer *bp)
 		curwp->w_doto = bp->b_doto;
 		curwp->w_markp = bp->b_markp;
 		curwp->w_marko = bp->b_marko;
+		/* Emit buffer switch event so extensions can react */
+		event_bus_emit(EVT_BUFFER_SWITCH, bp, sizeof(struct buffer *));
 		return true;
 	}
 	wp = wheadp; // Look for old.
@@ -200,6 +204,8 @@ int swbuffer(struct buffer *bp)
 		}
 		wp = wp->w_wndp;
 	}
+	/* Emit buffer switch event so extensions can react */
+	event_bus_emit(EVT_BUFFER_SWITCH, bp, sizeof(struct buffer *));
 	return true;
 }
 
@@ -216,13 +222,30 @@ int killbuffer(int f, int n)
 	struct buffer *bp;
 	int s;
 	char bufn[NBUFN];
+	char prompt[NBUFN + 32];
 
-	if ((s = minibuf_read("KILL BUFFER: ", bufn, NBUFN)) != true)
+	/* Show current buffer name as default */
+	snprintf(prompt, sizeof(prompt), "KILL BUFFER [%s]: ", curbp->b_bname);
+
+	s = minibuf_read(prompt, bufn, NBUFN);
+	if (s == ABORT)
 		return s;
-	if ((bp = bfind(bufn, false, 0)) == nullptr) // Easy if unknown.
-		return true;
-	if (bp->b_flag & BFINVS) // Deal with special buffers
-		return true; // by doing nothing.
+
+	/* If empty input, default to current buffer */
+	if (s == false || bufn[0] == '\0') {
+		bp = curbp;
+	} else {
+		bp = bfind(bufn, false, 0);
+		if (bp == nullptr) {
+			mlwrite("[No such buffer: %s]", bufn);
+			return false;
+		}
+	}
+
+	if (bp->b_flag & BFINVS) { // Deal with special buffers
+		mlwrite("[Cannot kill special buffer]");
+		return false;
+	}
 	return zotbuf(bp);
 }
 
@@ -266,7 +289,13 @@ int zotbuf(struct buffer *bp)
     if (bp->b_line_index) {
         SAFE_FREE(bp->b_line_index);
     }
-	
+
+	/* Release piece table storage for large file support */
+	if (bp->b_text) {
+		TS_DESTROY(bp->b_text);
+		bp->b_text = nullptr;
+	}
+
 	SAFE_FREE(bp->b_linep); // Release header line.
 	bp1 = nullptr; // Find the header.
 	bp2 = bheadp;

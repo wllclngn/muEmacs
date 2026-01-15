@@ -59,7 +59,7 @@ void input_parser_destroy(input_parser_t *p) {
     (void)p;
 }
 
-int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
+int input_parser_feed(input_parser_t *p, uint8_t byte, input_key_event_t *out) {
     atomic_fetch_add(&p->bytes_processed, 1);
 
     /* Clear output */
@@ -67,9 +67,9 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
 
     /* Handle UTF-8 continuation bytes */
     if (p->utf8_expected > 0) {
-        if ((c & 0xC0) == 0x80) {
+        if ((byte & 0xC0) == 0x80) {
             /* Valid continuation byte */
-            p->utf8_buf[p->utf8_collected++] = c;
+            p->utf8_buf[p->utf8_collected++] = byte;
             if (p->utf8_collected == p->utf8_expected) {
                 /* Complete UTF-8 sequence */
                 uint32_t cp = 0;
@@ -101,76 +101,76 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             p->utf8_expected = 0;
             p->utf8_collected = 0;
             atomic_fetch_add(&p->parse_errors, 1);
-            /* Fall through to process c normally */
+            /* Fall through to process byte normally */
         }
     }
 
     /* State machine */
     switch (p->state) {
     case INPUT_GROUND:
-        if (c == 0x1B) {
+        if (byte == 0x1B) {
             /* ESC - start escape sequence */
             p->state = INPUT_ESCAPE;
             p->esc_pending = true;
             return 0;
-        } else if (c == 0x7F) {
+        } else if (byte == 0x7F) {
             /* DEL (127) - modern terminals send this for Backspace key
              * Pass through as-is so evt_is_backspace() works */
             emit_char(p, out, 0x7F, MOD_NONE);
             return 1;
-        } else if (c < 0x20) {
+        } else if (byte < 0x20) {
             /* C0 control characters: convert to letter + MOD_CTRL
              * e.g., 0x13 (Ctrl-S) -> 'S' (0x53) with MOD_CTRL
              * Keymaps store CONTROL|'S', not CONTROL|0x13 */
-            emit_char(p, out, c + '@', MOD_CTRL);
+            emit_char(p, out, byte + '@', MOD_CTRL);
             return 1;
-        } else if (c >= 0x80 && c < 0xC0) {
+        } else if (byte >= 0x80 && byte < 0xC0) {
             /* Invalid UTF-8 start byte or C1 control */
-            if (c >= 0x80 && c <= 0x9F) {
+            if (byte >= 0x80 && byte <= 0x9F) {
                 /* C1 control - treat as 7-bit equivalent */
                 /* CSI = 0x9B, equivalent to ESC [ */
-                if (c == 0x9B) {
+                if (byte == 0x9B) {
                     p->state = INPUT_CSI_ENTRY;
                     p->csi_len = 0;
                     p->csi_intermediate_len = 0;
                     p->csi_private = false;
                     return 0;
                 }
-                emit_char(p, out, c, MOD_NONE);
+                emit_char(p, out, byte, MOD_NONE);
                 return 1;
             }
             /* Invalid byte */
             atomic_fetch_add(&p->parse_errors, 1);
-            emit_char(p, out, c, MOD_NONE);
+            emit_char(p, out, byte, MOD_NONE);
             return 1;
-        } else if ((c & 0xE0) == 0xC0) {
+        } else if ((byte & 0xE0) == 0xC0) {
             /* UTF-8 2-byte sequence start */
-            p->utf8_buf[0] = c;
+            p->utf8_buf[0] = byte;
             p->utf8_expected = 2;
             p->utf8_collected = 1;
             return 0;
-        } else if ((c & 0xF0) == 0xE0) {
+        } else if ((byte & 0xF0) == 0xE0) {
             /* UTF-8 3-byte sequence start */
-            p->utf8_buf[0] = c;
+            p->utf8_buf[0] = byte;
             p->utf8_expected = 3;
             p->utf8_collected = 1;
             return 0;
-        } else if ((c & 0xF8) == 0xF0) {
+        } else if ((byte & 0xF8) == 0xF0) {
             /* UTF-8 4-byte sequence start */
-            p->utf8_buf[0] = c;
+            p->utf8_buf[0] = byte;
             p->utf8_expected = 4;
             p->utf8_collected = 1;
             return 0;
         } else {
             /* Regular ASCII or invalid */
-            emit_char(p, out, c, MOD_NONE);
+            emit_char(p, out, byte, MOD_NONE);
             return 1;
         }
         break;
 
     case INPUT_ESCAPE:
         p->esc_pending = false;
-        if (c == '[') {
+        if (byte == '[') {
             /* CSI introducer */
             p->state = INPUT_CSI_ENTRY;
             p->csi_len = 0;
@@ -178,52 +178,52 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             p->csi_private = false;
             p->csi_private_marker = 0;
             return 0;
-        } else if (c == 'O') {
+        } else if (byte == 'O') {
             /* SS3 - single shift 3 */
             p->state = INPUT_SS3;
             return 0;
-        } else if (c == 'N') {
+        } else if (byte == 'N') {
             /* SS2 - single shift 2 */
             p->state = INPUT_SS2;
             return 0;
-        } else if (c == 'P') {
+        } else if (byte == 'P') {
             /* DCS - device control string */
             p->state = INPUT_DCS_ENTRY;
             p->string_len = 0;
             return 0;
-        } else if (c == ']') {
+        } else if (byte == ']') {
             /* OSC - operating system command */
             p->state = INPUT_OSC_STRING;
             p->string_len = 0;
             return 0;
-        } else if (c == '_') {
+        } else if (byte == '_') {
             /* APC - application program command */
             p->state = INPUT_APC_STRING;
             p->string_len = 0;
             return 0;
-        } else if (c == '^') {
+        } else if (byte == '^') {
             /* PM - privacy message */
             p->state = INPUT_PM_STRING;
             p->string_len = 0;
             return 0;
-        } else if (c == 'X') {
+        } else if (byte == 'X') {
             /* SOS - start of string */
             p->state = INPUT_SOS_STRING;
             p->string_len = 0;
             return 0;
-        } else if (c >= 0x20 && c <= 0x2F) {
+        } else if (byte >= 0x20 && byte <= 0x2F) {
             /* Intermediate byte - ESC sequence with intermediate */
             p->state = INPUT_ESCAPE_INTERMEDIATE;
-            p->csi_intermediate[0] = c;
+            p->csi_intermediate[0] = byte;
             p->csi_intermediate_len = 1;
             return 0;
-        } else if (c >= 0x30 && c <= 0x7E) {
+        } else if (byte >= 0x30 && byte <= 0x7E) {
             /* Final byte of simple escape sequence */
             p->state = INPUT_GROUND;
             /* ESC followed by letter is typically Meta+letter */
-            emit_char(p, out, c, MOD_META);
+            emit_char(p, out, byte, MOD_META);
             return 1;
-        } else if (c == 0x1B) {
+        } else if (byte == 0x1B) {
             /* Double ESC - emit first ESC, stay in escape state */
             emit_char(p, out, 0x1B, MOD_NONE);
             p->esc_pending = true;
@@ -232,20 +232,20 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             /* Invalid - emit ESC and this char */
             p->state = INPUT_GROUND;
             /* Push back current char and emit ESC */
-            input_parser_pushback(p, &c, 1);
+            input_parser_pushback(p, &byte, 1);
             emit_char(p, out, 0x1B, MOD_NONE);
             return 1;
         }
         break;
 
     case INPUT_ESCAPE_INTERMEDIATE:
-        if (c >= 0x20 && c <= 0x2F) {
+        if (byte >= 0x20 && byte <= 0x2F) {
             /* Another intermediate byte */
             if (p->csi_intermediate_len < sizeof(p->csi_intermediate)) {
-                p->csi_intermediate[p->csi_intermediate_len++] = c;
+                p->csi_intermediate[p->csi_intermediate_len++] = byte;
             }
             return 0;
-        } else if (c >= 0x30 && c <= 0x7E) {
+        } else if (byte >= 0x30 && byte <= 0x7E) {
             /* Final byte */
             p->state = INPUT_GROUND;
             atomic_fetch_add(&p->sequences_parsed, 1);
@@ -260,10 +260,10 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
         break;
 
     case INPUT_CSI_ENTRY:
-        if (c == '?' || c == '<' || c == '>' || c == '=') {
+        if (byte == '?' || byte == '<' || byte == '>' || byte == '=') {
             /* Private mode indicator */
             p->csi_private = true;
-            p->csi_private_marker = c;
+            p->csi_private_marker = byte;
             p->state = INPUT_CSI_PARAM;
             return 0;
         }
@@ -273,27 +273,27 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
         /* Fall through */
 
     case INPUT_CSI_PARAM:
-        if (is_csi_param_byte(c)) {
+        if (is_csi_param_byte(byte)) {
             /* Parameter byte (0-9, ;, :) */
             if (p->csi_len < INPUT_CSI_BUF_SIZE - 1) {
-                p->csi_buf[p->csi_len++] = c;
+                p->csi_buf[p->csi_len++] = byte;
             }
             return 0;
-        } else if (is_csi_intermediate_byte(c)) {
+        } else if (is_csi_intermediate_byte(byte)) {
             /* Intermediate byte */
             p->state = INPUT_CSI_INTERMEDIATE;
             if (p->csi_intermediate_len < sizeof(p->csi_intermediate)) {
-                p->csi_intermediate[p->csi_intermediate_len++] = c;
+                p->csi_intermediate[p->csi_intermediate_len++] = byte;
             }
             return 0;
-        } else if (is_csi_final_byte(c)) {
+        } else if (is_csi_final_byte(byte)) {
             /* Final byte - execute CSI sequence */
             p->state = INPUT_GROUND;
             p->csi_buf[p->csi_len] = '\0';
-            return handle_csi_final(p, c, out);
-        } else if (is_c0_control(c)) {
+            return handle_csi_final(p, byte, out);
+        } else if (is_c0_control(byte)) {
             /* Execute C0 control inline, stay in CSI - convert to letter */
-            emit_char(p, out, c + '@', MOD_CTRL);
+            emit_char(p, out, byte + '@', MOD_CTRL);
             return 1;
         } else {
             /* Invalid */
@@ -304,19 +304,19 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
         break;
 
     case INPUT_CSI_INTERMEDIATE:
-        if (is_csi_intermediate_byte(c)) {
+        if (is_csi_intermediate_byte(byte)) {
             if (p->csi_intermediate_len < sizeof(p->csi_intermediate)) {
-                p->csi_intermediate[p->csi_intermediate_len++] = c;
+                p->csi_intermediate[p->csi_intermediate_len++] = byte;
             }
             return 0;
-        } else if (is_csi_final_byte(c)) {
+        } else if (is_csi_final_byte(byte)) {
             /* Final byte */
             p->state = INPUT_GROUND;
             p->csi_buf[p->csi_len] = '\0';
-            return handle_csi_final(p, c, out);
-        } else if (is_c0_control(c)) {
+            return handle_csi_final(p, byte, out);
+        } else if (is_c0_control(byte)) {
             /* Execute C0 control inline - convert to letter */
-            emit_char(p, out, c + '@', MOD_CTRL);
+            emit_char(p, out, byte + '@', MOD_CTRL);
             return 1;
         } else {
             p->state = INPUT_CSI_IGNORE;
@@ -327,7 +327,7 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
 
     case INPUT_CSI_IGNORE:
         /* Discard until final byte */
-        if (is_csi_final_byte(c)) {
+        if (is_csi_final_byte(byte)) {
             p->state = INPUT_GROUND;
         }
         return 0;
@@ -335,8 +335,8 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
     case INPUT_SS3:
         /* SS3 sequence - typically keypad/function keys */
         p->state = INPUT_GROUND;
-        if (c >= 0x40 && c <= 0x7E) {
-            return handle_ss3_final(p, c, out);
+        if (byte >= 0x40 && byte <= 0x7E) {
+            return handle_ss3_final(p, byte, out);
         }
         atomic_fetch_add(&p->parse_errors, 1);
         return 0;
@@ -345,15 +345,15 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
         /* SS2 sequence - rarely used */
         p->state = INPUT_GROUND;
         /* Emit as Meta + char */
-        if (c >= 0x20) {
-            emit_char(p, out, c, MOD_META);
+        if (byte >= 0x20) {
+            emit_char(p, out, byte, MOD_META);
             return 1;
         }
         return 0;
 
     case INPUT_OSC_STRING:
         /* Collect until ST (ESC \) or BEL */
-        if (c == 0x07) {
+        if (byte == 0x07) {
             /* BEL terminates OSC */
             p->state = INPUT_GROUND;
             out->type = KEY_OSC_RECEIVED;
@@ -361,7 +361,7 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             out->data_len = p->string_len;
             atomic_fetch_add(&p->sequences_parsed, 1);
             return 1;
-        } else if (c == 0x1B) {
+        } else if (byte == 0x1B) {
             /* Possible ST (ESC \) */
             /* We need to peek at next byte */
             /* For now, just end OSC on ESC */
@@ -372,7 +372,7 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             out->data_len = p->string_len;
             atomic_fetch_add(&p->sequences_parsed, 1);
             return 1;
-        } else if (c == 0x9C) {
+        } else if (byte == 0x9C) {
             /* C1 ST */
             p->state = INPUT_GROUND;
             out->type = KEY_OSC_RECEIVED;
@@ -381,7 +381,7 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             atomic_fetch_add(&p->sequences_parsed, 1);
             return 1;
         } else if (p->string_len < INPUT_STRING_BUF_SIZE - 1) {
-            p->string_buf[p->string_len++] = c;
+            p->string_buf[p->string_len++] = byte;
         }
         return 0;
 
@@ -390,49 +390,49 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
     case INPUT_DCS_INTERMEDIATE:
     case INPUT_DCS_PASSTHROUGH:
         /* DCS handling - similar to OSC */
-        if (c == 0x9C || (c == 0x1B)) {
-            p->state = (c == 0x1B) ? INPUT_ESCAPE : INPUT_GROUND;
-            if (c == 0x1B) p->esc_pending = true;
+        if (byte == 0x9C || (byte == 0x1B)) {
+            p->state = (byte == 0x1B) ? INPUT_ESCAPE : INPUT_GROUND;
+            if (byte == 0x1B) p->esc_pending = true;
             atomic_fetch_add(&p->sequences_parsed, 1);
             return 0;
         }
         /* Accumulate but don't emit */
         if (p->string_len < INPUT_STRING_BUF_SIZE - 1) {
-            p->string_buf[p->string_len++] = c;
+            p->string_buf[p->string_len++] = byte;
         }
         return 0;
 
     case INPUT_DCS_IGNORE:
-        if (c == 0x9C) p->state = INPUT_GROUND;
+        if (byte == 0x9C) p->state = INPUT_GROUND;
         return 0;
 
     case INPUT_APC_STRING:
     case INPUT_PM_STRING:
     case INPUT_SOS_STRING:
         /* String commands - collect until ST */
-        if (c == 0x9C || c == 0x07) {
+        if (byte == 0x9C || byte == 0x07) {
             p->state = INPUT_GROUND;
             atomic_fetch_add(&p->sequences_parsed, 1);
-        } else if (c == 0x1B) {
+        } else if (byte == 0x1B) {
             p->state = INPUT_ESCAPE;
             p->esc_pending = true;
             atomic_fetch_add(&p->sequences_parsed, 1);
         } else if (p->string_len < INPUT_STRING_BUF_SIZE - 1) {
-            p->string_buf[p->string_len++] = c;
+            p->string_buf[p->string_len++] = byte;
         }
         return 0;
 
     case INPUT_PASTE_CONTENT:
         /* Inside bracketed paste - check for end sequence */
         /* End sequence: ESC [ 2 0 1 ~ */
-        if (c == 0x1B && p->paste_match_idx == 0) {
-            p->paste_match_buf[0] = c;
+        if (byte == 0x1B && p->paste_match_idx == 0) {
+            p->paste_match_buf[0] = byte;
             p->paste_match_idx = 1;
             return 0;
         } else if (p->paste_match_idx > 0) {
             static const uint8_t paste_end[] = { 0x1B, '[', '2', '0', '1', '~' };
-            if (c == paste_end[p->paste_match_idx]) {
-                p->paste_match_buf[p->paste_match_idx++] = c;
+            if (byte == paste_end[p->paste_match_idx]) {
+                p->paste_match_buf[p->paste_match_idx++] = byte;
                 if (p->paste_match_idx == 6) {
                     /* End of paste */
                     p->state = INPUT_GROUND;
@@ -448,7 +448,7 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
                 for (size_t i = 0; i < p->paste_match_idx; i++) {
                     input_parser_pushback(p, &p->paste_match_buf[i], 1);
                 }
-                input_parser_pushback(p, &c, 1);
+                input_parser_pushback(p, &byte, 1);
                 p->paste_match_idx = 0;
                 /* Pop first and emit */
                 int b = input_parser_get_pending(p);
@@ -460,7 +460,7 @@ int input_parser_feed(input_parser_t *p, uint8_t c, input_key_event_t *out) {
             }
         } else {
             /* Regular paste content */
-            emit_char(p, out, c, MOD_NONE);
+            emit_char(p, out, byte, MOD_NONE);
             return 1;
         }
         break;

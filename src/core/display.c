@@ -43,6 +43,7 @@
 
 #include "../util/git_status.h"
 #include "uep/extension_api.h"
+#include "internal/event_bus.h"
 
 /* C23 atomic snapshot helper for terminal dimensions
  * Captures all dimensions at once to prevent SIGWINCH corruption mid-loop */
@@ -418,12 +419,6 @@ static void vtputc(int c)
 		vp->v_text[vtcol] = c;
 		// Mark line as changed - checksum will be updated later
 		vp->v_flag |= VFCHG;
-		// COMPREHENSIVE DEBUG: Log every char stored in vscreen
-		// Expanded to first 100 cols to check wrap behavior
-		if (vtrow < 3 && vtcol < 100) {
-			LOG_DEBUGF("VSCREEN: row=%d col=%d char='%c' (0x%02x)",
-			           vtrow, vtcol, (c >= 0x20 && c < 0x7f) ? c : '.', c);
-		}
 	}
 	++vtcol;
 }
@@ -744,11 +739,15 @@ int update(int force)
 	}
 
 	/* update any windows that need refreshing */
+	bool had_hard_refresh = false;  /* Track if any window had WFHARD */
 	wp = wheadp;
 	while (wp != nullptr) {
 		if (wp->w_flag) {
 			LOG_DEBUGF("Display: Window needs update, flags=0x%x, buf=%s",
 			           wp->w_flag, wp->w_bufp ? wp->w_bufp->b_bname : "(null)");
+			/* Track WFHARD for forcing updupd later */
+			if (wp->w_flag & WFHARD)
+				had_hard_refresh = true;
 			/* if the window has changed, service it */
 			reframe(wp);	/* check the framing */
 			if ((wp->w_flag & ~WFMODE) == WFEDIT) {
@@ -812,8 +811,10 @@ int update(int force)
 	if (atomic_load_explicit(&sgarbf, memory_order_acquire) != false)
 		updgar();
 
-	/* update the virtual screen to the physical screen */
-	updupd(force);
+	/* update the virtual screen to the physical screen
+	 * Force update when WFHARD was set to bypass checksum optimization.
+	 * This prevents stale terminal content from persisting after buffer switch. */
+	updupd(force || had_hard_refresh);
 
 	/* update the cursor and flush the buffers - use atomic loads */
 	int final_currow = atomic_load_explicit(&currow, memory_order_acquire);
@@ -1145,10 +1146,7 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 		LOG_ERROR("Display: show_line_wrapped() FATAL - lp is NULL!");
 		return 1;
 	}
-	if (!lp->gb) {
-		LOG_ERROR("Display: show_line_wrapped() FATAL - lp->gb is NULL!");
-		return 1;
-	}
+	/* Note: lp->storage can be NULL for view mode lines (piece table backed) */
 
 	int i = 0, len = llength(lp);
 	int in_selection = false;
@@ -1194,10 +1192,11 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 		           sel_start, sel_end);
 	}
 
-	/* Get the line text into a buffer */
+	/* Get the line text into a buffer - handles both regular and view mode lines */
 	char line_text[4096];
-	if (len > 0) {
-		gap_buffer_get_text(lp->gb, 0, len, line_text, sizeof(line_text));
+	int actual_len = (len < (int)sizeof(line_text) - 1) ? len : (int)sizeof(line_text) - 1;
+	if (actual_len > 0) {
+		lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
 #if UEMACS_DEBUG_LOG
 		/* COMPREHENSIVE DEBUG: Log buffer content being read */
 		if (vtrow < 5) {  // First 5 rows only
@@ -1211,8 +1210,8 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 			LOG_DEBUGF("BUFFER_READ: row=%d len=%d text=[%s]", vtrow, len, preview);
 			/* Hex dump first 10 bytes to debug UTF-8 issues */
 			if (vtrow == 0 && len >= 3) {
-				LOG_DEBUGF("HEXDUMP: lp=%p gb=%p bytes[0..9] = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-				           (void*)lp, (void*)lp->gb,
+				LOG_DEBUGF("HEXDUMP: lp=%p storage=%p bytes[0..9] = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+				           (void*)lp, (void*)lp->storage,
 				           (unsigned char)line_text[0], (unsigned char)line_text[1],
 				           (unsigned char)line_text[2], len > 3 ? (unsigned char)line_text[3] : 0,
 				           len > 4 ? (unsigned char)line_text[4] : 0, len > 5 ? (unsigned char)line_text[5] : 0,
@@ -1227,22 +1226,22 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 	int last_space_i = -1;        /* Buffer position after last space */
 	int last_space_vtcol = -1;    /* Display column after last space */
 
-	while (i < len) {
+	while (i < actual_len) {
 		/* Stop if we've used all available rows */
 		if (rows_used > max_rows || vtrow >= term.t_nrow) {
 			break;
 		}
 
 		unicode_t c;
-		int bytes = utf8_to_unicode(line_text, i, len, &c);
+		int bytes = utf8_to_unicode(line_text, i, actual_len, &c);
 
 		/* Debug: Log UTF-8 decode for first 5 chars of row 0 */
 		if (vtrow == 0 && i < 15) {
 			LOG_DEBUGF("UTF8_DECODE: i=%d bytes=%d codepoint=0x%04X raw=[%02X %02X %02X]",
 			           i, bytes, c,
 			           (unsigned char)line_text[i],
-			           i+1 < len ? (unsigned char)line_text[i+1] : 0,
-			           i+2 < len ? (unsigned char)line_text[i+2] : 0);
+			           i+1 < actual_len ? (unsigned char)line_text[i+1] : 0,
+			           i+2 < actual_len ? (unsigned char)line_text[i+2] : 0);
 		}
 
 		/* Check for soft-wrap BEFORE rendering this character */
@@ -1511,13 +1510,49 @@ static void updall(struct window *wp)
 		           sline, (void*)lp, (void*)(wp->w_bufp ? wp->w_bufp->b_linep : NULL), has_content); */
 
 		if (has_content) {
-			/* Render actual buffer line - pass wp to get correct wrap_col */
-			rows_used = show_line_wrapped(wp, lp, rows_remaining, line_num);
-			LOG_DEBUGF("UPDALL: sline=%d rendered lp=%p rows_used=%d vtrow=%d vtcol=%d line_num=%d",
-			           sline, (void*)lp, rows_used, vtrow, vtcol, line_num);
-			lp = lforw(lp);
-			if (line_num >= 0) {
-				line_num++;  /* Advance to next line for syntax */
+			/* Check display event handlers for folding/narrowing/etc. */
+			display_line_action_t line_action = DISPLAY_RENDER;
+			const char *substitute_text = NULL;
+
+			if (event_bus_has_handlers(EVT_DISPLAY_LINE)) {
+				event_display_line_t evt = {
+					.buffer = wp->w_bufp,
+					.line = lp,
+					.line_num = line_num,
+					.screen_row = sline,
+					.action = DISPLAY_RENDER,
+					.substitute = NULL,
+					.substitute_face = 0,
+				};
+				event_bus_emit(EVT_DISPLAY_LINE, &evt, sizeof(evt));
+				line_action = evt.action;
+				substitute_text = evt.substitute;
+			}
+
+			if (line_action == DISPLAY_SKIP) {
+				/* Line is folded/hidden - skip it but advance through buffer */
+				lp = lforw(lp);
+				if (line_num >= 0) line_num++;
+				rows_used = 0;  /* No screen rows consumed */
+				continue;  /* Don't increment sline, try next buffer line */
+			} else if (line_action == DISPLAY_SUBSTITUTE && substitute_text) {
+				/* Show substitute text instead of actual line content */
+				vtmove(sline, 0);
+				vtputs(substitute_text);
+				vteeol();
+				vscreen[sline]->v_linep = lp;  /* Still track original line */
+				lp = lforw(lp);
+				if (line_num >= 0) line_num++;
+				rows_used = 1;
+			} else {
+				/* Render actual buffer line - pass wp to get correct wrap_col */
+				rows_used = show_line_wrapped(wp, lp, rows_remaining, line_num);
+				LOG_DEBUGF("UPDALL: sline=%d rendered lp=%p rows_used=%d vtrow=%d vtcol=%d line_num=%d",
+				           sline, (void*)lp, rows_used, vtrow, vtcol, line_num);
+				lp = lforw(lp);
+				if (line_num >= 0) {
+					line_num++;  /* Advance to next line for syntax */
+				}
 			}
 		} else {
 			/* Beyond buffer content - show tilde and clear v_linep */
@@ -1583,10 +1618,10 @@ static int calculate_wordwrap_line_rows(struct line *lp, int wrap_col, int tab_w
 	int len = llength(lp);
 	if (len == 0) return 1;
 
-	/* Get line text */
+	/* Get line text - handles both regular and view mode lines */
 	char line_text[4096];
 	int actual_len = (len < (int)sizeof(line_text) - 1) ? len : (int)sizeof(line_text) - 1;
-	gap_buffer_get_text(lp->gb, 0, actual_len, line_text, sizeof(line_text));
+	lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
 
 	int i = 0;
 	int vtcol = 0;
@@ -1659,10 +1694,10 @@ static int calculate_wordwrap_cursor_pos(struct line *lp, int byte_offset, int w
 		return 0;
 	}
 
-	/* Get line text */
+	/* Get line text - handles both regular and view mode lines */
 	char line_text[4096];
 	int actual_len = (len < (int)sizeof(line_text) - 1) ? len : (int)sizeof(line_text) - 1;
-	gap_buffer_get_text(lp->gb, 0, actual_len, line_text, sizeof(line_text));
+	lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
 
 	int i = 0;
 	int vtcol = 0;
@@ -1956,6 +1991,16 @@ int updupd(int force)
 					LOG_DEBUGF("UPDUPD: updating row %d (in_range=%d cursor=%d was_prev=%d)",
 					           i, in_cursor_range, is_cursor_row, was_prev_cursor);
 				}
+				// When force is set (hard refresh), invalidate ENTIRE pscreen row
+				// to ensure updateline rewrites every character. Otherwise, the
+				// incremental update path may skip positions where vscreen matches
+				// pscreen, even if the actual terminal content differs (e.g., from
+				// direct terminal writes by extensions).
+				if (force) {
+					for (int j = 0; j < term.t_ncol; j++) {
+						pscreen[i]->v_text[j] = 0xFFFFFFFF;  // Impossible unicode value
+					}
+				}
 				updateline(i, vp1, pscreen[i]);
 				rows_updated++;
 			}
@@ -2199,6 +2244,12 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 			vp1->v_flag |= VFREV;
 		else
 			vp1->v_flag &= ~VFREV;
+
+		/* Update pscreen checksum after full-line render.
+		 * Without this, pscreen checksum remains stale and future
+		 * comparisons may fail to detect changed content. */
+		video_update_checksum(vp2);
+
 		return true;
 	}
 

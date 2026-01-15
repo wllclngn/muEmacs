@@ -286,7 +286,6 @@ int main(int argc, char* argv[]) {
     all_phases_passed &= test_text_replace();
     all_phases_passed &= test_text_random();
     all_phases_passed &= test_config_eval();
-    // all_phases_passed &= test_config_eval_extended();  // FIXME: uses internal uv/MAXVARS
     all_phases_passed &= test_config_exec();
     all_phases_passed &= test_config_settings();
     all_phases_passed &= test_config_vim();
@@ -305,7 +304,6 @@ int main(int argc, char* argv[]) {
     all_phases_passed &= test_terminal_pty();
     all_phases_passed &= test_terminal_ansi();
     all_phases_passed &= test_core_display();
-    // all_phases_passed &= test_tui_rendering();  // FIXME: needs display internals
     all_phases_passed &= test_platform_spawn();
 
     // EXTREME Stress Testing (10X beyond normal stress levels)

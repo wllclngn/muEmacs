@@ -204,8 +204,8 @@ sudo cmake --install build
 ./install.py clean       # Clean build directory
 ./install.py uninstall   # Remove installed binaries
 ./install.py test        # Run tests
-./install.py --debug     # Debug build
-./install.py --debug-log # Debug build with logging enabled
+./install.py --debug     # Debug build (ASAN/UBSAN, no logging)
+./install.py --debug-log # Debug build with logging to /tmp/uemacs_debug.log
 ```
 
 ### Dependencies

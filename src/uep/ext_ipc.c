@@ -1,150 +1,113 @@
 /*
- * ext_ipc.c - Extension IPC Implementation
+ * ext_ipc.c - Atomic Ring Buffer IPC Implementation
  *
- * Process isolation for polyglot extensions using Linux kernel primitives:
- * - memfd_create(): Anonymous shared memory
- * - eventfd(): Lightweight signaling
- * - pidfd_open(): Process lifecycle management
- *
- * Zero external dependencies - pure POSIX + Linux syscalls.
- *
- * C23 compliant
+ * Lock-free IPC using only atomics and shared memory.
+ * No eventfd, no blocking syscalls in hot path.
  */
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <poll.h>
+#include <uep/ext_ipc.h>
 #include <sys/mman.h>
-#include <sys/eventfd.h>
-#include <sys/wait.h>
 #include <sys/syscall.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sched.h>
+#include <errno.h>
+#include <stdio.h>
 
-#include "uep/ext_ipc.h"
 #include "util/logger.h"
 
-/* pidfd_open() wrapper - not in older glibc */
-#ifndef SYS_pidfd_open
-#define SYS_pidfd_open 434
+/* memfd_create may not be in older glibc */
+#ifndef MFD_CLOEXEC
+#define MFD_CLOEXEC 0x0001U
 #endif
 
-static int pidfd_open_wrapper(pid_t pid, unsigned int flags) {
-    return (int)syscall(SYS_pidfd_open, pid, flags);
+static int memfd_create_wrapper(const char *name, unsigned int flags) {
+#ifdef SYS_memfd_create
+    return (int)syscall(SYS_memfd_create, name, flags);
+#else
+    (void)name; (void)flags;
+    errno = ENOSYS;
+    return -1;
+#endif
 }
 
 /* =========================================================================
- * Channel lifecycle
+ * Channel Lifecycle
  * ========================================================================= */
 
-ext_ipc_channel_t *ext_ipc_create(size_t shm_size) {
+ext_ipc_channel_t *ext_ipc_create(void) {
     ext_ipc_channel_t *ch = calloc(1, sizeof(*ch));
-    if (!ch) {
-        LOG_ERROR("ext_ipc: Failed to allocate channel");
-        return nullptr;
-    }
+    if (!ch) return NULL;
 
-    /* Use default size if not specified */
-    if (shm_size == 0) {
-        shm_size = EXT_IPC_DEFAULT_SHM_SIZE;
-    }
-
-    ch->memfd = -1;
-    ch->eventfd_request = -1;
-    ch->eventfd_response = -1;
-    ch->pidfd = -1;
-    ch->shm = MAP_FAILED;
-    ch->shm_size = shm_size;
-    atomic_store(&ch->seq, 0);
-
-    /* Create anonymous shared memory */
-    ch->memfd = memfd_create("uep-ext-shm", MFD_CLOEXEC);
+    /* Create memfd for shared memory */
+    ch->memfd = memfd_create_wrapper("uemacs_ext_ipc", MFD_CLOEXEC);
     if (ch->memfd < 0) {
         LOG_ERRORF("ext_ipc: memfd_create failed: %s", strerror(errno));
-        goto fail;
+        free(ch);
+        return NULL;
     }
 
-    /* Size the shared memory region */
-    if (ftruncate(ch->memfd, (off_t)shm_size) < 0) {
+    /* Size the shared memory */
+    ch->shm_size = sizeof(ext_ipc_shm_t);
+    if (ftruncate(ch->memfd, ch->shm_size) < 0) {
         LOG_ERRORF("ext_ipc: ftruncate failed: %s", strerror(errno));
-        goto fail;
+        close(ch->memfd);
+        free(ch);
+        return NULL;
     }
 
     /* Map shared memory */
-    ch->shm = mmap(nullptr, shm_size, PROT_READ | PROT_WRITE,
+    ch->shm = mmap(NULL, ch->shm_size, PROT_READ | PROT_WRITE,
                    MAP_SHARED, ch->memfd, 0);
     if (ch->shm == MAP_FAILED) {
         LOG_ERRORF("ext_ipc: mmap failed: %s", strerror(errno));
-        goto fail;
+        close(ch->memfd);
+        free(ch);
+        return NULL;
     }
 
-    /* Initialize shared memory to zero */
-    memset(ch->shm, 0, shm_size);
+    /* Initialize header */
+    ch->shm->magic = EXT_IPC_MAGIC;
+    ch->shm->version = EXT_IPC_VERSION;
+    atomic_store(&ch->shm->ext_ready, 0);
+    atomic_store(&ch->shm->shutdown, 0);
 
-    /* Create eventfd for request signaling (editor -> extension) */
-    ch->eventfd_request = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    if (ch->eventfd_request < 0) {
-        LOG_ERRORF("ext_ipc: eventfd (request) failed: %s", strerror(errno));
-        goto fail;
+    /* Initialize all slots to EMPTY */
+    for (int i = 0; i < EXT_IPC_RING_SLOTS; i++) {
+        atomic_store(&ch->shm->to_ext.slots[i].state, EXT_SLOT_EMPTY);
+        atomic_store(&ch->shm->to_editor.slots[i].state, EXT_SLOT_EMPTY);
     }
 
-    /* Create eventfd for response signaling (extension -> editor) */
-    ch->eventfd_response = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    if (ch->eventfd_response < 0) {
-        LOG_ERRORF("ext_ipc: eventfd (response) failed: %s", strerror(errno));
-        goto fail;
-    }
-
-    LOG_DEBUGF("ext_ipc: Created channel memfd=%d evreq=%d evresp=%d shm=%zu",
-               ch->memfd, ch->eventfd_request, ch->eventfd_response, shm_size);
-
+    LOG_DEBUG("ext_ipc: Channel created");
     return ch;
-
-fail:
-    ext_ipc_destroy(ch);
-    return nullptr;
 }
 
-ext_ipc_channel_t *ext_ipc_attach(int memfd, int evreq, int evresp, size_t shm_size) {
-    if (memfd < 0 || evreq < 0 || evresp < 0) {
-        LOG_ERROR("ext_ipc: Invalid file descriptors for attach");
-        return nullptr;
-    }
-
-    if (shm_size == 0) {
-        shm_size = EXT_IPC_DEFAULT_SHM_SIZE;
-    }
-
+ext_ipc_channel_t *ext_ipc_attach(int memfd) {
     ext_ipc_channel_t *ch = calloc(1, sizeof(*ch));
-    if (!ch) {
-        LOG_ERROR("ext_ipc: Failed to allocate channel for attach");
-        return nullptr;
-    }
+    if (!ch) return NULL;
 
     ch->memfd = memfd;
-    ch->eventfd_request = evreq;
-    ch->eventfd_response = evresp;
-    ch->pidfd = -1;  /* Child doesn't have pidfd to parent */
-    ch->shm_size = shm_size;
-    atomic_store(&ch->seq, 0);
+    ch->shm_size = sizeof(ext_ipc_shm_t);
 
-    /* Map the shared memory */
-    ch->shm = mmap(nullptr, shm_size, PROT_READ | PROT_WRITE,
-                   MAP_SHARED, memfd, 0);
+    /* Map shared memory */
+    ch->shm = mmap(NULL, ch->shm_size, PROT_READ | PROT_WRITE,
+                   MAP_SHARED, ch->memfd, 0);
     if (ch->shm == MAP_FAILED) {
-        LOG_ERRORF("ext_ipc: mmap attach failed: %s", strerror(errno));
         free(ch);
-        return nullptr;
+        return NULL;
     }
 
-    LOG_DEBUGF("ext_ipc: Attached to channel memfd=%d evreq=%d evresp=%d",
-               memfd, evreq, evresp);
+    /* Validate */
+    if (ch->shm->magic != EXT_IPC_MAGIC) {
+        munmap(ch->shm, ch->shm_size);
+        free(ch);
+        return NULL;
+    }
 
     return ch;
 }
@@ -154,532 +117,112 @@ void ext_ipc_destroy(ext_ipc_channel_t *ch) {
 
     LOG_DEBUG("ext_ipc: Destroying channel");
 
-    if (ch->shm != MAP_FAILED && ch->shm != nullptr) {
+    if (ch->shm && ch->shm != MAP_FAILED) {
         munmap(ch->shm, ch->shm_size);
     }
-
-    if (ch->memfd >= 0) close(ch->memfd);
-    if (ch->eventfd_request >= 0) close(ch->eventfd_request);
-    if (ch->eventfd_response >= 0) close(ch->eventfd_response);
-    if (ch->pidfd >= 0) close(ch->pidfd);
-
+    if (ch->memfd >= 0) {
+        close(ch->memfd);
+    }
     free(ch);
 }
 
-/* =========================================================================
- * Synchronous communication
- * ========================================================================= */
-
-int ext_ipc_call(ext_ipc_channel_t *ch, uint32_t type,
-                 const void *payload, uint32_t payload_len,
-                 void *response, uint32_t *response_len) {
-    if (!ch || ch->shm == MAP_FAILED) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    if (payload_len > EXT_IPC_MAX_PAYLOAD) {
-        LOG_ERRORF("ext_ipc: Payload too large: %u > %u",
-                   payload_len, (uint32_t)EXT_IPC_MAX_PAYLOAD);
-        return EXT_IPC_ERR_TOOBIG;
-    }
-
-    ext_ipc_msg_t *msg = (ext_ipc_msg_t *)ch->shm;
-
-    /* Write request to shared memory */
-    uint32_t seq = atomic_fetch_add(&ch->seq, 1) + 1;
-    atomic_store(&msg->sequence, seq);
-    msg->msg_type = type;
-    msg->payload_len = payload_len;
-    msg->response_len = 0;
-    msg->result = 0;
-    msg->flags = 0;
-
-    if (payload && payload_len > 0) {
-        memcpy(msg->payload, payload, payload_len);
-    }
-
-    /* Memory barrier - ensure writes are visible before signaling */
-    atomic_thread_fence(memory_order_release);
-
-    /* Signal the extension */
-    uint64_t signal = 1;
-    ssize_t written = write(ch->eventfd_request, &signal, sizeof(signal));
-    if (written != sizeof(signal)) {
-        LOG_ERRORF("ext_ipc: Failed to signal request: %s", strerror(errno));
-        return EXT_IPC_ERR_SYSCALL;
-    }
-
-    /* Wait for response */
-    struct pollfd pfd = {
-        .fd = ch->eventfd_response,
-        .events = POLLIN,
-        .revents = 0
-    };
-
-    int poll_result = poll(&pfd, 1, EXT_IPC_TIMEOUT_MS);
-    if (poll_result < 0) {
-        LOG_ERRORF("ext_ipc: poll failed: %s", strerror(errno));
-        return EXT_IPC_ERR_SYSCALL;
-    }
-    if (poll_result == 0) {
-        LOG_WARN("ext_ipc: Timeout waiting for response");
-        return EXT_IPC_ERR_TIMEOUT;
-    }
-
-    /* Consume the eventfd signal */
-    uint64_t consumed;
-    if (read(ch->eventfd_response, &consumed, sizeof(consumed)) != sizeof(consumed)) {
-        /* Non-blocking read may fail with EAGAIN if already consumed */
-        if (errno != EAGAIN) {
-            LOG_WARNF("ext_ipc: Failed to consume response signal: %s", strerror(errno));
-        }
-    }
-
-    /* Memory barrier - ensure we read updated values */
-    atomic_thread_fence(memory_order_acquire);
-
-    /* Read response from shared memory */
-    if (response && response_len && msg->response_len > 0) {
-        uint32_t copy_len = msg->response_len;
-        if (copy_len > *response_len) {
-            copy_len = *response_len;
-        }
-        memcpy(response, msg->payload, copy_len);
-        *response_len = msg->response_len;
-    } else if (response_len) {
-        *response_len = 0;
-    }
-
-    return msg->result;
+void ext_ipc_set_pid(ext_ipc_channel_t *ch, pid_t pid) {
+    if (ch) ch->child_pid = pid;
 }
 
-int ext_ipc_notify(ext_ipc_channel_t *ch, uint32_t type,
-                   const void *payload, uint32_t payload_len) {
-    if (!ch || ch->shm == MAP_FAILED) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    if (payload_len > EXT_IPC_MAX_PAYLOAD) {
-        return EXT_IPC_ERR_TOOBIG;
-    }
-
-    ext_ipc_msg_t *msg = (ext_ipc_msg_t *)ch->shm;
-
-    /* Write notification to shared memory */
-    uint32_t seq = atomic_fetch_add(&ch->seq, 1) + 1;
-    atomic_store(&msg->sequence, seq);
-    msg->msg_type = type;
-    msg->payload_len = payload_len;
-    msg->response_len = 0;
-    msg->result = 0;
-    msg->flags = 0;
-
-    if (payload && payload_len > 0) {
-        memcpy(msg->payload, payload, payload_len);
-    }
-
-    atomic_thread_fence(memory_order_release);
-
-    /* Signal (don't wait for response) */
-    uint64_t signal = 1;
-    ssize_t written = write(ch->eventfd_request, &signal, sizeof(signal));
-    if (written != sizeof(signal)) {
-        return EXT_IPC_ERR_SYSCALL;
-    }
-
-    return EXT_IPC_OK;
+int ext_ipc_get_memfd(ext_ipc_channel_t *ch) {
+    return ch ? ch->memfd : -1;
 }
 
 /* =========================================================================
- * Extension-side functions
+ * Ring Buffer Operations
  * ========================================================================= */
 
-int ext_ipc_recv(ext_ipc_channel_t *ch, ext_ipc_msg_t **msg, int timeout_ms) {
-    if (!ch || ch->shm == MAP_FAILED || !msg) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    /* Wait for signal from editor */
-    struct pollfd pfd = {
-        .fd = ch->eventfd_request,
-        .events = POLLIN,
-        .revents = 0
-    };
-
-    int poll_result = poll(&pfd, 1, timeout_ms);
-    if (poll_result < 0) {
-        if (errno == EINTR) {
-            return EXT_IPC_ERR_TIMEOUT;  /* Treat interrupt as timeout */
-        }
-        LOG_ERRORF("ext_ipc: recv poll failed: %s", strerror(errno));
-        return EXT_IPC_ERR_SYSCALL;
-    }
-    if (poll_result == 0) {
-        return EXT_IPC_ERR_TIMEOUT;
-    }
-
-    /* Check for hangup (editor closed the channel) */
-    if (pfd.revents & (POLLHUP | POLLERR)) {
-        LOG_INFO("ext_ipc: Channel closed by editor");
-        return EXT_IPC_ERR_CLOSED;
-    }
-
-    /* Consume the eventfd signal */
-    uint64_t consumed;
-    if (read(ch->eventfd_request, &consumed, sizeof(consumed)) != sizeof(consumed)) {
-        if (errno != EAGAIN) {
-            LOG_WARNF("ext_ipc: Failed to consume request signal: %s", strerror(errno));
+int ext_ipc_find_empty_slot(ext_ipc_ring_t *ring) {
+    for (int i = 0; i < EXT_IPC_RING_SLOTS; i++) {
+        if (atomic_load_explicit(&ring->slots[i].state,
+                                 memory_order_acquire) == EXT_SLOT_EMPTY) {
+            return i;
         }
     }
-
-    /* Memory barrier */
-    atomic_thread_fence(memory_order_acquire);
-
-    /* Return pointer to message in shared memory */
-    *msg = (ext_ipc_msg_t *)ch->shm;
-
-    return EXT_IPC_OK;
+    return -1;
 }
 
-int ext_ipc_respond(ext_ipc_channel_t *ch, int32_t result,
-                    const void *data, uint32_t len) {
-    if (!ch || ch->shm == MAP_FAILED) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    if (len > EXT_IPC_MAX_PAYLOAD) {
-        return EXT_IPC_ERR_TOOBIG;
-    }
-
-    ext_ipc_msg_t *msg = (ext_ipc_msg_t *)ch->shm;
-
-    /* Write response */
-    msg->result = result;
-    msg->response_len = len;
-
-    if (data && len > 0) {
-        memcpy(msg->payload, data, len);
-    }
-
-    atomic_thread_fence(memory_order_release);
-
-    /* Signal the editor */
-    uint64_t signal = 1;
-    ssize_t written = write(ch->eventfd_response, &signal, sizeof(signal));
-    if (written != sizeof(signal)) {
-        LOG_ERRORF("ext_ipc: Failed to signal response: %s", strerror(errno));
-        return EXT_IPC_ERR_SYSCALL;
-    }
-
-    return EXT_IPC_OK;
-}
-
-/*
- * Extension calls editor (reverse direction of ext_ipc_call)
- * Signals eventfd_response, waits on eventfd_request for response
- */
-int ext_ipc_call_editor(ext_ipc_channel_t *ch, uint32_t type,
-                        const void *payload, uint32_t payload_len,
-                        void *response, uint32_t *response_len) {
-    if (!ch || ch->shm == MAP_FAILED) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    if (payload_len > EXT_IPC_MAX_PAYLOAD) {
-        return EXT_IPC_ERR_TOOBIG;
-    }
-
-    ext_ipc_msg_t *msg = (ext_ipc_msg_t *)ch->shm;
-
-    /* Write request to shared memory */
-    uint32_t seq = atomic_fetch_add(&ch->seq, 1) + 1;
-    atomic_store(&msg->sequence, seq);
-    msg->msg_type = type;
-    msg->payload_len = payload_len;
-    msg->response_len = 0;
-    msg->result = 0;
-    msg->flags = 0;
-
-    if (payload && payload_len > 0) {
-        memcpy(msg->payload, payload, payload_len);
-    }
-
-    atomic_thread_fence(memory_order_release);
-
-    /* Signal editor via response eventfd */
-    uint64_t signal = 1;
-    if (write(ch->eventfd_response, &signal, sizeof(signal)) != sizeof(signal)) {
-        return EXT_IPC_ERR_SYSCALL;
-    }
-
-    /* Wait for editor response on request eventfd */
-    struct pollfd pfd = {
-        .fd = ch->eventfd_request,
-        .events = POLLIN,
-        .revents = 0
-    };
-
-    int poll_result = poll(&pfd, 1, EXT_IPC_TIMEOUT_MS);
-    if (poll_result < 0) {
-        return EXT_IPC_ERR_SYSCALL;
-    }
-    if (poll_result == 0) {
-        return EXT_IPC_ERR_TIMEOUT;
-    }
-
-    /* Consume the signal */
-    uint64_t consumed;
-    if (read(ch->eventfd_request, &consumed, sizeof(consumed)) < 0) { /* ignore */ }
-
-    atomic_thread_fence(memory_order_acquire);
-
-    /* Read response */
-    if (response && response_len && msg->response_len > 0) {
-        uint32_t copy_len = msg->response_len < *response_len ? msg->response_len : *response_len;
-        memcpy(response, msg->payload, copy_len);
-        *response_len = msg->response_len;
-    } else if (response_len) {
-        *response_len = 0;
-    }
-
-    return msg->result;
-}
-
-/*
- * Send notification from extension to editor
- * Writes to eventfd_response - for Extension -> Editor messages
- */
-int ext_ipc_notify_editor(ext_ipc_channel_t *ch, uint32_t type,
-                          const void *payload, uint32_t payload_len) {
-    if (!ch || ch->shm == MAP_FAILED) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    if (payload_len > EXT_IPC_MAX_PAYLOAD) {
-        return EXT_IPC_ERR_TOOBIG;
-    }
-
-    ext_ipc_msg_t *msg = (ext_ipc_msg_t *)ch->shm;
-
-    /* Write notification to shared memory */
-    uint32_t seq = atomic_fetch_add(&ch->seq, 1) + 1;
-    atomic_store(&msg->sequence, seq);
-    msg->msg_type = type;
-    msg->payload_len = payload_len;
-    msg->response_len = 0;
-    msg->result = 0;
-    msg->flags = 0;
-
-    if (payload && payload_len > 0) {
-        memcpy(msg->payload, payload, payload_len);
-    }
-
-    atomic_thread_fence(memory_order_release);
-
-    /* Signal editor via response eventfd */
-    uint64_t signal = 1;
-    ssize_t written = write(ch->eventfd_response, &signal, sizeof(signal));
-    if (written != sizeof(signal)) {
-        return EXT_IPC_ERR_SYSCALL;
-    }
-
-    return EXT_IPC_OK;
-}
-
-/*
- * Wait for message from extension (editor-side)
- * Waits on eventfd_response - for Extension -> Editor messages
- */
-int ext_ipc_recv_from_ext(ext_ipc_channel_t *ch, ext_ipc_msg_t **msg, int timeout_ms) {
-    if (!ch || ch->shm == MAP_FAILED || !msg) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    /* Wait for signal from extension on response fd */
-    struct pollfd pfd = {
-        .fd = ch->eventfd_response,
-        .events = POLLIN,
-        .revents = 0
-    };
-
-    int poll_result = poll(&pfd, 1, timeout_ms);
-    if (poll_result < 0) {
-        if (errno == EINTR) {
-            return EXT_IPC_ERR_TIMEOUT;
-        }
-        LOG_ERRORF("ext_ipc: recv_from_ext poll failed: %s", strerror(errno));
-        return EXT_IPC_ERR_SYSCALL;
-    }
-    if (poll_result == 0) {
-        return EXT_IPC_ERR_TIMEOUT;
-    }
-
-    /* Check for hangup */
-    if (pfd.revents & (POLLHUP | POLLERR)) {
-        LOG_INFO("ext_ipc: Extension closed the channel");
-        return EXT_IPC_ERR_CLOSED;
-    }
-
-    /* Consume the eventfd signal */
-    uint64_t consumed;
-    if (read(ch->eventfd_response, &consumed, sizeof(consumed)) != sizeof(consumed)) {
-        if (errno != EAGAIN) {
-            LOG_WARNF("ext_ipc: Failed to consume response signal: %s", strerror(errno));
+int ext_ipc_find_pending_slot(ext_ipc_ring_t *ring) {
+    for (int i = 0; i < EXT_IPC_RING_SLOTS; i++) {
+        if (atomic_load_explicit(&ring->slots[i].state,
+                                 memory_order_acquire) == EXT_SLOT_PENDING) {
+            return i;
         }
     }
-
-    /* Memory barrier */
-    atomic_thread_fence(memory_order_acquire);
-
-    /* Return pointer to message in shared memory */
-    *msg = (ext_ipc_msg_t *)ch->shm;
-
-    return EXT_IPC_OK;
+    return -1;
 }
 
-/*
- * Send response to an extension's RPC call (editor-side)
- * Signals eventfd_request - the reverse direction of ext_ipc_respond()
- */
-int ext_ipc_respond_to_ext(ext_ipc_channel_t *ch, int32_t result,
+void ext_ipc_slot_write(ext_ipc_slot_t *slot, uint32_t msg_type,
+                        const void *payload, uint32_t len) {
+    slot->msg_type = msg_type;
+    slot->payload_len = len;
+    slot->result = 0;
+
+    if (payload && len > 0) {
+        uint32_t copy_len = len;
+        if (copy_len > EXT_IPC_MAX_PAYLOAD) {
+            copy_len = EXT_IPC_MAX_PAYLOAD;
+        }
+        memcpy(slot->payload, payload, copy_len);
+        slot->payload_len = copy_len;
+    }
+
+    /* Release barrier - ensure payload visible before state change */
+    atomic_store_explicit(&slot->state, EXT_SLOT_PENDING, memory_order_release);
+}
+
+void ext_ipc_slot_complete(ext_ipc_slot_t *slot, int32_t result,
                            const void *data, uint32_t len) {
-    if (!ch || ch->shm == MAP_FAILED) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    if (len > EXT_IPC_MAX_PAYLOAD) {
-        return EXT_IPC_ERR_TOOBIG;
-    }
-
-    ext_ipc_msg_t *msg = (ext_ipc_msg_t *)ch->shm;
-
-    /* Write response */
-    msg->result = result;
-    msg->response_len = len;
+    slot->result = result;
 
     if (data && len > 0) {
-        memcpy(msg->payload, data, len);
-    }
-
-    atomic_thread_fence(memory_order_release);
-
-    /* Signal the extension via request eventfd (reverse direction) */
-    uint64_t signal = 1;
-    ssize_t written = write(ch->eventfd_request, &signal, sizeof(signal));
-    if (written != sizeof(signal)) {
-        LOG_ERRORF("ext_ipc: Failed to signal response to ext: %s", strerror(errno));
-        return EXT_IPC_ERR_SYSCALL;
-    }
-
-    return EXT_IPC_OK;
-}
-
-/* =========================================================================
- * Event loop integration
- * ========================================================================= */
-
-int ext_ipc_poll_fd(ext_ipc_channel_t *ch, bool is_editor) {
-    if (!ch) return -1;
-
-    /* Editor waits on response fd, extension waits on request fd */
-    return is_editor ? ch->eventfd_response : ch->eventfd_request;
-}
-
-bool ext_ipc_is_alive(ext_ipc_channel_t *ch) {
-    if (!ch || ch->pidfd < 0) {
-        return false;
-    }
-
-    /* Use poll on pidfd to check if process is still alive */
-    struct pollfd pfd = {
-        .fd = ch->pidfd,
-        .events = POLLIN,
-        .revents = 0
-    };
-
-    int result = poll(&pfd, 1, 0);  /* Non-blocking check */
-    if (result > 0 && (pfd.revents & POLLIN)) {
-        /* pidfd is readable when process exits */
-        return false;
-    }
-
-    return true;
-}
-
-/* =========================================================================
- * pidfd management
- * ========================================================================= */
-
-/*
- * Set the pidfd for lifecycle management (called after fork in parent)
- */
-int ext_ipc_set_pid(ext_ipc_channel_t *ch, pid_t pid) {
-    if (!ch) return EXT_IPC_ERR_INVALID;
-
-    int pidfd = pidfd_open_wrapper(pid, 0);
-    if (pidfd < 0) {
-        /* pidfd_open may fail on older kernels - not fatal */
-        LOG_WARNF("ext_ipc: pidfd_open failed for pid %d: %s",
-                  (int)pid, strerror(errno));
-        ch->pidfd = -1;
-        return EXT_IPC_OK;  /* Non-fatal */
-    }
-
-    ch->pidfd = pidfd;
-    LOG_DEBUGF("ext_ipc: Set pidfd=%d for pid=%d", pidfd, (int)pid);
-    return EXT_IPC_OK;
-}
-
-/*
- * Wait for extension process to exit
- */
-int ext_ipc_wait(ext_ipc_channel_t *ch, int *exit_status, int timeout_ms) {
-    if (!ch) return EXT_IPC_ERR_INVALID;
-
-    if (ch->pidfd >= 0) {
-        /* Use pidfd for waiting */
-        struct pollfd pfd = {
-            .fd = ch->pidfd,
-            .events = POLLIN,
-            .revents = 0
-        };
-
-        int result = poll(&pfd, 1, timeout_ms);
-        if (result < 0) {
-            return EXT_IPC_ERR_SYSCALL;
+        uint32_t copy_len = len;
+        if (copy_len > EXT_IPC_MAX_PAYLOAD) {
+            copy_len = EXT_IPC_MAX_PAYLOAD;
         }
-        if (result == 0) {
-            return EXT_IPC_ERR_TIMEOUT;
+        memcpy(slot->payload, data, copy_len);
+        slot->payload_len = copy_len;
+    } else {
+        slot->payload_len = 0;
+    }
+
+    /* Release barrier */
+    atomic_store_explicit(&slot->state, EXT_SLOT_COMPLETE, memory_order_release);
+}
+
+void ext_ipc_slot_release(ext_ipc_slot_t *slot) {
+    atomic_store_explicit(&slot->state, EXT_SLOT_EMPTY, memory_order_release);
+}
+
+bool ext_ipc_slot_wait_complete(ext_ipc_slot_t *slot, int timeout_ms) {
+    struct timespec start, now;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    while (1) {
+        uint32_t state = atomic_load_explicit(&slot->state, memory_order_acquire);
+        if (state == EXT_SLOT_COMPLETE) {
+            return true;
         }
 
-        /* Process exited - read status via waitid */
-        siginfo_t info;
-        if (waitid(P_PIDFD, (id_t)ch->pidfd, &info, WEXITED | WNOHANG) == 0) {
-            if (exit_status) {
-                *exit_status = info.si_status;
-            }
-            return EXT_IPC_OK;
+        /* Check timeout */
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        long elapsed_ms = (now.tv_sec - start.tv_sec) * 1000 +
+                          (now.tv_nsec - start.tv_nsec) / 1000000;
+        if (elapsed_ms >= timeout_ms) {
+            return false;
         }
+
+        /* Spin hint */
+#if defined(__x86_64__) || defined(__i386__)
+        __builtin_ia32_pause();
+#else
+        sched_yield();
+#endif
     }
-
-    return EXT_IPC_ERR_INVALID;
-}
-
-/*
- * Get file descriptors for passing to child process
- * NOTE: FD_CLOEXEC is NOT cleared here - do it in the child process
- * to avoid fd leakage to other parallel forks
- */
-int ext_ipc_get_fds_for_child(ext_ipc_channel_t *ch,
-                              int *memfd_out, int *evreq_out, int *evresp_out) {
-    if (!ch || !memfd_out || !evreq_out || !evresp_out) {
-        return EXT_IPC_ERR_INVALID;
-    }
-
-    /* Just return the fd numbers - caller (child process) must clear FD_CLOEXEC */
-    *memfd_out = ch->memfd;
-    *evreq_out = ch->eventfd_request;
-    *evresp_out = ch->eventfd_response;
-
-    return EXT_IPC_OK;
 }

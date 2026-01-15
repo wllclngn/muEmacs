@@ -115,6 +115,25 @@ int main(int argc, char *argv[]) {
         perror("freopen /dev/null");
     }
 
+    /* Find the μEmacs binary for tests that need it */
+    const char *binary_paths[] = {
+        "./bin/μEmacs",
+        "./build/bin/μEmacs",
+        "../build/bin/μEmacs",
+        "../../build/bin/μEmacs",
+        "./bin/muEmacs",
+        "./build/bin/muEmacs",
+        "../build/bin/muEmacs",
+        "../../build/bin/muEmacs",
+        NULL
+    };
+    for (int i = 0; binary_paths[i] != NULL; i++) {
+        if (access(binary_paths[i], X_OK) == 0) {
+            uemacs_path = binary_paths[i];
+            break;
+        }
+    }
+
     LOG_INFO("");
     LOG_INFO("================================================================");
     LOG_INFO("       μEmacs Full Integration Test Suite (Isolated Runner)");

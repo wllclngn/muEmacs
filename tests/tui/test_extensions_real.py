@@ -40,12 +40,13 @@ class MuEmacsTest:
         if os.path.exists(LOG_FILE):
             os.remove(LOG_FILE)
 
-        cmd = f'"{BINARY}"'
+        # Use direct spawn without shell to avoid injection risks
+        args = [BINARY]
         if filename:
-            cmd += f' "{filename}"'
+            args.append(filename)
 
         self.child = pexpect.spawn(
-            '/bin/sh', ['-c', cmd],
+            args[0], args[1:],
             dimensions=(self.rows, self.cols),
             env={**os.environ, 'TERM': 'xterm-256color'},
             encoding='utf-8',

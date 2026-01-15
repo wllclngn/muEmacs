@@ -4,10 +4,10 @@
  * This struct is passed to extensions during init().
  * Extensions use these function pointers to interact with the editor.
  *
- * API Version 3: Generic Event Bus
- * - Replaces static hook arrays with string-based event system
- * - Extensions register for events by name, not by type
- * - Backward-compatible macros provided for legacy extensions
+ * API Version 4: ABI-Stable Named Lookup
+ * - Extensions use get_function("name") instead of struct field offsets
+ * - Immune to struct layout changes across versions
+ * - Extensions remain compatible as long as function signatures don't change
  *
  * C23 compliant
  */
@@ -21,11 +21,12 @@
 #include <stdint.h>
 
 /* Current API version */
-#define UEMACS_API_VERSION 3
+#define UEMACS_API_VERSION 4
 
 /* Forward declarations */
 struct buffer;
 struct window;
+struct line;
 struct line_tokens;
 struct syntax_language;
 struct input_key_event;
@@ -64,7 +65,33 @@ typedef bool (*uemacs_event_fn)(uemacs_event_t *event, void *user_data);
 #define UEMACS_EVT_CURSOR_MOVE     "cursor:move"
 #define UEMACS_EVT_DISPLAY_PRE     "display:pre"
 #define UEMACS_EVT_DISPLAY_POST    "display:post"
+#define UEMACS_EVT_DISPLAY_LINE    "display:line"     /* Before rendering each line */
+#define UEMACS_EVT_DISPLAY_GUTTER  "display:gutter"   /* Before rendering gutter */
 #define UEMACS_EVT_CONFIG_CHANGED  "config:changed"
+
+/* ============================================================================
+ * Display Line Event Types (for folding, narrowing, org-mode, etc.)
+ * ============================================================================ */
+
+/* What the display loop should do with this line */
+typedef enum {
+    UEMACS_DISPLAY_RENDER,      /* Render line normally (default) */
+    UEMACS_DISPLAY_SKIP,        /* Don't render - line is hidden (folding) */
+    UEMACS_DISPLAY_SUBSTITUTE,  /* Replace with substitute text */
+} uemacs_display_action_t;
+
+/* Event data for UEMACS_EVT_DISPLAY_LINE */
+typedef struct {
+    struct buffer *buffer;              /* Buffer being displayed */
+    struct line *line;                  /* Line about to be rendered (opaque) */
+    int line_num;                       /* 0-based line number in buffer */
+    int screen_row;                     /* Screen row where it would render */
+
+    /* Extension response fields - modify these to control rendering */
+    uemacs_display_action_t action;     /* What to do with this line */
+    const char *substitute;             /* Text if action == SUBSTITUTE */
+    int substitute_face;                /* Syntax face for substitute text */
+} uemacs_display_line_event_t;
 
 /* ============================================================================
  * Syntax Highlighting Types (for extension lexers)
@@ -215,6 +242,7 @@ struct uemacs_api {
     int (*get_line_count)(struct buffer *bp);
     char *(*get_word_at_point)(void);
     char *(*get_current_line)(void);
+    char *(*get_line_at)(struct buffer *bp, int line_num);  /* 1-based, caller must free */
 
     /* ─────────────────────────────────────────────────────────────────────────
      * Window Operations
@@ -303,6 +331,39 @@ struct uemacs_api {
      * ───────────────────────────────────────────────────────────────────────── */
 
     int (*delete_chars)(int n);  /* Delete n chars forward from point */
+
+    /* ─────────────────────────────────────────────────────────────────────────
+     * ABI-Stable Extension Fields (added after initial release)
+     *
+     * NEW FIELDS GO HERE - at the END of the struct to preserve backward compat.
+     * Extensions compiled against older headers won't access these fields.
+     * ───────────────────────────────────────────────────────────────────────── */
+
+    struct buffer *(*buffer_first)(void);
+    struct buffer *(*buffer_next)(struct buffer *bp);
+
+    /* ─────────────────────────────────────────────────────────────────────────
+     * ABI-Stable Function Lookup (API v4)
+     *
+     * struct_size and get_function MUST be last for version detection.
+     * ───────────────────────────────────────────────────────────────────────── */
+
+    size_t struct_size;  /* sizeof(struct uemacs_api) - for version detection */
+
+    /*
+     * Look up API function by name. Returns NULL if not found.
+     * This is ABI-stable: adding/removing/reordering other functions won't
+     * break extensions that use named lookup.
+     *
+     * Returns a generic function pointer that must be cast to the correct type.
+     * Using void(*)(void) instead of void* for ISO C compliance.
+     *
+     * Example:
+     *   typedef int (*register_cmd_fn)(const char*, uemacs_cmd_fn);
+     *   register_cmd_fn reg = (register_cmd_fn)api->get_function("register_command");
+     *   if (reg) reg("my-cmd", my_handler);
+     */
+    void (*(*get_function)(const char *name))(void);
 };
 
 /* Get the global API instance */

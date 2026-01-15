@@ -63,7 +63,7 @@ static double get_time_ms(void) {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Thread pool configuration for parallel loading */
-constexpr int LOADER_THREAD_COUNT = 4;
+constexpr int LOADER_THREAD_COUNT = 4;  /* Parallel dlopen is safe - init is serialized */
 constexpr int MAX_BUILD_BATCH = 32;
 constexpr int MAX_LOAD_BATCH = 64;
 
@@ -88,12 +88,16 @@ typedef struct {
     bool active;                        /* Is this slot in use? */
 } loaded_extension_t;
 
-/* Thread pool task for parallel dlopen */
+/* Thread pool task for parallel dlopen (Phase 1 only) */
 typedef struct {
     const char *path;
-    int result;
+    void *handle;               /* Result of dlopen */
+    extension_entry_fn entry;   /* Result of dlsym */
+    ext_runtime_t runtime;      /* Detected runtime type */
+    bool needs_isolation;       /* Out-of-process extension? */
+    int dlopen_result;          /* 0 = success, -1 = error */
     atomic_bool done;
-} load_task_t;
+} dlopen_task_t;
 
 /* Build task for batch building */
 typedef struct {
@@ -132,6 +136,10 @@ static bool api_mtime_cached = false;
 /* Forward declarations */
 extern struct uemacs_api *uemacs_get_api(void);
 static bool needs_rebuild(const char *ext_path);
+static char *get_extension_dir(const char *so_path);
+static char *get_extension_name(const char *path);
+static loaded_extension_t *find_extension(const char *name);
+static loaded_extension_t *find_extension_by_path(const char *path);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * MODERN LINUX SYSCALLS
@@ -169,7 +177,8 @@ static time_t mtime_fast(const char *path) {
 static bool is_directory_fast(const char *path) {
     struct statx stx;
 
-    if (statx(AT_FDCWD, path, AT_STATX_DONT_SYNC | AT_SYMLINK_NOFOLLOW,
+    /* Follow symlinks so symlinked extension directories work */
+    if (statx(AT_FDCWD, path, AT_STATX_DONT_SYNC,
               STATX_TYPE, &stx) == 0) {
         return S_ISDIR(stx.stx_mode);
     }
@@ -184,7 +193,8 @@ static bool is_directory_fast(const char *path) {
 static bool is_file_fast(const char *path) {
     struct statx stx;
 
-    if (statx(AT_FDCWD, path, AT_STATX_DONT_SYNC | AT_SYMLINK_NOFOLLOW,
+    /* Follow symlinks so symlinked extension files work */
+    if (statx(AT_FDCWD, path, AT_STATX_DONT_SYNC,
               STATX_TYPE, &stx) == 0) {
         return S_ISREG(stx.stx_mode);
     }
@@ -420,9 +430,13 @@ static const char *find_build_script(void) {
     }
 
     static const char *locations[] = {
+        /* Source tree (highest priority for development) */
+        UEMACS_SOURCE_EDITOR_DIR "/../../scripts/uep_build.py",
+        /* Installed locations */
         UEMACS_DATA_DIR "/uep_build.py",
         "/usr/local/share/muemacs/uep_build.py",
         "/usr/share/muemacs/uep_build.py",
+        /* Relative fallbacks */
         "scripts/uep_build.py",
         "../scripts/uep_build.py",
         nullptr
@@ -594,21 +608,216 @@ static void batch_build_extensions(char **paths, int count) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * THREAD POOL - PARALLEL DLOPEN
+ * TWO-PHASE PARALLEL LOADING
+ *
+ * Phase 1: Parallel dlopen (I/O bound, no shared state modification)
+ * Phase 2: Serial init (shared state modification, must be sequential)
+ *
+ * This architecture eliminates race conditions without requiring mutexes
+ * in event_bus, config storage, hooks, or other shared subsystems.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /*
- * Worker thread for parallel extension loading.
+ * Phase 1 worker: dlopen + dlsym only.
+ * Safe to run in parallel - only writes to its own task struct.
  */
-static void *loader_thread_fn(void *arg) {
-    load_task_t *task = arg;
-    task->result = extension_load(task->path);
+static void *dlopen_thread_fn(void *arg) {
+    dlopen_task_t *task = arg;
+
+    /* Detect runtime type */
+    char *ext_dir = get_extension_dir(task->path);
+    task->runtime = ext_host_detect_runtime(ext_dir);
+    task->needs_isolation = ext_host_needs_isolation(task->runtime);
+    free(ext_dir);
+
+    /* Out-of-process extensions are handled in Phase 2 */
+    if (task->needs_isolation) {
+        task->dlopen_result = 0;  /* Mark as success for Phase 2 processing */
+        atomic_store(&task->done, true);
+        return nullptr;
+    }
+
+    /* In-process: do dlopen */
+    task->handle = dlopen(task->path, RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
+    if (!task->handle) {
+        LOG_ERRORF("Extension: dlopen failed: %s", dlerror());
+        task->dlopen_result = -1;
+        atomic_store(&task->done, true);
+        return nullptr;
+    }
+
+    /* Get entry point */
+    dlerror();  /* Clear error */
+    union {
+        void *ptr;
+        extension_entry_fn fn;
+    } entry_u;
+    entry_u.ptr = dlsym(task->handle, "uemacs_extension_entry");
+    task->entry = entry_u.fn;
+
+    const char *dl_error = dlerror();
+    if (dl_error || !task->entry) {
+        LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "NULL entry");
+        dlclose(task->handle);
+        task->handle = nullptr;
+        task->dlopen_result = -1;
+        atomic_store(&task->done, true);
+        return nullptr;
+    }
+
+    task->dlopen_result = 0;
     atomic_store(&task->done, true);
     return nullptr;
 }
 
 /*
- * Load multiple extensions in parallel using thread pool.
+ * Phase 2: Init all extensions.
+ * Runs on main thread - safe to modify shared state.
+ *
+ * Uses parallel spawning for out-of-process extensions:
+ * 1. Fork all out-of-process extensions asynchronously
+ * 2. Wait for all READY messages in parallel using epoll
+ * 3. Init all in-process extensions serially
+ */
+static int serial_init_extensions(dlopen_task_t *tasks, int count) {
+    int loaded = 0;
+    int async_spawned = 0;
+
+    /* ─── Pass 1: Spawn all out-of-process extensions ─── */
+    for (int i = 0; i < count; i++) {
+        dlopen_task_t *task = &tasks[i];
+
+        if (task->dlopen_result != 0) continue;
+        if (!task->needs_isolation) continue;
+
+        char *ext_name = get_extension_name(task->path);
+        if (!ext_name) {
+            LOG_ERROR("Extension: Failed to extract name from path");
+            continue;
+        }
+
+        LOG_INFOF("Extension: Loading %s out-of-process (%s runtime)",
+                  ext_name, ext_host_runtime_name(task->runtime));
+
+        /* ext_host_spawn waits for READY via atomic flag */
+        int result = ext_host_spawn(ext_name, task->path, task->runtime);
+        free(ext_name);
+
+        if (result >= 0) {
+            loaded++;
+        } else {
+            LOG_ERRORF("Extension: Failed to spawn: %s (error=%d)", task->path, result);
+        }
+    }
+    (void)async_spawned;  /* Unused now */
+
+    /* ─── Pass 2: Init all in-process extensions ─── */
+    for (int i = 0; i < count; i++) {
+        dlopen_task_t *task = &tasks[i];
+
+        /* Skip failed dlopen or out-of-process (already handled) */
+        if (task->dlopen_result != 0) continue;
+        if (task->needs_isolation) continue;
+
+        /* In-process extension: run entry() and init() */
+
+        /* Get extension descriptor */
+        struct uemacs_extension *ext = task->entry();
+        if (!ext) {
+            LOG_ERROR("Extension: Entry function returned NULL");
+            dlclose(task->handle);
+            continue;
+        }
+
+        /* Validate name */
+        if (!ext->name || !*ext->name) {
+            LOG_ERROR("Extension: No name provided");
+            dlclose(task->handle);
+            continue;
+        }
+
+        /* Check API version */
+        if (ext->api_version != UEMACS_API_VERSION) {
+            LOG_ERRORF("Extension: API mismatch for '%s' (HAVE: v%d; NEED: v%d)",
+                       ext->name, ext->api_version, UEMACS_API_VERSION);
+            dlclose(task->handle);
+            continue;
+        }
+
+        /* Check for duplicate name (safe - single thread) */
+        if (find_extension(ext->name)) {
+            LOG_ERRORF("Extension: Name already registered: %s", ext->name);
+            dlclose(task->handle);
+            continue;
+        }
+
+        /* Check if already loaded by path (safe - single thread) */
+        if (find_extension_by_path(task->path)) {
+            LOG_DEBUGF("Extension: Already loaded: %s", task->path);
+            dlclose(task->handle);
+            continue;
+        }
+
+        /* Find free slot (safe - single thread, no mutex needed) */
+        loaded_extension_t *slot = nullptr;
+        for (int j = 0; j < UEMACS_MAX_EXTENSIONS; j++) {
+            if (!extensions[j].active) {
+                extensions[j].active = true;
+                slot = &extensions[j];
+                break;
+            }
+        }
+        if (!slot) {
+            LOG_ERROR("Extension: Maximum extensions reached");
+            dlclose(task->handle);
+            continue;
+        }
+
+        /* Initialize extension (safe - single thread, can modify shared state) */
+        if (ext->init) {
+            struct uemacs_api *api = uemacs_get_api();
+            LOG_DEBUGF("Extension: Initializing %s with API (get_function=%s, struct_size=%zu)",
+                       ext->name, api->get_function ? "SET" : "NULL", api->struct_size);
+            double init_start = get_time_ms();
+            int init_result = ext->init(api);
+            double init_time = get_time_ms() - init_start;
+
+            if (init_result != 0) {
+                LOG_ERRORF("Extension: init() failed with code %d: %s",
+                           init_result, ext->name);
+                slot->active = false;
+                dlclose(task->handle);
+                continue;
+            }
+
+            LOG_DEBUGF("Extension: init() took %.1fms for %s", init_time, ext->name);
+        }
+
+        /* Store in slot */
+        slot->path = strdup(task->path);
+        slot->handle = task->handle;
+        slot->ext = ext;
+        extension_count_internal++;
+
+        LOG_INFOF("Extension: Loaded '%s' v%s",
+                  ext->name,
+                  ext->version ? ext->version : "?.?.?");
+
+        if (ext->description) {
+            LOG_INFOF("Extension: %s", ext->description);
+        }
+
+        loaded++;
+    }
+
+    return loaded;
+}
+
+/*
+ * Load multiple extensions using two-phase parallel loading.
+ *
+ * Phase 1: Parallel dlopen (I/O bound)
+ * Phase 2: Serial init (shared state)
  *
  * Returns count of successfully loaded extensions.
  */
@@ -616,12 +825,14 @@ static void *loader_thread_fn(void *arg) {
 static int parallel_load_extensions(const char **paths, int count) {
     if (count == 0) return 0;
     if (count == 1) {
-        /* Single extension - don't bother with threads */
+        /* Single extension - use simple path */
         return (extension_load(paths[0]) == 0) ? 1 : 0;
     }
 
-    pthread_t threads[LOADER_THREAD_COUNT];
-    load_task_t *tasks = calloc(count, sizeof(load_task_t));
+    double phase1_start = get_time_ms();
+
+    /* Allocate tasks */
+    dlopen_task_t *tasks = calloc(count, sizeof(dlopen_task_t));
     if (!tasks) {
         LOG_ERROR("Extension: Failed to allocate task array");
         return 0;
@@ -630,13 +841,15 @@ static int parallel_load_extensions(const char **paths, int count) {
     /* Initialize tasks */
     for (int i = 0; i < count; i++) {
         tasks[i].path = paths[i];
-        tasks[i].result = -1;
+        tasks[i].handle = nullptr;
+        tasks[i].entry = nullptr;
+        tasks[i].dlopen_result = -1;
         atomic_store(&tasks[i].done, false);
     }
 
-    int loaded = 0;
+    /* PHASE 1: Parallel dlopen */
+    pthread_t threads[LOADER_THREAD_COUNT];
 
-    /* Process in batches of LOADER_THREAD_COUNT */
     for (int batch_start = 0; batch_start < count; batch_start += LOADER_THREAD_COUNT) {
         int batch_size = count - batch_start;
         if (batch_size > LOADER_THREAD_COUNT) {
@@ -646,21 +859,28 @@ static int parallel_load_extensions(const char **paths, int count) {
         /* Launch threads */
         for (int i = 0; i < batch_size; i++) {
             int idx = batch_start + i;
-            pthread_create(&threads[i], nullptr, loader_thread_fn, &tasks[idx]);
+            pthread_create(&threads[i], nullptr, dlopen_thread_fn, &tasks[idx]);
         }
 
         /* Wait for batch completion */
         for (int i = 0; i < batch_size; i++) {
             pthread_join(threads[i], nullptr);
-            int idx = batch_start + i;
-            if (tasks[idx].result == 0) {
-                loaded++;
-            }
         }
     }
 
+    double phase1_time = get_time_ms() - phase1_start;
+    LOG_DEBUGF("Extension: Phase 1 (parallel dlopen) completed in %.1fms", phase1_time);
+
+    /* PHASE 2: Serial init */
+    double phase2_start = get_time_ms();
+    int loaded = serial_init_extensions(tasks, count);
+    double phase2_time = get_time_ms() - phase2_start;
+
+    LOG_DEBUGF("Extension: Phase 2 (serial init) completed in %.1fms", phase2_time);
+    LOG_INFOF("Extension: Loaded %d/%d extensions (Phase1: %.1fms, Phase2: %.1fms)",
+              loaded, count, phase1_time, phase2_time);
+
     free(tasks);
-    LOG_INFOF("Extension: Parallel loaded %d/%d extensions", loaded, count);
     return loaded;
 }
 
@@ -833,14 +1053,14 @@ static char *find_first_so(const char *dir_path) {
 
 /*
  * Check if extension directory needs rebuild.
- * Compares newest SOURCE file mtime against newest .so mtime.
- *
- * NOTE: We do NOT check API header mtime here. If an extension has
- * the wrong api_version in its source, rebuilding won't fix it.
- * The Python build script handles API changes properly.
+ * Compares newest SOURCE file mtime AND API header mtime against .so mtime.
+ * If either source or API header is newer, extension needs rebuild.
  */
 [[nodiscard]]
 static bool needs_rebuild(const char *ext_path) {
+    /* Get API header mtime - if header changed, ALL extensions need rebuild */
+    time_t api_mtime = get_api_header_mtime();
+
     if (!is_directory_fast(ext_path)) {
         /* Single source file case */
         size_t len = strlen(ext_path);
@@ -854,6 +1074,12 @@ static bool needs_rebuild(const char *ext_path) {
         time_t so_mtime = mtime_fast(so_path);
         if (so_mtime == 0) return true;  /* No .so exists */
 
+        /* Check API header first */
+        if (api_mtime > 0 && api_mtime > so_mtime) {
+            LOG_DEBUGF("Extension: %s needs rebuild (API header newer)", ext_path);
+            return true;
+        }
+
         time_t src_mtime = mtime_fast(ext_path);
         return src_mtime > so_mtime;
     }
@@ -862,6 +1088,12 @@ static bool needs_rebuild(const char *ext_path) {
     time_t so_mtime = find_newest_so_mtime(ext_path);
     if (so_mtime == 0) {
         LOG_DEBUGF("Extension: %s needs build (no .so found)", ext_path);
+        return true;
+    }
+
+    /* Check API header first */
+    if (api_mtime > 0 && api_mtime > so_mtime) {
+        LOG_DEBUGF("Extension: %s needs rebuild (API header newer)", ext_path);
         return true;
     }
 
@@ -1362,6 +1594,11 @@ int extension_load_dir(const char *dir) {
     struct dirent *entry;
     while ((entry = readdir(dp)) != nullptr && all_count < MAX_LOAD_BATCH) {
         if (entry->d_name[0] == '.') continue;
+        if (entry->d_name[0] == '_') continue;  /* Skip _disabled, etc. */
+
+        /* Skip .disabled suffix (e.g., "ext.disabled") */
+        size_t name_len = strlen(entry->d_name);
+        if (name_len > 9 && strcmp(entry->d_name + name_len - 9, ".disabled") == 0) continue;
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", dir, entry->d_name);

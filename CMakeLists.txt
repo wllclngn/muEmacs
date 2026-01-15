@@ -8,6 +8,9 @@ project(μEmacs
     LANGUAGES C
 )
 
+# Generate compile_commands.json for IDE/LSP support
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Feature toggles (defined early so they affect source lists and targets)
 option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
 option(UEMACS_DEBUG_LOG "Enable debug logging to /tmp/uemacs_debug.log" OFF)
@@ -73,6 +76,8 @@ set(CORE_SOURCES
     src/core/globals.c
     src/core/cbuf_dispatch.c
     src/core/gapbuffer.c
+    src/core/gap_storage.c
+    src/core/piece_table.c
     src/core/window_hash.c
     src/core/event_bus.c
 )

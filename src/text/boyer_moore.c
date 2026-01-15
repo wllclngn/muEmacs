@@ -49,15 +49,19 @@ int bm_init(struct boyer_moore_context *ctx, const unsigned char *pattern,
 }
 
 /* Boyer-Moore forward search */
-int bm_search(struct boyer_moore_context *ctx, const unsigned char *text, 
+int bm_search(struct boyer_moore_context *ctx, const unsigned char *text,
              int text_len, int start_pos)
 {
+    if (!ctx || !text || start_pos < 0 || start_pos >= text_len) {
+        return -1;
+    }
+
     int i, j;
     int shift;
     int m = ctx->pattern_len;
     int n = text_len;
-    
-    if (!ctx || !text || start_pos < 0 || start_pos >= n || m > n) {
+
+    if (m > n) {
         return -1;
     }
     
@@ -80,16 +84,16 @@ int bm_search(struct boyer_moore_context *ctx, const unsigned char *text,
 }
 
 /* Boyer-Moore reverse search */
-int bm_search_reverse(struct boyer_moore_context *ctx, const unsigned char *text, 
+int bm_search_reverse(struct boyer_moore_context *ctx, const unsigned char *text,
                      int text_len, int start_pos)
 {
-    int i, j;
-    int shift;
-    int m = ctx->pattern_len;
-    
     if (!ctx || !text || start_pos >= text_len || start_pos < 0) {
         return -1;
     }
+
+    int i, j;
+    int shift;
+    int m = ctx->pattern_len;
     int last = -1;
     int end = start_pos - m + 1;
     if (end > text_len - m) end = text_len - m;

@@ -73,14 +73,8 @@ int test_terminal_ansi(void);       // ANSI/VT100 parser tests
 // Platform module tests
 int test_platform_spawn(void);      // Spawn/shell command tests
 
-// Additional config tests
-int test_config_eval_extended(void); // Extended eval/variable tests
-
 // Additional core display tests
 int test_core_display(void);        // Display system tests
-
-// TUI rendering tests
-int test_tui_rendering(void);       // Comprehensive TUI rendering tests
 
 // Terminal signal/cleanup/input tests
 int test_terminal_signal(void);     // Signal handler tests

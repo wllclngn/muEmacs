@@ -192,16 +192,16 @@ static void term_putchar(terminal_state_t *ts, struct buffer *bp, char c) {
     /* Ensure we have space up to cur_col with spaces if needed */
     while (len < ts->cur_col) {
         char space = ' ';
-        gap_buffer_insert(lp->gb, len, &space, 1);
+        TS_INSERT(lp->storage, len, &space, 1);
         len++;
     }
 
     /* Insert or overwrite character */
     if (ts->cur_col < len) {
         /* Overwrite existing character */
-        gap_buffer_delete(lp->gb, ts->cur_col, 1);
+        TS_DELETE(lp->storage, ts->cur_col, 1);
     }
-    gap_buffer_insert(lp->gb, ts->cur_col, &c, 1);
+    TS_INSERT(lp->storage, ts->cur_col, &c, 1);
     ts->cur_col++;
 }
 
@@ -296,7 +296,7 @@ static void handle_csi(terminal_state_t *ts, struct buffer *bp, char final) {
             int len = llength(ts->current_line);
             if (mode == 0 && ts->cur_col < len) {
                 /* Erase from cursor to end of line */
-                gap_buffer_delete(ts->current_line->gb, ts->cur_col, len - ts->cur_col);
+                TS_DELETE(ts->current_line->storage, ts->cur_col, len - ts->cur_col);
             } else if (mode == 1 && ts->cur_col > 0) {
                 /* Erase from start to cursor */
                 for (int i = 0; i < ts->cur_col; i++) {
@@ -304,7 +304,7 @@ static void handle_csi(terminal_state_t *ts, struct buffer *bp, char final) {
                 }
             } else if (mode == 2) {
                 /* Erase entire line */
-                gap_buffer_delete(ts->current_line->gb, 0, len);
+                TS_DELETE(ts->current_line->storage, 0, len);
             }
         }
         break;
@@ -325,7 +325,7 @@ static void handle_csi(terminal_state_t *ts, struct buffer *bp, char final) {
                 lp = next;
             }
             if (ts->current_line) {
-                gap_buffer_delete(ts->current_line->gb, 0, llength(ts->current_line));
+                TS_DELETE(ts->current_line->storage, 0, llength(ts->current_line));
             }
             ts->cur_col = 0;
         }
@@ -946,7 +946,7 @@ int terminal_send_line(int f, int n) {
     if (len > 0) {
         char *text = malloc(len + 1);
         if (text) {
-            gap_buffer_get_text(lp->gb, 0, len, text, len);
+            TS_GET_TEXT(lp->storage, 0, len, text, len);
             pty_write(ts->fd, text, len);
             free(text);
         }
@@ -1022,7 +1022,7 @@ int terminal_send_region(int f, int n) {
         if (to_send > 0) {
             char *text = malloc(to_send + 1);
             if (text) {
-                gap_buffer_get_text(lp->gb, start, to_send, text, to_send);
+                TS_GET_TEXT(lp->storage, start, to_send, text, to_send);
                 pty_write(ts->fd, text, to_send);
                 free(text);
             }
@@ -1384,7 +1384,7 @@ int terminal_send_buffer(int f, int n) {
         if (len > 0) {
             char *text = malloc(len + 1);
             if (text) {
-                gap_buffer_get_text(lp->gb, 0, len, text, len);
+                TS_GET_TEXT(lp->storage, 0, len, text, len);
                 pty_write(ts->fd, text, len);
                 bytes_sent += len;
                 free(text);
@@ -1462,7 +1462,7 @@ int terminal_capture(int f, int n) {
         if (len > 0) {
             char *text = malloc(len + 1);
             if (text) {
-                gap_buffer_get_text(lp->gb, 0, len, text, len);
+                TS_GET_TEXT(lp->storage, 0, len, text, len);
                 /* Insert text character by character */
                 for (int i = 0; i < len; i++) {
                     linsert(1, text[i]);
@@ -1821,11 +1821,11 @@ static int parse_error_line(const char *line, error_location_t *err) {
     const char *colon2 = strchr(colon1 + 1, ':');
     if (!colon2) return 0;
 
-    err->line = atoi(colon1 + 1);
+    err->line = safe_atoi(colon1 + 1, 0);
     if (err->line <= 0) return 0;
 
     /* Parse column (optional) */
-    err->col = atoi(colon2 + 1);
+    err->col = safe_atoi(colon2 + 1, 0);
     if (err->col <= 0) err->col = 0;
 
     return 1;
@@ -1868,7 +1868,7 @@ static void scan_build_errors(void) {
         char *text = malloc(len + 1);
         if (!text) continue;
 
-        gap_buffer_get_text(lp->gb, 0, len, text, len);
+        TS_GET_TEXT(lp->storage, 0, len, text, len);
         text[len] = '\0';
 
         error_location_t err;

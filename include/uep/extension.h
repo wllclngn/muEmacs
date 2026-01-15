@@ -21,7 +21,14 @@ struct buffer;
 #define UEMACS_EXTENSION_ENTRY uemacs_extension_entry
 
 /* API version for compatibility checking */
-#define UEMACS_API_VERSION 3
+#define UEMACS_API_VERSION 4
+
+/* Build-time API version - passed by uep_build.py via compiler flag.
+ * Extensions should use this in their struct uemacs_extension.
+ * Falls back to UEMACS_API_VERSION if not provided by build system. */
+#ifndef UEMACS_API_VERSION_BUILD
+#define UEMACS_API_VERSION_BUILD UEMACS_API_VERSION
+#endif
 
 /* Maximum loaded extensions */
 #define UEMACS_MAX_EXTENSIONS 64

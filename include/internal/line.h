@@ -3,7 +3,7 @@
 
 #include "utf8.h"
 #include "c23_compat.h"
-#include "gapbuffer.h"
+#include "text_storage.h"
 
 /*
  * All text is kept in circularly linked lists of "struct line" structures. These
@@ -12,33 +12,73 @@
  * number of bytes in the line (the "used" size), the size of the text array,
  * and the text. The end of line is not stored as a byte; it's implied. Future
  * additions will include update hints, and a list of marks into the line.
- * 
- * C23 modernization: Uses flexible array member for cache-efficient text storage.
+ *
+ * C23 modernization: Uses abstract text_storage interface supporting:
+ *   - Gap buffer: O(1) edits at cursor, optimal for small files
+ *   - Piece table: O(1) load via mmap, optimal for large files
  */
 
-struct gap_buffer;
+struct text_storage;
+struct buffer;
 
 struct line {
-	struct line *l_fp;	/* Link to the next line        */
-	struct line *l_bp;	/* Link to the previous line    */
-	struct gap_buffer *gb;	/* Gap buffer for O(1) edits    */
-	
+	struct line *l_fp;	      /* Link to the next line        */
+	struct line *l_bp;	      /* Link to the previous line    */
+	struct text_storage *storage; /* Abstract storage backend (NULL = view mode) */
+
+	/* View mode: when storage is NULL, line is a view into buffer's b_text.
+	 * This enables O(1) loading of large files via mmap.
+	 */
+	size_t l_view_offset;         /* Start offset in buffer's b_text */
+	size_t l_view_length;         /* Length in bytes (excluding newline) */
+	struct buffer *l_bp_owner;    /* Owning buffer (for view mode b_text access) */
+
 	// Atomic column cache for instant UTF-8 cursor positioning
 	_Atomic int l_column_cache_offset;  /* Last cached byte offset */
 	_Atomic int l_column_cache_column;  /* Display column at offset */
 	_Atomic bool l_column_cache_dirty;  /* Cache needs invalidation */
 };
 
+/* View mode support functions (defined in line.c) */
+extern int lgetc_view(struct line *lp, int n);
+extern void lputc_impl(struct line *lp, int n, int c);
+extern void line_materialize(struct line *lp);  /* Convert view line to editable */
+extern bool line_view_accessible(struct line *lp);  /* Check if view mode data is accessible */
+
 /* Modern inline functions - type-safe replacements for legacy macros */
 static inline struct line *lforw(struct line *lp) { return lp->l_fp; }
 static inline struct line *lback(struct line *lp) { return lp->l_bp; }
-static inline int lgetc(struct line *lp, int n) { return gap_buffer_get_char(lp->gb, (size_t)n); }
-static inline void lputc(struct line *lp, int n, int c) {
-	char ch = (char)c;
-	gap_buffer_delete(lp->gb, (size_t)n, 1);
-	gap_buffer_insert(lp->gb, (size_t)n, &ch, 1);
+
+/* Get character at position n - view-aware */
+static inline int lgetc(struct line *lp, int n) {
+	if (lp->storage) {
+		return (unsigned char)TS_GET_CHAR(lp->storage, (size_t)n);
+	}
+	/* View mode: delegate to function that can access buffer's b_text */
+	return lgetc_view(lp, n);
 }
-static inline int llength(struct line *lp) { return (int)gap_buffer_size(lp->gb); }
+
+/* Put character at position n - view-aware (materializes line if needed) */
+static inline void lputc(struct line *lp, int n, int c) {
+	if (!lp->storage) {
+		/* View mode: must materialize before editing */
+		line_materialize(lp);
+	}
+	lputc_impl(lp, n, c);
+}
+
+/* Get line length - view-aware */
+static inline int llength(struct line *lp) {
+	if (lp->storage) {
+		return (int)TS_SIZE(lp->storage);
+	}
+	/* View mode: verify backing storage is accessible */
+	if (line_view_accessible(lp)) {
+		return (int)lp->l_view_length;
+	}
+	/* View mode but backing storage inaccessible - effectively empty */
+	return 0;
+}
 
 /* Shared word-byte classification for undo grouping and word operations */
 static inline bool is_word_byte(int ch) {
@@ -65,7 +105,11 @@ extern int kinsert(int c);
 extern int yank(int f, int n);
 extern int yank_clipboard(int f, int n);
 extern int yankpop(int f, int n);
-extern struct line *lalloc(int);  /* Allocate a line. */
+extern struct line *lalloc(int);  /* Allocate a line with own storage */
+extern struct line *lalloc_view(struct buffer *bp, size_t offset, size_t length);  /* Allocate view line */
 extern long getlinenum(struct buffer *bp, struct line *lp);
+
+/* Get line text into buffer - handles both regular and view mode lines */
+extern size_t lget_text(struct line *lp, size_t offset, size_t len, char *buf, size_t buf_size);
 
 #endif  /* LINE_H_ */

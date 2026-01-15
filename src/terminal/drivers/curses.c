@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -521,6 +522,21 @@ static int raw_getchar(void) {
 
         poll(pfds, nfds, GET_FRAME_INTERVAL());
 
+        /* Check EVIL flash timer - refresh modeline when 3-second splash expires */
+        {
+            extern long evil_mode_start_time;
+            static bool evil_flash_was_active = false;
+            bool evil_flash_active = (evil_mode_start_time > 0 &&
+                                      (time(NULL) - evil_mode_start_time) < 3);
+            if (evil_flash_was_active && !evil_flash_active) {
+                /* Flash just expired - refresh modelines */
+                extern void upmode(void);
+                upmode();
+                update(false);
+            }
+            evil_flash_was_active = evil_flash_active;
+        }
+
         /* Check for EOF/HUP on stdin (e.g., closed pipe, disconnected terminal) */
         if (pfds[0].revents & (POLLHUP | POLLERR | POLLNVAL)) {
             return -1;  /* stdin closed or error - exit gracefully */
@@ -697,7 +713,7 @@ static void raw_rev(int state) {
         } else {
             const char *seq = sgr_palette_bg(g_palette.highlight_bg);
             LOG_DEBUGF("RAW_REV: emitting palette bg=%d seq=[%s]",
-                       g_palette.highlight_bg, seq + 1);  /* Skip ESC for readable log */
+                       g_palette.highlight_bg, (seq && seq[0]) ? seq : "(empty)");
             obuf_puts(seq);
         }
     } else {

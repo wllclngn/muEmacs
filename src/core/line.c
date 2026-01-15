@@ -26,6 +26,7 @@
 #include "undo.h"
 #include "clipboard.h"
 #include "internal/syntax.h"
+#include "internal/text_storage.h"
 
 /* Forward declarations for kill ring functions */
 static void kill_ring_add(const char *text, size_t len);
@@ -81,10 +82,10 @@ struct line *lalloc(int used)
 	if (!lp) {
 		return nullptr;
 	}
-	
-	size_t initial_capacity = (used > 0) ? (size_t)used : GAP_BUFFER_MIN_SIZE;
-	lp->gb = gap_buffer_create(initial_capacity);
-	if (!lp->gb) {
+
+	size_t initial_capacity = (used > 0) ? (size_t)used : 16;
+	lp->storage = text_storage_create(initial_capacity, STORAGE_HINT_DEFAULT);
+	if (!lp->storage) {
 		safe_free((void **)&lp);
 		return nullptr;
 	}
@@ -93,11 +94,167 @@ struct line *lalloc(int used)
 	lp->l_fp = lp;
 	lp->l_bp = lp;
 
+	/* Initialize view mode fields (not used when storage is non-NULL) */
+	lp->l_view_offset = 0;
+	lp->l_view_length = 0;
+	lp->l_bp_owner = nullptr;
+
 	atomic_store(&lp->l_column_cache_offset, 0);
 	atomic_store(&lp->l_column_cache_column, 0);
 	atomic_store(&lp->l_column_cache_dirty, true);  /* Force recalc on first use */
-	
+
 	return lp;
+}
+
+/*
+ * Allocate a "view" line for large file support.
+ * View lines don't own storage - they reference a range in the buffer's b_text.
+ * This enables O(1) file loading via mmap for files >= 10MB.
+ */
+struct line *lalloc_view(struct buffer *bp, size_t offset, size_t length)
+{
+	struct line *lp;
+
+	lp = (struct line *)safe_alloc(sizeof(struct line), "view line", __FILE__, __LINE__);
+	if (!lp) {
+		return nullptr;
+	}
+
+	/* View mode: no storage, reference buffer's b_text */
+	lp->storage = nullptr;
+	lp->l_view_offset = offset;
+	lp->l_view_length = length;
+	lp->l_bp_owner = bp;
+
+	/* Initialize as a circular list of one */
+	lp->l_fp = lp;
+	lp->l_bp = lp;
+
+	atomic_store(&lp->l_column_cache_offset, 0);
+	atomic_store(&lp->l_column_cache_column, 0);
+	atomic_store(&lp->l_column_cache_dirty, true);
+
+	return lp;
+}
+
+/*
+ * Get character from a view-mode line.
+ * Called by lgetc() when storage is NULL.
+ */
+int lgetc_view(struct line *lp, int n)
+{
+	if (!lp->l_bp_owner || !lp->l_bp_owner->b_text) {
+		return 0;  /* Safety: shouldn't happen */
+	}
+	size_t pos = lp->l_view_offset + (size_t)n;
+	return (unsigned char)TS_GET_CHAR(lp->l_bp_owner->b_text, pos);
+}
+
+/*
+ * Check if a view-mode line's backing storage is accessible.
+ * Returns true if the line has accessible data, false otherwise.
+ */
+bool line_view_accessible(struct line *lp)
+{
+	if (!lp) return false;
+	if (lp->storage) return true;  /* Has own storage, always accessible */
+	return (lp->l_bp_owner != NULL && lp->l_bp_owner->b_text != NULL);
+}
+
+/*
+ * Implementation of lputc - called after ensuring line has storage.
+ */
+void lputc_impl(struct line *lp, int n, int c)
+{
+	char ch = (char)c;
+	size_t pos = (size_t)n;
+	size_t size = TS_SIZE(lp->storage);
+	if (pos >= size) {
+		/* Extending: insert at end */
+		TS_INSERT(lp->storage, size, &ch, 1);
+	} else {
+		/* Overwriting existing character */
+		TS_REPLACE(lp->storage, pos, 1, &ch, 1);
+	}
+}
+
+/*
+ * Materialize a view-mode line into an editable line with its own storage.
+ * Called before any edit operation on a view line.
+ */
+void line_materialize(struct line *lp)
+{
+	if (lp->storage) {
+		return;  /* Already has storage, nothing to do */
+	}
+
+	struct buffer *bp = lp->l_bp_owner;
+	if (!bp || !bp->b_text) {
+		/* Shouldn't happen - create empty storage as fallback */
+		lp->storage = text_storage_create(16, STORAGE_HINT_DEFAULT);
+		return;
+	}
+
+	size_t len = lp->l_view_length;
+
+	/* Create gap buffer for this line with some extra room for edits */
+	lp->storage = text_storage_create(len + 64, STORAGE_HINT_HEAVY_EDIT);
+	if (!lp->storage) {
+		return;  /* Out of memory */
+	}
+
+	/* Copy content from buffer's piece table into line's gap buffer */
+	if (len > 0) {
+		char *temp = safe_alloc(len, "materialize temp", __FILE__, __LINE__);
+		if (temp) {
+			TS_GET_TEXT(bp->b_text, lp->l_view_offset, len, temp, len);
+			TS_INSERT(lp->storage, 0, temp, len);
+			safe_free((void **)&temp);
+		}
+	}
+
+	/* Clear view mode fields */
+	lp->l_view_offset = 0;
+	lp->l_view_length = 0;
+	/* Keep l_bp_owner for potential future use */
+}
+
+/*
+ * Get line text into buffer - handles both regular and view mode lines.
+ * Returns number of bytes written to buf (excluding null terminator).
+ */
+size_t lget_text(struct line *lp, size_t offset, size_t len, char *buf, size_t buf_size)
+{
+	if (!lp || !buf || buf_size == 0) {
+		return 0;
+	}
+
+	/* Clamp length to buffer size minus null terminator */
+	if (len >= buf_size) {
+		len = buf_size - 1;
+	}
+
+	size_t result;
+	if (lp->storage) {
+		/* Regular line: get from line's storage */
+		result = TS_GET_TEXT(lp->storage, offset, len, buf, buf_size);
+	} else if (lp->l_bp_owner && lp->l_bp_owner->b_text) {
+		/* View line: get from buffer's piece table */
+		size_t abs_offset = lp->l_view_offset + offset;
+		result = TS_GET_TEXT(lp->l_bp_owner->b_text, abs_offset, len, buf, buf_size);
+	} else {
+		/* No storage available - return empty */
+		result = 0;
+	}
+
+	/* Ensure null termination */
+	if (result < buf_size) {
+		buf[result] = '\0';
+	} else {
+		buf[buf_size - 1] = '\0';
+	}
+
+	return result;
 }
 
 /*
@@ -138,8 +295,11 @@ void lfree(struct line *lp)
 	}
 	lp->l_bp->l_fp = lp->l_fp;
 	lp->l_fp->l_bp = lp->l_bp;
-	
-	gap_buffer_destroy(lp->gb);
+
+	/* View mode lines don't own storage - only destroy if storage exists */
+	if (lp->storage) {
+		TS_DESTROY(lp->storage);
+	}
 	safe_free((void **) &lp);
 }
 
@@ -231,6 +391,12 @@ static int linsert_str_segment(const char *text, size_t len) {
     lchange(WFEDIT);
 
     struct line *lp1 = curwp->w_dotp;
+
+    /* Materialize view mode lines before editing */
+    if (lp1 != curbp->b_linep && !lp1->storage) {
+        line_materialize(lp1);
+    }
+
     int doto = curwp->w_doto;
     long lnum = getlinenum(curbp, lp1);
     struct window *wp;
@@ -263,6 +429,11 @@ static int linsert_str_segment(const char *text, size_t len) {
         }
         doto = curwp->w_doto;
         lnum = getlinenum(curbp, lp1);
+
+        /* Materialize if lp1 was reassigned to a view line */
+        if (!lp1->storage) {
+            line_materialize(lp1);
+        }
     }
 
     // Allocate buffer for undo (need null-terminated copy)
@@ -271,8 +442,8 @@ static int linsert_str_segment(const char *text, size_t len) {
     memcpy(undo_buf, text, len);
     undo_buf[len] = '\0';
 
-    // BULK insert via gap buffer - O(1) operation
-    if (gap_buffer_insert(lp1->gb, (size_t)doto, undo_buf, len) != GAP_BUFFER_SUCCESS) {
+    // BULK insert via text storage - O(1) operation
+    if (TS_INSERT(lp1->storage, (size_t)doto, undo_buf, len) != TS_SUCCESS) {
         SAFE_FREE(undo_buf);
         return false;
     }
@@ -364,7 +535,7 @@ char *getctext(void) {
     int len = llength(lp);
     if (len >= NSTRING) len = NSTRING - 1;
     if (len > 0) {
-        gap_buffer_get_text(lp->gb, 0, (size_t)len, text, NSTRING);
+        lget_text(lp, 0, (size_t)len, text, NSTRING);
     }
     text[len] = '\0';
     return text;
@@ -383,25 +554,30 @@ int lnewline(void)
 	lp1 = curwp->w_dotp;	/* Get the address and  */
 	doto = curwp->w_doto;	/* offset of "."        */
 
+	/* Materialize view mode lines before editing */
+	if (lp1 != curbp->b_linep && !lp1->storage) {
+		line_materialize(lp1);
+	}
+
     undo_record_insert(curbp, getlinenum(curbp, lp1), doto, "\n", 1);
 
 	/* Create new line for first half */
 	if ((lp2 = lalloc(doto)) == nullptr)
 		return false;
 	
-	/* Copy first 'doto' bytes from lp1 to lp2 using gap buffer */
+	/* Copy first 'doto' bytes from lp1 to lp2 using text storage */
 	if (doto > 0) {
 		char *temp = safe_alloc((size_t)doto, "newline split temp", __FILE__, __LINE__);
 		if (!temp) {
 			lfree(lp2);
 			return false;
 		}
-		gap_buffer_get_text(lp1->gb, 0, (size_t)doto, temp, (size_t)doto);
-		gap_buffer_insert(lp2->gb, 0, temp, (size_t)doto);
+		TS_GET_TEXT(lp1->storage, 0, (size_t)doto, temp, (size_t)doto);
+		TS_INSERT(lp2->storage, 0, temp, (size_t)doto);
 		SAFE_FREE(temp);
-		
+
 		/* Remove first 'doto' bytes from lp1 */
-		gap_buffer_delete(lp1->gb, 0, (size_t)doto);
+		TS_DELETE(lp1->storage, 0, (size_t)doto);
 	}
 	
 	/* Link lp2 into list before lp1 */
@@ -473,6 +649,11 @@ int linsert(int n, int c)
 
 	lp1 = curwp->w_dotp;
 
+	/* Materialize view mode lines before editing */
+	if (lp1 != curbp->b_linep && !lp1->storage) {
+		line_materialize(lp1);
+	}
+
 	// Capture state for undo
 	lnum = getlinenum(curbp, lp1);
 	doto = curwp->w_doto;
@@ -521,10 +702,15 @@ lp1 = curwp->w_dotp = lp1->l_bp;  // Go to last actual line
 			curwp->w_doto = llength(lp1);      // Position at end of line
 		}
 		doto = curwp->w_doto;
+
+		/* Materialize if lp1 was reassigned to a view line */
+		if (!lp1->storage) {
+			line_materialize(lp1);
+		}
 	}
 
-	/* Insert into gap buffer */
-	if (gap_buffer_insert(lp1->gb, (size_t)doto, inserted_text, (size_t)n) != GAP_BUFFER_SUCCESS) {
+	/* Insert into text storage */
+	if (TS_INSERT(lp1->storage, (size_t)doto, inserted_text, (size_t)n) != TS_SUCCESS) {
 		SAFE_FREE(inserted_text);
 		perf_end_timing("linsert");
 		return false;
@@ -598,6 +784,12 @@ int ldelete(long n, int kflag)
 		dotp = curwp->w_dotp;
 		doto = curwp->w_doto;
 		if (dotp == curbp->b_linep) break;
+
+		/* Materialize view mode lines before editing */
+		if (!dotp->storage) {
+			line_materialize(dotp);
+		}
+
 		chunk = llength(dotp) - doto;
 		if (chunk > n) chunk = n;
 		if (chunk == 0) { /* End of line, merge.  */
@@ -605,15 +797,15 @@ int ldelete(long n, int kflag)
 				goto undo_fail;
 			--n;
 		} else {
-			/* Delete from gap buffer */
+			/* Delete from text storage */
 			if (kflag != false) {
 				for (int i = 0; i < chunk; i++) {
-					char ch = gap_buffer_get_char(dotp->gb, (size_t)(doto + i));
+					char ch = TS_GET_CHAR(dotp->storage, (size_t)(doto + i));
 					if (kinsert(ch) == false) goto undo_fail;
 				}
 			}
-			
-			if (gap_buffer_delete(dotp->gb, (size_t)doto, (size_t)chunk) != GAP_BUFFER_SUCCESS) {
+
+			if (TS_DELETE(dotp->storage, (size_t)doto, (size_t)chunk) != TS_SUCCESS) {
 				goto undo_fail;
 			}
 			
@@ -691,13 +883,22 @@ int ldelnewline(void)
         }
 		return true;
 	}
-	
-	size_t lp1_len = gap_buffer_size(lp1->gb);
-	char *temp = safe_alloc(gap_buffer_size(lp2->gb), "merge temp", __FILE__, __LINE__);
+
+	/* Materialize view mode lines before merging */
+	if (!lp1->storage) {
+		line_materialize(lp1);
+	}
+	if (!lp2->storage) {
+		line_materialize(lp2);
+	}
+
+	size_t lp1_len = TS_SIZE(lp1->storage);
+	size_t lp2_len = TS_SIZE(lp2->storage);
+	char *temp = safe_alloc(lp2_len, "merge temp", __FILE__, __LINE__);
 	if (!temp) return false;
-		
-	gap_buffer_get_text(lp2->gb, 0, gap_buffer_size(lp2->gb), temp, gap_buffer_size(lp2->gb));
-	gap_buffer_insert(lp1->gb, lp1_len, temp, gap_buffer_size(lp2->gb));
+
+	TS_GET_TEXT(lp2->storage, 0, lp2_len, temp, lp2_len);
+	TS_INSERT(lp1->storage, lp1_len, temp, lp2_len);
 	SAFE_FREE(temp);
 	
 	wp = wheadp;

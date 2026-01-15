@@ -111,7 +111,7 @@ static int parallel_scan_region(struct line *start_lp, struct line *end_lp, cons
         int n = llength(curline);
         if (n > 0) {
             if (n >= NSTRING) n = NSTRING - 1;
-            gap_buffer_get_text(curline->gb, 0, n, line_buf, NSTRING);
+            lget_text(curline, 0, (size_t)n, line_buf, NSTRING);
             line_buf[n] = '\0';
             
             int idx = bm_search(&bm, (const unsigned char*)line_buf, n, 0);

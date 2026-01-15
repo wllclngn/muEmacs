@@ -258,6 +258,15 @@ int insert_tab(int f, int n)
 		tabsize = n;
 		return true;
 	}
+
+	/* Let extensions intercept tab (e.g., write-edit mode inserts 5 spaces) */
+	int transformed = '\t';
+	int result = extension_emit_char_insert('\t', &transformed);
+	if (result == 2) {
+		/* Extension handled it completely (e.g., inserted 5 spaces) */
+		return true;
+	}
+
 	if (!tabsize)
 		return linsert(1, '\t');
 	return linsert(tabsize - (getccol(false) % tabsize), ' ');
@@ -413,7 +422,13 @@ int trim(int f, int n)
 		/* Delete trailing whitespace from gap buffer */
 		int old_length = llength(lp);
 		if (length < old_length) {
-			gap_buffer_delete(lp->gb, (size_t)length, (size_t)(old_length - length));
+			/* Materialize view mode lines before editing */
+			if (!lp->storage) {
+				line_materialize(lp);
+			}
+			if (lp->storage) {
+				TS_DELETE(lp->storage, (size_t)length, (size_t)(old_length - length));
+			}
 		}
 
 		/* advance/or back to the next line */
@@ -496,12 +511,12 @@ int cinsert(void)
 	char ichar[NSTRING];	/* buffer to hold indent of last line */
 
 	/* grab a pointer to text to copy indentation from */
-	// Extract current line text from gap buffer
+	// Extract current line text - handles both regular and view mode lines
 	struct line *lp = curwp->w_dotp;
 	int line_len = llength(lp);
 	char *line_text = safe_alloc(line_len + 1, "temp line", __FILE__, __LINE__);
 	if (!line_text) return false;
-	gap_buffer_get_text(lp->gb, 0, line_len, line_text, line_len + 1);
+	lget_text(lp, 0, (size_t)line_len, line_text, line_len + 1);
 	cptr = &line_text[0];
 
 	/* check for a brace */

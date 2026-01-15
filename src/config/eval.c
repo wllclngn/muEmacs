@@ -81,24 +81,24 @@ const char *eval_get_function(char *fname)
 	/* and now evaluate it! */
 	switch (fnum) {
 	case UFADD:
-		return int_to_string(atoi(arg1) + atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) + safe_atoi(arg2, 0));
 	case UFSUB:
-		return int_to_string(atoi(arg1) - atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) - safe_atoi(arg2, 0));
 	case UFTIMES:
-		return int_to_string(atoi(arg1) * atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) * safe_atoi(arg2, 0));
 	case UFDIV:
-		return int_to_string(atoi(arg1) / atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) / safe_atoi(arg2, 0));
 	case UFMOD:
-		return int_to_string(atoi(arg1) % atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) % safe_atoi(arg2, 0));
 	case UFNEG:
-		return int_to_string(-atoi(arg1));
+		return int_to_string(-safe_atoi(arg1, 0));
     case UFCAT:
         safe_strcpy(result, arg1, sizeof(result));
         safe_strcat(result, arg2, sizeof(result));
         return result;
     case UFLEFT:
         {
-            int n = atoi(arg2);
+            int n = safe_atoi(arg2, 0);
             if (n < 0) n = 0;
             if ((size_t)n > sizeof(result) - 1) n = (int)sizeof(result) - 1;
             safe_snprintf(result, sizeof(result), "%.*s", n, arg1);
@@ -106,7 +106,7 @@ const char *eval_get_function(char *fname)
         }
     case UFRIGHT:
         {
-            int n = atoi(arg2);
+            int n = safe_atoi(arg2, 0);
             size_t len = strlen(arg1);
             if (n < 0) n = 0;
             size_t start = (n > (int)len) ? 0 : len - (size_t)n;
@@ -115,8 +115,8 @@ const char *eval_get_function(char *fname)
         }
     case UFMID:
         {
-            int start = atoi(arg2) - 1;
-            int n = atoi(arg3);
+            int start = safe_atoi(arg2, 0) - 1;
+            int n = safe_atoi(arg3, 0);
             size_t len = strlen(arg1);
             if (start < 0) start = 0;
             if ((size_t)start > len) start = (int)len;
@@ -128,11 +128,11 @@ const char *eval_get_function(char *fname)
 	case UFNOT:
 		return bool_to_string(string_to_bool(arg1) == false);
 	case UFEQUAL:
-		return bool_to_string(atoi(arg1) == atoi(arg2));
+		return bool_to_string(safe_atoi(arg1, 0) == safe_atoi(arg2, 0));
 	case UFLESS:
-		return bool_to_string(atoi(arg1) < atoi(arg2));
+		return bool_to_string(safe_atoi(arg1, 0) < safe_atoi(arg2, 0));
 	case UFGREATER:
-		return bool_to_string(atoi(arg1) > atoi(arg2));
+		return bool_to_string(safe_atoi(arg1, 0) > safe_atoi(arg2, 0));
 	case UFSEQUAL:
 		return bool_to_string(strcmp(arg1, arg2) == 0);
 	case UFSLESS:
@@ -154,11 +154,11 @@ const char *eval_get_function(char *fname)
 		safe_strcpy(result, string_to_lower(arg1), sizeof(result));
 		return result;
 	case UFTRUTH:
-		return bool_to_string(atoi(arg1) == 42);
+		return bool_to_string(safe_atoi(arg1, 0) == 42);
 	case UFASCII:
 		return int_to_string((int) arg1[0]);
 	case UFCHR:
-		result[0] = atoi(arg1);
+		result[0] = safe_atoi(arg1, 0);
 		result[1] = 0;
 		return result;
 	case UFGTKEY:
@@ -166,9 +166,9 @@ const char *eval_get_function(char *fname)
 		result[1] = 0;
 		return result;
 	case UFRND:
-		return int_to_string((editor_random() % abs(atoi(arg1))) + 1);
+		return int_to_string((editor_random() % abs(safe_atoi(arg1, 0))) + 1);
 	case UFABS:
-		return int_to_string(abs(atoi(arg1)));
+		return int_to_string(abs(safe_atoi(arg1, 0)));
 	case UFSINDEX:
 		return int_to_string(string_find_index(arg1, arg2));
 	case UFENV:
@@ -182,13 +182,13 @@ const char *eval_get_function(char *fname)
 		tsp = flook(arg1, true);
 		return tsp == nullptr ? "" : tsp;
 	case UFBAND:
-		return int_to_string(atoi(arg1) & atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) & safe_atoi(arg2, 0));
 	case UFBOR:
-		return int_to_string(atoi(arg1) | atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) | safe_atoi(arg2, 0));
 	case UFBXOR:
-		return int_to_string(atoi(arg1) ^ atoi(arg2));
+		return int_to_string(safe_atoi(arg1, 0) ^ safe_atoi(arg2, 0));
 	case UFBNOT:
-		return int_to_string(~atoi(arg1));
+		return int_to_string(~safe_atoi(arg1, 0));
 	case UFXLATE:
 		return string_translate(arg1, arg2, arg3);
 	}
@@ -559,21 +559,21 @@ int svar(struct variable_description *var, const char *value)
 		status = true;	/* by default */
 		switch (vnum) {
 		case EVFILLCOL:
-			fillcol = atoi(value);
+			fillcol = safe_atoi(value, 0);
 			break;
 		case EVPAGELEN:
-			status = newsize(true, atoi(value));
+			status = newsize(true, safe_atoi(value, 0));
 			break;
 		case EVCURCOL:
-			status = setccol(atoi(value));
+			status = setccol(safe_atoi(value, 0));
 			break;
 		case EVCURLINE:
-			status = gotoline(true, atoi(value));
+			status = gotoline(true, safe_atoi(value, 0));
 			break;
 		case EVRAM:
 			break;  /* read-only */
 		case EVCURWIDTH:
-			status = newwidth(true, atoi(value));
+			status = newwidth(true, safe_atoi(value, 0));
 			break;
         case EVCBUFNAME:
             safe_strcpy(curbp->b_bname, value, NBUFN);
@@ -593,17 +593,17 @@ int svar(struct variable_description *var, const char *value)
 			cmdstatus = string_to_bool(value);
 			break;
 		case EVASAVE:
-			gasave = atoi(value);
+			gasave = safe_atoi(value, 0);
 			break;
 		case EVACOUNT:
-			gacount = atoi(value);
+			gacount = safe_atoi(value, 0);
 			break;
 		case EVLASTKEY:
-			lastkey = atoi(value);
+			lastkey = safe_atoi(value, 0);
 			break;
 		case EVCURCHAR:
 			ldelchar(1, false);	/* delete 1 char */
-			c = atoi(value);
+			c = safe_atoi(value, 0);
 			if (c == '\n')
 				lnewline();
 			else
@@ -623,13 +623,13 @@ int svar(struct variable_description *var, const char *value)
 			disinp = string_to_bool(value);
 			break;
 		case EVWLINE:
-			status = resize(true, atoi(value));
+			status = resize(true, safe_atoi(value, 0));
 			break;
 		case EVCWLINE:
-			status = cursor_down(true, atoi(value) - window_get_position());
+			status = cursor_down(true, safe_atoi(value, 0) - window_get_position());
 			break;
 		case EVTARGET:
-			curgoal = atoi(value);
+			curgoal = safe_atoi(value, 0);
 			thisflag = saveflag;
 			break;
         case EVSEARCH:
@@ -645,14 +645,14 @@ int svar(struct variable_description *var, const char *value)
 		case EVKILL:
 			break;
 		case EVCMODE:
-			curbp->b_mode = atoi(value);
+			curbp->b_mode = safe_atoi(value, 0);
 			curwp->w_flag |= WFMODE;
 			break;
 		case EVGMODE:
-			gmode = atoi(value);
+			gmode = safe_atoi(value, 0);
 			break;
 		case EVTPAUSE:
-			term.t_pause = atoi(value);
+			term.t_pause = safe_atoi(value, 0);
 			break;
 		case EVPENDING:
 			break;
@@ -662,21 +662,21 @@ int svar(struct variable_description *var, const char *value)
 			putctext(value);
 			break;
 		case EVGFLAGS:
-			gflags = atoi(value);
+			gflags = safe_atoi(value, 0);
 			break;
 		case EVRVAL:
 			break;
 		case EVTAB:
-			tabmask = atoi(value) - 1;
+			tabmask = safe_atoi(value, 0) - 1;
 			if (tabmask != 0x07 && tabmask != 0x03)
 				tabmask = 0x07;
 			curwp->w_flag |= WFHARD;
 			break;
 		case EVOVERLAP:
-			overlap = atoi(value);
+			overlap = safe_atoi(value, 0);
 			break;
 		case EVSCROLLCOUNT:
-			scrollcount = atoi(value);
+			scrollcount = safe_atoi(value, 0);
 			break;
 		case EVSCROLL:
 			if (!string_to_bool(value))
@@ -692,7 +692,7 @@ int svar(struct variable_description *var, const char *value)
 			break;
 		case EVRULERCOL:
 			{
-				int col = atoi(value);
+				int col = safe_atoi(value, 0);
 				if (col < 1) col = 1;
 				if (col > 500) col = 500;
 				column_ruler_column = col;
@@ -701,7 +701,7 @@ int svar(struct variable_description *var, const char *value)
 			break;
         case EVHILINESTYLE:
             {
-                int v = atoi(value);
+                int v = safe_atoi(value, 0);
                 if (v < 0) { v = 0; }
                 if (v > 4) { v = 4; } // 4 = reverse
                 hiline_style = v;
@@ -710,7 +710,7 @@ int svar(struct variable_description *var, const char *value)
             break;
         case EVRULERSTYLE:
             {
-                int v = atoi(value);
+                int v = safe_atoi(value, 0);
                 if (v < 0) { v = 0; }
                 if (v > 4) { v = 4; } // 4 = reverse
                 ruler_style = v;
@@ -924,7 +924,7 @@ int string_to_bool(const char *val)
 		return true;
 
 	/* check for numeric truth (!= 0) */
-	return (atoi(val) != 0);
+	return (safe_atoi(val, 0) != 0);
 }
 
 /*

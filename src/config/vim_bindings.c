@@ -2213,8 +2213,7 @@ int evil_mode(int f, int n) {
 
     if (atomic_load(&vim_mode_active)) {
         LOG_INFO("Vim: Evil Mode ENABLED");
-        // Record start time for "EVIL" splash display (3 seconds)
-        evil_mode_start_time = (long)time(NULL);
+        evil_mode_start_time = (long)time(NULL);  /* Start 3-second flash timer */
         atomic_store(&g_vim_state.current_mode, MODE_NORMAL);
         curwp->w_flag |= WFMODE;  /* Trigger modeline refresh */
         mlwrite("[EVIL: ENABLED]");

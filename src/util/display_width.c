@@ -108,7 +108,7 @@ int calculate_display_column_cached(struct line *lp, int byte_offset, int tab_wi
         while (i < byte_offset && i < llength(lp)) {
             unicode_t c;
             // Extract UTF-8 using gap buffer
-            char utf8_seq[6];
+            char utf8_seq[6] = {0};
             int remaining = llength(lp) - i;
             int extract_len = (remaining > 6) ? 6 : remaining;
             for (int j = 0; j < extract_len; j++) {
@@ -137,11 +137,11 @@ int calculate_display_column_cached(struct line *lp, int byte_offset, int tab_wi
         return column;
     } else {
         // Cache miss - calculate from scratch and update cache
-        // Extract text from gap buffer for column calculation
+        // Extract text - handles both regular and view mode lines
         char *line_text = safe_alloc(llength(lp) + 1, "display width temp", __FILE__, __LINE__);
         int column = 0;
         if (line_text) {
-            gap_buffer_get_text(lp->gb, 0, llength(lp), line_text, llength(lp) + 1);
+            lget_text(lp, 0, (size_t)llength(lp), line_text, llength(lp) + 1);
             column = calculate_display_column(line_text, byte_offset, tab_width);
             safe_free((void **)&line_text);
         }

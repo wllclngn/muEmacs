@@ -27,7 +27,7 @@ typedef int (*fn_t)([[maybe_unused]] int prefix_arg, [[maybe_unused]] int count)
 /* Initialized global external declarations. */
 
 extern _Atomic int vim_mode_active;      /* Global toggle for Vim/Evil mode - C23 atomic */
-extern long evil_mode_start_time; /* Timestamp when evil-mode was enabled (for startup splash) */
+extern long evil_mode_start_time;        /* Timestamp for "EVIL" splash (flash for 3 seconds) */
 extern struct vim_state g_vim_state; /* Global Vim Mode state */
 extern _Atomic(struct keymap *) vim_normal_keymap; /* Vim Normal Mode Keymap */
 extern _Atomic(struct keymap *) vim_visual_keymap; /* Vim Visual Mode Keymap */

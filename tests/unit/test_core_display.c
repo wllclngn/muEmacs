@@ -596,9 +596,12 @@ int test_core_display(void) {
     int ok = 1;
     PHASE_START("DISPLAY", "Display system tests");
 
-    // Defensive: ensure curwp is valid
+    // Initialize editor state (curwp, curbp, etc.)
+    test_init_editor("display-test");
+
+    // Defensive: ensure curwp is valid after init
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL - skipping display tests");
+        LOG_WARN("[WARN] curwp is NULL after init - skipping display tests");
         ok = 0;
         PHASE_END("DISPLAY", ok);
         return ok;

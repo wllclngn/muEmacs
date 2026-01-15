@@ -31,6 +31,7 @@
 struct edit_stack;
 struct keymap;
 struct buffer_syntax;
+struct text_storage;
 
 /* Configuration options not in config.h */
 #define CVMVAS  1  /* arguments to page forward/back in pages      */
@@ -348,6 +349,13 @@ struct buffer {
 	/* Syntax highlighting state (NULL = no highlighting) */
 	struct buffer_syntax *b_syntax;
 	int b_lang_id;	/* Language ID for syntax highlighting (-1 = unknown) */
+
+	/* Large file support: buffer-level piece table storage
+	 * When b_text is non-NULL, lines are "views" into this storage
+	 * rather than owning their own gap buffers. This enables O(1)
+	 * file loading via mmap for files >= 10MB.
+	 */
+	struct text_storage *b_text;	/* Buffer-level storage (NULL = per-line mode) */
 };
 
 /* Buffer flags - Standard enum */

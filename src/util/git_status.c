@@ -108,9 +108,9 @@ static void* updater(void* arg) {
 }
 
 /* Called after settings load to sync with TOML config */
-void git_status_set_enabled(int val) {
+void git_status_set_enabled(int enabled_flag) {
     const char* test_env = getenv("ENABLE_EXPECT"); // Disable during integration tests
-    enabled = (val && !test_env) ? 1 : 0;
+    enabled = (enabled_flag && !test_env) ? 1 : 0;
 }
 
 /* Legacy init - now a no-op, use git_status_set_enabled() after settings load */

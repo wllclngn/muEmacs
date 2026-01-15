@@ -591,6 +591,16 @@ void test_init_editor(const char *name) {
     // Initialize variables
     varinit();
 
+    // Initialize keymaps (required for command tests)
+    static int keymaps_initialized = 0;
+    if (!keymaps_initialized) {
+        keymap_init_defaults();
+        extern void vim_init_keymaps(void);
+        vim_init_keymaps();
+        keymaps_initialized = 1;
+        LOG_DEBUG("TEST: Keymaps initialized");
+    }
+
     LOG_DEBUGF("TEST: Editor initialized - curwp=%p, curbp=%p, t_nrow=%d, t_ncol=%d",
                (void*)curwp, (void*)curbp, term.t_nrow, term.t_ncol);
 }

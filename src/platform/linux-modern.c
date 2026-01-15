@@ -57,7 +57,7 @@ static char *watch_files[MAXWATCH];
 static int watch_count = 0;
 static pthread_mutex_t watch_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-#define MAXWATCH 32
+/* MAXWATCH is defined in config.h */
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 

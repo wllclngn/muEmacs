@@ -10,8 +10,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "estruct.h"
+#include "internal/text_storage.h"
 #include "edef.h"
 #include "efunc.h"
 #include "line.h"
@@ -180,6 +183,144 @@ int getfile(const char *fname, int lockfl)
 }
 
 /*
+ * Read a large file (>= 10MB) using piece table with mmap for O(1) loading.
+ * Creates view lines that reference the buffer-level b_text storage.
+ * Returns true on success, false on error.
+ */
+static int readin_large(const char *fname, size_t file_size)
+{
+	struct buffer *bp;
+	struct window *wp;
+	int fd;
+	char mesg[NSTRING];
+
+	bp = curbp;
+
+	/* Open file for mmap */
+	fd = open(fname, O_RDONLY);
+	if (fd < 0) {
+		mlwrite("[ERROR OPENING FILE]");
+		return false;
+	}
+
+	/* Create piece table storage with mmap */
+	bp->b_text = text_storage_create_from_file(fd, file_size, STORAGE_HINT_DEFAULT);
+	close(fd);
+
+	if (!bp->b_text) {
+		mlwrite("[ERROR CREATING PIECE TABLE]");
+		return false;
+	}
+
+	mlwrite("[READING LARGE FILE...]");
+
+	/* Scan for newlines and create view lines */
+	size_t nline = 0;
+	size_t line_start = 0;
+	size_t pos = 0;
+
+	while (pos < file_size) {
+		char ch = TS_GET_CHAR(bp->b_text, pos);
+		if (ch == '\n') {
+			/* Found end of line - create view line */
+			size_t line_len = pos - line_start;
+			struct line *lp = lalloc_view(bp, line_start, line_len);
+			if (!lp) {
+				REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE VIEW LINE");
+				/* Clean up: free b_text */
+				TS_DESTROY(bp->b_text);
+				bp->b_text = nullptr;
+				return false;
+			}
+
+			/* Link into buffer's line list */
+			struct line *lp2 = lback(bp->b_linep);
+			lp2->l_fp = lp;
+			lp->l_fp = bp->b_linep;
+			lp->l_bp = lp2;
+			bp->b_linep->l_bp = lp;
+
+			nline++;
+			line_start = pos + 1;
+		}
+		pos++;
+	}
+
+	/* Handle last line if no trailing newline */
+	if (line_start < file_size) {
+		size_t line_len = file_size - line_start;
+		struct line *lp = lalloc_view(bp, line_start, line_len);
+		if (lp) {
+			struct line *lp2 = lback(bp->b_linep);
+			lp2->l_fp = lp;
+			lp->l_fp = bp->b_linep;
+			lp->l_bp = lp2;
+			bp->b_linep->l_bp = lp;
+			nline++;
+		}
+	}
+
+	/* Build status message */
+	safe_snprintf(mesg, NSTRING, "(Read %zu lines via piece table)", nline);
+	mlwrite(mesg);
+
+	/* Update buffer stats */
+	if (bp) {
+		buffer_mark_stats_dirty(bp);
+		int actual_lines = 0;
+		buffer_get_stats_fast(bp, &actual_lines, nullptr, nullptr);
+		buffer_rebuild_index(bp);
+		LOG_INFOF("File: Loaded %zu lines via piece table, b_line_count=%d", nline, actual_lines);
+	}
+
+	/* Reset horizontal scroll */
+	lbound = 0;
+
+	/* Update all windows showing this buffer */
+	for (wp = wheadp; wp != nullptr; wp = wp->w_wndp) {
+		if (wp->w_bufp == bp) {
+			wp->w_linep = lforw(bp->b_linep);
+			wp->w_dotp = lforw(bp->b_linep);
+			wp->w_doto = 0;
+			wp->w_markp = nullptr;
+			wp->w_marko = 0;
+			wp->w_flag |= WFMODE | WFHARD;
+		}
+	}
+
+	/* Mark saved and fire hooks */
+	undo_mark_saved(bp);
+	extension_emit_buffer_load(bp);
+
+	/* Initialize syntax highlighting for the loaded file */
+	if (bp && g_palette.syntax_enabled) {
+		int lang_id = syntax_detect_language(bp->b_fname);
+		if (lang_id >= 0) {
+			int line_count = (int)nline;
+			if (line_count < 1) line_count = 1;
+
+			if (bp->b_syntax) {
+				syntax_free(bp->b_syntax);
+			}
+
+			bp->b_syntax = syntax_create(line_count);
+			bp->b_lang_id = lang_id;
+
+			if (bp->b_syntax) {
+				/* For large files, defer syntax highlighting to avoid blocking */
+				LOG_INFOF("Syntax: Deferred %s highlighting for large file %s (%d lines)",
+				          syntax_get_language(lang_id)->name, bp->b_fname, line_count);
+			}
+		} else {
+			bp->b_syntax = NULL;
+			bp->b_lang_id = -1;
+		}
+	}
+
+	return true;
+}
+
+/*
  * Read file "fname" into the current buffer, blowing away any text
  * found there.  Called by both the read and find commands.  Return
  * the final status of the read.  Also called by the mainline, to
@@ -208,6 +349,13 @@ int readin(const char *fname, int lockfl)
 		return s;
 	bp->b_flag &= ~(BFINVS | BFCHG);
 	mystrscpy(bp->b_fname, fname, NFILEN);
+
+	/* Check file size for piece table optimization */
+	struct stat st;
+	if (stat(fname, &st) == 0 && st.st_size >= (off_t)STORAGE_THRESHOLD_DEFAULT) {
+		/* Large file: use piece table with mmap for O(1) loading */
+		return readin_large(fname, (size_t)st.st_size);
+	}
 
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
 		goto out;
@@ -241,15 +389,12 @@ int readin(const char *fname, int lockfl)
 #if UEMACS_DEBUG_LOG
 		/* DEBUG: Check first line bytes after lputc */
 		if (nline == 0 && nbytes >= 3) {
-			unsigned char b0 = (unsigned char)gap_buffer_get_char(lp1->gb, 0);
-			unsigned char b1 = (unsigned char)gap_buffer_get_char(lp1->gb, 1);
-			unsigned char b2 = (unsigned char)gap_buffer_get_char(lp1->gb, 2);
-			unsigned char b3 = nbytes > 3 ? (unsigned char)gap_buffer_get_char(lp1->gb, 3) : 0;
-			LOG_DEBUGF("AFTER_LPUTC: line=0 lp=%p gb=%p gbuf[0..3] = %02X %02X %02X %02X (gap_start=%zu raw=%02X %02X %02X %02X)",
-			           (void*)lp1, (void*)lp1->gb, b0, b1, b2, b3,
-			           lp1->gb->gap_start,
-			           (unsigned char)lp1->gb->data[0], (unsigned char)lp1->gb->data[1],
-			           (unsigned char)lp1->gb->data[2], (unsigned char)lp1->gb->data[3]);
+			unsigned char b0 = (unsigned char)TS_GET_CHAR(lp1->storage, 0);
+			unsigned char b1 = (unsigned char)TS_GET_CHAR(lp1->storage, 1);
+			unsigned char b2 = (unsigned char)TS_GET_CHAR(lp1->storage, 2);
+			unsigned char b3 = nbytes > 3 ? (unsigned char)TS_GET_CHAR(lp1->storage, 3) : 0;
+			LOG_DEBUGF("AFTER_LPUTC: line=0 lp=%p storage=%p type=%d bytes[0..3]=%02X %02X %02X %02X",
+			           (void*)lp1, (void*)lp1->storage, TS_TYPE(lp1->storage), b0, b1, b2, b3);
 		}
 #endif
 		++nline;
@@ -333,7 +478,7 @@ int readin(const char *fname, int lockfl)
 						int len = llength(lp);
 						line_bufs[i] = malloc(len + 1);
 						if (line_bufs[i]) {
-							gap_buffer_get_text(lp->gb, 0, len, line_bufs[i], len + 1);
+							TS_GET_TEXT(lp->storage, 0, len, line_bufs[i], len + 1);
 							line_bufs[i][len] = '\0';
 							lines[i] = line_bufs[i];
 						} else {
@@ -523,9 +668,14 @@ int writeout(const char *fn)
 						break;
 					new_len--;
 				}
-				/* Trim if needed */
+				/* Trim if needed - materialize view mode lines first */
 				if (new_len < len) {
-					gap_buffer_delete(tlp->gb, new_len, len - new_len);
+					if (!tlp->storage) {
+						line_materialize(tlp);
+					}
+					if (tlp->storage) {
+						TS_DELETE(tlp->storage, new_len, len - new_len);
+					}
 				}
 			}
 			tlp = lforw(tlp);
@@ -551,12 +701,14 @@ int writeout(const char *fn)
 		char *text = nullptr;
 
 		if (len > 0) {
-			text = SAFE_ARRAY(char, len, "file write");
+			/* Allocate len + 1 for null terminator - lget_text reserves 1 byte */
+			text = SAFE_ARRAY(char, len + 1, "file write");
 			if (!text) {
 				REPORT_ERROR(ERR_MEMORY, "Memory allocation failed during write");
 				return false;
 			}
-			size_t copied_len = gap_buffer_get_text(lp->gb, 0, len, text, len);
+			/* Use lget_text() to handle both regular and view mode lines */
+			size_t copied_len = lget_text(lp, 0, (size_t)len, text, len + 1);
 			if (len > 0 && copied_len == 0) {
 				REPORT_ERROR(ERR_MEMORY, "FAILED TO READ LINE FROM GAP BUFFER");
 				SAFE_FREE(text);

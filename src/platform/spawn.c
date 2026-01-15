@@ -550,7 +550,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
     for (lp = lforw(bp->b_linep); lp != bp->b_linep; lp = lforw(lp)) {
         int len = llength(lp);
         if (len > 0) {
-            gap_buffer_get_text(lp->gb, 0, len, p, len);
+            TS_GET_TEXT(lp->storage, 0, len, p, len);
             p += len;
         }
         *p++ = '\n';
@@ -596,7 +596,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
         if (newlp) {
             /* Insert text into the line's gap buffer */
             if (line_len > 0) {
-                gap_buffer_insert(newlp->gb, 0, line_start, line_len);
+                TS_INSERT(newlp->storage, 0, line_start, line_len);
             }
             /* Insert before header line */
             struct line *last = lback(bp->b_linep);

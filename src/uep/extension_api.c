@@ -18,6 +18,7 @@
 #include <poll.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -45,14 +46,18 @@ typedef struct {
 
 static dynamic_command_t dynamic_commands[MAX_DYNAMIC_COMMANDS];
 static int dynamic_command_count = 0;
+static pthread_mutex_t dynamic_commands_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int api_register_command(const char *name, uemacs_cmd_fn func) {
     if (!name || !func) return -1;
+
+    pthread_mutex_lock(&dynamic_commands_mutex);
 
     for (int i = 0; i < MAX_DYNAMIC_COMMANDS; i++) {
         if (dynamic_commands[i].active &&
             strcmp(dynamic_commands[i].name, name) == 0) {
             LOG_WARNF("Extension API: Command already registered: %s", name);
+            pthread_mutex_unlock(&dynamic_commands_mutex);
             return -1;
         }
     }
@@ -60,20 +65,29 @@ static int api_register_command(const char *name, uemacs_cmd_fn func) {
     for (int i = 0; i < MAX_DYNAMIC_COMMANDS; i++) {
         if (!dynamic_commands[i].active) {
             dynamic_commands[i].name = strdup(name);
+            if (!dynamic_commands[i].name) {
+                LOG_ERROR("Extension API: strdup failed for command name");
+                pthread_mutex_unlock(&dynamic_commands_mutex);
+                return -1;
+            }
             dynamic_commands[i].func = func;
             dynamic_commands[i].active = true;
             dynamic_command_count++;
+            pthread_mutex_unlock(&dynamic_commands_mutex);
             LOG_INFOF("Extension API: Registered command: %s", name);
             return 0;
         }
     }
 
+    pthread_mutex_unlock(&dynamic_commands_mutex);
     LOG_ERROR("Extension API: Maximum dynamic commands reached");
     return -1;
 }
 
 static int api_unregister_command(const char *name) {
     if (!name) return -1;
+
+    pthread_mutex_lock(&dynamic_commands_mutex);
 
     for (int i = 0; i < MAX_DYNAMIC_COMMANDS; i++) {
         if (dynamic_commands[i].active &&
@@ -83,11 +97,13 @@ static int api_unregister_command(const char *name) {
             dynamic_commands[i].func = nullptr;
             dynamic_commands[i].active = false;
             dynamic_command_count--;
+            pthread_mutex_unlock(&dynamic_commands_mutex);
             LOG_INFOF("Extension API: Unregistered command: %s", name);
             return 0;
         }
     }
 
+    pthread_mutex_unlock(&dynamic_commands_mutex);
     LOG_WARNF("Extension API: Command not found: %s", name);
     return -1;
 }
@@ -96,13 +112,208 @@ static int api_unregister_command(const char *name) {
 uemacs_cmd_fn extension_find_command(const char *name) {
     if (!name) return nullptr;
 
+    pthread_mutex_lock(&dynamic_commands_mutex);
+
     for (int i = 0; i < MAX_DYNAMIC_COMMANDS; i++) {
         if (dynamic_commands[i].active &&
             strcmp(dynamic_commands[i].name, name) == 0) {
-            return dynamic_commands[i].func;
+            uemacs_cmd_fn func = dynamic_commands[i].func;
+            pthread_mutex_unlock(&dynamic_commands_mutex);
+            return func;
         }
     }
+
+    pthread_mutex_unlock(&dynamic_commands_mutex);
     return nullptr;
+}
+
+/* ============================================================================
+ * ABI-Stable Function Registry
+ *
+ * Maps function names to pointers for dynamic lookup.
+ * Extensions using get_function() are immune to struct layout changes.
+ * ============================================================================ */
+
+/* Forward declarations for all API functions */
+static int api_on(const char *event, uemacs_event_fn handler, void *user_data, int priority);
+static int api_off(const char *event, uemacs_event_fn handler);
+static bool api_emit(const char *event, void *data);
+static int api_config_int(const char *ext_name, const char *key, int default_val);
+static bool api_config_bool(const char *ext_name, const char *key, bool default_val);
+static const char *api_config_string(const char *ext_name, const char *key, const char *default_val);
+static struct buffer *api_current_buffer(void);
+static struct buffer *api_find_buffer(const char *name);
+static char *api_buffer_contents(struct buffer *bp, size_t *len);
+static const char *api_buffer_filename(struct buffer *bp);
+static const char *api_buffer_name(struct buffer *bp);
+static bool api_buffer_modified(struct buffer *bp);
+static int api_buffer_insert(const char *text, size_t len);
+static int api_buffer_insert_at(struct buffer *bp, int line, int col, const char *text, size_t len);
+static struct buffer *api_buffer_create(const char *name);
+static int api_buffer_switch(struct buffer *bp);
+static int api_buffer_clear(struct buffer *bp);
+static struct buffer *api_buffer_first(void);
+static struct buffer *api_buffer_next(struct buffer *bp);
+static void api_get_point(int *line, int *col);
+static void api_set_point(int line, int col);
+static int api_get_line_count(struct buffer *bp);
+static char *api_get_word_at_point(void);
+static char *api_get_current_line(void);
+static char *api_get_line_at(struct buffer *bp, int line_num);
+static struct window *api_current_window(void);
+static int api_window_count(void);
+static int api_window_set_wrap_col(struct window *wp, int col);
+static struct window *api_window_at_row(int screen_row);
+static int api_window_switch(struct window *wp);
+static int api_screen_to_buffer_pos(struct window *wp, int screen_row, int screen_col, int *buf_line, int *buf_offset);
+static int api_set_mark(void);
+static int api_scroll_up(int lines);
+static int api_scroll_down(int lines);
+static void api_message(const char *fmt, ...);
+static void api_vmessage(const char *fmt, va_list ap);
+static int api_prompt(const char *prompt, char *buf, size_t buflen);
+static int api_prompt_yn(const char *prompt);
+static void api_update_display(void);
+static int api_find_file_line(const char *path, int line);
+static int api_shell_command(const char *cmd, char **output, size_t *len);
+static void *api_alloc(size_t size);
+static void api_free(void *ptr);
+static char *api_strdup(const char *s);
+static void api_log_info(const char *fmt, ...);
+static void api_log_warn(const char *fmt, ...);
+static void api_log_error(const char *fmt, ...);
+static void api_log_debug(const char *fmt, ...);
+static int api_syntax_register_lexer(const char *name, const char **patterns, uemacs_syntax_lex_fn lex_fn, void *user_data);
+static int api_syntax_unregister_lexer(const char *name);
+static int api_syntax_add_token(uemacs_line_tokens_t *tokens, int end_col, int face);
+static void api_syntax_invalidate_buffer(struct buffer *bp);
+static int api_modeline_register(const char *name, uemacs_modeline_fn format_fn, void *user_data, int urgency);
+static int api_modeline_unregister(const char *name);
+static void api_modeline_refresh(void);
+static int api_delete_chars(int n);
+
+/* Generic function pointer type for ISO C compliant storage.
+ * All function pointers can be converted to/from this type. */
+typedef void (*generic_fn_t)(void);
+
+/* Function registry entry */
+typedef struct {
+    const char *name;
+    generic_fn_t func;
+} api_registry_entry_t;
+
+/* Cast helper for registry initialization */
+#define FN(f) ((generic_fn_t)(f))
+
+/* The registry - maps names to function pointers. */
+static const api_registry_entry_t api_registry[] = {
+    /* Event system */
+    {"on", FN(api_on)},
+    {"off", FN(api_off)},
+    {"emit", FN(api_emit)},
+
+    /* Configuration */
+    {"config_int", FN(api_config_int)},
+    {"config_bool", FN(api_config_bool)},
+    {"config_string", FN(api_config_string)},
+
+    /* Command registration */
+    {"register_command", FN(api_register_command)},
+    {"unregister_command", FN(api_unregister_command)},
+
+    /* Buffer operations */
+    {"current_buffer", FN(api_current_buffer)},
+    {"find_buffer", FN(api_find_buffer)},
+    {"buffer_contents", FN(api_buffer_contents)},
+    {"buffer_filename", FN(api_buffer_filename)},
+    {"buffer_name", FN(api_buffer_name)},
+    {"buffer_modified", FN(api_buffer_modified)},
+    {"buffer_insert", FN(api_buffer_insert)},
+    {"buffer_insert_at", FN(api_buffer_insert_at)},
+    {"buffer_create", FN(api_buffer_create)},
+    {"buffer_switch", FN(api_buffer_switch)},
+    {"buffer_clear", FN(api_buffer_clear)},
+    {"buffer_first", FN(api_buffer_first)},
+    {"buffer_next", FN(api_buffer_next)},
+
+    /* Cursor/point */
+    {"get_point", FN(api_get_point)},
+    {"set_point", FN(api_set_point)},
+    {"get_line_count", FN(api_get_line_count)},
+    {"get_word_at_point", FN(api_get_word_at_point)},
+    {"get_current_line", FN(api_get_current_line)},
+    {"get_line_at", FN(api_get_line_at)},
+
+    /* Window operations */
+    {"current_window", FN(api_current_window)},
+    {"window_count", FN(api_window_count)},
+    {"window_set_wrap_col", FN(api_window_set_wrap_col)},
+    {"window_at_row", FN(api_window_at_row)},
+    {"window_switch", FN(api_window_switch)},
+
+    /* Mouse/cursor helpers */
+    {"screen_to_buffer_pos", FN(api_screen_to_buffer_pos)},
+    {"set_mark", FN(api_set_mark)},
+    {"scroll_up", FN(api_scroll_up)},
+    {"scroll_down", FN(api_scroll_down)},
+
+    /* UI */
+    {"message", FN(api_message)},
+    {"vmessage", FN(api_vmessage)},
+    {"prompt", FN(api_prompt)},
+    {"prompt_yn", FN(api_prompt_yn)},
+    {"update_display", FN(api_update_display)},
+
+    /* File operations */
+    {"find_file_line", FN(api_find_file_line)},
+
+    /* Shell */
+    {"shell_command", FN(api_shell_command)},
+
+    /* Memory */
+    {"alloc", FN(api_alloc)},
+    {"free", FN(api_free)},
+    {"strdup", FN(api_strdup)},
+
+    /* Logging */
+    {"log_info", FN(api_log_info)},
+    {"log_warn", FN(api_log_warn)},
+    {"log_error", FN(api_log_error)},
+    {"log_debug", FN(api_log_debug)},
+
+    /* Syntax highlighting */
+    {"syntax_register_lexer", FN(api_syntax_register_lexer)},
+    {"syntax_unregister_lexer", FN(api_syntax_unregister_lexer)},
+    {"syntax_add_token", FN(api_syntax_add_token)},
+    {"syntax_invalidate_buffer", FN(api_syntax_invalidate_buffer)},
+
+    /* Modeline */
+    {"modeline_register", FN(api_modeline_register)},
+    {"modeline_unregister", FN(api_modeline_unregister)},
+    {"modeline_refresh", FN(api_modeline_refresh)},
+
+    /* Text manipulation */
+    {"delete_chars", FN(api_delete_chars)},
+
+    /* Sentinel */
+    {NULL, NULL}
+};
+
+#undef FN
+
+/* Look up function by name - O(n) but only called at extension init.
+ * Returns generic function pointer for ISO C compliance. */
+static generic_fn_t api_get_function(const char *name) {
+    if (!name) return NULL;
+
+    for (int i = 0; api_registry[i].name != NULL; i++) {
+        if (strcmp(api_registry[i].name, name) == 0) {
+            return api_registry[i].func;
+        }
+    }
+
+    LOG_WARNF("Extension API: Unknown function requested: %s", name);
+    return NULL;
 }
 
 /* ============================================================================
@@ -604,6 +815,14 @@ static int api_buffer_clear(struct buffer *bp) {
     return 0;
 }
 
+static struct buffer *api_buffer_first(void) {
+    return bheadp;
+}
+
+static struct buffer *api_buffer_next(struct buffer *bp) {
+    return bp ? bp->b_bufp : nullptr;
+}
+
 /* ============================================================================
  * Cursor/Point Operations
  * ============================================================================ */
@@ -692,6 +911,34 @@ static char *api_get_current_line(void) {
     struct line *lp = curwp->w_dotp;
     int len = llength(lp);
 
+    char *line = malloc(len + 1);
+    if (!line) return nullptr;
+
+    for (int i = 0; i < len; i++) {
+        line[i] = lgetc(lp, i);
+    }
+    line[len] = '\0';
+
+    return line;
+}
+
+static char *api_get_line_at(struct buffer *bp, int line_num) {
+    if (!bp) bp = curbp;
+    if (!bp || !bp->b_linep || line_num < 1) return nullptr;
+
+    /* Navigate to the requested line (1-based) */
+    struct line *lp = lforw(bp->b_linep);  /* First real line */
+    int current = 1;
+
+    while (lp != bp->b_linep && current < line_num) {
+        lp = lforw(lp);
+        current++;
+    }
+
+    /* Check if we found the line */
+    if (lp == bp->b_linep || current != line_num) return nullptr;
+
+    int len = llength(lp);
     char *line = malloc(len + 1);
     if (!line) return nullptr;
 
@@ -1220,6 +1467,7 @@ static struct uemacs_api global_api = {
     .get_line_count = api_get_line_count,
     .get_word_at_point = api_get_word_at_point,
     .get_current_line = api_get_current_line,
+    .get_line_at = api_get_line_at,
 
     /* Window operations */
     .current_window = api_current_window,
@@ -1271,6 +1519,14 @@ static struct uemacs_api global_api = {
 
     /* Text manipulation */
     .delete_chars = api_delete_chars,
+
+    /* ABI-stable extension fields (added after initial release) */
+    .buffer_first = api_buffer_first,
+    .buffer_next = api_buffer_next,
+
+    /* ABI-stable function lookup (API v4) */
+    .struct_size = sizeof(struct uemacs_api),
+    .get_function = api_get_function,
 };
 
 struct uemacs_api *uemacs_get_api(void) {
@@ -1343,7 +1599,8 @@ bool extension_emit_mouse(struct input_key_event *evt) {
 
 /*
  * Character insert event - allows extensions to transform characters.
- * Returns: 0 = no transform, 1 = use transformed, -1 = delete prev + insert
+ * Returns: 0 = no transform, 1 = use transformed, -1 = delete prev + insert,
+ *          2 = extension handled completely (don't insert anything)
  */
 int extension_emit_char_insert(int c, int *out) {
     event_char_insert_t evt = {
@@ -1356,6 +1613,10 @@ int extension_emit_char_insert(int c, int *out) {
 
     if (consumed && out) {
         *out = evt.transformed;
+        /* transformed == 0 means extension handled it (e.g., inserted 5 spaces for tab) */
+        if (evt.transformed == 0) {
+            return 2;  /* Extension handled completely */
+        }
         return evt.cancel ? -1 : 1;
     }
     return 0;

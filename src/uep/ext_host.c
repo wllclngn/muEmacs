@@ -1,10 +1,8 @@
 /*
- * ext_host.c - Extension Host Implementation
+ * ext_host.c - Extension Host with Atomic Ring Buffer IPC
  *
- * Manages out-of-process extensions for polyglot runtime isolation.
- * Spawns extensions, routes API calls, handles lifecycle.
- *
- * C23 compliant
+ * Manages out-of-process extensions using lock-free communication.
+ * NO blocking - polling in main loop handles all messages.
  */
 
 #ifndef _GNU_SOURCE
@@ -13,35 +11,35 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <poll.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
+#include <sched.h>
+
+/* Editor internals - same includes as extension_api.c */
+#include "estruct.h"
+#include "edef.h"
+#include "efunc.h"
+#include "internal/line.h"
 
 #include "uep/ext_host.h"
 #include "uep/ext_ipc.h"
 #include "util/logger.h"
 
-/*
- * Remote extension registry (protected by g_mutex)
- */
+/* =========================================================================
+ * Global State
+ * ========================================================================= */
+
 static ext_host_entry_t g_extensions[EXT_HOST_MAX_EXTENSIONS];
 static int g_num_extensions = 0;
 static bool g_initialized = false;
-static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-/*
- * Path to extension runner executable
- */
 static char *g_runner_path = NULL;
 
-/*
- * Runtime name strings
- */
+/* Runtime names */
 static const char *runtime_names[] = {
     [EXT_RUNTIME_C]       = "C",
     [EXT_RUNTIME_RUST]    = "Rust",
@@ -55,14 +53,10 @@ static const char *runtime_names[] = {
 };
 
 /* =========================================================================
- * Internal helpers
+ * Internal Helpers
  * ========================================================================= */
 
-/*
- * Find extension entry by name
- */
-static ext_host_entry_t *find_entry(const char *name)
-{
+static ext_host_entry_t *find_entry(const char *name) {
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
         if (g_extensions[i].active && g_extensions[i].name &&
             strcmp(g_extensions[i].name, name) == 0) {
@@ -72,136 +66,27 @@ static ext_host_entry_t *find_entry(const char *name)
     return NULL;
 }
 
-/*
- * Free extension entry resources
- */
-static void free_entry(ext_host_entry_t *entry)
-{
+static void free_entry(ext_host_entry_t *entry) {
     if (!entry) return;
-
     free(entry->name);
     free(entry->path);
-    if (entry->ipc) {
-        ext_ipc_destroy(entry->ipc);
-    }
-
+    if (entry->ipc) ext_ipc_destroy(entry->ipc);
     memset(entry, 0, sizeof(*entry));
 }
 
-/*
- * Find and reserve a free slot in registry (thread-safe)
- * Marks slot as active to prevent races.
- * Caller must call release_slot() on failure.
- */
-static ext_host_entry_t *reserve_slot(void)
-{
-    pthread_mutex_lock(&g_mutex);
+static ext_host_entry_t *alloc_entry(void) {
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
         if (!g_extensions[i].active) {
-            g_extensions[i].active = true;  /* Reserve immediately */
+            g_extensions[i].active = true;
+            g_extensions[i].pending_slot = -1;
             g_num_extensions++;
-            LOG_DEBUGF("ext_host: Reserved slot %d (total=%d)", i, g_num_extensions);
-            pthread_mutex_unlock(&g_mutex);
             return &g_extensions[i];
         }
     }
-    pthread_mutex_unlock(&g_mutex);
-    LOG_WARN("ext_host: No free slots available");
     return NULL;
 }
 
-/*
- * Release a reserved slot on failure
- */
-static void release_slot(ext_host_entry_t *entry)
-{
-    pthread_mutex_lock(&g_mutex);
-    int idx = (int)(entry - g_extensions);
-    LOG_DEBUGF("ext_host: Releasing slot %d", idx);
-    free_entry(entry);
-    g_num_extensions--;
-    pthread_mutex_unlock(&g_mutex);
-}
-
-/*
- * Check if directory contains files matching extension
- */
-static bool dir_has_extension(const char *dir_path, const char *ext)
-{
-    DIR *dir = opendir(dir_path);
-    if (!dir) return false;
-
-    size_t ext_len = strlen(ext);
-    struct dirent *entry;
-    bool found = false;
-
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN)
-            continue;
-
-        size_t name_len = strlen(entry->d_name);
-        if (name_len > ext_len &&
-            strcmp(entry->d_name + name_len - ext_len, ext) == 0) {
-            found = true;
-            break;
-        }
-    }
-
-    closedir(dir);
-    return found;
-}
-
-/*
- * Send shutdown message and wait for process to exit
- */
-static int shutdown_extension(ext_host_entry_t *entry, int timeout_ms)
-{
-    if (!entry || !entry->active) return -1;
-
-    /* Send shutdown message */
-    if (entry->ipc && entry->state == EXT_STATE_READY) {
-        ext_ipc_notify(entry->ipc, EXT_MSG_SHUTDOWN, NULL, 0);
-    }
-
-    /* Wait for process to exit */
-    if (entry->pid > 0) {
-        int status;
-        int elapsed = 0;
-        const int poll_interval = 50;
-
-        while (elapsed < timeout_ms) {
-            pid_t result = waitpid(entry->pid, &status, WNOHANG);
-            if (result == entry->pid) {
-                /* Process exited */
-                entry->state = EXT_STATE_DEAD;
-                entry->pid = 0;
-                break;
-            } else if (result < 0 && errno != EINTR) {
-                /* Error */
-                break;
-            }
-
-            usleep(poll_interval * 1000);
-            elapsed += poll_interval;
-        }
-
-        /* Force kill if still running */
-        if (entry->pid > 0) {
-            kill(entry->pid, SIGKILL);
-            waitpid(entry->pid, &status, 0);
-            entry->pid = 0;
-        }
-    }
-
-    free_entry(entry);
-    return 0;
-}
-
-/*
- * Find command slot in extension
- */
-static ext_host_command_t *find_command_slot(ext_host_entry_t *entry, const char *name)
-{
+static ext_host_command_t *find_command_slot(ext_host_entry_t *entry, const char *name) {
     for (int i = 0; i < EXT_HOST_MAX_COMMANDS_PER_EXT; i++) {
         if (entry->commands[i].active &&
             strcmp(entry->commands[i].name, name) == 0) {
@@ -211,11 +96,7 @@ static ext_host_command_t *find_command_slot(ext_host_entry_t *entry, const char
     return NULL;
 }
 
-/*
- * Find free command slot
- */
-static ext_host_command_t *find_free_command_slot(ext_host_entry_t *entry)
-{
+static ext_host_command_t *alloc_command_slot(ext_host_entry_t *entry) {
     for (int i = 0; i < EXT_HOST_MAX_COMMANDS_PER_EXT; i++) {
         if (!entry->commands[i].active) {
             return &entry->commands[i];
@@ -224,446 +105,425 @@ static ext_host_command_t *find_free_command_slot(ext_host_entry_t *entry)
     return NULL;
 }
 
+static bool dir_has_extension(const char *dir, const char *ext) {
+    DIR *d = opendir(dir);
+    if (!d) return false;
+    size_t ext_len = strlen(ext);
+    struct dirent *e;
+    bool found = false;
+    while ((e = readdir(d)) != NULL) {
+        size_t len = strlen(e->d_name);
+        if (len > ext_len && strcmp(e->d_name + len - ext_len, ext) == 0) {
+            found = true;
+            break;
+        }
+    }
+    closedir(d);
+    return found;
+}
+
 /* =========================================================================
  * Initialization
  * ========================================================================= */
 
-void ext_host_init(void)
-{
+void ext_host_init(void) {
     if (g_initialized) return;
-
-    LOG_INFO("ext_host: Initializing extension host");
+    LOG_INFO("ext_host: Initializing");
     memset(g_extensions, 0, sizeof(g_extensions));
     g_num_extensions = 0;
     g_initialized = true;
 }
 
-void ext_host_cleanup(void)
-{
+void ext_host_cleanup(void) {
     if (!g_initialized) return;
-
-    LOG_INFOF("ext_host: Cleanup starting (%d extensions)", g_num_extensions);
+    LOG_INFOF("ext_host: Cleanup (%d extensions)", g_num_extensions);
     ext_host_shutdown_all();
-
     free(g_runner_path);
     g_runner_path = NULL;
-
     g_initialized = false;
 }
 
 /* =========================================================================
- * Runtime detection
+ * Runtime Detection
  * ========================================================================= */
 
-ext_runtime_t ext_host_detect_runtime(const char *ext_dir)
-{
-    if (!ext_dir) return EXT_RUNTIME_UNKNOWN;
-
-    /* Check for language-specific source files */
-    if (dir_has_extension(ext_dir, ".go"))  return EXT_RUNTIME_GO;
-    if (dir_has_extension(ext_dir, ".adb")) return EXT_RUNTIME_ADA;
-    if (dir_has_extension(ext_dir, ".ads")) return EXT_RUNTIME_ADA;
-    if (dir_has_extension(ext_dir, ".hs"))  return EXT_RUNTIME_HASKELL;
-    if (dir_has_extension(ext_dir, ".cr"))  return EXT_RUNTIME_CRYSTAL;
-    if (dir_has_extension(ext_dir, ".pas")) return EXT_RUNTIME_PASCAL;
-    if (dir_has_extension(ext_dir, ".pp"))  return EXT_RUNTIME_PASCAL;
-    if (dir_has_extension(ext_dir, ".rs"))  return EXT_RUNTIME_RUST;
-    if (dir_has_extension(ext_dir, ".zig")) return EXT_RUNTIME_ZIG;
-
-    /* Default to C for .c/.h only directories */
+ext_runtime_t ext_host_detect_runtime(const char *dir) {
+    if (!dir) return EXT_RUNTIME_UNKNOWN;
+    if (dir_has_extension(dir, ".go"))  return EXT_RUNTIME_GO;
+    if (dir_has_extension(dir, ".adb")) return EXT_RUNTIME_ADA;
+    if (dir_has_extension(dir, ".ads")) return EXT_RUNTIME_ADA;
+    if (dir_has_extension(dir, ".hs"))  return EXT_RUNTIME_HASKELL;
+    if (dir_has_extension(dir, ".cr"))  return EXT_RUNTIME_CRYSTAL;
+    if (dir_has_extension(dir, ".pas")) return EXT_RUNTIME_PASCAL;
+    if (dir_has_extension(dir, ".pp"))  return EXT_RUNTIME_PASCAL;
+    if (dir_has_extension(dir, ".rs"))  return EXT_RUNTIME_RUST;
+    if (dir_has_extension(dir, ".zig")) return EXT_RUNTIME_ZIG;
     return EXT_RUNTIME_C;
 }
 
-bool ext_host_needs_isolation(ext_runtime_t runtime)
-{
-    switch (runtime) {
-    case EXT_RUNTIME_C:
-    case EXT_RUNTIME_RUST:
-    case EXT_RUNTIME_ZIG:
-        /* These runtimes are ASan-compatible, can run in-process */
-        return false;
-
-    case EXT_RUNTIME_GO:
-    case EXT_RUNTIME_ADA:
-    case EXT_RUNTIME_HASKELL:
-    case EXT_RUNTIME_CRYSTAL:
-    case EXT_RUNTIME_PASCAL:
-    case EXT_RUNTIME_UNKNOWN:
-    default:
-        /* These have their own thread/memory runtimes, need isolation */
-        return true;
-    }
+bool ext_host_needs_isolation(ext_runtime_t rt) {
+    return rt == EXT_RUNTIME_GO || rt == EXT_RUNTIME_ADA ||
+           rt == EXT_RUNTIME_HASKELL || rt == EXT_RUNTIME_CRYSTAL ||
+           rt == EXT_RUNTIME_PASCAL;
 }
 
-const char *ext_host_runtime_name(ext_runtime_t runtime)
-{
-    if (runtime >= 0 && runtime <= EXT_RUNTIME_UNKNOWN) {
-        return runtime_names[runtime];
-    }
+const char *ext_host_runtime_name(ext_runtime_t rt) {
+    if (rt >= 0 && rt <= EXT_RUNTIME_UNKNOWN) return runtime_names[rt];
     return "Invalid";
 }
 
 /* =========================================================================
- * Extension lifecycle
+ * Extension Spawning
  * ========================================================================= */
 
-int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime)
-{
-    LOG_DEBUGF("ext_host: Spawning '%s' (runtime=%s, path=%s)",
-               name, ext_host_runtime_name(runtime), exe_path);
+int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime) {
+    if (!g_initialized) ext_host_init();
+    if (!name || !exe_path) return -1;
+    if (find_entry(name)) return -2;
 
-    if (!g_initialized) {
-        ext_host_init();
-    }
-
-    if (!name || !exe_path) {
-        LOG_ERROR("ext_host: spawn called with NULL name or path");
-        return -1;
-    }
-
-    /* Check if already loaded (needs lock for thread safety) */
-    pthread_mutex_lock(&g_mutex);
-    if (find_entry(name)) {
-        pthread_mutex_unlock(&g_mutex);
-        LOG_WARNF("ext_host: Extension '%s' already loaded", name);
-        return -2;  /* Already exists */
-    }
-    pthread_mutex_unlock(&g_mutex);
-
-    /* Reserve a slot atomically to prevent races */
-    ext_host_entry_t *entry = reserve_slot();
-    if (!entry) {
-        LOG_ERROR("ext_host: No free slots available");
-        return -3;  /* No slots available */
-    }
-    LOG_DEBUGF("ext_host: Reserved slot for '%s'", name);
+    ext_host_entry_t *entry = alloc_entry();
+    if (!entry) return -3;
 
     /* Create IPC channel */
-    ext_ipc_channel_t *ipc = ext_ipc_create(EXT_IPC_DEFAULT_SHM_SIZE);
+    ext_ipc_channel_t *ipc = ext_ipc_create();
     if (!ipc) {
-        LOG_ERRORF("ext_host: Failed to create IPC channel for '%s'", name);
-        release_slot(entry);
-        return -4;  /* IPC creation failed */
+        free_entry(entry);
+        g_num_extensions--;
+        return -4;
     }
-    LOG_DEBUG("ext_host: IPC channel created");
 
-    /* Get file descriptors for child */
-    int memfd, evreq, evresp;
-    if (ext_ipc_get_fds_for_child(ipc, &memfd, &evreq, &evresp) < 0) {
-        LOG_ERRORF("ext_host: Failed to get FDs for '%s'", name);
+    /* Get memfd for child */
+    int memfd = ext_ipc_get_memfd(ipc);
+
+    /* Find runner */
+    const char *runner = g_runner_path;
+    if (!runner) {
+        static const char *build = "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/build/bin/uemacs-ext-runner";
+        runner = (access(build, X_OK) == 0) ? build : "uemacs-ext-runner";
+    }
+
+    LOG_DEBUGF("ext_host: Spawning '%s' (runtime=%s)", name, ext_host_runtime_name(runtime));
+
+    pid_t pid = fork();
+    if (pid < 0) {
         ext_ipc_destroy(ipc);
-        release_slot(entry);
+        free_entry(entry);
+        g_num_extensions--;
         return -5;
     }
 
-    /* Determine runner path - use build dir if available */
-    const char *runner = g_runner_path;
-    if (!runner) {
-        /* Try build directory first for development */
-        static const char *build_runner = "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/build/bin/uemacs-ext-runner";
-        if (access(build_runner, X_OK) == 0) {
-            runner = build_runner;
-        } else {
-            runner = "uemacs-ext-runner";  /* Fall back to PATH */
-        }
-    }
-    LOG_DEBUGF("ext_host: Using runner '%s'", runner);
-
-    /* Fork child process */
-    pid_t pid = fork();
-    if (pid < 0) {
-        LOG_ERRORF("ext_host: Fork failed for '%s': %s", name, strerror(errno));
-        ext_ipc_destroy(ipc);
-        release_slot(entry);
-        return -6;  /* Fork failed */
-    }
-
     if (pid == 0) {
-        /* Child process */
-
-        /* Clear close-on-exec for IPC fds */
+        /* Child - clear CLOEXEC on memfd */
         fcntl(memfd, F_SETFD, 0);
-        fcntl(evreq, F_SETFD, 0);
-        fcntl(evresp, F_SETFD, 0);
 
-        /* Convert fds to strings */
-        char memfd_str[16], evreq_str[16], evresp_str[16], size_str[32];
+        char memfd_str[16];
         snprintf(memfd_str, sizeof(memfd_str), "%d", memfd);
-        snprintf(evreq_str, sizeof(evreq_str), "%d", evreq);
-        snprintf(evresp_str, sizeof(evresp_str), "%d", evresp);
-        snprintf(size_str, sizeof(size_str), "%zu", (size_t)EXT_IPC_DEFAULT_SHM_SIZE);
 
-        /* Log exec attempt (child process) */
-        LOG_DEBUGF("ext_host[child]: exec %s --memfd %s --evreq %s --evresp %s --size %s --ext %s",
-                   runner, memfd_str, evreq_str, evresp_str, size_str, exe_path);
-
-        /* Execute runner with extension path */
-        execlp(runner, runner,
-               "--memfd", memfd_str,
-               "--evreq", evreq_str,
-               "--evresp", evresp_str,
-               "--size", size_str,
-               "--ext", exe_path,
-               (char *)NULL);
-
-        /* exec failed */
-        LOG_ERRORF("ext_host[child]: execlp failed: %s", strerror(errno));
+        execl(runner, runner, "--memfd", memfd_str, "--ext", exe_path, NULL);
         _exit(127);
     }
 
-    /* Parent process */
-    LOG_DEBUGF("ext_host: Forked child pid=%d for '%s'", pid, name);
-
-    /* Set pid in IPC channel for pidfd */
+    /* Parent */
     ext_ipc_set_pid(ipc, pid);
 
-    /* Initialize entry (active already set by reserve_slot) */
     entry->name = strdup(name);
     entry->path = strdup(exe_path);
     entry->runtime = runtime;
-    entry->state = EXT_STATE_INIT;
-    entry->pid = pid;
     entry->ipc = ipc;
-    entry->num_commands = 0;
+    entry->state = EXT_STATE_PENDING;
+    entry->pid = pid;
 
-    /* Wait for READY message from extension (editor waits on response eventfd) */
-    LOG_DEBUGF("ext_host: Waiting for READY from '%s' (timeout=%dms)", name, EXT_IPC_TIMEOUT_MS);
-    ext_ipc_msg_t *msg;
-    int result = ext_ipc_recv_from_ext(ipc, &msg, EXT_IPC_TIMEOUT_MS);
-    if (result == EXT_IPC_OK && msg->msg_type == EXT_MSG_READY) {
-        /* Send acknowledgment so runner can proceed to init() */
-        ext_ipc_respond_to_ext(ipc, 0, NULL, 0);
+    /* Wait for READY with timeout, processing init messages */
+    struct timespec start, now;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    int msg_count = 0, cmd_count = 0;
 
-        entry->state = EXT_STATE_READY;
-        LOG_INFOF("ext_host: Extension '%s' ready (pid=%d)", name, pid);
+    while (1) {
+        /* Check if ready */
+        if (atomic_load_explicit(&ipc->shm->ext_ready, memory_order_acquire)) {
+            entry->state = EXT_STATE_READY;
+            LOG_INFOF("ext_host: '%s' ready (%d msgs, %d cmds)", name, msg_count, cmd_count);
+            return 0;
+        }
 
-        /*
-         * Process any registration messages from extension's init()
-         * Extension's init() may call register_command, subscribe_event, etc.
-         * which send messages we need to handle before returning.
-         */
-        LOG_DEBUG("ext_host: Processing init messages...");
-        int msg_count = 0;
-        while (msg_count < 100) {  /* Safety limit */
-            ext_ipc_msg_t *init_msg;
-            int recv_result = ext_ipc_recv_from_ext(ipc, &init_msg, 100);  /* 100ms timeout */
-            if (recv_result == EXT_IPC_ERR_TIMEOUT) {
-                break;  /* No more messages pending */
-            }
-            if (recv_result != EXT_IPC_OK) {
-                LOG_WARNF("ext_host: Error receiving init message: %d", recv_result);
-                break;
-            }
+        /* Process any init messages from extension */
+        int slot_idx = ext_ipc_find_pending_slot(&ipc->shm->to_editor);
+        if (slot_idx >= 0) {
+            ext_ipc_slot_t *slot = &ipc->shm->to_editor.slots[slot_idx];
 
-            LOG_DEBUGF("ext_host: Processing init message type=0x%x", init_msg->msg_type);
-
-            /* Handle the message inline (same logic as ext_host_handle_message) */
-            switch (init_msg->msg_type) {
+            switch (slot->msg_type) {
             case EXT_MSG_REGISTER_CMD: {
-                ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)init_msg->payload;
-                LOG_DEBUGF("ext_host: Registering command '%s' from '%s' during init", req->name, name);
-                int reg_result = ext_host_register_command(name, req->name);
-                ext_ipc_respond_to_ext(ipc, reg_result, NULL, 0);
+                ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
+                int result = ext_host_register_command(name, req->name);
+                LOG_DEBUGF("ext_host: '%s' registered '%s' (r=%d)", name, req->name, result);
+                ext_ipc_slot_complete(slot, result, NULL, 0);
+                cmd_count++;
                 break;
             }
-            case EXT_MSG_EVENT_SUBSCRIBE: {
-                ext_ipc_event_sub_t *req = (ext_ipc_event_sub_t *)init_msg->payload;
-                int sub_result = ext_host_subscribe_event(name, req->event_name, req->priority);
-                ext_ipc_respond_to_ext(ipc, sub_result, NULL, 0);
+            case EXT_MSG_EVENT_SUBSCRIBE:
+            case EXT_MSG_MODELINE_REGISTER:
+            case EXT_MSG_LOG:
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
                 break;
-            }
             default:
-                /* Other messages - just acknowledge */
-                ext_ipc_respond_to_ext(ipc, 0, NULL, 0);
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
                 break;
             }
             msg_count++;
+            clock_gettime(CLOCK_MONOTONIC, &start);  /* Reset timeout on activity */
+            continue;
         }
-        LOG_DEBUGF("ext_host: Processed %d init messages from '%s'", msg_count, name);
 
-        return 0;
+        /* Check timeout */
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
+                       (now.tv_nsec - start.tv_nsec) / 1000000;
+        if (elapsed > 5000) {
+            LOG_WARNF("ext_host: '%s' timeout waiting for READY", name);
+            entry->state = EXT_STATE_ERROR;
+            return -6;
+        }
+
+        sched_yield();
     }
-
-    /* Extension failed to initialize - clean up */
-    LOG_WARNF("ext_host: Extension '%s' failed to send READY (result=%d, msg_type=0x%x)",
-              name, result, msg ? msg->msg_type : 0);
-
-    /* Kill the child process before releasing slot */
-    LOG_DEBUGF("ext_host: Killing child pid=%d", pid);
-    if (pid > 0) {
-        kill(pid, SIGKILL);
-        waitpid(pid, NULL, 0);
-    }
-
-    /* Release the reserved slot (frees entry resources) */
-    LOG_DEBUGF("ext_host: Releasing slot for '%s'", name);
-    release_slot(entry);
-
-    return -7;
 }
 
-int ext_host_shutdown(const char *name, int timeout_ms)
-{
-    ext_host_entry_t *entry = find_entry(name);
-    if (!entry) {
-        return -1;
-    }
+void ext_host_shutdown_all(void) {
+    LOG_DEBUGF("ext_host: Shutting down %d extensions", g_num_extensions);
 
-    int result = shutdown_extension(entry, timeout_ms);
-    if (result == 0) {
-        g_num_extensions--;
-    }
-    return result;
-}
-
-void ext_host_shutdown_all(void)
-{
-    LOG_DEBUGF("ext_host: Shutting down all extensions (%d active)", g_num_extensions);
-
-    int shutdown_count = 0;
-
-    /* Send SIGTERM to all extension processes - don't wait */
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
-        if (g_extensions[i].active) {
-            /* Notify via IPC if possible */
-            if (g_extensions[i].ipc && g_extensions[i].state == EXT_STATE_READY) {
-                ext_ipc_notify(g_extensions[i].ipc, EXT_MSG_SHUTDOWN, NULL, 0);
-            }
-            /* SIGTERM the process */
-            if (g_extensions[i].pid > 0) {
-                kill(g_extensions[i].pid, SIGTERM);
-            }
-            /* Clean up our side immediately */
-            free_entry(&g_extensions[i]);
-            shutdown_count++;
+        if (!g_extensions[i].active || !g_extensions[i].ipc) continue;
+
+        /* Signal shutdown */
+        atomic_store(&g_extensions[i].ipc->shm->shutdown, 1);
+    }
+
+    /* Wait briefly for graceful shutdown */
+    usleep(100000);
+
+    /* Kill any remaining */
+    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+        if (!g_extensions[i].active) continue;
+        if (g_extensions[i].pid > 0) {
+            kill(g_extensions[i].pid, SIGTERM);
+            waitpid(g_extensions[i].pid, NULL, WNOHANG);
         }
+        free_entry(&g_extensions[i]);
     }
 
-    /* Kernel will reap children when we exit - no need to wait */
     g_num_extensions = 0;
-    LOG_INFOF("ext_host: Shutdown complete (%d extensions)", shutdown_count);
-}
-
-bool ext_host_is_alive(const char *name)
-{
-    ext_host_entry_t *entry = find_entry(name);
-    if (!entry || !entry->ipc) {
-        return false;
-    }
-    return ext_ipc_is_alive(entry->ipc);
-}
-
-ext_state_t ext_host_get_state(const char *name)
-{
-    ext_host_entry_t *entry = find_entry(name);
-    if (!entry) {
-        return EXT_STATE_DEAD;
-    }
-    return entry->state;
+    LOG_INFO("ext_host: Shutdown complete");
 }
 
 /* =========================================================================
- * Command routing
+ * Non-blocking Message Polling (called from main loop)
  * ========================================================================= */
 
-int ext_host_register_command(const char *ext_name, const char *cmd_name)
-{
-    ext_host_entry_t *entry = find_entry(ext_name);
-    if (!entry) {
-        return -1;
-    }
+void ext_host_poll_nonblocking(void) {
+    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+        ext_host_entry_t *e = &g_extensions[i];
+        if (!e->active || !e->ipc || e->state == EXT_STATE_ERROR) continue;
 
-    /* Check if already registered */
-    if (find_command_slot(entry, cmd_name)) {
-        return 0;  /* Already exists, success */
-    }
+        ext_ipc_ring_t *ring = &e->ipc->shm->to_editor;
 
-    /* Find free slot */
-    ext_host_command_t *cmd = find_free_command_slot(entry);
-    if (!cmd) {
-        return -2;  /* No command slots available */
-    }
+        /* Check all slots for pending messages */
+        for (int s = 0; s < EXT_IPC_RING_SLOTS; s++) {
+            ext_ipc_slot_t *slot = &ring->slots[s];
+            if (atomic_load_explicit(&slot->state, memory_order_acquire) != EXT_SLOT_PENDING)
+                continue;
 
-    /* Register command */
-    strncpy(cmd->name, cmd_name, sizeof(cmd->name) - 1);
-    cmd->name[sizeof(cmd->name) - 1] = '\0';
-    cmd->active = true;
-    entry->num_commands++;
+            /* Handle message */
+            switch (slot->msg_type) {
+            case EXT_MSG_CMD_COMPLETE: {
+                ext_ipc_cmd_response_t *resp = (ext_ipc_cmd_response_t *)slot->payload;
+                if (resp->message[0]) {
+                    mlwrite("%s", resp->message);
+                }
+                e->state = EXT_STATE_READY;
+                ext_ipc_slot_release(slot);
+                /* Release the command slot we used */
+                if (e->pending_slot >= 0) {
+                    ext_ipc_slot_release(&e->ipc->shm->to_ext.slots[e->pending_slot]);
+                    e->pending_slot = -1;
+                }
+                break;
+            }
+            case EXT_MSG_MESSAGE: {
+                ext_ipc_message_t *msg = (ext_ipc_message_t *)slot->payload;
+                mlwrite("%s", msg->text);
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                break;
+            }
+            case EXT_MSG_GET_POINT: {
+                ext_ipc_point_t pt = { .line = getcline(), .col = getccol(0) };
+                ext_ipc_slot_complete(slot, 0, &pt, sizeof(pt));
+                break;
+            }
+            case EXT_MSG_REGISTER_CMD: {
+                ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
+                int result = ext_host_register_command(e->name, req->name);
+                ext_ipc_slot_complete(slot, result, NULL, 0);
+                break;
+            }
+            case EXT_MSG_CURRENT_BUFFER: {
+                uintptr_t handle = (uintptr_t)curbp;
+                ext_ipc_slot_complete(slot, 0, &handle, sizeof(handle));
+                break;
+            }
+            case EXT_MSG_BUFFER_CREATE: {
+                const char *name = (const char *)slot->payload;
+                struct buffer *bp = bfind((char *)name, 1, 0);  /* 1=create if not found */
+                uintptr_t handle = (uintptr_t)bp;
+                ext_ipc_slot_complete(slot, bp ? 0 : -1, &handle, sizeof(handle));
+                break;
+            }
+            case EXT_MSG_BUFFER_SWITCH: {
+                uintptr_t handle = *(uintptr_t *)slot->payload;
+                struct buffer *bp = (struct buffer *)handle;
+                int result = swbuffer(bp);
+                update(1);  /* Force display update */
+                ext_ipc_slot_complete(slot, result, NULL, 0);
+                break;
+            }
+            case EXT_MSG_BUFFER_CLEAR: {
+                uintptr_t handle = *(uintptr_t *)slot->payload;
+                struct buffer *bp = (struct buffer *)handle;
+                int result = bclear(bp);
+                ext_ipc_slot_complete(slot, result, NULL, 0);
+                break;
+            }
+            case EXT_MSG_BUFFER_INSERT: {
+                const char *text = (const char *)slot->payload;
+                int result = linstr(text);
+                ext_ipc_slot_complete(slot, result, NULL, 0);
+                break;
+            }
+            case EXT_MSG_PROMPT: {
+                ext_ipc_prompt_req_t *req = (ext_ipc_prompt_req_t *)slot->payload;
+                ext_ipc_prompt_resp_t resp = {0};
+                char buf[1024] = {0};
+                int result = minibuf_read(req->prompt, buf, sizeof(buf));
+                if (result != true) {  /* User cancelled */
+                    resp.cancelled = 1;
+                } else {
+                    resp.cancelled = 0;
+                    strncpy(resp.response, buf, sizeof(resp.response) - 1);
+                }
+                ext_ipc_slot_complete(slot, 0, &resp, sizeof(resp));
+                break;
+            }
+            case EXT_MSG_PROMPT_YN: {
+                ext_ipc_prompt_req_t *req = (ext_ipc_prompt_req_t *)slot->payload;
+                int32_t result = mlyesno(req->prompt) == true ? 1 : 0;
+                ext_ipc_slot_complete(slot, 0, &result, sizeof(result));
+                break;
+            }
+            case EXT_MSG_LOG:
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                break;
+            default:
+                LOG_DEBUGF("ext_host: Unhandled message type 0x%x", slot->msg_type);
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                break;
+            }
+        }
+    }
+}
+
+/* =========================================================================
+ * Command Invocation (Non-blocking)
+ * ========================================================================= */
+
+int ext_host_invoke_command(const char *cmd_name, int f, int n) {
+    const char *owner = ext_host_find_command_owner(cmd_name);
+    if (!owner) return -1;
+
+    ext_host_entry_t *entry = find_entry(owner);
+    if (!entry || !entry->ipc || entry->state != EXT_STATE_READY) return -2;
+
+    ext_ipc_ring_t *ring = &entry->ipc->shm->to_ext;
+
+    /* Find empty slot */
+    int slot_idx = ext_ipc_find_empty_slot(ring);
+    if (slot_idx < 0) return -3;
+
+    ext_ipc_slot_t *slot = &ring->slots[slot_idx];
+
+    /* Build request */
+    ext_ipc_cmd_invoke_t req = { .f = f, .n = n };
+    strncpy(req.name, cmd_name, sizeof(req.name) - 1);
+
+    /* Send command */
+    ext_ipc_slot_write(slot, EXT_MSG_INVOKE_CMD, &req, sizeof(req));
+
+    entry->state = EXT_STATE_BUSY;
+    entry->pending_slot = slot_idx;
+
+    /* Wait for completion while handling API calls */
+    struct timespec start, now;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    while (entry->state == EXT_STATE_BUSY) {
+        ext_host_poll_nonblocking();
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
+                       (now.tv_nsec - start.tv_nsec) / 1000000;
+        if (elapsed > 30000) {
+            LOG_WARNF("ext_host: Command '%s' timeout", cmd_name);
+            entry->state = EXT_STATE_READY;
+            return -4;
+        }
+
+#if defined(__x86_64__) || defined(__i386__)
+        __builtin_ia32_pause();
+#else
+        sched_yield();
+#endif
+    }
 
     return 0;
 }
 
-int ext_host_unregister_command(const char *ext_name, const char *cmd_name)
-{
+/* =========================================================================
+ * Command Registry
+ * ========================================================================= */
+
+int ext_host_register_command(const char *ext_name, const char *cmd_name) {
     ext_host_entry_t *entry = find_entry(ext_name);
-    if (!entry) {
-        return -1;
-    }
+    if (!entry) return -1;
+    if (find_command_slot(entry, cmd_name)) return 0;
+
+    ext_host_command_t *cmd = alloc_command_slot(entry);
+    if (!cmd) return -2;
+
+    strncpy(cmd->name, cmd_name, sizeof(cmd->name) - 1);
+    cmd->active = true;
+    entry->num_commands++;
+    return 0;
+}
+
+int ext_host_unregister_command(const char *ext_name, const char *cmd_name) {
+    ext_host_entry_t *entry = find_entry(ext_name);
+    if (!entry) return -1;
 
     ext_host_command_t *cmd = find_command_slot(entry, cmd_name);
-    if (!cmd) {
-        return -2;  /* Not found */
-    }
+    if (!cmd) return -2;
 
     cmd->active = false;
     memset(cmd->name, 0, sizeof(cmd->name));
     entry->num_commands--;
-
     return 0;
 }
 
-bool ext_host_has_command(const char *cmd_name)
-{
+bool ext_host_has_command(const char *cmd_name) {
     return ext_host_find_command_owner(cmd_name) != NULL;
 }
 
-int ext_host_invoke_command(const char *cmd_name, int f, int n)
-{
-    /* Find extension that owns this command */
-    const char *owner = ext_host_find_command_owner(cmd_name);
-    if (!owner) {
-        return -1;  /* Command not found */
-    }
-
-    ext_host_entry_t *entry = find_entry(owner);
-    if (!entry || !entry->ipc || entry->state != EXT_STATE_READY) {
-        return -2;  /* Extension not ready */
-    }
-
-    /* Build request payload */
-    ext_ipc_cmd_invoke_t req = {
-        .f = f,
-        .n = n,
-    };
-    strncpy(req.name, cmd_name, sizeof(req.name) - 1);
-
-    /* Mark extension busy */
-    entry->state = EXT_STATE_BUSY;
-
-    /* Send invoke request */
-    int result;
-    uint32_t resp_len = sizeof(result);
-    int ipc_result = ext_ipc_call(entry->ipc, EXT_MSG_INVOKE_CMD,
-                                  &req, sizeof(req),
-                                  &result, &resp_len);
-
-    /* Mark extension ready again */
-    entry->state = EXT_STATE_READY;
-
-    if (ipc_result < 0) {
-        return ipc_result;  /* IPC error */
-    }
-
-    return result;
-}
-
-const char *ext_host_find_command_owner(const char *cmd_name)
-{
+const char *ext_host_find_command_owner(const char *cmd_name) {
     if (!cmd_name) return NULL;
-
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
         if (!g_extensions[i].active) continue;
-
         for (int j = 0; j < EXT_HOST_MAX_COMMANDS_PER_EXT; j++) {
             if (g_extensions[i].commands[j].active &&
                 strcmp(g_extensions[i].commands[j].name, cmd_name) == 0) {
@@ -671,211 +531,27 @@ const char *ext_host_find_command_owner(const char *cmd_name)
             }
         }
     }
-
     return NULL;
 }
 
 /* =========================================================================
- * Event routing
+ * Query Functions
  * ========================================================================= */
 
-int ext_host_subscribe_event(const char *ext_name, const char *event_name, int priority)
-{
-    /* TODO: Implement event subscription registry */
-    (void)ext_name;
-    (void)event_name;
-    (void)priority;
-    return 0;
-}
-
-int ext_host_unsubscribe_event(const char *ext_name, const char *event_name)
-{
-    /* TODO: Implement event unsubscription */
-    (void)ext_name;
-    (void)event_name;
-    return 0;
-}
-
-int ext_host_emit_event(const char *event_name, const void *data, size_t data_len)
-{
-    if (!event_name) return 0;
-
-    int notified = 0;
-
-    /* Broadcast event to all ready extensions */
-    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
-        if (!g_extensions[i].active || g_extensions[i].state != EXT_STATE_READY) {
-            continue;
-        }
-
-        /* TODO: Check if extension subscribed to this event */
-
-        /* Send event notification */
-        int result = ext_ipc_notify(g_extensions[i].ipc, EXT_MSG_EVENT_EMIT,
-                                    data, data_len);
-        if (result == EXT_IPC_OK) {
-            notified++;
-        }
-    }
-
-    return notified;
-}
-
-/* =========================================================================
- * Message handling
- * ========================================================================= */
-
-int ext_host_handle_message(const char *ext_name)
-{
-    ext_host_entry_t *entry = find_entry(ext_name);
-    if (!entry || !entry->ipc) {
-        return -1;
-    }
-
-    ext_ipc_msg_t *msg;
-    /* Use ext_ipc_recv_from_ext - extensions send via eventfd_response */
-    int result = ext_ipc_recv_from_ext(entry->ipc, &msg, 0);  /* Non-blocking */
-    if (result != EXT_IPC_OK) {
-        return result;
-    }
-
-    LOG_DEBUGF("ext_host: Received message type=0x%x from '%s'", msg->msg_type, ext_name);
-
-    /* Handle message based on type */
-    switch (msg->msg_type) {
-    case EXT_MSG_REGISTER_CMD: {
-        ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)msg->payload;
-        LOG_DEBUGF("ext_host: Registering command '%s' from '%s'", req->name, ext_name);
-        int reg_result = ext_host_register_command(ext_name, req->name);
-        /* Use ext_ipc_respond_to_ext - respond via eventfd_request */
-        ext_ipc_respond_to_ext(entry->ipc, reg_result, NULL, 0);
-        break;
-    }
-
-    case EXT_MSG_UNREGISTER_CMD: {
-        ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)msg->payload;
-        int unreg_result = ext_host_unregister_command(ext_name, req->name);
-        ext_ipc_respond_to_ext(entry->ipc, unreg_result, NULL, 0);
-        break;
-    }
-
-    case EXT_MSG_EVENT_SUBSCRIBE: {
-        ext_ipc_event_sub_t *req = (ext_ipc_event_sub_t *)msg->payload;
-        int sub_result = ext_host_subscribe_event(ext_name, req->event_name, req->priority);
-        ext_ipc_respond_to_ext(entry->ipc, sub_result, NULL, 0);
-        break;
-    }
-
-    case EXT_MSG_EVENT_UNSUBSCRIBE: {
-        ext_ipc_event_sub_t *req = (ext_ipc_event_sub_t *)msg->payload;
-        int unsub_result = ext_host_unsubscribe_event(ext_name, req->event_name);
-        ext_ipc_respond_to_ext(entry->ipc, unsub_result, NULL, 0);
-        break;
-    }
-
-    case EXT_MSG_MESSAGE: {
-        ext_ipc_message_t *req = (ext_ipc_message_t *)msg->payload;
-        /* TODO: Call mlwrite or similar to display message */
-        (void)req;
-        ext_ipc_respond_to_ext(entry->ipc, 0, NULL, 0);
-        break;
-    }
-
-    case EXT_MSG_LOG_INFO:
-    case EXT_MSG_LOG_WARN:
-    case EXT_MSG_LOG_ERROR:
-    case EXT_MSG_LOG_DEBUG: {
-        ext_ipc_log_t *req = (ext_ipc_log_t *)msg->payload;
-        /* TODO: Route to logging system */
-        (void)req;
-        ext_ipc_respond_to_ext(entry->ipc, 0, NULL, 0);
-        break;
-    }
-
-    default:
-        /* Unknown message type */
-        LOG_WARNF("ext_host: Unknown message type 0x%x from '%s'", msg->msg_type, ext_name);
-        ext_ipc_respond_to_ext(entry->ipc, -1, NULL, 0);
-        break;
-    }
-
-    return 0;
-}
-
-void ext_host_poll_all(void)
-{
-    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
-        if (!g_extensions[i].active || !g_extensions[i].ipc) {
-            continue;
-        }
-
-        /* Check if extension process is still alive */
-        if (!ext_ipc_is_alive(g_extensions[i].ipc)) {
-            g_extensions[i].state = EXT_STATE_DEAD;
-            continue;
-        }
-
-        /* Handle any pending messages */
-        ext_host_handle_message(g_extensions[i].name);
-    }
-}
-
-int ext_host_get_poll_fds(int *fds, int max_fds)
-{
-    int count = 0;
-
-    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS && count < max_fds; i++) {
-        if (!g_extensions[i].active || !g_extensions[i].ipc) {
-            continue;
-        }
-
-        int fd = ext_ipc_poll_fd(g_extensions[i].ipc, true);
-        if (fd >= 0) {
-            fds[count++] = fd;
-        }
-    }
-
-    return count;
-}
-
-/* =========================================================================
- * Extension iteration
- * ========================================================================= */
-
-int ext_host_count(void)
-{
+int ext_host_count(void) {
     return g_num_extensions;
 }
 
-const ext_host_entry_t *ext_host_get_entry(int index)
-{
-    if (index < 0 || index >= EXT_HOST_MAX_EXTENSIONS) {
-        return NULL;
-    }
-
-    if (!g_extensions[index].active) {
-        return NULL;
-    }
-
-    return &g_extensions[index];
+bool ext_host_is_loaded(const char *name) {
+    return find_entry(name) != NULL;
 }
 
-const ext_host_entry_t *ext_host_find(const char *name)
-{
-    return find_entry(name);
+ext_state_t ext_host_get_state(const char *name) {
+    ext_host_entry_t *e = find_entry(name);
+    return e ? e->state : EXT_STATE_ERROR;
 }
 
-/* =========================================================================
- * Runner path management
- * ========================================================================= */
-
-void ext_host_set_runner_path(const char *path)
-{
+void ext_host_set_runner_path(const char *path) {
     free(g_runner_path);
     g_runner_path = path ? strdup(path) : NULL;
-}
-
-const char *ext_host_get_runner_path(void)
-{
-    return g_runner_path ? g_runner_path : "uemacs-ext-runner";
 }

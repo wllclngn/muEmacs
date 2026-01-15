@@ -22,6 +22,29 @@
 
 extern char **environ;
 
+/*
+ * run_shell_cmd - Safe replacement for system() using posix_spawn()
+ *
+ * Spawns /bin/sh -c "command" and waits for completion.
+ * Returns 0 on success, non-zero on failure.
+ */
+static int run_shell_cmd(const char *cmd)
+{
+    pid_t pid;
+    int status;
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+
+    if (posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0) {
+        return -1;
+    }
+
+    if (waitpid(pid, &status, 0) == -1) {
+        return -1;
+    }
+
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
 /* Global clipboard configuration */
 clipboard_config_t g_clipboard_config = {
     .provider = CLIP_AUTO,
@@ -74,7 +97,7 @@ static int base64_encode(const char *input, size_t input_len,
 static bool command_exists(const char *cmd) {
     char path[512];
     snprintf(path, sizeof(path), "command -v %s >/dev/null 2>&1", cmd);
-    return system(path) == 0;
+    return run_shell_cmd(path) == 0;
 }
 
 /* OSC 52 clipboard set - works over SSH, tmux, etc.

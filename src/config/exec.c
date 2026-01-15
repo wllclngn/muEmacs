@@ -142,7 +142,7 @@ int docmd(const char *cline)
 	if (token_get_type(tkn) != TKCMD) {
 		f = true;
 		getval(tkn, tkn, sizeof(tkn));
-		n = atoi(tkn);
+		n = safe_atoi(tkn, 1);
 
 		/* and now get the command to execute */
 		if ((status = macarg(tkn)) != true) {

@@ -60,6 +60,8 @@ typedef bool (*event_handler_fn)(uemacs_event_t *event, void *user_data);
 /* Display events */
 #define EVT_DISPLAY_PRE     "display:pre"       /* Before screen update */
 #define EVT_DISPLAY_POST    "display:post"      /* After screen update */
+#define EVT_DISPLAY_LINE    "display:line"      /* Before rendering each line */
+#define EVT_DISPLAY_GUTTER  "display:gutter"    /* Before rendering gutter */
 
 /* Editor events */
 #define EVT_IDLE            "idle"              /* No input for idle period */
@@ -175,5 +177,32 @@ typedef struct {
     int old_rows, old_cols;
     int new_rows, new_cols;
 } event_window_resize_t;
+
+/* For EVT_DISPLAY_LINE - generic display hook for folding, narrowing, etc. */
+typedef enum {
+    DISPLAY_RENDER,         /* Render line normally (default) */
+    DISPLAY_SKIP,           /* Don't render this line (folding/narrowing) */
+    DISPLAY_SUBSTITUTE,     /* Replace with substitute text */
+} display_line_action_t;
+
+typedef struct {
+    struct buffer *buffer;          /* Buffer being displayed */
+    struct line *line;              /* Line about to be rendered */
+    int line_num;                   /* 0-based line number in buffer */
+    int screen_row;                 /* Screen row where it would render */
+
+    /* Extension response fields (modify these) */
+    display_line_action_t action;   /* What to do with this line */
+    const char *substitute;         /* Text if action == DISPLAY_SUBSTITUTE */
+    int substitute_face;            /* Syntax face for substitute text */
+} event_display_line_t;
+
+/*
+ * Fast-path helper: Check if any handlers exist for an event.
+ * Use this before constructing expensive event data.
+ */
+static inline bool event_bus_has_handlers(const char *event) {
+    return event_bus_handler_count(event) > 0;
+}
 
 #endif /* UEMACS_EVENT_BUS_H */

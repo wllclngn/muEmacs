@@ -561,6 +561,49 @@ em_dash = true                # -- becomes em-dash
 smart_quotes = true           # Curly double quotes
 curly_apostrophe = true       # Curly single quotes
 
+[extension.c_minibuffer]
+# Modern buffer-based completion framework (Helm-style)
+# Commands: switch-buffer (shadows built-in), pick-cancel
+max_candidates = 15              # Max visible candidates in picker
+modified_indicator = "Δ"         # Symbol for modified buffers (matches modeline)
+
+[extension.rust_re2]
+# RE2-style regex search powered by ripgrep
+# Commands: re2, re2-word
+
+# Case sensitivity
+case_insensitive = false      # Force case insensitive (-i)
+smart_case = true             # Case insensitive if pattern all lowercase
+
+# Matching behavior
+word_boundary = false         # Match whole words only (-w)
+fixed_strings = false         # Literal strings, not regex (-F)
+multiline = false             # Allow patterns to span lines
+
+# Context lines (grep -A/-B/-C style)
+context_before = 0            # Lines before match (-B)
+context_after = 0             # Lines after match (-A)
+
+# File filtering
+hidden = false                # Include hidden files
+follow_symlinks = false       # Follow symbolic links
+git_ignore = true             # Respect .gitignore files
+max_depth = 0                 # Max directory depth (0 = unlimited)
+max_filesize = 0              # Max file size in bytes (0 = unlimited)
+max_count = 0                 # Max matches per file (0 = unlimited)
+
+# File types (comma-separated, e.g., "rust,c,py")
+# See 'rg --type-list' for available types
+file_types = ""
+
+# Glob patterns (comma-separated)
+glob_include = ""             # Files to include (e.g., "*.rs,*.c")
+glob_exclude = ""             # Files to exclude (e.g., "*.log,*.tmp")
+
+# Performance
+threads = 0                   # Number of threads (0 = auto-detect)
+mmap = true                   # Use memory-mapped files for large files
+
 # =============================================================================
 # DECLARATIVE EVENT HOOKS
 # =============================================================================
@@ -774,9 +817,14 @@ max_threads = 8             # Max parallel search threads (1-32)
 #   mc-next             Jump to next cursor
 #   mc-insert           Insert at all cursor positions
 #
-# Extension: rust_search (Rust)
-#   rg-search           Search with ripgrep
-#   rg-search-word      Search word under cursor
+# Extension: rust_re2 (Rust)
+#   re2                 RE2-style regex search (ripgrep-powered)
+#   re2-word            Search word under cursor
+#   re2-case            Toggle case insensitive mode
+#   re2-smart           Toggle smart case mode
+#   re2-word-boundary   Toggle whole word matching
+#   re2-hidden          Toggle hidden files
+#   re2-gitignore       Toggle .gitignore respect
 #
 # Extension: zig_treesitter (Zig)
 #   (Provides syntax highlighting via tree-sitter, no user commands)

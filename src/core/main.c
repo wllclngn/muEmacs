@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <time.h>
 
 /* Make global definitions not external. */
 #define	maindef
@@ -28,6 +29,7 @@
 #include "terminal/terminal.h"  /* Modern Terminal System */
 #include "terminal/input_state.h" /* Unified input parser */
 #include "editor_mode.h"        /* Vim mode state for replace mode */
+#include "uep/ext_host.h"       /* Out-of-process extension host */
 
 #ifndef GOOD
 #define GOOD    0
@@ -342,6 +344,21 @@ loop:
 #ifdef SIGWINCH
 	check_pending_resize();
 #endif
+
+	/* Poll out-of-process extensions for pending messages (non-blocking) */
+	ext_host_poll_nonblocking();
+
+	/* Check EVIL flash timer - refresh modeline when 3-second splash expires */
+	{
+		static bool evil_flash_was_active = false;
+		bool evil_flash_active = (evil_mode_start_time > 0 &&
+		                          (time(NULL) - evil_mode_start_time) < 3);
+		if (evil_flash_was_active && !evil_flash_active) {
+			/* Flash just expired - refresh modelines */
+			upmode();
+		}
+		evil_flash_was_active = evil_flash_active;
+	}
 
 	/*
 	 * Fix up the screen (montauk/OUROBOROS pattern)

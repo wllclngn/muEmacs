@@ -46,9 +46,9 @@ static int test_line_alloc(void) {
         return ok;
     }
 
-    // Verify gap buffer was created
-    if (!lp->gb) {
-        LOG_ERROR("[FAIL] line has no gap buffer");
+    // Verify storage was created
+    if (!lp->storage) {
+        LOG_ERROR("[FAIL] line has no storage backend");
         ok = 0;
     }
 

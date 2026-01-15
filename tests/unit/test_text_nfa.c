@@ -12,7 +12,7 @@
 #include "edef.h"
 #include "internal/line.h"
 #include "internal/nfa.h"
-#include "μemacs/gapbuffer.h"
+#include "internal/text_storage.h"
 
 #ifdef ENABLE_SEARCH_NFA
 extern struct line* lalloc(int used);
@@ -22,8 +22,8 @@ static struct line* make_buffer(void) {
     struct line* l1 = lalloc(8);
     struct line* l2 = lalloc(8);
     if (!l1 || !l2) return NULL;
-    gap_buffer_insert(l1->gb, 0, "foo", 3);
-    gap_buffer_insert(l2->gb, 0, "bar", 3);
+    TS_INSERT(l1->storage, 0, "foo", 3);
+    TS_INSERT(l2->storage, 0, "bar", 3);
     l1->l_fp = l2; l2->l_bp = l1;
     l1->l_bp = l2->l_fp = NULL;
     return l1;
@@ -157,12 +157,12 @@ static int test_negated_class(void) {
     if (!nfa_compile("[^a]oo", 1, &nfa)) return 0;
     struct line* l = lalloc(8);
     if (!l) return 0;
-    gap_buffer_insert(l->gb, 0, "foo", 3);
+    TS_INSERT(l->storage, 0, "foo", 3);
     struct line* mlp = NULL; int moff = 0;
     if (nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0; // Should NOT match 'f' (matches [^a])
     // Change 'foo' to 'boo' - replace first char
-    gap_buffer_delete(l->gb, 0, 1);
-    gap_buffer_insert(l->gb, 0, "b", 1);
+    TS_DELETE(l->storage, 0, 1);
+    TS_INSERT(l->storage, 0, "b", 1);
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l && moff == 0) ? 1 : 0;
 }

@@ -252,7 +252,7 @@ static int parse_value(json_parser_t *jp, const char *key) {
         case 't':
             if (strncmp(jp->p, "true", 4) == 0) {
                 jp->p += 4;
-                strcpy(jp->value_buf, "true");
+                memcpy(jp->value_buf, "true", 5);  /* includes null terminator */
                 type = JSON_BOOL;
             } else {
                 return JSON_ERR_SYNTAX;
@@ -262,7 +262,7 @@ static int parse_value(json_parser_t *jp, const char *key) {
         case 'f':
             if (strncmp(jp->p, "false", 5) == 0) {
                 jp->p += 5;
-                strcpy(jp->value_buf, "false");
+                memcpy(jp->value_buf, "false", 6);  /* includes null terminator */
                 type = JSON_BOOL;
             } else {
                 return JSON_ERR_SYNTAX;

@@ -29,7 +29,6 @@
 #include "uep/ext_ipc.h"
 #include "uep/extension.h"
 #include "uep/extension_api.h"
-#include "util/logger.h"
 
 /* =========================================================================
  * Local utility functions
@@ -88,6 +87,29 @@ static void signal_handler(int sig)
 {
     (void)sig;
     g_running = 0;
+}
+
+/* =========================================================================
+ * IPC-based logging (atomic, goes through main editor)
+ * ========================================================================= */
+
+static void ipc_log(const char *fmt, ...)
+{
+    char buf[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+
+    if (g_ipc && g_ipc->shm) {
+        /* Send via IPC - main editor will write to log atomically */
+        ext_ipc_ring_t *ring = &g_ipc->shm->to_editor;
+        int slot_idx = ext_ipc_find_empty_slot(ring);
+        if (slot_idx >= 0) {
+            ext_ipc_slot_write(&ring->slots[slot_idx], EXT_MSG_LOG, buf, strlen(buf) + 1);
+        }
+    }
+    /* If IPC not ready, log is silently dropped - early startup logs not critical */
 }
 
 /* =========================================================================
@@ -810,12 +832,12 @@ static void handle_command(ext_ipc_slot_t *slot)
 {
     ext_ipc_cmd_invoke_t *req = (ext_ipc_cmd_invoke_t *)slot->payload;
 
-    LOG_DEBUGF("ext_runner[%d]: Executing command: %s", getpid(), req->name);
+    ipc_log("ext_runner[%d]: Executing command: %s", getpid(), req->name);
 
     uemacs_cmd_fn fn = find_local_command(req->name);
     int result = fn ? fn(req->f, req->n) : -1;
 
-    LOG_DEBUGF("ext_runner[%d]: Command complete: %s = %d", getpid(), req->name, result);
+    ipc_log("ext_runner[%d]: Command complete: %s = %d", getpid(), req->name, result);
 
     /* Send completion message */
     ext_ipc_ring_t *ring = &g_ipc->shm->to_editor;
@@ -882,8 +904,7 @@ static void extension_main_loop(void)
         if (g_death_fd >= 0) {
             int ret = poll(&pfd, 1, 5);
             if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR))) {
-                /* Parent died - exit immediately */
-                LOG_INFOF("ext_runner[%d]: Parent died (POLLHUP), exiting", getpid());
+                /* Parent died - exit immediately (can't log, IPC channel may be gone) */
                 g_running = 0;
                 break;
             }
@@ -940,9 +961,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    LOG_INFOF("ext_runner[%d]: Starting: memfd=%d deathfd=%d ext=%s",
-              getpid(), memfd, g_death_fd, ext_path);
-
     /* Signal handlers */
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
@@ -950,25 +968,25 @@ int main(int argc, char **argv)
     /* Attach to IPC channel */
     g_ipc = ext_ipc_attach(memfd);
     if (!g_ipc) {
-        LOG_ERRORF("ext_runner[%d]: Failed to attach IPC", getpid());
+        /* Can't use ipc_log yet - IPC not attached */
         return 1;
     }
-    LOG_DEBUGF("ext_runner[%d]: IPC attached (magic=0x%x)", getpid(), g_ipc->shm->magic);
+    ipc_log("ext_runner[%d]: IPC attached (magic=0x%x)", getpid(), g_ipc->shm->magic);
 
     /* Load extension .so */
     g_ext_handle = dlopen(ext_path, RTLD_NOW | RTLD_LOCAL);
     if (!g_ext_handle) {
-        LOG_ERRORF("ext_runner[%d]: dlopen failed: %s", getpid(), dlerror());
+        ipc_log("ext_runner[%d]: dlopen failed: %s", getpid(), dlerror());
         ext_ipc_destroy(g_ipc);
         return 1;
     }
-    LOG_DEBUGF("ext_runner[%d]: Extension loaded", getpid());
+    ipc_log("ext_runner[%d]: Extension loaded", getpid());
 
     /* Get extension entry point */
     typedef struct uemacs_extension *(*entry_fn)(void);
     entry_fn get_extension = (entry_fn)dlsym(g_ext_handle, "uemacs_extension_entry");
     if (!get_extension) {
-        LOG_ERRORF("ext_runner[%d]: No entry point", getpid());
+        ipc_log("ext_runner[%d]: No entry point", getpid());
         dlclose(g_ext_handle);
         ext_ipc_destroy(g_ipc);
         return 1;
@@ -976,7 +994,7 @@ int main(int argc, char **argv)
 
     struct uemacs_extension *ext = get_extension();
     if (!ext) {
-        LOG_ERRORF("ext_runner[%d]: Entry returned NULL", getpid());
+        ipc_log("ext_runner[%d]: Entry returned NULL", getpid());
         dlclose(g_ext_handle);
         ext_ipc_destroy(g_ipc);
         return 1;
@@ -984,37 +1002,37 @@ int main(int argc, char **argv)
 
     /* Initialize extension (may register commands via proxy_api) */
     if (ext->init) {
-        LOG_DEBUGF("ext_runner[%d]: Calling init", getpid());
+        ipc_log("ext_runner[%d]: Calling init", getpid());
         ext->init(&proxy_api);
-        LOG_DEBUGF("ext_runner[%d]: Init complete, %d commands registered",
-                   getpid(), g_num_commands);
+        ipc_log("ext_runner[%d]: Init complete, %d commands registered",
+                getpid(), g_num_commands);
     }
 
     /* Signal ready to editor */
     atomic_store_explicit(&g_ipc->shm->ext_ready, 1, memory_order_release);
-    LOG_INFOF("ext_runner[%d]: Signaled READY", getpid());
+    ipc_log("ext_runner[%d]: Signaled READY", getpid());
 
     /* Enter main loop */
     extension_main_loop();
 
-    LOG_INFOF("ext_runner[%d]: Exiting main loop", getpid());
+    ipc_log("ext_runner[%d]: Exiting main loop", getpid());
 
     /* Cleanup */
-    LOG_DEBUGF("ext_runner[%d]: Calling ext cleanup", getpid());
+    ipc_log("ext_runner[%d]: Calling ext cleanup", getpid());
     if (ext->cleanup) {
         ext->cleanup();
     }
 
-    LOG_DEBUGF("ext_runner[%d]: Calling dlclose", getpid());
+    ipc_log("ext_runner[%d]: Calling dlclose", getpid());
     dlclose(g_ext_handle);
 
-    LOG_DEBUGF("ext_runner[%d]: Calling ipc_destroy", getpid());
+    ipc_log("ext_runner[%d]: Calling ipc_destroy", getpid());
     ext_ipc_destroy(g_ipc);
 
     /* Close death pipe */
     if (g_death_fd >= 0) close(g_death_fd);
 
-    LOG_INFOF("ext_runner[%d]: Clean exit", getpid());
+    /* Note: Can't log after ipc_destroy - IPC channel is gone */
 
     return 0;
 }

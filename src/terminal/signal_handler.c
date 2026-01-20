@@ -16,6 +16,7 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <errno.h>
+#include "util/logger.h"
 
 /* Global signal flags */
 volatile sig_atomic_t sig_winch_pending = 0;
@@ -180,7 +181,12 @@ bool signal_handle_pending(bool *size_changed, terminal_size_t *new_size) {
 }
 
 bool signal_should_exit(void) {
-    return sig_hup_pending || sig_term_pending || sig_pipe_pending;
+    bool should_exit = sig_hup_pending || sig_term_pending || sig_pipe_pending;
+    if (should_exit) {
+        LOG_WARNF("Signal exit triggered: SIGHUP=%d SIGTERM=%d SIGPIPE=%d",
+                  (int)sig_hup_pending, (int)sig_term_pending, (int)sig_pipe_pending);
+    }
+    return should_exit;
 }
 
 void signal_clear_exit(void) {

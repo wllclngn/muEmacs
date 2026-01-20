@@ -617,8 +617,6 @@ static int raw_putchar(int c) {
  */
 static void raw_flush(void) {
     if (frame_pos > 0) {
-        /* Hot path - logging disabled for performance
-        LOG_DEBUGF("TUI: raw_flush() writing %d bytes", frame_pos); */
         safe_write(STDOUT_FILENO, frame_buf, frame_pos);
         frame_pos = 0;
     }

@@ -40,6 +40,9 @@ static int g_num_extensions = 0;
 static bool g_initialized = false;
 static char *g_runner_path = NULL;
 
+/* SIGCHLD handling - flag set by signal handler, real work done in reap function */
+static volatile sig_atomic_t g_sigchld_pending = 0;
+
 /* Runtime names */
 static const char *runtime_names[] = {
     [EXT_RUNTIME_C]       = "C",
@@ -123,6 +126,21 @@ static bool dir_has_extension(const char *dir, const char *ext) {
     return found;
 }
 
+static ext_host_entry_t *find_extension_by_pid(pid_t pid) {
+    for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+        if (g_extensions[i].active && g_extensions[i].pid == pid) {
+            return &g_extensions[i];
+        }
+    }
+    return NULL;
+}
+
+/* SIGCHLD handler - just set flag, do real work in ext_host_reap_children() */
+static void sigchld_handler(int sig) {
+    (void)sig;
+    g_sigchld_pending = 1;
+}
+
 /* =========================================================================
  * Initialization
  * ========================================================================= */
@@ -132,6 +150,17 @@ void ext_host_init(void) {
     LOG_INFO("ext_host: Initializing");
     memset(g_extensions, 0, sizeof(g_extensions));
     g_num_extensions = 0;
+
+    /* Register SIGCHLD handler for child crash detection */
+    struct sigaction sa = {
+        .sa_handler = sigchld_handler,
+        .sa_flags = SA_NOCLDSTOP | SA_RESTART,  /* Only on exit, auto-restart syscalls */
+    };
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGCHLD, &sa, NULL) < 0) {
+        LOG_WARN("ext_host: Failed to register SIGCHLD handler");
+    }
+
     g_initialized = true;
 }
 
@@ -285,9 +314,16 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
             }
             case EXT_MSG_EVENT_SUBSCRIBE:
             case EXT_MSG_MODELINE_REGISTER:
-            case EXT_MSG_LOG:
                 ext_ipc_slot_complete(slot, 0, NULL, 0);
                 break;
+            case EXT_MSG_LOG: {
+                const char *msg = (const char *)slot->payload;
+                if (msg && slot->payload_len > 0) {
+                    LOG_INFOF("ext[%s]: %s", name, msg);
+                }
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                break;
+            }
             default:
                 ext_ipc_slot_complete(slot, 0, NULL, 0);
                 break;
@@ -356,10 +392,58 @@ void ext_host_shutdown_all(void) {
 }
 
 /* =========================================================================
+ * SIGCHLD Reaping (child crash detection)
+ * ========================================================================= */
+
+void ext_host_reap_children(void) {
+    if (!g_sigchld_pending) return;
+    g_sigchld_pending = 0;
+
+    int status;
+    pid_t pid;
+
+    /* Reap all terminated children (may be multiple) */
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        ext_host_entry_t *entry = find_extension_by_pid(pid);
+        if (!entry) continue;  /* Not one of our extensions */
+
+        if (WIFEXITED(status)) {
+            int code = WEXITSTATUS(status);
+            if (code == 0) {
+                LOG_INFOF("ext_host: Extension '%s' (pid %d) exited cleanly",
+                          entry->name, pid);
+            } else {
+                LOG_WARNF("ext_host: Extension '%s' (pid %d) exited with code %d",
+                          entry->name, pid, code);
+            }
+        } else if (WIFSIGNALED(status)) {
+            int sig = WTERMSIG(status);
+            LOG_ERRORF("ext_host: Extension '%s' (pid %d) killed by signal %d (%s)",
+                       entry->name, pid, sig, strsignal(sig));
+        }
+
+        /* Mark as dead and clean up IPC resources */
+        entry->state = EXT_STATE_DEAD;
+        entry->pid = 0;
+
+        /* Clean up IPC channel but preserve registry entry for error reporting */
+        if (entry->ipc) {
+            ext_ipc_destroy(entry->ipc);
+            entry->ipc = NULL;
+        }
+
+        g_num_extensions--;
+    }
+}
+
+/* =========================================================================
  * Non-blocking Message Polling (called from main loop)
  * ========================================================================= */
 
 void ext_host_poll_nonblocking(void) {
+    /* Check for crashed/exited children first */
+    ext_host_reap_children();
+
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
         ext_host_entry_t *e = &g_extensions[i];
         if (!e->active || !e->ipc || e->state == EXT_STATE_ERROR) continue;
@@ -458,9 +542,14 @@ void ext_host_poll_nonblocking(void) {
                 ext_ipc_slot_complete(slot, 0, &result, sizeof(result));
                 break;
             }
-            case EXT_MSG_LOG:
+            case EXT_MSG_LOG: {
+                const char *msg = (const char *)slot->payload;
+                if (msg && slot->payload_len > 0) {
+                    LOG_INFOF("ext[%s]: %s", e->name, msg);
+                }
                 ext_ipc_slot_complete(slot, 0, NULL, 0);
                 break;
+            }
             default:
                 LOG_DEBUGF("ext_host: Unhandled message type 0x%x", slot->msg_type);
                 ext_ipc_slot_complete(slot, 0, NULL, 0);

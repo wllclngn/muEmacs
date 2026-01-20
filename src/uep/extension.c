@@ -28,6 +28,7 @@
 #include <stdatomic.h>
 #include <sys/inotify.h>
 #include <errno.h>
+#include <signal.h>
 #include <linux/limits.h>
 
 /* io_uring support (optional - detected at runtime via weak symbol) */
@@ -1265,6 +1266,13 @@ void extension_autoload(void) {
         return;
     }
 
+    /* Block SIGHUP during extension loading to prevent spurious exits
+     * Child process forking can sometimes trigger SIGHUP to parent */
+    sigset_t block_set, old_set;
+    sigemptyset(&block_set);
+    sigaddset(&block_set, SIGHUP);
+    sigprocmask(SIG_BLOCK, &block_set, &old_set);
+
     /* Initialize inotify watch */
     inotify_watch_init(autoload_dir);
 
@@ -1282,6 +1290,13 @@ void extension_autoload(void) {
     } else if (loaded == 0) {
         LOG_DEBUG("Extension: No extensions found in auto-load directory");
     }
+
+    /* Restore signal mask - discard any pending SIGHUP from extension loading */
+    sigprocmask(SIG_SETMASK, &old_set, NULL);
+
+    /* Clear any SIGHUP that arrived while blocked */
+    extern volatile sig_atomic_t sig_hup_pending;
+    sig_hup_pending = 0;
 }
 
 /*

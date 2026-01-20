@@ -296,6 +296,20 @@ int ext_host_handle_message(const char *ext_name);
  */
 void ext_host_poll_nonblocking(void);
 
+/*
+ * Reap any zombie child processes and clean up their extension entries
+ *
+ * Call from main loop (periodically) or before any extension IPC call.
+ * This handles the case where an extension process crashes or exits
+ * unexpectedly - the SIGCHLD handler sets a flag, and this function
+ * does the actual cleanup work (reaping with waitpid, removing stale
+ * entries from the registry, cleaning up IPC resources).
+ *
+ * The signal handler only sets a flag - all real work happens here
+ * to avoid async-signal-unsafe operations in the handler.
+ */
+void ext_host_reap_children(void);
+
 /* =========================================================================
  * Extension iteration
  * ========================================================================= */

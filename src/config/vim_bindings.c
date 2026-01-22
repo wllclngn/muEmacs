@@ -1869,12 +1869,16 @@ static void vim_store_to_register(int is_delete, int linewise) {
         /* Delete: shift registers 1-9 down, put new text in 1 */
         /* (Only for significant deletes, not single chars) */
         if (len > 1 || linewise) {
-            for (int i = 8; i >= 0; i--) {
-                if (g_vim_state.registers[i + 1].text) {
-                    free(g_vim_state.registers[i + 1].text);
-                }
+            /* Free register 9 (it will be overwritten and lost) */
+            if (g_vim_state.registers[9].text) {
+                free(g_vim_state.registers[9].text);
+                g_vim_state.registers[9].text = NULL;
+            }
+            /* Shift 1-8 down to 2-9 (move structs, not just pointers) */
+            for (int i = 8; i >= 1; i--) {
                 g_vim_state.registers[i + 1] = g_vim_state.registers[i];
             }
+            /* Clear register 1 slot before storing new content */
             g_vim_state.registers[1].text = NULL;
             g_vim_state.registers[1].len = 0;
             g_vim_state.registers[1].linewise = 0;

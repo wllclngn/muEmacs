@@ -15,6 +15,7 @@
 #include <ctype.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
 #include <poll.h>
@@ -863,14 +864,36 @@ static void extension_main_loop(void)
     /* Set up poll for death pipe - when parent dies, we get POLLHUP */
     struct pollfd pfd = {
         .fd = g_death_fd,
-        .events = 0,  /* We only care about POLLHUP/POLLERR, which are always reported */
+        .events = POLLIN,  /* Request POLLIN so POLLHUP is reliably reported */
     };
 
+    /* Verify death_fd is valid before entering loop */
+    if (g_death_fd >= 0) {
+        int flags = fcntl(g_death_fd, F_GETFD);
+        if (flags < 0) {
+            /* Death fd is invalid - exit immediately */
+            return;
+        }
+    }
+
     while (g_running && !atomic_load(&g_ipc->shm->shutdown)) {
+        /* Check death pipe FIRST - before scanning slots
+         * This ensures we detect parent death even if shared memory is corrupted */
+        if (g_death_fd >= 0) {
+            int ret = poll(&pfd, 1, 0);  /* Non-blocking check */
+            if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR | POLLNVAL))) {
+                /* Parent died or fd invalid - exit immediately */
+                g_running = 0;
+                break;
+            }
+        }
+
         /* Scan for pending commands */
-        for (int s = 0; s < EXT_IPC_RING_SLOTS; s++) {
+        int processed = 0;
+        for (int s = 0; s < EXT_IPC_RING_SLOTS && processed < 8; s++) {
             ext_ipc_slot_t *slot = &cmd_ring->slots[s];
             if (atomic_load_explicit(&slot->state, memory_order_acquire) == EXT_SLOT_PENDING) {
+                processed++;
                 if (slot->msg_type == EXT_MSG_INVOKE_CMD) {
                     handle_command(slot);
                 } else if (slot->msg_type == EXT_MSG_SHUTDOWN) {
@@ -900,17 +923,17 @@ static void extension_main_loop(void)
             }
         }
 
-        /* Poll death pipe with 5ms timeout - exits immediately if parent dies */
+        /* Sleep/poll with timeout - ensures we don't spin at 100% CPU */
         if (g_death_fd >= 0) {
-            int ret = poll(&pfd, 1, 5);
-            if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR))) {
-                /* Parent died - exit immediately (can't log, IPC channel may be gone) */
+            int ret = poll(&pfd, 1, 10);  /* 10ms timeout */
+            if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR | POLLNVAL))) {
+                /* Parent died - exit immediately */
                 g_running = 0;
                 break;
             }
         } else {
             /* Fallback: no death pipe, just sleep */
-            struct timespec ts = { .tv_sec = 0, .tv_nsec = 5000000 };
+            struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000000 };  /* 10ms */
             nanosleep(&ts, NULL);
         }
     }

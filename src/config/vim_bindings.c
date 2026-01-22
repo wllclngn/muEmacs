@@ -8,6 +8,7 @@
 #include "terminal/terminal.h"
 #include "terminal/input_state.h"
 #include "util/logger.h"
+#include "internal/memory.h"
 #include <time.h>
 
 /* Focus state for Alt+Tab cycling */
@@ -1829,12 +1830,12 @@ static void vim_reg_store(char reg, const char *text, int len, int linewise) {
         /* Append to existing content */
         int old_len = g_vim_state.registers[idx].len;
         int new_len = old_len + len;
-        char *new_text = malloc(new_len + 1);
+        char *new_text = SAFE_ALLOC_SIZED(char, new_len + 1, "vim register append");
         if (new_text) {
             memcpy(new_text, g_vim_state.registers[idx].text, old_len);
             memcpy(new_text + old_len, text, len);
             new_text[new_len] = '\0';
-            free(g_vim_state.registers[idx].text);
+            SAFE_FREE(g_vim_state.registers[idx].text);
             g_vim_state.registers[idx].text = new_text;
             g_vim_state.registers[idx].len = new_len;
             /* Keep linewise flag from original if either is linewise */
@@ -1843,9 +1844,9 @@ static void vim_reg_store(char reg, const char *text, int len, int linewise) {
     } else {
         /* Replace register content */
         if (g_vim_state.registers[idx].text) {
-            free(g_vim_state.registers[idx].text);
+            SAFE_FREE(g_vim_state.registers[idx].text);
         }
-        g_vim_state.registers[idx].text = malloc(len + 1);
+        g_vim_state.registers[idx].text = SAFE_ALLOC_SIZED(char, len + 1, "vim register store");
         if (g_vim_state.registers[idx].text) {
             memcpy(g_vim_state.registers[idx].text, text, len);
             g_vim_state.registers[idx].text[len] = '\0';
@@ -1889,12 +1890,13 @@ static void vim_store_to_register(int is_delete, int linewise) {
         /* Delete: shift registers 1-9 down, put new text in 1 */
         /* (Only for significant deletes, not single chars) */
         if (len > 1 || linewise) {
-            for (int i = 8; i >= 0; i--) {
-                if (g_vim_state.registers[i + 1].text) {
-                    free(g_vim_state.registers[i + 1].text);
-                }
+            /* Free only the evicted register (9) - don't free during shift! */
+            SAFE_FREE(g_vim_state.registers[9].text);
+            /* Shift registers 8->9, 7->8, ..., 1->2 (no freeing) */
+            for (int i = 8; i >= 1; i--) {
                 g_vim_state.registers[i + 1] = g_vim_state.registers[i];
             }
+            /* Clear register 1 and store new content */
             g_vim_state.registers[1].text = NULL;
             g_vim_state.registers[1].len = 0;
             g_vim_state.registers[1].linewise = 0;

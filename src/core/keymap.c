@@ -78,7 +78,7 @@ int keymap_bind(struct keymap *km, keymap_key_t key, command_fn cmd) {
 	while (entry) {
 		if (keymap_key_eq(entry->key, key)) {
 			// Update existing binding
-			entry->binding.cmd = cmd;
+			atomic_store(&entry->binding.cmd, cmd);
 			entry->is_prefix = 0;
 			atomic_fetch_add(&km->generation, 1);
 			return true;
@@ -91,7 +91,7 @@ int keymap_bind(struct keymap *km, keymap_key_t key, command_fn cmd) {
 	if (!entry) return false;
 
 	entry->key = key;
-	entry->binding.cmd = cmd;
+	atomic_store(&entry->binding.cmd, cmd);
 	entry->is_prefix = 0;
 	entry->next = km->table[hash];
 	km->table[hash] = entry;
@@ -118,7 +118,7 @@ int keymap_bind_prefix(struct keymap *km, keymap_key_t key, struct keymap *prefi
 	while (entry) {
 		if (keymap_key_eq(entry->key, key)) {
 			// Update existing binding
-			entry->binding.map = prefix;
+			atomic_store(&entry->binding.map, prefix);
 			entry->is_prefix = 1;
 			atomic_fetch_add(&km->generation, 1);
 			return true;
@@ -131,7 +131,7 @@ int keymap_bind_prefix(struct keymap *km, keymap_key_t key, struct keymap *prefi
 	if (!entry) return false;
 
 	entry->key = key;
-	entry->binding.map = prefix;
+	atomic_store(&entry->binding.map, prefix);
 	entry->is_prefix = 1;
 	entry->next = km->table[hash];
 	km->table[hash] = entry;

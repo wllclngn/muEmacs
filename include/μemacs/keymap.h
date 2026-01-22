@@ -52,8 +52,8 @@ static inline uint32_t keymap_key_hash(keymap_key_t key) {
 struct keymap_entry {
 	keymap_key_t key;       // Key code + modifiers
 	union {
-		command_fn cmd;     // Leaf: command function
-		struct keymap *map; // Branch: prefix keymap
+		_Atomic(command_fn) cmd;     // Leaf: command function (atomic for lock-free reads)
+		_Atomic(struct keymap *) map; // Branch: prefix keymap (atomic for lock-free reads)
 	} binding;
 	uint8_t is_prefix;      // 1 if prefix map, 0 if command
 	struct keymap_entry *next; // Collision chain

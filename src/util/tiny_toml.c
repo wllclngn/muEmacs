@@ -45,7 +45,15 @@ void toml_parse(const char *src, toml_callback cb, void *user_data) {
                 }
             } else {
                 // Key-Value pair: key = value
-                const char *eq = strchr(p, '=');
+                // Handle quoted keys (e.g., "=" = "value")
+                const char *eq;
+                if (*p == '"' || *p == '\'') {
+                    char quote = *p;
+                    const char *closing = memchr(p + 1, quote, line_end - p - 1);
+                    eq = closing ? strchr(closing + 1, '=') : NULL;
+                } else {
+                    eq = strchr(p, '=');
+                }
                 if (eq && eq < line_end) {
                     // Extract Key
                     const char *key_end = eq - 1;

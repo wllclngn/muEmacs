@@ -4,6 +4,10 @@
 #include "edef.h"
 #include "efunc.h"
 
+// Atomic accessors for binding union (binding.cmd and binding.map are now _Atomic)
+#define KM_GET_CMD(entry) atomic_load_explicit(&(entry)->binding.cmd, memory_order_relaxed)
+#define KM_GET_MAP(entry) atomic_load_explicit(&(entry)->binding.map, memory_order_relaxed)
+
 int test_help_prefix_toggle() {
     int result = 1;
     PHASE_START("Help Prefix Toggle", "Enable/disable C-h help prefix without breaking defaults");
@@ -25,7 +29,7 @@ int test_help_prefix_toggle() {
 
     // 1) By default, C-h must be delete_char_backward (not a prefix)
     struct keymap_entry *e = keymap_lookup(gkm, ctrl_h);
-    if (!e || e->is_prefix || e->binding.cmd != delete_char_backward) {
+    if (!e || e->is_prefix || KM_GET_CMD(e) != delete_char_backward) {
         LOG_ERROR("[FAIL] Default C-h is not delete_char_backward");
         result = 0;
     }
@@ -36,18 +40,18 @@ int test_help_prefix_toggle() {
         result = 0;
     } else {
         e = keymap_lookup(gkm, ctrl_h);
-        if (!e || !e->is_prefix || e->binding.map != hkm) {
+        if (!e || !e->is_prefix || KM_GET_MAP(e) != hkm) {
             LOG_ERROR("[FAIL] C-h did not become help prefix after enabling");
             result = 0;
         }
         // Ensure help map has useful entries
         struct keymap_entry *hk = keymap_lookup(hkm, key_k);
         struct keymap_entry *hb = keymap_lookup(hkm, key_b);
-        if (!hk || hk->is_prefix || hk->binding.cmd != describe_key_binding) {
+        if (!hk || hk->is_prefix || KM_GET_CMD(hk) != describe_key_binding) {
             LOG_ERROR("[FAIL] Help map missing 'k' -> describe_key_binding");
             result = 0;
         }
-        if (!hb || hb->is_prefix || hb->binding.cmd != describe_all_bindings) {
+        if (!hb || hb->is_prefix || KM_GET_CMD(hb) != describe_all_bindings) {
             LOG_ERROR("[FAIL] Help map missing 'b' -> describe_all_bindings");
             result = 0;
         }
@@ -59,7 +63,7 @@ int test_help_prefix_toggle() {
         result = 0;
     } else {
         e = keymap_lookup(gkm, ctrl_h);
-        if (!e || e->is_prefix || e->binding.cmd != delete_char_backward) {
+        if (!e || e->is_prefix || KM_GET_CMD(e) != delete_char_backward) {
             LOG_ERROR("[FAIL] C-h delete_char_backward not restored after disabling");
             result = 0;
         }

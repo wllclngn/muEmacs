@@ -5,6 +5,10 @@
 #include "internal/line.h"
 #include "μemacs/keymap.h"
 
+// Atomic accessors for binding union (binding.cmd and binding.map are now _Atomic)
+#define KM_GET_CMD(entry) atomic_load_explicit(&(entry)->binding.cmd, memory_order_relaxed)
+#define KM_GET_MAP(entry) atomic_load_explicit(&(entry)->binding.map, memory_order_relaxed)
+
 int test_mx_command_flow(void)
 {
     int ok = 1;
@@ -55,7 +59,7 @@ int test_mx_command_flow(void)
         struct keymap *gkm = atomic_load(&global_keymap);
         struct keymap *hkm = atomic_load(&help_keymap);
         struct keymap_entry *e = keymap_lookup(gkm, ctrl_h);
-        if (!e || !e->is_prefix || e->binding.map != hkm) {
+        if (!e || !e->is_prefix || KM_GET_MAP(e) != hkm) {
             LOG_ERROR("[FAIL] C-h did not become help prefix after docmd");
             ok = 0;
         }
@@ -68,7 +72,7 @@ int test_mx_command_flow(void)
     } else {
         struct keymap *gkm = atomic_load(&global_keymap);
         struct keymap_entry *e = keymap_lookup(gkm, ctrl_h);
-        if (!e || e->is_prefix || e->binding.cmd != delete_char_backward) {
+        if (!e || e->is_prefix || KM_GET_CMD(e) != delete_char_backward) {
             LOG_ERROR("[FAIL] C-h delete_char_backward not restored after docmd");
             ok = 0;
         }

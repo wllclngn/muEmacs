@@ -15,6 +15,10 @@
 #define KM_LOOKUP(km, ch) keymap_lookup((km), keymap_key_make((ch), 0))
 #define KM_LOOKUP_CTRL(km, ch) keymap_lookup((km), keymap_key_make((ch), MOD_CTRL))
 
+// Atomic accessors for binding union (binding.cmd and binding.map are now _Atomic)
+#define KM_GET_CMD(entry) atomic_load_explicit(&(entry)->binding.cmd, memory_order_relaxed)
+#define KM_GET_MAP(entry) atomic_load_explicit(&(entry)->binding.map, memory_order_relaxed)
+
 // Dummy command function for testing
 static int test_command_a(int f, int n) {
     (void)f; (void)n;
@@ -80,7 +84,7 @@ int test_keymap_functionality(void) {
         result = 0;
     }
     struct keymap_entry *entry_a = KM_LOOKUP(gkm_test, 'a');
-    if (entry_a && !entry_a->is_prefix && entry_a->binding.cmd == test_command_a) {
+    if (entry_a && !entry_a->is_prefix && KM_GET_CMD(entry_a) == test_command_a) {
         LOG_INFO("[SUCCESS] Basic binding and lookup for 'a' successful.");
     } else {
         LOG_ERROR("[FAIL] Basic binding and lookup for 'a' failed.");
@@ -95,7 +99,7 @@ int test_keymap_functionality(void) {
         result = 0;
     }
     struct keymap_entry *entry_x = KM_LOOKUP(gkm_test, 'x');
-    if (entry_x && entry_x->is_prefix && entry_x->binding.map == ckm_test) {
+    if (entry_x && entry_x->is_prefix && KM_GET_MAP(entry_x) == ckm_test) {
         LOG_INFO("[SUCCESS] Prefix binding for 'x' successful.");
     } else {
         LOG_ERROR("[FAIL] Prefix binding for 'x' failed.");
@@ -111,8 +115,8 @@ int test_keymap_functionality(void) {
     }
     struct keymap_entry *entry_c_x_c = keymap_lookup_chain(gkm_test, keymap_key_make('x', 0)); // First lookup for prefix
     if (entry_c_x_c && entry_c_x_c->is_prefix) {
-        struct keymap_entry *final_entry = KM_LOOKUP(entry_c_x_c->binding.map, 'c');
-        if (final_entry && !final_entry->is_prefix && final_entry->binding.cmd == quit) {
+        struct keymap_entry *final_entry = KM_LOOKUP(KM_GET_MAP(entry_c_x_c), 'c');
+        if (final_entry && !final_entry->is_prefix && KM_GET_CMD(final_entry) == quit) {
             LOG_INFO("[SUCCESS] Hierarchical lookup for C-x C-c successful.");
         } else {
             LOG_ERROR("[FAIL] Hierarchical lookup for C-x C-c failed (final entry).");
@@ -150,7 +154,7 @@ int test_keymap_functionality(void) {
     }
 
     struct keymap_entry *entry_x_after_legacy = KM_LOOKUP_CTRL(gkm_after, 'X');
-    if (entry_x_after_legacy && entry_x_after_legacy->is_prefix && entry_x_after_legacy->binding.map == ckm_after) {
+    if (entry_x_after_legacy && entry_x_after_legacy->is_prefix && KM_GET_MAP(entry_x_after_legacy) == ckm_after) {
         LOG_INFO("[SUCCESS] C-x prefix still valid after legacy init.");
     } else {
         LOG_ERROR("[FAIL] C-x prefix invalid after legacy init.");
@@ -195,7 +199,7 @@ end_test:
         if (!fallback_entry) {
             // Expected - now test global fallback
             fallback_entry = KM_LOOKUP(gkm_fallback, 'z');
-            if (fallback_entry && fallback_entry->binding.cmd == test_command_c) {
+            if (fallback_entry && KM_GET_CMD(fallback_entry) == test_command_c) {
                 LOG_INFO("[SUCCESS] Fallback chain working correctly.");
             } else {
                 LOG_ERROR("[FAIL] Global fallback failed.");
@@ -222,7 +226,7 @@ end_test:
         int collisions_resolved = 0;
         for (int i = 0; i < 4; i++) {
             struct keymap_entry *entry = KM_LOOKUP(gkm_collision, collision_keys[i]);
-            if (entry && entry->binding.cmd == test_command_a) {
+            if (entry && KM_GET_CMD(entry) == test_command_a) {
                 collisions_resolved++;
             }
         }
@@ -252,10 +256,10 @@ end_test:
         // Test 3-level deep lookup
         struct keymap_entry *deep_entry = KM_LOOKUP(gkm_deep, '1');
         if (deep_entry && deep_entry->is_prefix) {
-            deep_entry = KM_LOOKUP(deep_entry->binding.map, '2');
+            deep_entry = KM_LOOKUP(KM_GET_MAP(deep_entry), '2');
             if (deep_entry && deep_entry->is_prefix) {
-                deep_entry = KM_LOOKUP(deep_entry->binding.map, '3');
-                if (deep_entry && deep_entry->binding.cmd == test_command_c) {
+                deep_entry = KM_LOOKUP(KM_GET_MAP(deep_entry), '3');
+                if (deep_entry && KM_GET_CMD(deep_entry) == test_command_c) {
                     LOG_INFO("[SUCCESS] Deep hierarchy (3 levels) working correctly.");
                 } else {
                     LOG_ERROR("[FAIL] Deep hierarchy failed at level 3.");

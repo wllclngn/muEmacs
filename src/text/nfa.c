@@ -272,12 +272,14 @@ bool nfa_search_forward(const nfa_program_info* prog,
     struct line* run_start_lp = lp;
     int run_start_off = off;
     bool at_bol = (off == 0);
+    int initial_len = llength(start_lp);
+    bool at_eol = (off == initial_len);  /* Also check EOL at start (for ^$ on empty lines) */
     bool have_match = false;
     struct line* m_lp = nullptr; int m_off = 0; /* match boundary to report */
 
     /* seed epsilon-closure at start */
     list_clear(&cur);
-    add_epsilon(prog, &cur, prog->start_state, at_bol, false);
+    add_epsilon(prog, &cur, prog->start_state, at_bol, at_eol);
     // Zero-length match check at start
     for (int i = 0; i < cur.n; i++) {
         if (arena[cur.idx[i]].type == ST_MATCH) {

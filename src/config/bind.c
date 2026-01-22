@@ -762,9 +762,10 @@ fn_t getbind_event(input_key_event_t *evt)
             // Buffer-local prefix
             struct keymap *ckm = atomic_load(&ctlx_keymap);
             struct keymap *mkm = atomic_load(&meta_keymap);
-            if (entry->binding.map == ckm) return cex;
-            if (entry->binding.map == mkm) return metafn;
-            atomic_store(&g_pending_prefix, entry->binding.map);
+            struct keymap *bound_map = atomic_load(&entry->binding.map);
+            if (bound_map == ckm) return cex;
+            if (bound_map == mkm) return metafn;
+            atomic_store(&g_pending_prefix, bound_map);
             return generic_prefix_dispatch;
         }
     }
@@ -781,17 +782,18 @@ fn_t getbind_event(input_key_event_t *evt)
             // For prefix entries, return the appropriate dispatcher
             struct keymap *ckm = atomic_load(&ctlx_keymap);
             struct keymap *mkm = atomic_load(&meta_keymap);
-            if (entry->binding.map == ckm) {
+            struct keymap *bound_map = atomic_load(&entry->binding.map);
+            if (bound_map == ckm) {
                 LOG_DEBUGF("BIND: FOUND prefix CTLX in %s", map_name);
                 return cex;
             }
-            if (entry->binding.map == mkm) {
+            if (bound_map == mkm) {
                 LOG_DEBUGF("BIND: FOUND prefix META in %s", map_name);
                 return metafn;
             }
             // User-defined prefix - use generic dispatcher
             LOG_DEBUGF("BIND: FOUND user-defined prefix in %s", map_name);
-            atomic_store(&g_pending_prefix, entry->binding.map);
+            atomic_store(&g_pending_prefix, bound_map);
             return generic_prefix_dispatch;
         }
 
@@ -810,17 +812,18 @@ fn_t getbind_event(input_key_event_t *evt)
                     }
                     struct keymap *ckm2 = atomic_load(&ctlx_keymap);
                     struct keymap *mkm2 = atomic_load(&meta_keymap);
-                    if (entry->binding.map == ckm2) {
+                    struct keymap *bound_map2 = atomic_load(&entry->binding.map);
+                    if (bound_map2 == ckm2) {
                         LOG_DEBUG("BIND: FOUND prefix CTLX (vim fallback)");
                         return cex;
                     }
-                    if (entry->binding.map == mkm2) {
+                    if (bound_map2 == mkm2) {
                         LOG_DEBUG("BIND: FOUND prefix META (vim fallback)");
                         return metafn;
                     }
                     // User-defined prefix in vim fallback
                     LOG_DEBUG("BIND: FOUND user-defined prefix (vim fallback)");
-                    atomic_store(&g_pending_prefix, entry->binding.map);
+                    atomic_store(&g_pending_prefix, bound_map2);
                     return generic_prefix_dispatch;
                 }
             }

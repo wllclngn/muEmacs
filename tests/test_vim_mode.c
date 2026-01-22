@@ -12,6 +12,9 @@
 #include "editor_mode.h"
 #include "μemacs/keymap.h"
 
+/* Atomic accessor for binding.cmd (now _Atomic) */
+#define KM_GET_CMD(entry) atomic_load_explicit(&(entry)->binding.cmd, memory_order_relaxed)
+
 /* Helper to lookup a simple character key in a keymap */
 static inline struct keymap_entry *km_lookup_char(struct keymap *km, int ch) {
     return keymap_lookup(km, keymap_key_make((uint32_t)ch, 0));
@@ -143,19 +146,19 @@ static int test_vim_navigation_bindings(void) {
     struct keymap_entry *k = km_lookup_char(nkm, 'k');
     struct keymap_entry *l = km_lookup_char(nkm, 'l');
 
-    if (!h || h->is_prefix || !h->binding.cmd) {
+    if (!h || h->is_prefix || !KM_GET_CMD(h)) {
         LOG_ERROR("[FAIL] 'h' not bound in normal mode");
         result = 0;
     }
-    if (!j || j->is_prefix || !j->binding.cmd) {
+    if (!j || j->is_prefix || !KM_GET_CMD(j)) {
         LOG_ERROR("[FAIL] 'j' not bound in normal mode");
         result = 0;
     }
-    if (!k || k->is_prefix || !k->binding.cmd) {
+    if (!k || k->is_prefix || !KM_GET_CMD(k)) {
         LOG_ERROR("[FAIL] 'k' not bound in normal mode");
         result = 0;
     }
-    if (!l || l->is_prefix || !l->binding.cmd) {
+    if (!l || l->is_prefix || !KM_GET_CMD(l)) {
         LOG_ERROR("[FAIL] 'l' not bound in normal mode");
         result = 0;
     }
@@ -164,11 +167,11 @@ static int test_vim_navigation_bindings(void) {
     struct keymap_entry *b = km_lookup_char(nkm, 'b');
     struct keymap_entry *e = km_lookup_char(nkm, 'e');
 
-    if (!b || b->is_prefix || !b->binding.cmd) {
+    if (!b || b->is_prefix || !KM_GET_CMD(b)) {
         LOG_ERROR("[FAIL] 'b' (backward word) not bound");
         result = 0;
     }
-    if (!e || e->is_prefix || !e->binding.cmd) {
+    if (!e || e->is_prefix || !KM_GET_CMD(e)) {
         LOG_ERROR("[FAIL] 'e' (end of word) not bound");
         result = 0;
     }
@@ -178,15 +181,15 @@ static int test_vim_navigation_bindings(void) {
     struct keymap_entry *dollar = km_lookup_char(nkm, '$');
     struct keymap_entry *caret = km_lookup_char(nkm, '^');
 
-    if (!zero || zero->is_prefix || !zero->binding.cmd) {
+    if (!zero || zero->is_prefix || !KM_GET_CMD(zero)) {
         LOG_ERROR("[FAIL] '0' (beginning of line) not bound");
         result = 0;
     }
-    if (!dollar || dollar->is_prefix || !dollar->binding.cmd) {
+    if (!dollar || dollar->is_prefix || !KM_GET_CMD(dollar)) {
         LOG_ERROR("[FAIL] '$' (end of line) not bound");
         result = 0;
     }
-    if (!caret || caret->is_prefix || !caret->binding.cmd) {
+    if (!caret || caret->is_prefix || !KM_GET_CMD(caret)) {
         LOG_ERROR("[FAIL] '^' (first non-blank) not bound");
         result = 0;
     }
@@ -215,15 +218,15 @@ static int test_vim_operator_bindings(void) {
     struct keymap_entry *c = km_lookup_char(nkm, 'c');
     struct keymap_entry *y = km_lookup_char(nkm, 'y');
 
-    if (!d || d->is_prefix || !d->binding.cmd) {
+    if (!d || d->is_prefix || !KM_GET_CMD(d)) {
         LOG_ERROR("[FAIL] 'd' (delete operator) not bound");
         result = 0;
     }
-    if (!c || c->is_prefix || !c->binding.cmd) {
+    if (!c || c->is_prefix || !KM_GET_CMD(c)) {
         LOG_ERROR("[FAIL] 'c' (change operator) not bound");
         result = 0;
     }
-    if (!y || y->is_prefix || !y->binding.cmd) {
+    if (!y || y->is_prefix || !KM_GET_CMD(y)) {
         LOG_ERROR("[FAIL] 'y' (yank operator) not bound");
         result = 0;
     }
@@ -253,11 +256,11 @@ static int test_vim_visual_bindings(void) {
     struct keymap_entry *v = km_lookup_char(nkm, 'v');
     struct keymap_entry *V = km_lookup_char(nkm, 'V');
 
-    if (!v || v->is_prefix || !v->binding.cmd) {
+    if (!v || v->is_prefix || !KM_GET_CMD(v)) {
         LOG_ERROR("[FAIL] 'v' (visual mode) not bound in normal mode");
         result = 0;
     }
-    if (!V || V->is_prefix || !V->binding.cmd) {
+    if (!V || V->is_prefix || !KM_GET_CMD(V)) {
         LOG_ERROR("[FAIL] 'V' (visual line mode) not bound in normal mode");
         result = 0;
     }
@@ -267,15 +270,15 @@ static int test_vim_visual_bindings(void) {
     struct keymap_entry *vc = km_lookup_char(vkm, 'c');
     struct keymap_entry *vy = km_lookup_char(vkm, 'y');
 
-    if (!vd || vd->is_prefix || !vd->binding.cmd) {
+    if (!vd || vd->is_prefix || !KM_GET_CMD(vd)) {
         LOG_ERROR("[FAIL] 'd' not bound in visual mode");
         result = 0;
     }
-    if (!vc || vc->is_prefix || !vc->binding.cmd) {
+    if (!vc || vc->is_prefix || !KM_GET_CMD(vc)) {
         LOG_ERROR("[FAIL] 'c' not bound in visual mode");
         result = 0;
     }
-    if (!vy || vy->is_prefix || !vy->binding.cmd) {
+    if (!vy || vy->is_prefix || !KM_GET_CMD(vy)) {
         LOG_ERROR("[FAIL] 'y' not bound in visual mode");
         result = 0;
     }
@@ -303,7 +306,7 @@ static int test_vim_user_bindings(void) {
     const char *user_keys = "HLKJsSquropPx";
     for (int i = 0; user_keys[i]; i++) {
         struct keymap_entry *e = km_lookup_char(nkm, user_keys[i]);
-        if (!e || e->is_prefix || !e->binding.cmd) {
+        if (!e || e->is_prefix || !KM_GET_CMD(e)) {
             LOG_ERRORF("[FAIL] '%c' user binding not present", user_keys[i]);
             result = 0;
         }
@@ -330,15 +333,15 @@ static int test_vim_mode_switching(void) {
 
     /* Check 'i' for insert mode */
     struct keymap_entry *i = km_lookup_char(nkm, 'i');
-    if (!i || i->is_prefix || !i->binding.cmd) {
+    if (!i || i->is_prefix || !KM_GET_CMD(i)) {
         LOG_ERROR("[FAIL] 'i' (insert mode) not bound");
         result = 0;
     }
 
-    /* Check ESC (Ctrl+[) for normal mode */
-    struct keymap_entry *esc = keymap_lookup(nkm, keymap_key_make('[', MOD_CTRL));
-    if (!esc || esc->is_prefix || !esc->binding.cmd) {
-        LOG_ERROR("[FAIL] ESC (Ctrl+[) not bound");
+    /* Check ESC for normal mode (TOML stores ^[ as raw byte 0x1B, not '[' + MOD_CTRL) */
+    struct keymap_entry *esc = keymap_lookup(nkm, keymap_key_make(0x1B, 0));
+    if (!esc || esc->is_prefix || !KM_GET_CMD(esc)) {
+        LOG_ERROR("[FAIL] ESC (0x1B) not bound");
         result = 0;
     }
 
@@ -356,6 +359,10 @@ int test_vim_mode(void) {
 
     // Initialize editor (sets up curwp, curbp, etc.)
     test_init_editor("vim-mode");
+
+    // Load settings from TOML - this is where vim keybindings come from
+    extern int settings_load(int f, int n);
+    settings_load(false, 0);
 
     PHASE_START("Vim Mode Tests", "Testing vim mode implementation");
 

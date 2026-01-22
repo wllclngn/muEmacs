@@ -190,6 +190,7 @@ static int api_modeline_register(const char *name, uemacs_modeline_fn format_fn,
 static int api_modeline_unregister(const char *name);
 static void api_modeline_refresh(void);
 static int api_delete_chars(int n);
+static int api_kill_line(void);
 
 /* Generic function pointer type for ISO C compliant storage.
  * All function pointers can be converted to/from this type. */
@@ -293,6 +294,7 @@ static const api_registry_entry_t api_registry[] = {
 
     /* Text manipulation */
     {"delete_chars", FN(api_delete_chars)},
+    {"kill_line", FN(api_kill_line)},
 
     /* Sentinel */
     {NULL, NULL}
@@ -1390,6 +1392,10 @@ static void api_modeline_refresh(void) {
 static int api_delete_chars(int n) {
     if (n <= 0) return 0;
     return ldelete((long)n, false) == true ? 0 : -1;
+}
+
+static int api_kill_line(void) {
+    return kill_to_eol(false, 1) == true ? 0 : -1;
 }
 
 char *extension_get_modeline_segments(int urgency) {

@@ -64,9 +64,8 @@ static int api_register_command(const char *name, uemacs_cmd_fn func) {
 
     for (int i = 0; i < MAX_DYNAMIC_COMMANDS; i++) {
         if (!dynamic_commands[i].active) {
-            dynamic_commands[i].name = strdup(name);
+            dynamic_commands[i].name = SAFE_STRDUP(name, "dynamic command name");
             if (!dynamic_commands[i].name) {
-                LOG_ERROR("Extension API: strdup failed for command name");
                 pthread_mutex_unlock(&dynamic_commands_mutex);
                 return -1;
             }
@@ -402,7 +401,7 @@ static ext_config_entry_t *get_or_create_config_entry(const char *full_key) {
     }
 
     /* Create new entry */
-    entry = calloc(1, sizeof(ext_config_entry_t));
+    entry = SAFE_ALLOC(ext_config_entry_t, "ext config entry");
     if (!entry) return nullptr;
 
     strncpy(entry->key, full_key, EXT_CONFIG_KEY_MAX - 1);
@@ -449,7 +448,7 @@ void extension_config_set_string(const char *ext_name, const char *key, const ch
     ext_config_entry_t *entry = get_or_create_config_entry(full_key);
     if (entry) {
         entry->type = EXT_CONFIG_STRING;
-        entry->str_val = value ? strdup(value) : nullptr;
+        entry->str_val = value ? SAFE_STRDUP(value, "ext config string") : nullptr;
         LOG_DEBUGF("ext_config: set %s = \"%s\" (string)", full_key, value ? value : "(null)");
     }
 }
@@ -609,7 +608,7 @@ void extension_register_hook_command(const char *hook_name, const char *command)
         return;
     }
 
-    hook->commands[hook->command_count++] = strdup(command);
+    hook->commands[hook->command_count++] = SAFE_STRDUP(command, "decl hook command");
     LOG_DEBUGF("decl_hook: added command '%s' for event '%s'", command, event_name);
 
     /* Register event handler if not already registered */
@@ -671,10 +670,10 @@ static char *api_buffer_contents(struct buffer *bp, size_t *len) {
 
     if (total == 0) {
         if (len) *len = 0;
-        return strdup("");
+        return SAFE_STRDUP("", "api empty buffer");
     }
 
-    char *buf = malloc(total + 1);
+    char *buf = SAFE_ALLOC_SIZED(char, total + 1, "api buffer contents");
     if (!buf) {
         if (len) *len = 0;
         return nullptr;
@@ -894,7 +893,7 @@ static char *api_get_word_at_point(void) {
     int word_len = end - start;
     if (word_len <= 0) return nullptr;
 
-    char *word = malloc(word_len + 1);
+    char *word = SAFE_ALLOC_SIZED(char, word_len + 1, "api word at point");
     if (!word) return nullptr;
 
     for (int i = 0; i < word_len; i++) {
@@ -911,7 +910,7 @@ static char *api_get_current_line(void) {
     struct line *lp = curwp->w_dotp;
     int len = llength(lp);
 
-    char *line = malloc(len + 1);
+    char *line = SAFE_ALLOC_SIZED(char, len + 1, "api current line");
     if (!line) return nullptr;
 
     for (int i = 0; i < len; i++) {
@@ -939,7 +938,7 @@ static char *api_get_line_at(struct buffer *bp, int line_num) {
     if (lp == bp->b_linep || current != line_num) return nullptr;
 
     int len = llength(lp);
-    char *line = malloc(len + 1);
+    char *line = SAFE_ALLOC_SIZED(char, len + 1, "api line at");
     if (!line) return nullptr;
 
     for (int i = 0; i < len; i++) {
@@ -1172,7 +1171,7 @@ static int api_shell_command(const char *cmd, char **output, size_t *len) {
 
     size_t capacity = 4096;
     size_t pos = 0;
-    char *buf = malloc(capacity);
+    char *buf = SAFE_ALLOC_SIZED(char, capacity, "api shell output");
 
     if (buf) {
         struct pollfd pfd = { .fd = pipefd[0], .events = POLLIN };
@@ -1183,7 +1182,7 @@ static int api_shell_command(const char *cmd, char **output, size_t *len) {
 
             if (pos + 4096 > capacity) {
                 capacity *= 2;
-                char *new_buf = realloc(buf, capacity);
+                char *new_buf = SAFE_REALLOC(buf, capacity, "api shell output grow");
                 if (!new_buf) break;
                 buf = new_buf;
             }
@@ -1195,7 +1194,7 @@ static int api_shell_command(const char *cmd, char **output, size_t *len) {
 
         buf[pos] = '\0';
         if (output) *output = buf;
-        else free(buf);
+        else SAFE_FREE(buf);
         if (len) *len = pos;
     }
 
@@ -1212,15 +1211,15 @@ static int api_shell_command(const char *cmd, char **output, size_t *len) {
  * ============================================================================ */
 
 static void *api_alloc(size_t size) {
-    return malloc(size);
+    return safe_alloc(size, "extension api alloc", __FILE__, __LINE__);
 }
 
 static void api_free(void *ptr) {
-    free(ptr);
+    safe_free(&ptr);
 }
 
 static char *api_strdup(const char *s) {
-    return s ? strdup(s) : nullptr;
+    return s ? SAFE_STRDUP(s, "extension api strdup") : nullptr;
 }
 
 /* ============================================================================
@@ -1406,13 +1405,13 @@ char *extension_get_modeline_segments(int urgency) {
             parts[part_count++] = text;
             total_len += strlen(text) + 1;
         } else if (text) {
-            free(text);
+            SAFE_FREE(text);
         }
     }
     if (part_count == 0) return nullptr;
-    char *result = malloc(total_len + 1);
+    char *result = SAFE_ALLOC_SIZED(char, total_len + 1, "modeline format result");
     if (!result) {
-        for (int i = 0; i < part_count; i++) free(parts[i]);
+        for (int i = 0; i < part_count; i++) SAFE_FREE(parts[i]);
         return nullptr;
     }
     char *p = result;
@@ -1421,7 +1420,7 @@ char *extension_get_modeline_segments(int urgency) {
         size_t len = strlen(parts[i]);
         memcpy(p, parts[i], len);
         p += len;
-        free(parts[i]);
+        SAFE_FREE(parts[i]);
     }
     *p = '\0';
     return result;

@@ -470,13 +470,13 @@ int readin(const char *fname, int lockfl)
 
 			if (curbp->b_syntax) {
 				/* Build array of line text pointers for lexing */
-				const char **lines = malloc(line_count * sizeof(char *));
-				char **line_bufs = malloc(line_count * sizeof(char *));
+				const char **lines = SAFE_ARRAY(const char *, line_count, "file lex lines");
+				char **line_bufs = SAFE_ARRAY(char *, line_count, "file lex line bufs");
 				if (lines && line_bufs) {
 					struct line *lp = lforw(curbp->b_linep);
 					for (int i = 0; i < line_count && lp != curbp->b_linep; i++) {
 						int len = llength(lp);
-						line_bufs[i] = malloc(len + 1);
+						line_bufs[i] = SAFE_ALLOC_SIZED(char, len + 1, "file lex line");
 						if (line_bufs[i]) {
 							TS_GET_TEXT(lp->storage, 0, len, line_bufs[i], len + 1);
 							line_bufs[i][len] = '\0';
@@ -492,16 +492,16 @@ int readin(const char *fname, int lockfl)
 
 					/* Free line buffers */
 					for (int i = 0; i < line_count; i++) {
-						free(line_bufs[i]);
+						SAFE_FREE(line_bufs[i]);
 					}
-					free(line_bufs);
-					free(lines);
+					SAFE_FREE(line_bufs);
+					SAFE_FREE(lines);
 
 					LOG_INFOF("Syntax: Initialized %s highlighting for %s (%d lines)",
 					          syntax_get_language(lang_id)->name, curbp->b_fname, line_count);
 				} else {
-					free(lines);
-					free(line_bufs);
+					SAFE_FREE(lines);
+					SAFE_FREE(line_bufs);
 				}
 			}
 		} else {

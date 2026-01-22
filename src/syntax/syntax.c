@@ -13,6 +13,7 @@
 #include "internal/syntax.h"
 #include "internal/estruct.h"
 #include "internal/edef.h"
+#include "internal/memory.h"
 #include "terminal/palette.h"
 
 #include <stdlib.h>
@@ -105,12 +106,12 @@ void syntax_shutdown(void) {
  * ============================================================================ */
 
 line_tokens_t *line_tokens_alloc(int capacity) {
-    line_tokens_t *lt = malloc(sizeof(line_tokens_t));
+    line_tokens_t *lt = SAFE_ALLOC(line_tokens_t, "line tokens");
     if (!lt) return NULL;
 
-    lt->data = malloc(capacity * 2 * sizeof(uint16_t));
+    lt->data = SAFE_ARRAY(uint16_t, capacity * 2, "line tokens data");
     if (!lt->data) {
-        free(lt);
+        SAFE_FREE(lt);
         return NULL;
     }
 
@@ -121,8 +122,8 @@ line_tokens_t *line_tokens_alloc(int capacity) {
 
 void line_tokens_free(line_tokens_t *lt) {
     if (lt) {
-        free(lt->data);
-        free(lt);
+        SAFE_FREE(lt->data);
+        SAFE_FREE(lt);
     }
 }
 
@@ -139,7 +140,7 @@ int line_tokens_add(line_tokens_t *lt, uint16_t end_col, uint16_t face) {
     if (lt->count >= lt->capacity) {
         int new_cap = lt->capacity * 2;
         if (new_cap < 16) new_cap = 16;
-        uint16_t *new_data = realloc(lt->data, new_cap * 2 * sizeof(uint16_t));
+        uint16_t *new_data = SAFE_REALLOC(lt->data, new_cap * 2 * sizeof(uint16_t), "line tokens grow");
         if (!new_data) return -1;
         lt->data = new_data;
         lt->capacity = new_cap;
@@ -185,16 +186,16 @@ int line_tokens_get_face(const line_tokens_t *lt, int col) {
  * ============================================================================ */
 
 buffer_syntax_t *syntax_create(int initial_lines) {
-    buffer_syntax_t *syn = calloc(1, sizeof(buffer_syntax_t));
+    buffer_syntax_t *syn = SAFE_ALLOC(buffer_syntax_t, "buffer syntax");
     if (!syn) return NULL;
 
     if (initial_lines > 0) {
-        syn->lines = calloc(initial_lines, sizeof(line_tokens_t));
-        syn->states = calloc(initial_lines, sizeof(lexer_state_t));
+        syn->lines = SAFE_ARRAY(line_tokens_t, initial_lines, "syntax lines");
+        syn->states = SAFE_ARRAY(lexer_state_t, initial_lines, "syntax states");
         if (!syn->lines || !syn->states) {
-            free(syn->lines);
-            free(syn->states);
-            free(syn);
+            SAFE_FREE(syn->lines);
+            SAFE_FREE(syn->states);
+            SAFE_FREE(syn);
             return NULL;
         }
         syn->line_count = initial_lines;
@@ -212,12 +213,12 @@ void syntax_free(buffer_syntax_t *syn) {
 
     if (syn->lines) {
         for (int i = 0; i < syn->line_count; i++) {
-            free(syn->lines[i].data);
+            SAFE_FREE(syn->lines[i].data);
         }
-        free(syn->lines);
+        SAFE_FREE(syn->lines);
     }
-    free(syn->states);
-    free(syn);
+    SAFE_FREE(syn->states);
+    SAFE_FREE(syn);
 }
 
 int syntax_resize(buffer_syntax_t *syn, int new_count) {
@@ -226,8 +227,7 @@ int syntax_resize(buffer_syntax_t *syn, int new_count) {
     if (new_count <= syn->line_count) {
         /* Shrinking: free extra lines */
         for (int i = new_count; i < syn->line_count; i++) {
-            free(syn->lines[i].data);
-            syn->lines[i].data = NULL;
+            SAFE_FREE(syn->lines[i].data);
             syn->lines[i].count = 0;
             syn->lines[i].capacity = 0;
         }
@@ -236,8 +236,8 @@ int syntax_resize(buffer_syntax_t *syn, int new_count) {
     }
 
     /* Growing */
-    line_tokens_t *new_lines = realloc(syn->lines, new_count * sizeof(line_tokens_t));
-    lexer_state_t *new_states = realloc(syn->states, new_count * sizeof(lexer_state_t));
+    line_tokens_t *new_lines = SAFE_REALLOC(syn->lines, new_count * sizeof(line_tokens_t), "syntax lines grow");
+    lexer_state_t *new_states = SAFE_REALLOC(syn->states, new_count * sizeof(lexer_state_t), "syntax states grow");
 
     if (!new_lines || !new_states) {
         /* Partial failure - try to recover */
@@ -402,11 +402,11 @@ int syntax_register_language(
     /* Copy patterns */
     int pat_count = 0;
     for (int i = 0; patterns[i] && i < 15; i++) {
-        ext_languages[slot].patterns[i] = strdup(patterns[i]);
+        ext_languages[slot].patterns[i] = SAFE_STRDUP(patterns[i], "syntax pattern");
         if (!ext_languages[slot].patterns[i]) {
             /* Cleanup on failure */
             for (int j = 0; j < i; j++) {
-                free(ext_languages[slot].patterns[j]);
+                SAFE_FREE(ext_languages[slot].patterns[j]);
             }
             return -1;
         }

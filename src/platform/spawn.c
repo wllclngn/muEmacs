@@ -451,7 +451,7 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
     /* Read output from child's stdout */
     size_t out_capacity = 4096;
     size_t out_len = 0;
-    char *out_buf = malloc(out_capacity);
+    char *out_buf = SAFE_ALLOC_SIZED(char, out_capacity, "spawn output buffer");
     if (!out_buf) {
         waitpid(pid, &status, 0);
         goto cleanup;
@@ -460,9 +460,9 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
     for (;;) {
         if (out_len + 4096 > out_capacity) {
             out_capacity *= 2;
-            char *new_buf = realloc(out_buf, out_capacity);
+            char *new_buf = SAFE_REALLOC(out_buf, out_capacity, "spawn output grow");
             if (!new_buf) {
-                free(out_buf);
+                SAFE_FREE(out_buf);
                 waitpid(pid, &status, 0);
                 goto cleanup;
             }
@@ -486,7 +486,7 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
 
     /* Null-terminate for convenience */
     if (out_len + 1 > out_capacity) {
-        char *new_buf = realloc(out_buf, out_len + 1);
+        char *new_buf = SAFE_REALLOC(out_buf, out_len + 1, "spawn output terminate");
         if (new_buf) out_buf = new_buf;
     }
     out_buf[out_len] = '\0';
@@ -539,7 +539,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
     }
 
     /* Allocate buffer for content */
-    char *content = malloc(total_len + 1);
+    char *content = SAFE_ALLOC_SIZED(char, total_len + 1, "filter buffer content");
     if (!content) {
         mlwrite("[OUT OF MEMORY]");
         return false;

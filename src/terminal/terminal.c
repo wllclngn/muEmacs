@@ -944,11 +944,11 @@ int terminal_send_line(int f, int n) {
 
     /* Send line to terminal using gap buffer */
     if (len > 0) {
-        char *text = malloc(len + 1);
+        char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal send line");
         if (text) {
             TS_GET_TEXT(lp->storage, 0, len, text, len);
             pty_write(ts->fd, text, len);
-            free(text);
+            SAFE_FREE(text);
         }
     }
     /* Send newline (Enter) */
@@ -1020,11 +1020,11 @@ int terminal_send_region(int f, int n) {
 
         /* Send the line portion using gap buffer */
         if (to_send > 0) {
-            char *text = malloc(to_send + 1);
+            char *text = SAFE_ALLOC_SIZED(char, to_send + 1, "terminal send region");
             if (text) {
                 TS_GET_TEXT(lp->storage, start, to_send, text, to_send);
                 pty_write(ts->fd, text, to_send);
-                free(text);
+                SAFE_FREE(text);
             }
         }
 
@@ -1382,12 +1382,12 @@ int terminal_send_buffer(int f, int n) {
         int len = llength(lp);
 
         if (len > 0) {
-            char *text = malloc(len + 1);
+            char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal send buffer line");
             if (text) {
                 TS_GET_TEXT(lp->storage, 0, len, text, len);
                 pty_write(ts->fd, text, len);
                 bytes_sent += len;
-                free(text);
+                SAFE_FREE(text);
             }
         }
 
@@ -1460,14 +1460,14 @@ int terminal_capture(int f, int n) {
         int len = llength(lp);
 
         if (len > 0) {
-            char *text = malloc(len + 1);
+            char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal capture line");
             if (text) {
                 TS_GET_TEXT(lp->storage, 0, len, text, len);
                 /* Insert text character by character */
                 for (int i = 0; i < len; i++) {
                     linsert(1, text[i]);
                 }
-                free(text);
+                SAFE_FREE(text);
             }
         }
 
@@ -1865,7 +1865,7 @@ static void scan_build_errors(void) {
         int len = llength(lp);
         if (len == 0) continue;
 
-        char *text = malloc(len + 1);
+        char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal error parse");
         if (!text) continue;
 
         TS_GET_TEXT(lp->storage, 0, len, text, len);
@@ -1882,7 +1882,7 @@ static void scan_build_errors(void) {
             }
         }
 
-        free(text);
+        SAFE_FREE(text);
     }
 }
 

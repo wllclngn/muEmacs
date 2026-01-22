@@ -313,7 +313,7 @@ static int io_uring_batch_stat(const char **paths, int count,
     }
 
     /* Allocate statx buffers */
-    struct statx *stx_bufs = calloc(count, sizeof(struct statx));
+    struct statx *stx_bufs = SAFE_ARRAY(struct statx, count, "uring statx buffers");
     if (!stx_bufs) {
         io_uring_queue_exit(&ring);
         return -1;
@@ -570,7 +570,7 @@ static void batch_build_extensions(char **paths, int count) {
     LOG_INFOF("Extension: Batch building %d extension(s)", count);
 
     /* Build argv: python3 uep_build.py path1 path2 path3 ... */
-    char **argv = calloc(count + 3, sizeof(char *));
+    char **argv = SAFE_ARRAY(char *, count + 3, "build argv");
     if (!argv) return;
 
     argv[0] = "python3";
@@ -590,7 +590,7 @@ static void batch_build_extensions(char **paths, int count) {
     int status = posix_spawn(&pid, "/usr/bin/python3", &actions, nullptr, argv, environ);
 
     posix_spawn_file_actions_destroy(&actions);
-    free(argv);
+    SAFE_FREE(argv);
 
     if (status != 0) {
         LOG_ERRORF("Extension: Batch posix_spawn failed: %s", strerror(status));
@@ -795,7 +795,7 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
         }
 
         /* Store in slot */
-        slot->path = strdup(task->path);
+        slot->path = SAFE_STRDUP(task->path, "extension slot path");
         slot->handle = task->handle;
         slot->ext = ext;
         extension_count_internal++;
@@ -833,9 +833,8 @@ static int parallel_load_extensions(const char **paths, int count) {
     double phase1_start = get_time_ms();
 
     /* Allocate tasks */
-    dlopen_task_t *tasks = calloc(count, sizeof(dlopen_task_t));
+    dlopen_task_t *tasks = SAFE_ARRAY(dlopen_task_t, count, "extension dlopen tasks");
     if (!tasks) {
-        LOG_ERROR("Extension: Failed to allocate task array");
         return 0;
     }
 
@@ -881,7 +880,7 @@ static int parallel_load_extensions(const char **paths, int count) {
     LOG_INFOF("Extension: Loaded %d/%d extensions (Phase1: %.1fms, Phase2: %.1fms)",
               loaded, count, phase1_time, phase2_time);
 
-    free(tasks);
+    SAFE_FREE(tasks);
     return loaded;
 }
 
@@ -1021,7 +1020,7 @@ static char *find_first_so(const char *dir_path) {
             }
 
             size_t path_len = strlen(dir_path) + 1 + len + 1;
-            char *so_path = malloc(path_len);
+            char *so_path = SAFE_ALLOC_SIZED(char, path_len, "ext so path");
             if (!so_path) continue;
             snprintf(so_path, path_len, "%s/%s", dir_path, entry->d_name);
 
@@ -1031,13 +1030,13 @@ static char *find_first_so(const char *dir_path) {
 
             if (exact_match) {
                 /* Best: exact match (e.g., ada_fuzzy/ada_fuzzy.so) */
-                free(best);
+                SAFE_FREE(best);
                 best = so_path;
             } else if (!fallback) {
                 /* Fallback: any .so */
                 fallback = so_path;
             } else {
-                free(so_path);
+                SAFE_FREE(so_path);
             }
         }
     }
@@ -1046,7 +1045,7 @@ static char *find_first_so(const char *dir_path) {
 
     /* Return best available */
     if (best) {
-        free(fallback);
+        SAFE_FREE(fallback);
         return best;
     }
     return fallback;
@@ -1304,7 +1303,7 @@ void extension_autoload(void) {
  * Returns the parent directory of the .so file.
  */
 static char *get_extension_dir(const char *so_path) {
-    char *dir = strdup(so_path);
+    char *dir = SAFE_STRDUP(so_path, "extension dir");
     if (!dir) return NULL;
 
     char *last_slash = strrchr(dir, '/');
@@ -1327,7 +1326,7 @@ static char *get_extension_name(const char *path) {
         len -= 3;
     }
 
-    char *name = malloc(len + 1);
+    char *name = SAFE_ALLOC_SIZED(char, len + 1, "extension name");
     if (name) {
         memcpy(name, basename, len);
         name[len] = '\0';
@@ -1492,7 +1491,7 @@ int extension_load(const char *path) {
     }
 
     /* Store in slot (slot->active already true from find_free_slot) */
-    slot->path = strdup(path);
+    slot->path = SAFE_STRDUP(path, "extension load path");
     slot->handle = handle;
     slot->ext = ext;
     extension_count_internal++;
@@ -1617,7 +1616,7 @@ int extension_load_dir(const char *dir) {
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", dir, entry->d_name);
-        all_paths[all_count] = strdup(full_path);
+        all_paths[all_count] = SAFE_STRDUP(full_path, "ext scan path");
         if (all_paths[all_count]) {
             all_count++;
         }
@@ -1625,12 +1624,12 @@ int extension_load_dir(const char *dir) {
 
 #ifdef HAVE_LIBURING
     /* P3: Use io_uring to batch-stat all entries at once */
-    uring_stat_result_t *stat_results = calloc(all_count, sizeof(uring_stat_result_t));
+    uring_stat_result_t *stat_results = SAFE_ARRAY(uring_stat_result_t, all_count, "uring stat results");
     if (stat_results && all_count > 0) {
         int stat_count = io_uring_batch_stat((const char **)all_paths, all_count, stat_results);
         if (stat_count < 0) {
             /* io_uring failed, fall back to sync path */
-            free(stat_results);
+            SAFE_FREE(stat_results);
             stat_results = nullptr;
         }
     }
@@ -1677,7 +1676,7 @@ int extension_load_dir(const char *dir) {
             }
 
             if (need_build && build_count < MAX_BUILD_BATCH) {
-                build_paths[build_count] = strdup(full_path);
+                build_paths[build_count] = SAFE_STRDUP(full_path, "ext build path");
                 if (build_paths[build_count]) {
                     build_count++;
                 }
@@ -1690,7 +1689,7 @@ int extension_load_dir(const char *dir) {
 
             /* Free build paths */
             for (int i = 0; i < build_count; i++) {
-                free(build_paths[i]);
+                SAFE_FREE(build_paths[i]);
             }
         }
     }
@@ -1709,7 +1708,7 @@ int extension_load_dir(const char *dir) {
             bool is_file = is_file_fast(full_path);
 #endif
             if (is_file) {
-                load_path_storage[load_count] = strdup(full_path);
+                load_path_storage[load_count] = SAFE_STRDUP(full_path, "ext load path");
                 if (load_path_storage[load_count]) {
                     load_paths[load_count] = load_path_storage[load_count];
                     load_count++;
@@ -1731,7 +1730,7 @@ int extension_load_dir(const char *dir) {
                 load_paths[load_count] = so_path;
                 load_count++;
             } else {
-                free(so_path);  /* No room in batch */
+                SAFE_FREE(so_path);  /* No room in batch */
             }
         }
     }
@@ -1739,12 +1738,12 @@ int extension_load_dir(const char *dir) {
     closedir(dp);
 
 #ifdef HAVE_LIBURING
-    free(stat_results);
+    SAFE_FREE(stat_results);
 #endif
 
     /* Free collected paths (we've copied what we need) */
     for (int i = 0; i < all_count; i++) {
-        free(all_paths[i]);
+        SAFE_FREE(all_paths[i]);
     }
 
     /* ─── LOAD EXTENSIONS (PARALLEL) ─────────────────────────────────── */
@@ -1756,7 +1755,7 @@ int extension_load_dir(const char *dir) {
 
         /* Free load paths */
         for (int i = 0; i < load_count; i++) {
-            free(load_path_storage[i]);
+            SAFE_FREE(load_path_storage[i]);
         }
     }
 

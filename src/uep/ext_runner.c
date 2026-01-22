@@ -603,9 +603,15 @@ static int proxy_shell_command(const char *cmd, char **output, size_t *len)
 }
 
 /* Memory helpers */
-static void *proxy_alloc(size_t size) { return malloc(size); }
-static void proxy_free(void *ptr) { free(ptr); }
-static char *proxy_strdup(const char *s) { return s ? strdup(s) : NULL; }
+static void *proxy_alloc(size_t size) {
+    return malloc(size);
+}
+static void proxy_free(void *ptr) {
+    free(ptr);
+}
+static char *proxy_strdup(const char *s) {
+    return s ? strdup(s) : NULL;
+}
 
 /* Logging */
 static void proxy_log_info(const char *fmt, ...)
@@ -984,9 +990,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* Signal handlers */
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
+    /* Signal handlers - use sigaction for defined behavior */
+    struct sigaction sa = {
+        .sa_handler = signal_handler,
+        .sa_flags = SA_RESTART
+    };
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
 
     /* Attach to IPC channel */
     g_ipc = ext_ipc_attach(memfd);

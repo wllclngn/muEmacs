@@ -37,6 +37,7 @@
 #include "efunc.h"
 #include "uep/uep_scripts.h"
 #include "internal/line.h"
+#include "internal/memory.h"
 #include "util/logger.h"
 
 /* Maximum number of scripts we can load */
@@ -83,7 +84,7 @@ static void expand_path(const char *src, char *dst, size_t dst_size) {
  * "my-tool" -> "my-tool"
  */
 static char *extract_command_name(const char *filename) {
-    char *name = strdup(filename);
+    char *name = SAFE_STRDUP(filename, "script command name");
     if (!name) return NULL;
 
     /* Remove extension if present */
@@ -133,8 +134,8 @@ static int register_script(const char *name, const char *path) {
         return -1;
     }
 
-    scripts[slot].name = strdup(name);
-    scripts[slot].path = strdup(path);
+    scripts[slot].name = SAFE_STRDUP(name, "script name");
+    scripts[slot].path = SAFE_STRDUP(path, "script path");
     scripts[slot].active = true;
     script_count++;
 
@@ -352,11 +353,11 @@ static char *get_buffer_contents(size_t *len) {
 
     if (total == 0) {
         if (len) *len = 0;
-        return strdup("");
+        return SAFE_STRDUP("", "script empty buffer");
     }
 
     /* Allocate buffer */
-    char *buf = malloc(total + 1);
+    char *buf = SAFE_ALLOC_SIZED(char, total + 1, "script buffer contents");
     if (!buf) {
         if (len) *len = 0;
         return NULL;
@@ -397,14 +398,14 @@ static void show_output(const char *output, size_t len, const char *script_name)
     /* Single line (or no newlines) -> message line */
     if (newlines <= 1) {
         /* Trim trailing newline */
-        char *trimmed = strdup(output);
+        char *trimmed = SAFE_STRDUP(output, "script output trimmed");
         if (trimmed) {
             size_t tlen = strlen(trimmed);
             while (tlen > 0 && (trimmed[tlen-1] == '\n' || trimmed[tlen-1] == '\r')) {
                 trimmed[--tlen] = '\0';
             }
             mlwrite("[%s] %s", script_name, trimmed);
-            free(trimmed);
+            SAFE_FREE(trimmed);
         }
         return;
     }
@@ -520,12 +521,12 @@ int uep_scripts_exec(const char *name) {
         if (write(stdin_pipe[1], input, input_len) < 0) { /* ignore */ }
     }
     close(stdin_pipe[1]);
-    free(input);
+    SAFE_FREE(input);
 
     /* Read output */
     size_t capacity = 4096;
     size_t pos = 0;
-    char *output = malloc(capacity);
+    char *output = SAFE_ALLOC_SIZED(char, capacity, "script output");
 
     if (output) {
         struct pollfd pfd = { .fd = stdout_pipe[0], .events = POLLIN };
@@ -536,7 +537,7 @@ int uep_scripts_exec(const char *name) {
 
             if (pos + 4096 > capacity) {
                 capacity *= 2;
-                char *new_output = realloc(output, capacity);
+                char *new_output = SAFE_REALLOC(output, capacity, "script output grow");
                 if (!new_output) break;
                 output = new_output;
             }
@@ -565,7 +566,7 @@ int uep_scripts_exec(const char *name) {
         show_output(output, pos, name);
     }
 
-    free(output);
+    SAFE_FREE(output);
 
     /* Clean up environment */
     unsetenv("MUEMACS_BUFFER_NAME");

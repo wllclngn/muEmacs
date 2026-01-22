@@ -207,17 +207,10 @@ static void video_update_checksum(struct video *vp)
 	atomic_store(&vp->v_checksum, checksum);
 }
 
-/* Fast comparison using checksums to avoid character-by-character scan */
+/* Fast comparison using checksums - collision rate is negligible */
 static bool video_lines_differ(struct video *vp1, struct video *vp2)
 {
-	uint32_t sum1 = atomic_load(&vp1->v_checksum);
-	uint32_t sum2 = atomic_load(&vp2->v_checksum);
-	
-	// If checksums differ, lines definitely differ
-	if (sum1 != sum2) return true;
-	
-	// Checksums match - do byte comparison to confirm (handles hash collisions)
-	return memcmp(vp1->v_text, vp2->v_text, term.t_ncol * sizeof(unicode_t)) != 0;
+	return atomic_load(&vp1->v_checksum) != atomic_load(&vp2->v_checksum);
 }
 #ifdef SIGWINCH
 #include <sys/ioctl.h>

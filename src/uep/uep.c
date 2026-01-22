@@ -44,11 +44,8 @@ char *uep_build_request(const uep_request_t *req) {
         return nullptr;
     }
 
-    char *buf = malloc(est_size);
-    if (!buf) {
-        LOG_ERROR("UEP: Failed to allocate request buffer");
-        return nullptr;
-    }
+    char *buf = SAFE_ALLOC_SIZED(char, est_size, "uep request buffer");
+    if (!buf) return nullptr;
 
     /* Build JSON request */
     if (json_build_start(buf, est_size) < 0) goto fail;
@@ -65,7 +62,7 @@ char *uep_build_request(const uep_request_t *req) {
     return buf;
 
 fail:
-    free(buf);
+    SAFE_FREE(buf);
     LOG_ERROR("UEP: Failed to build JSON request");
     return nullptr;
 }
@@ -97,9 +94,9 @@ static bool uep_response_callback(const char *key, const char *value,
         if (strcmp(key, "ok") == 0 && type == JSON_BOOL) {
             ctx->resp->ok = (strcmp(value, "true") == 0);
         } else if (strcmp(key, "error") == 0 && type == JSON_STRING) {
-            ctx->resp->error = strdup(value);
+            ctx->resp->error = SAFE_STRDUP(value, "uep response error");
         } else if (strcmp(key, "buffer") == 0 && type == JSON_STRING) {
-            ctx->resp->buffer = strdup(value);
+            ctx->resp->buffer = SAFE_STRDUP(value, "uep response buffer");
             if (ctx->resp->buffer) {
                 ctx->resp->buffer_len = strlen(ctx->resp->buffer);
             }
@@ -190,9 +187,8 @@ static int uep_pipe_call(const char *cmd, const char *input, size_t input_len,
     int timeout_ms = uep_get_timeout();
     size_t out_capacity = 4096;
     size_t out_len = 0;
-    char *out_buf = malloc(out_capacity);
+    char *out_buf = SAFE_ALLOC_SIZED(char, out_capacity, "uep output buffer");
     if (!out_buf) {
-        LOG_ERROR("UEP: Failed to allocate output buffer");
         waitpid(pid, &status, 0);
         goto cleanup;
     }
@@ -219,11 +215,8 @@ static int uep_pipe_call(const char *cmd, const char *input, size_t input_len,
                 break;
             }
             out_capacity *= 2;
-            char *new_buf = realloc(out_buf, out_capacity);
-            if (!new_buf) {
-                LOG_ERROR("UEP: Failed to grow output buffer");
-                break;
-            }
+            char *new_buf = SAFE_REALLOC(out_buf, out_capacity, "uep output buffer grow");
+            if (!new_buf) break;
             out_buf = new_buf;
         }
 
@@ -248,7 +241,7 @@ static int uep_pipe_call(const char *cmd, const char *input, size_t input_len,
 
     /* Null-terminate for convenience */
     if (out_len + 1 > out_capacity) {
-        char *new_buf = realloc(out_buf, out_len + 1);
+        char *new_buf = SAFE_REALLOC(out_buf, out_len + 1, "uep output terminate");
         if (new_buf) out_buf = new_buf;
     }
     out_buf[out_len] = '\0';
@@ -270,17 +263,14 @@ uep_response_t *uep_call(const char *provider_cmd, const uep_request_t *req) {
     if (!provider_cmd || !req) return nullptr;
 
     /* Allocate response */
-    uep_response_t *resp = calloc(1, sizeof(uep_response_t));
-    if (!resp) {
-        LOG_ERROR("UEP: Failed to allocate response");
-        return nullptr;
-    }
+    uep_response_t *resp = SAFE_ALLOC(uep_response_t, "uep response");
+    if (!resp) return nullptr;
 
     /* Build request JSON */
     char *request_json = uep_build_request(req);
     if (!request_json) {
         resp->ok = false;
-        resp->error = strdup("Failed to build request");
+        resp->error = SAFE_STRDUP("Failed to build request", "uep error");
         return resp;
     }
 
@@ -289,12 +279,12 @@ uep_response_t *uep_call(const char *provider_cmd, const uep_request_t *req) {
     size_t output_len = 0;
     int exit_code = uep_pipe_call(provider_cmd, request_json, strlen(request_json),
                                   &output, &output_len);
-    free(request_json);
+    SAFE_FREE(request_json);
 
     if (exit_code < 0 || !output) {
         resp->ok = false;
-        resp->error = strdup("Provider call failed");
-        free(output);
+        resp->error = SAFE_STRDUP("Provider call failed", "uep error");
+        SAFE_FREE(output);
         return resp;
     }
 
@@ -307,8 +297,8 @@ uep_response_t *uep_call(const char *provider_cmd, const uep_request_t *req) {
             resp->buffer = output;
             resp->buffer_len = output_len;
         } else {
-            resp->error = strdup(output);
-            free(output);
+            resp->error = SAFE_STRDUP(output, "uep error from output");
+            SAFE_FREE(output);
         }
         return resp;
     }
@@ -321,21 +311,21 @@ uep_response_t *uep_call(const char *provider_cmd, const uep_request_t *req) {
         LOG_ERRORF("UEP: Failed to parse response: %s", json_error_str(parse_result));
         /* If JSON parse fails but we got output, use it as error */
         if (!resp->error) {
-            resp->error = strdup(output_len > 0 ? output : "Invalid response");
+            resp->error = SAFE_STRDUP(output_len > 0 ? output : "Invalid response", "uep parse error");
         }
         resp->ok = false;
     }
 
-    free(output);
+    SAFE_FREE(output);
     return resp;
 }
 
 /* Free a UEP response */
 void uep_response_free(uep_response_t *resp) {
     if (!resp) return;
-    free(resp->error);
-    free(resp->buffer);
-    free(resp);
+    SAFE_FREE(resp->error);
+    SAFE_FREE(resp->buffer);
+    SAFE_FREE(resp);
 }
 
 /* Get buffer contents as contiguous string */
@@ -352,15 +342,12 @@ char *uep_get_buffer_contents(struct buffer *bp, size_t *len) {
 
     if (total == 0) {
         *len = 0;
-        return strdup("");
+        return SAFE_STRDUP("", "uep empty buffer");
     }
 
     /* Allocate buffer */
-    char *buf = malloc(total + 1);
-    if (!buf) {
-        LOG_ERROR("UEP: Failed to allocate buffer contents");
-        return nullptr;
-    }
+    char *buf = SAFE_ALLOC_SIZED(char, total + 1, "uep buffer contents");
+    if (!buf) return nullptr;
 
     /* Copy lines */
     size_t pos = 0;

@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 1.0.0
+    VERSION 1.0.6
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -205,10 +205,14 @@ set(ALL_SOURCES
     ${SYNTAX_SOURCES}
 )
 
-# Configuration header
+# Configuration headers
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/config.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/include/config.h
+)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/version.h
 )
 
 # Main library

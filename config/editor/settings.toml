@@ -445,6 +445,10 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 "K" = "previous-page"
 "J" = "next-page"
 
+# Text objects (like Vim: viw, vi", va(, etc.)
+"i" = "vim-text-object-inner"
+"a" = "vim-text-object-around"
+
 # Operations on selection
 "d" = "vim-visual-delete"
 "x" = "vim-visual-delete"

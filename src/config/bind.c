@@ -962,6 +962,10 @@ keymap_key_t stock_key(const char *keyname)
 
 	/* Control key prefix */
 	if (*keyname == '^' && *(keyname + 1) != '\0') {
+		/* Special case: ^[ is ESC (0x1B), not Ctrl+[ */
+		if (*(keyname + 1) == '[') {
+			return keymap_key_make(0x1B, 0);
+		}
 		mods |= MOD_CTRL;
 		keyname++;
 	}

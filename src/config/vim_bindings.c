@@ -1673,13 +1673,18 @@ static int vim_select_bracket_object(char open, char close, bool inner) {
 int vim_text_object_inner(int f, int n) {
     (void)f; (void)n;
 
-    if (g_vim_state.pending_op == 0) {
-        /* No operator pending - 'i' goes to insert mode */
+    enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
+    bool in_visual = (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE || mode == MODE_VISUAL_BLOCK);
+
+    if (g_vim_state.pending_op == 0 && !in_visual) {
+        /* No operator pending and not in visual mode - 'i' goes to insert mode */
         return vim_enter_insert_mode(false, 1);
     }
 
     char pending = g_vim_state.pending_op;
-    vim_clear_pending_state();
+    if (!in_visual) {
+        vim_clear_pending_state();
+    }
 
     mlwrite("[i-]");
     int ch = vim_getkey();
@@ -1706,6 +1711,11 @@ int vim_text_object_inner(int f, int n) {
 
     if (!result) return false;
 
+    /* In visual mode, just update the selection - don't execute operator */
+    if (in_visual) {
+        return true;
+    }
+
     /* Record for dot repeat */
     vim_record_text_object_change(pending, 'i', ch, 1);
 
@@ -1730,14 +1740,19 @@ int vim_text_object_inner(int f, int n) {
 int vim_text_object_around(int f, int n) {
     (void)f; (void)n;
 
-    if (g_vim_state.pending_op == 0) {
-        /* No operator pending - 'a' appends after cursor */
+    enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
+    bool in_visual = (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE || mode == MODE_VISUAL_BLOCK);
+
+    if (g_vim_state.pending_op == 0 && !in_visual) {
+        /* No operator pending and not in visual mode - 'a' appends after cursor */
         move_char_forward(false, 1);
         return vim_enter_insert_mode(false, 1);
     }
 
     char pending = g_vim_state.pending_op;
-    vim_clear_pending_state();
+    if (!in_visual) {
+        vim_clear_pending_state();
+    }
 
     mlwrite("[a-]");
     int ch = vim_getkey();
@@ -1763,6 +1778,11 @@ int vim_text_object_around(int f, int n) {
     }
 
     if (!result) return false;
+
+    /* In visual mode, just update the selection - don't execute operator */
+    if (in_visual) {
+        return true;
+    }
 
     /* Record for dot repeat */
     vim_record_text_object_change(pending, 'a', ch, 1);
@@ -1869,16 +1889,12 @@ static void vim_store_to_register(int is_delete, int linewise) {
         /* Delete: shift registers 1-9 down, put new text in 1 */
         /* (Only for significant deletes, not single chars) */
         if (len > 1 || linewise) {
-            /* Free register 9 (it will be overwritten and lost) */
-            if (g_vim_state.registers[9].text) {
-                free(g_vim_state.registers[9].text);
-                g_vim_state.registers[9].text = NULL;
-            }
-            /* Shift 1-8 down to 2-9 (move structs, not just pointers) */
-            for (int i = 8; i >= 1; i--) {
+            for (int i = 8; i >= 0; i--) {
+                if (g_vim_state.registers[i + 1].text) {
+                    free(g_vim_state.registers[i + 1].text);
+                }
                 g_vim_state.registers[i + 1] = g_vim_state.registers[i];
             }
-            /* Clear register 1 slot before storing new content */
             g_vim_state.registers[1].text = NULL;
             g_vim_state.registers[1].len = 0;
             g_vim_state.registers[1].linewise = 0;

@@ -26,8 +26,6 @@
 #include "memory.h"
 #include "gapbuffer.h"
 
-extern char **environ;
-
 /*
  * set_editor_env - Set $UE_* environment variables for spawned commands
  *

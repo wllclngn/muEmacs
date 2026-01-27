@@ -17,6 +17,19 @@ static int line_len(struct line* lp) {
     return lp ? llength(lp) : 0;
 }
 
+/* Check if line is effectively blank (empty or whitespace only) */
+static int is_blank_line(struct line* lp) {
+    if (!lp) return 1;
+    int len = llength(lp);
+    if (len == 0) return 1;
+    /* Check if all chars are whitespace */
+    for (int i = 0; i < len; i++) {
+        char c = lgetc(lp, i);
+        if (c != ' ' && c != '\t' && c != '\r') return 0;
+    }
+    return 1;
+}
+
 int test_poe_gutenberg_wrap(void)
 {
     int ok = 1;
@@ -29,8 +42,8 @@ int test_poe_gutenberg_wrap(void)
 
     // Try multiple paths since tests can run from different directories
     const char* paths[] = {
-        "tests/data/poe-collected-works.txt",      // From project root
-        "../tests/data/poe-collected-works.txt",   // From build/
+        "tests/data/poe-collected-fictions.txt",      // From project root
+        "../tests/data/poe-collected-fictions.txt",   // From build/
         NULL
     };
     const char* path = NULL;
@@ -59,19 +72,36 @@ int test_poe_gutenberg_wrap(void)
     // Enable writing mode at column 80 (also turns on wrap)
     writing_mode_enable(true, 80);
 
-    // Find first non-empty paragraph
+    // Find first non-blank paragraph (skip header lines, find actual prose)
     struct line* lp = lforw(curbp->b_linep);
-    while (lp != curbp->b_linep && line_len(lp) == 0) lp = lforw(lp);
-    if (lp == curbp->b_linep) {
-        LOG_ERROR("[FAIL] Could not find a non-empty paragraph");
+    // Skip initial blank lines
+    while (lp != curbp->b_linep && is_blank_line(lp)) lp = lforw(lp);
+    // Skip short header lines (looking for a multi-line paragraph)
+    int para_lines = 0;
+    struct line* para_start = lp;
+    while (lp != curbp->b_linep) {
+        if (is_blank_line(lp)) {
+            if (para_lines >= 3) break;  // Found a good paragraph
+            // Not enough lines, skip and try next paragraph
+            while (lp != curbp->b_linep && is_blank_line(lp)) lp = lforw(lp);
+            para_start = lp;
+            para_lines = 0;
+        } else {
+            para_lines++;
+            lp = lforw(lp);
+        }
+    }
+    if (para_lines < 3) {
+        LOG_ERROR("[FAIL] Could not find a multi-line paragraph");
         ok = 0;
         PHASE_END("POE: WRAP", ok);
         return ok;
     }
-    struct line* start = lp;
+    struct line* start = para_start;
     // Limit paragraph scan to a reasonable number of lines to avoid huge checks
     int scanned = 0;
-    while (lp != curbp->b_linep && line_len(lp) > 0 && scanned < 200) {
+    lp = start;
+    while (lp != curbp->b_linep && !is_blank_line(lp) && scanned < 200) {
         scanned++;
         lp = lforw(lp);
     }

@@ -20,8 +20,6 @@
 #include "memory.h"
 #include "util/logger.h"
 
-extern char **environ;
-
 /*
  * run_shell_cmd - Safe replacement for system() using posix_spawn()
  *

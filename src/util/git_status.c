@@ -12,8 +12,7 @@
 #include <sys/wait.h>
 
 #include "git_status.h"
-
-extern char **environ;
+#include "estruct.h"  /* For extern char **environ */
 
 /*
  * run_cmd_capture - Run a shell command and capture stdout

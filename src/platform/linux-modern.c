@@ -21,8 +21,6 @@
 #include <pwd.h>
 #include <spawn.h>
 
-extern char **environ;
-
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"

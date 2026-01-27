@@ -69,6 +69,12 @@ struct buffer *terminal_find(const char *name);
 /* Internal: Get count of active terminals */
 int terminal_count(void);
 
+/* Internal: Get first terminal buffer (for error scanning) */
+struct buffer *terminal_get_first_buffer(void);
+
+/* Internal: Get PTY fd from terminal buffer (-1 if invalid) */
+int terminal_get_pty_fd(struct buffer *bp);
+
 /* --- I/O & Emulation --- */
 
 /* Process PTY output (ANSI parsing + Graphics Tunneling) */
@@ -92,5 +98,30 @@ void terminal_resize(int new_rows, int new_cols);
 
 /* No-op for compatibility - terminals now use normal buffer display */
 void terminal_render_window(struct window *wp);
+
+/* --- REPL Integration --- */
+
+/* Start a REPL for the current file's language (M-x: repl-start) */
+int repl_start(int f, int n);
+
+/* Send current line to REPL (M-x: repl-eval-line) */
+int repl_eval_line(int f, int n);
+
+/* Send region to REPL (M-x: repl-eval-region) */
+int repl_eval_region(int f, int n);
+
+/* Send entire buffer to REPL (M-x: repl-eval-buffer) */
+int repl_eval_buffer(int f, int n);
+
+/* --- Build Integration --- */
+
+/* Run build command in terminal (M-x: build) */
+int build_run(int f, int n);
+
+/* Jump to next error location (M-x: next-error) */
+int build_next_error(int f, int n);
+
+/* Jump to previous error location (M-x: prev-error) */
+int build_prev_error(int f, int n);
 
 #endif /* TERMINAL_H */

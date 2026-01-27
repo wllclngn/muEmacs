@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 1.0.7
+    VERSION 1.0.8
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -69,6 +69,8 @@ set(CORE_SOURCES
     src/core/buffer.c
     src/core/window.c
     src/core/display.c
+    src/core/message_line.c
+    src/core/modeline.c
     src/core/transactions.c
     src/core/line.c
     src/core/undo.c
@@ -116,6 +118,8 @@ set(CONFIG_SOURCES
     src/config/writing.c
     src/config/settings.c
     src/config/vim_bindings.c
+    src/config/vim_find_char.c
+    src/config/vim_text_objects.c
 )
 
 # Linux platform specific
@@ -137,6 +141,8 @@ set(TERMINAL_SOURCES
     src/terminal/palette.c
     # Modern terminal integration (2025 Architecture)
     src/terminal/terminal.c
+    src/terminal/repl.c
+    src/terminal/build.c
     src/terminal/pty.c
     # New terminal layer (2024 Rewrite)
     src/terminal/input_state.c

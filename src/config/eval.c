@@ -19,6 +19,7 @@
 #include "version.h"
 #include "memory.h"
 #include "error.h"
+#include "magic_constants.h"
 #include "terminal/input_state.h"
 
 #define	MAXVARS	255
@@ -668,8 +669,8 @@ int svar(struct variable_description *var, const char *value)
 			break;
 		case EVTAB:
 			tabmask = safe_atoi(value, 0) - 1;
-			if (tabmask != 0x07 && tabmask != 0x03)
-				tabmask = 0x07;
+			if (tabmask != TABMASK_8 && tabmask != TABMASK_4)
+				tabmask = TABMASK_8;
 			curwp->w_flag |= WFHARD;
 			break;
 		case EVOVERLAP:

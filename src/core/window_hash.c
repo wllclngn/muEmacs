@@ -7,6 +7,7 @@
 #include "estruct.h"
 #include "edef.h"
 #include "memory.h"
+#include "magic_constants.h"
 #include <string.h>
 #include <stdbool.h>
 
@@ -20,9 +21,9 @@ static inline uint32_t hash_line_ptr(struct line *lp)
     uintptr_t addr = (uintptr_t)lp;
     /* MurmurHash-inspired pointer hashing */
     addr ^= addr >> 16;
-    addr *= 0x85ebca6b;
+    addr *= MURMURHASH_M1;
     addr ^= addr >> 13;
-    addr *= 0xc2b2ae35;
+    addr *= MURMURHASH_M2;
     addr ^= addr >> 16;
     return (uint32_t)(addr & WINDOW_HASH_MASK);
 }

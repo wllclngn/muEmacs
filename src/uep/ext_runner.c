@@ -107,7 +107,13 @@ static void ipc_log(const char *fmt, ...)
         ext_ipc_ring_t *ring = &g_ipc->shm->to_editor;
         int slot_idx = ext_ipc_find_empty_slot(ring);
         if (slot_idx >= 0) {
-            ext_ipc_slot_write(&ring->slots[slot_idx], EXT_MSG_LOG, buf, strlen(buf) + 1);
+            ext_ipc_slot_t *slot = &ring->slots[slot_idx];
+            ext_ipc_slot_write(slot, EXT_MSG_LOG, buf, strlen(buf) + 1);
+            /* Wait for editor to process (short timeout - logs aren't critical) */
+            if (ext_ipc_slot_wait_complete(slot, 500)) {
+                ext_ipc_slot_release(slot);  /* Release back to EMPTY */
+            }
+            /* If timeout, slot stays in limbo but at least we tried */
         }
     }
     /* If IPC not ready, log is silently dropped - early startup logs not critical */
@@ -149,16 +155,50 @@ static int call_editor(uint32_t msg_type, const void *req, uint32_t req_len,
             sched_yield();
             slot_idx = ext_ipc_find_empty_slot(ring);
         }
-        if (slot_idx < 0) return -1;  /* Still full */
+        if (slot_idx < 0) {
+            /* Debug: dump slot states */
+            FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
+            if (diag) {
+                fprintf(diag, "[%d] call_editor: ring FULL! Slot states:\n", getpid());
+                for (int s = 0; s < EXT_IPC_RING_SLOTS; s++) {
+                    fprintf(diag, "  slot[%d]: state=%u\n", s,
+                            atomic_load(&ring->slots[s].state));
+                }
+                fclose(diag);
+            }
+            return -1;  /* Still full */
+        }
     }
 
     ext_ipc_slot_t *slot = &ring->slots[slot_idx];
 
+    /* Debug: log what we're sending */
+    FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
+    if (diag) {
+        fprintf(diag, "[%d] call_editor: slot=%d msg=0x%x writing...\n",
+                getpid(), slot_idx, msg_type);
+        fclose(diag);
+    }
+
     /* Write request */
     ext_ipc_slot_write(slot, msg_type, req, req_len);
 
+    /* Debug: log slot state after write */
+    diag = fopen("/tmp/ext_runner_diag.log", "a");
+    if (diag) {
+        fprintf(diag, "[%d] call_editor: slot=%d state after write=%u, waiting...\n",
+                getpid(), slot_idx, atomic_load(&slot->state));
+        fclose(diag);
+    }
+
     /* Spin-wait for response (30 second timeout) */
     if (!ext_ipc_slot_wait_complete(slot, 30000)) {
+        diag = fopen("/tmp/ext_runner_diag.log", "a");
+        if (diag) {
+            fprintf(diag, "[%d] call_editor: TIMEOUT! slot=%d state=%u\n",
+                    getpid(), slot_idx, atomic_load(&slot->state));
+            fclose(diag);
+        }
         ext_ipc_slot_release(slot);
         return -2;  /* Timeout */
     }
@@ -297,6 +337,8 @@ static const char *proxy_config_string(const char *ext_name, const char *key, co
 
 static int proxy_register_command(const char *name, uemacs_cmd_fn func)
 {
+    ipc_log("ext_runner[%d]: REGISTER_CMD entry '%s'", getpid(), name);
+
     /* Store locally */
     for (int i = 0; i < MAX_LOCAL_COMMANDS; i++) {
         if (!g_local_commands[i].active) {
@@ -308,11 +350,17 @@ static int proxy_register_command(const char *name, uemacs_cmd_fn func)
         }
     }
 
+    ipc_log("ext_runner[%d]: REGISTER_CMD calling call_editor for '%s'", getpid(), name);
+
     /* Notify editor */
     ext_ipc_cmd_register_t req;
     memset(&req, 0, sizeof(req));
     strncpy(req.name, name, sizeof(req.name) - 1);
-    return call_editor(EXT_MSG_REGISTER_CMD, &req, sizeof(req), NULL, NULL);
+    int result = call_editor(EXT_MSG_REGISTER_CMD, &req, sizeof(req), NULL, NULL);
+
+    ipc_log("ext_runner[%d]: REGISTER_CMD complete '%s' result=%d", getpid(), name, result);
+
+    return result;
 }
 
 static int proxy_unregister_command(const char *name)
@@ -442,6 +490,12 @@ static int proxy_buffer_clear(struct buffer *bp)
 {
     uintptr_t handle = (uintptr_t)bp;
     return call_editor(EXT_MSG_BUFFER_CLEAR, &handle, sizeof(handle), NULL, NULL);
+}
+
+static void proxy_buffer_set_scratch(struct buffer *bp)
+{
+    uintptr_t handle = (uintptr_t)bp;
+    call_editor(EXT_MSG_BUFFER_SET_SCRATCH, &handle, sizeof(handle), NULL, NULL);
 }
 
 static void proxy_get_point(int *line, int *col)
@@ -790,6 +844,7 @@ static generic_fn_t proxy_get_function(const char *name)
     ENTRY(buffer_create, proxy_buffer_create);
     ENTRY(buffer_switch, proxy_buffer_switch);
     ENTRY(buffer_clear, proxy_buffer_clear);
+    ENTRY(buffer_set_scratch, proxy_buffer_set_scratch);
     ENTRY(get_point, proxy_get_point);
     ENTRY(set_point, proxy_set_point);
     ENTRY(get_line_count, proxy_get_line_count);
@@ -999,22 +1054,32 @@ int main(int argc, char **argv)
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
 
+    /* Early diagnostic - before IPC, write to known file */
+    FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
+    if (diag) {
+        fprintf(diag, "[%d] Starting: memfd=%d ext=%s deathfd=%d\n",
+                getpid(), memfd, ext_path, g_death_fd);
+        fflush(diag);
+    }
+
     /* Attach to IPC channel */
     g_ipc = ext_ipc_attach(memfd);
     if (!g_ipc) {
-        /* Can't use ipc_log yet - IPC not attached */
+        if (diag) { fprintf(diag, "[%d] IPC attach FAILED\n", getpid()); fclose(diag); }
         return 1;
     }
+    if (diag) { fprintf(diag, "[%d] IPC attached OK\n", getpid()); fclose(diag); }
     ipc_log("ext_runner[%d]: IPC attached (magic=0x%x)", getpid(), g_ipc->shm->magic);
 
-    /* Load extension .so */
+    /* Load extension .so - this triggers Go runtime init for CGO libs */
+    ipc_log("ext_runner[%d]: dlopen starting: %s", getpid(), ext_path);
     g_ext_handle = dlopen(ext_path, RTLD_NOW | RTLD_LOCAL);
     if (!g_ext_handle) {
         ipc_log("ext_runner[%d]: dlopen failed: %s", getpid(), dlerror());
         ext_ipc_destroy(g_ipc);
         return 1;
     }
-    ipc_log("ext_runner[%d]: Extension loaded", getpid());
+    ipc_log("ext_runner[%d]: dlopen complete - extension loaded", getpid());
 
     /* Get extension entry point */
     typedef struct uemacs_extension *(*entry_fn)(void);

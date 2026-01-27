@@ -27,6 +27,7 @@
 #include <poll.h>
 #include <fcntl.h>
 #include <time.h>
+#include "uep/ext_host.h"  /* For ext_host_poll_nonblocking() */
 
 #include "estruct.h"
 #include "edef.h"
@@ -521,6 +522,9 @@ static int raw_getchar(void) {
         }
 
         poll(pfds, nfds, GET_FRAME_INTERVAL());
+
+        /* Poll out-of-process extensions for async messages (e.g., from goroutines) */
+        ext_host_poll_nonblocking();
 
         /* Check EVIL flash timer - refresh modeline when 3-second splash expires */
         {

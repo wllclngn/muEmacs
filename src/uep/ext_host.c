@@ -31,6 +31,11 @@
 #include "uep/ext_ipc.h"
 #include "util/logger.h"
 
+/* Config getters from extension_api.c */
+extern int extension_config_get_int(const char *ext_name, const char *key, int default_val);
+extern bool extension_config_get_bool(const char *ext_name, const char *key, bool default_val);
+extern const char *extension_config_get_string(const char *ext_name, const char *key, const char *default_val);
+
 /* =========================================================================
  * Global State
  * ========================================================================= */
@@ -42,6 +47,9 @@ static char *g_runner_path = NULL;
 
 /* SIGCHLD handling - flag set by signal handler, real work done in reap function */
 static volatile sig_atomic_t g_sigchld_pending = 0;
+
+/* Extension init timeout (ms) - configurable via [extensions] init_timeout in settings.toml */
+static int g_ext_init_timeout_ms = 10000;  /* Default 10 seconds for Go/Haskell runtimes */
 
 /* Runtime names */
 static const char *runtime_names[] = {
@@ -55,6 +63,21 @@ static const char *runtime_names[] = {
     [EXT_RUNTIME_PASCAL]  = "Pascal",
     [EXT_RUNTIME_UNKNOWN] = "Unknown",
 };
+
+/* =========================================================================
+ * Configuration
+ * ========================================================================= */
+
+void ext_host_set_init_timeout(int timeout_ms) {
+    if (timeout_ms >= 1000) {  /* Minimum 1 second */
+        g_ext_init_timeout_ms = timeout_ms;
+        LOG_DEBUGF("ext_host: Init timeout set to %d ms", timeout_ms);
+    }
+}
+
+int ext_host_get_init_timeout(void) {
+    return g_ext_init_timeout_ms;
+}
 
 /* =========================================================================
  * Internal Helpers
@@ -194,7 +217,8 @@ ext_runtime_t ext_host_detect_runtime(const char *dir) {
 bool ext_host_needs_isolation(ext_runtime_t rt) {
     return rt == EXT_RUNTIME_GO || rt == EXT_RUNTIME_ADA ||
            rt == EXT_RUNTIME_HASKELL || rt == EXT_RUNTIME_CRYSTAL ||
-           rt == EXT_RUNTIME_PASCAL;
+           rt == EXT_RUNTIME_PASCAL || rt == EXT_RUNTIME_RUST ||
+           rt == EXT_RUNTIME_ZIG;
 }
 
 const char *ext_host_runtime_name(ext_runtime_t rt) {
@@ -203,23 +227,24 @@ const char *ext_host_runtime_name(ext_runtime_t rt) {
 }
 
 /* =========================================================================
- * Extension Spawning
+ * Extension Spawning - Parallel Implementation
  * ========================================================================= */
 
-int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime) {
-    if (!g_initialized) ext_host_init();
-    if (!name || !exe_path) return -1;
-    if (find_entry(name)) return -2;
-
+/*
+ * Internal: Fork extension process without waiting for READY.
+ * Returns entry pointer on success, NULL on failure.
+ */
+static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
+                                          ext_runtime_t runtime) {
     ext_host_entry_t *entry = alloc_entry();
-    if (!entry) return -3;
+    if (!entry) return NULL;
 
     /* Create IPC channel */
     ext_ipc_channel_t *ipc = ext_ipc_create();
     if (!ipc) {
         free_entry(entry);
         g_num_extensions--;
-        return -4;
+        return NULL;
     }
 
     /* Create death pipe - when parent dies, child gets POLLHUP on read end */
@@ -227,7 +252,7 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
         ext_ipc_destroy(ipc);
         free_entry(entry);
         g_num_extensions--;
-        return -4;
+        return NULL;
     }
 
     /* Get memfd for child */
@@ -240,8 +265,6 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
         runner = (access(build, X_OK) == 0) ? build : "uemacs-ext-runner";
     }
 
-    LOG_DEBUGF("ext_host: Spawning '%s' (runtime=%s)", name, ext_host_runtime_name(runtime));
-
     pid_t pid = fork();
     if (pid < 0) {
         close(ipc->death_pipe[0]);
@@ -249,7 +272,7 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
         ext_ipc_destroy(ipc);
         free_entry(entry);
         g_num_extensions--;
-        return -5;
+        return NULL;
     }
 
     if (pid == 0) {
@@ -275,7 +298,6 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
     close(ipc->death_pipe[0]);
     ipc->death_pipe[0] = -1;
 
-    /* Parent */
     ext_ipc_set_pid(ipc, pid);
 
     entry->name = strdup(name);
@@ -285,66 +307,143 @@ int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime
     entry->state = EXT_STATE_PENDING;
     entry->pid = pid;
 
-    /* Wait for READY with timeout, processing init messages */
+    return entry;
+}
+
+/*
+ * Internal: Process init messages for a single extension.
+ * Returns true if extension became ready.
+ */
+static bool process_init_messages(ext_host_entry_t *entry) {
+    if (!entry || !entry->ipc || entry->state != EXT_STATE_PENDING) return false;
+
+    ext_ipc_shm_t *shm = entry->ipc->shm;
+
+    /* Check if ready */
+    if (atomic_load_explicit(&shm->ext_ready, memory_order_acquire)) {
+        entry->state = EXT_STATE_READY;
+        return true;
+    }
+
+    /* Process pending messages */
+    ext_ipc_ring_t *ring = &shm->to_editor;
+    for (int s = 0; s < EXT_IPC_RING_SLOTS; s++) {
+        ext_ipc_slot_t *slot = &ring->slots[s];
+        if (atomic_load_explicit(&slot->state, memory_order_acquire) != EXT_SLOT_PENDING)
+            continue;
+
+        switch (slot->msg_type) {
+        case EXT_MSG_REGISTER_CMD: {
+            ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
+            int result = ext_host_register_command(entry->name, req->name);
+            ext_ipc_slot_complete(slot, result, NULL, 0);
+            entry->num_commands++;
+            break;
+        }
+        case EXT_MSG_EVENT_SUBSCRIBE:
+        case EXT_MSG_MODELINE_REGISTER:
+            ext_ipc_slot_complete(slot, 0, NULL, 0);
+            break;
+        case EXT_MSG_LOG: {
+            const char *msg = (const char *)slot->payload;
+            if (msg && slot->payload_len > 0) {
+                LOG_INFOF("ext[%s]: %s", entry->name, msg);
+            }
+            ext_ipc_slot_complete(slot, 0, NULL, 0);
+            break;
+        }
+        default:
+            ext_ipc_slot_complete(slot, 0, NULL, 0);
+            break;
+        }
+    }
+
+    /* Check again after processing */
+    if (atomic_load_explicit(&shm->ext_ready, memory_order_acquire)) {
+        entry->state = EXT_STATE_READY;
+        return true;
+    }
+
+    return false;
+}
+
+int ext_host_spawn_async(const char *name, const char *exe_path, ext_runtime_t runtime) {
+    if (!g_initialized) ext_host_init();
+    if (!name || !exe_path) return -1;
+    if (find_entry(name)) return -2;
+
+    LOG_DEBUGF("ext_host: Spawning async '%s' (runtime=%s)", name, ext_host_runtime_name(runtime));
+
+    ext_host_entry_t *entry = spawn_fork_only(name, exe_path, runtime);
+    if (!entry) return -3;
+
+    LOG_DEBUGF("ext_host: '%s' forked (pid=%d), state=PENDING", name, entry->pid);
+    return 0;
+}
+
+int ext_host_await_pending(int timeout_ms) {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    int msg_count = 0, cmd_count = 0;
 
-    while (1) {
-        /* Check if ready */
-        if (atomic_load_explicit(&ipc->shm->ext_ready, memory_order_acquire)) {
-            entry->state = EXT_STATE_READY;
-            LOG_INFOF("ext_host: '%s' ready (%d msgs, %d cmds)", name, msg_count, cmd_count);
-            return 0;
+    int ready_count = 0;
+    int pending_count;
+
+    LOG_DEBUGF("ext_host: Awaiting pending extensions (timeout=%dms)", timeout_ms);
+
+    do {
+        pending_count = 0;
+
+        /* Process ALL pending extensions in parallel */
+        for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+            ext_host_entry_t *e = &g_extensions[i];
+            if (!e->active || e->state != EXT_STATE_PENDING) continue;
+
+            pending_count++;
+
+            if (process_init_messages(e)) {
+                LOG_INFOF("ext_host: '%s' ready (%d commands)", e->name, e->num_commands);
+                ready_count++;
+                pending_count--;
+            }
         }
 
-        /* Process any init messages from extension */
-        int slot_idx = ext_ipc_find_pending_slot(&ipc->shm->to_editor);
-        if (slot_idx >= 0) {
-            ext_ipc_slot_t *slot = &ipc->shm->to_editor.slots[slot_idx];
-
-            switch (slot->msg_type) {
-            case EXT_MSG_REGISTER_CMD: {
-                ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
-                int result = ext_host_register_command(name, req->name);
-                LOG_DEBUGF("ext_host: '%s' registered '%s' (r=%d)", name, req->name, result);
-                ext_ipc_slot_complete(slot, result, NULL, 0);
-                cmd_count++;
-                break;
-            }
-            case EXT_MSG_EVENT_SUBSCRIBE:
-            case EXT_MSG_MODELINE_REGISTER:
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
-                break;
-            case EXT_MSG_LOG: {
-                const char *msg = (const char *)slot->payload;
-                if (msg && slot->payload_len > 0) {
-                    LOG_INFOF("ext[%s]: %s", name, msg);
-                }
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
-                break;
-            }
-            default:
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
-                break;
-            }
-            msg_count++;
-            clock_gettime(CLOCK_MONOTONIC, &start);  /* Reset timeout on activity */
-            continue;
-        }
+        if (pending_count == 0) break;
 
         /* Check timeout */
         clock_gettime(CLOCK_MONOTONIC, &now);
         long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
                        (now.tv_nsec - start.tv_nsec) / 1000000;
-        if (elapsed > 5000) {
-            LOG_WARNF("ext_host: '%s' timeout waiting for READY", name);
-            entry->state = EXT_STATE_ERROR;
-            return -6;
+        if (elapsed > timeout_ms) {
+            /* Mark remaining pending extensions as error */
+            for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
+                ext_host_entry_t *e = &g_extensions[i];
+                if (e->active && e->state == EXT_STATE_PENDING) {
+                    LOG_WARNF("ext_host: '%s' timeout (%dms) waiting for READY", e->name, timeout_ms);
+                    e->state = EXT_STATE_ERROR;
+                }
+            }
+            break;
         }
 
+        /* Brief yield to let extensions process */
         sched_yield();
-    }
+
+    } while (pending_count > 0);
+
+    LOG_INFOF("ext_host: %d extension(s) ready", ready_count);
+    return ready_count;
+}
+
+int ext_host_spawn(const char *name, const char *exe_path, ext_runtime_t runtime) {
+    /* Convenience wrapper: spawn + wait for single extension */
+    int rc = ext_host_spawn_async(name, exe_path, runtime);
+    if (rc < 0) return rc;
+
+    int ready = ext_host_await_pending(g_ext_init_timeout_ms);
+    ext_host_entry_t *entry = find_entry(name);
+    if (!entry || entry->state != EXT_STATE_READY) return -6;
+
+    return 0;
 }
 
 void ext_host_shutdown_all(void) {
@@ -483,6 +582,14 @@ void ext_host_poll_nonblocking(void) {
                 ext_ipc_slot_complete(slot, 0, &pt, sizeof(pt));
                 break;
             }
+            case EXT_MSG_SET_POINT: {
+                ext_ipc_point_t *pt = (ext_ipc_point_t *)slot->payload;
+                /* Move cursor to specified line/col */
+                gotoline(true, pt->line);
+                setccol(pt->col);
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                break;
+            }
             case EXT_MSG_REGISTER_CMD: {
                 ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
                 int result = ext_host_register_command(e->name, req->name);
@@ -514,6 +621,13 @@ void ext_host_poll_nonblocking(void) {
                 struct buffer *bp = (struct buffer *)handle;
                 int result = bclear(bp);
                 ext_ipc_slot_complete(slot, result, NULL, 0);
+                break;
+            }
+            case EXT_MSG_BUFFER_SET_SCRATCH: {
+                uintptr_t handle = *(uintptr_t *)slot->payload;
+                struct buffer *bp = (struct buffer *)handle;
+                if (bp) bp->b_flag |= BFINVS;  /* Mark as scratch - no save prompt */
+                ext_ipc_slot_complete(slot, 0, NULL, 0);
                 break;
             }
             case EXT_MSG_BUFFER_INSERT: {
@@ -548,6 +662,27 @@ void ext_host_poll_nonblocking(void) {
                     LOG_INFOF("ext[%s]: %s", e->name, msg);
                 }
                 ext_ipc_slot_complete(slot, 0, NULL, 0);
+                break;
+            }
+            case EXT_MSG_CONFIG_INT: {
+                struct { char ext_name[64]; char key[64]; int32_t default_val; } *req =
+                    (void *)slot->payload;
+                int32_t result = extension_config_get_int(req->ext_name, req->key, req->default_val);
+                ext_ipc_slot_complete(slot, 0, &result, sizeof(result));
+                break;
+            }
+            case EXT_MSG_CONFIG_BOOL: {
+                struct { char ext_name[64]; char key[64]; int32_t default_val; } *req =
+                    (void *)slot->payload;
+                int32_t result = extension_config_get_bool(req->ext_name, req->key, req->default_val != 0) ? 1 : 0;
+                ext_ipc_slot_complete(slot, 0, &result, sizeof(result));
+                break;
+            }
+            case EXT_MSG_CONFIG_STRING: {
+                struct { char ext_name[64]; char key[64]; char default_val[128]; } *req =
+                    (void *)slot->payload;
+                const char *result = extension_config_get_string(req->ext_name, req->key, req->default_val);
+                ext_ipc_slot_complete(slot, 0, result, result ? strlen(result) + 1 : 0);
                 break;
             }
             default:

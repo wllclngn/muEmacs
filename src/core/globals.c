@@ -17,7 +17,7 @@ struct vim_state g_vim_state = {
 _Atomic(struct keymap *) vim_normal_keymap = nullptr;
 _Atomic(struct keymap *) vim_visual_keymap = nullptr;
 
-int fillcol = 72;		/* Current fill column          */
+_Atomic int fillcol = 72;		/* Current fill column - C23 atomic */
 
 /* Modern keyboard macro system - stores full input events */
 keyboard_macro_t g_macro = {
@@ -52,11 +52,11 @@ int gbcolor = 0;		/* global backgrnd color (black) */
 int gasave = 256;		/* global ASAVE size            */
 int gacount = 256;		/* count until next ASAVE       */
 _Atomic int sgarbf = true;		/* true if screen is garbage - C23 atomic */
-int mpresf = false;		/* true if message in last line */
+_Atomic int mpresf = false;		/* true if message in last line - C23 atomic */
 _Atomic int clexec = false;		/* command line execution flag - C23 atomic */
 _Atomic int mstore = false;		/* storing text to macro flag - C23 atomic */
-int discmd = true;		/* display command flag         */
-int disinp = true;		/* display input characters     */
+_Atomic int discmd = true;		/* display command flag - C23 atomic */
+_Atomic int disinp = true;		/* display input characters - C23 atomic */
 int skip_settings = false;	/* skip loading settings.toml   */
 _Atomic(struct buffer *) bstore = nullptr;	/* buffer to store macro text to - C23 atomic */
 int vtrow = 0;			/* Row location of SW cursor */
@@ -102,10 +102,10 @@ int saveflag = 0;		/* Flags, saved with the $target var */
 char *fline = nullptr;		/* dynamic return line */
 int flen = 0;			/* current length of fline */
 int rval = 0;			/* return value of a subprocess */
-int nullflag = false;		/* accept null characters */
-int justflag = false;		/* justify, don't fill */
-int overlap = 0;		/* line overlap in forw/back page */
-int scrollcount = 1;		/* number of lines to scroll */
+_Atomic int nullflag = false;		/* accept null characters - C23 atomic */
+_Atomic int justflag = false;		/* justify, don't fill - C23 atomic */
+_Atomic int overlap = 0;		/* line overlap in forw/back page - C23 atomic */
+_Atomic int scrollcount = 1;		/* number of lines to scroll - C23 atomic */
 _Atomic int edit_transaction_depth = 0; /* transactional editing depth */
 
 /* Display preferences (user configurable) */
@@ -127,7 +127,6 @@ int modeline_show_modes = 1;
 int modeline_show_position = 1;
 int modeline_ext_position = 2;  /* 0=left, 1=right, 2=auto (default) */
 int modeline_ext_max_width = 20; /* Max chars for extension segments */
-int linus_mode = 0;  /* Classic Linus-style modeline + B&W colors */
 
 /* Backup settings */
 int make_backup = 1;                   /* Create backup files when saving */

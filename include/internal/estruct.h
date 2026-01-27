@@ -27,6 +27,9 @@
 #include <assert.h>
 #include <sys/types.h>  /* For pid_t */
 
+/* POSIX environment - declared here to avoid duplication across files */
+extern char **environ;
+
 /* Forward declarations */
 struct edit_stack;
 struct keymap;

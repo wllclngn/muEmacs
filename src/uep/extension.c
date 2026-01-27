@@ -46,9 +46,6 @@
 #include "util/logger.h"
 #include <time.h>
 
-/* Required for posix_spawn */
-extern char **environ;
-
 /* ═══════════════════════════════════════════════════════════════════════════
  * TIMING INSTRUMENTATION
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -470,6 +467,8 @@ static time_t get_api_header_mtime(void) {
         "/usr/include/uep/extension_api.h",
         "include/uep/extension_api.h",
         "../include/uep/extension_api.h",
+        /* Source tree path for development builds */
+        UEMACS_SOURCE_EDITOR_DIR "/../../include/uep/extension_api.h",
         nullptr
     };
 
@@ -684,8 +683,12 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
     int loaded = 0;
     int async_spawned = 0;
 
-    /* ─── Pass 1: Spawn all out-of-process extensions ─── */
+    LOG_DEBUGF("serial_init_extensions: ENTRY count=%d", count);
+
+    /* ─── Pass 1: Fork ALL out-of-process extensions in parallel ─── */
     for (int i = 0; i < count; i++) {
+        LOG_DEBUGF("serial_init_extensions: task[%d] path=%s needs_iso=%d dlopen_result=%d",
+                   i, tasks[i].path, tasks[i].needs_isolation, tasks[i].dlopen_result);
         dlopen_task_t *task = &tasks[i];
 
         if (task->dlopen_result != 0) continue;
@@ -697,20 +700,25 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
             continue;
         }
 
-        LOG_INFOF("Extension: Loading %s out-of-process (%s runtime)",
+        LOG_INFOF("Extension: Spawning %s async (%s runtime)",
                   ext_name, ext_host_runtime_name(task->runtime));
 
-        /* ext_host_spawn waits for READY via atomic flag */
-        int result = ext_host_spawn(ext_name, task->path, task->runtime);
+        /* Fork without waiting - extensions init in parallel */
+        int result = ext_host_spawn_async(ext_name, task->path, task->runtime);
         free(ext_name);
 
         if (result >= 0) {
-            loaded++;
+            async_spawned++;
         } else {
             LOG_ERRORF("Extension: Failed to spawn: %s (error=%d)", task->path, result);
         }
     }
-    (void)async_spawned;  /* Unused now */
+
+    /* ─── Pass 1b: Wait for ALL out-of-process extensions in parallel ─── */
+    if (async_spawned > 0) {
+        LOG_INFOF("Extension: Waiting for %d out-of-process extension(s) in parallel", async_spawned);
+        loaded = ext_host_await_pending(ext_host_get_init_timeout());
+    }
 
     /* ─── Pass 2: Init all in-process extensions ─── */
     for (int i = 0; i < count; i++) {
@@ -721,6 +729,13 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
         if (task->needs_isolation) continue;
 
         /* In-process extension: run entry() and init() */
+
+        /* Validate entry function pointer */
+        if (!task->entry) {
+            LOG_ERRORF("Extension: No entry function for %s (dlopen may have failed)", task->path);
+            if (task->handle) dlclose(task->handle);
+            continue;
+        }
 
         /* Get extension descriptor */
         struct uemacs_extension *ext = task->entry();

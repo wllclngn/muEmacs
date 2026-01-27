@@ -8,6 +8,7 @@
  */
 
 #include "internal/syntax.h"
+#include "internal/memory.h"
 #include "util/logger.h"
 
 #include <stdlib.h>
@@ -450,7 +451,7 @@ int syntax_lex_buffer(
 
         /* Allocate line tokens if needed */
         if (!syn->lines[i].data) {
-            syn->lines[i].data = malloc(16 * 2 * sizeof(uint16_t));
+            syn->lines[i].data = safe_alloc(16 * 2 * sizeof(uint16_t), "syntax line tokens", __FILE__, __LINE__);
             syn->lines[i].capacity = 16;
         }
         syn->lines[i].count = 0;
@@ -502,7 +503,7 @@ int syntax_relex_from(
 
         /* Allocate line tokens if needed */
         if (!syn->lines[i].data) {
-            syn->lines[i].data = malloc(16 * 2 * sizeof(uint16_t));
+            syn->lines[i].data = safe_alloc(16 * 2 * sizeof(uint16_t), "syntax line tokens", __FILE__, __LINE__);
             syn->lines[i].capacity = 16;
         }
         syn->lines[i].count = 0;

@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
     // Mark as modified (linstr/lnewline should set this, but double check)
     curbp->b_flag |= BFCHG;
     
-    const char* original_file = "poe-collected-works.txt";
+    const char* original_file = "poe-collected-fictions.txt";
     const char* saved_file = "poe_saved_modified.txt";
 
     // Clear the current buffer first to ensure a clean slate for reading the file

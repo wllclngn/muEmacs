@@ -223,14 +223,10 @@ static void updone(struct window *wp);
 static void updall(struct window *wp);
 static void updext(void);
 static int updateline(int row, struct video *vp1, struct video *vp2);
-static void modeline(struct window *wp);
-#if MODERN
-static void modern_modeline(struct window *wp);
-static int getlinecount_modern(struct buffer *bp);
-#endif
-static void mlputi(int i, int r);
-static void mlputli(long l, int r);
-static void mlputf(int s);
+static int calculate_wordwrap_line_rows(struct line *lp, int wrap_col, int tab_width);
+static int calculate_wordwrap_cursor_pos(struct line *lp, int byte_offset, int wrap_col,
+                                          int tab_width, int *out_col);
+/* Note: modern_modeline() and helpers moved to modeline.c */
 static int newscreensize(int h, int w);
 
 
@@ -364,8 +360,10 @@ void vtmove(int row, int col)
  *
  * This routine only puts printing characters into the virtual
  * terminal buffers. Only column overflow is checked.
+ *
+ * Non-static: shared with modeline.c
  */
-static void vtputc(int c)
+void vtputc(int c)
 {
 	struct video *vp;	/* ptr to line being updated */
 
@@ -751,13 +749,8 @@ int update(int force)
 				updall(wp);	/* update all lines */
 			}
 			if (wp->w_flag & WFMODE) {
-				if (linus_mode) {
-					LOG_DEBUG("Display: modeline() - classic modeline (linus_mode)");
-					modeline(wp);	/* classic Linus-style modeline */
-				} else {
-					LOG_DEBUG("Display: modern_modeline() - modern modeline");
-					modern_modeline(wp);  /* modern styled modeline */
-				}
+				LOG_DEBUG("Display: modern_modeline()");
+				modern_modeline(wp);
 			}
 			wp->w_flag &= WFTERM;  /* Preserve terminal marker, clear dirty flags */
 			wp->w_force = 0;
@@ -1371,12 +1364,12 @@ static void updone(struct window *wp)
 	lp = wp->w_linep;
 	sline = wp->w_toprow;
 	while (lp != wp->w_dotp) {
-		/* With soft-wrap, each line may occupy multiple screen rows */
+		/* With soft-wrap, each line may occupy multiple screen rows.
+		 * CRITICAL: Use calculate_wordwrap_line_rows() to match updpos()
+		 * calculation exactly. Simple division is WRONG because word-wrap
+		 * breaks at spaces, not at exact column boundaries. */
 		if (wp->w_wrap_col > 0 && lp != wp->w_bufp->b_linep) {
-			int line_len = llength(lp);
-			int display_width = calculate_display_column_cached(lp, line_len, 8);
-			int rows_for_line = (display_width / wp->w_wrap_col) + 1;
-			sline += rows_for_line;
+			sline += calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
 		} else {
 			++sline;
 		}
@@ -1393,13 +1386,14 @@ static void updone(struct window *wp)
 		}
 	}
 
-	/* With soft-wrap, cursor may be on a continuation row within the current line */
+	/* With soft-wrap, cursor may be on a continuation row within the current line.
+	 * CRITICAL: Use calculate_wordwrap_cursor_pos() to match updpos() exactly.
+	 * Simple division is WRONG because word-wrap breaks at spaces. */
 	if (wp->w_wrap_col > 0) {
-		int cursor_col = calculate_display_column_cached(wp->w_dotp, wp->w_doto, 8);
-		if (cursor_col >= wp->w_wrap_col) {
-			int extra_rows = cursor_col / wp->w_wrap_col;
-			sline += extra_rows;
-		}
+		int dummy_col;
+		int extra_rows = calculate_wordwrap_cursor_pos(wp->w_dotp, wp->w_doto,
+		                                                wp->w_wrap_col, 8, &dummy_col);
+		sline += extra_rows;
 	}
 
 	/* CRITICAL: Log cursor-line detection for highlight debugging */
@@ -2179,11 +2173,18 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
                 emit_modeline_fg();
             }
 
-            /* Selection highlighting takes priority over ruler highlighting */
+            /* Selection highlighting takes priority over ruler highlighting.
+             * CRITICAL: When row_needs_highlight_clear is true, we're clearing OLD cursor-line
+             * highlight. But we must STILL render the column ruler. The column ruler is at
+             * a SPECIFIC column, so check if this is that column. */
+            bool is_ruler_column = (column_ruler_enabled && col_pos == column_ruler_column - 1);
             if (char_selected && !row_is_cursor_line && !req && !row_needs_highlight_clear) {
                 ttputs(sgr_selection_bg());  /* Palette-based selection background */
-            } else if (char_highlighted && !row_is_cursor_line && !req && !row_needs_highlight_clear) {
-                emit_ruler_bg();  /* Palette-based ruler background */
+            } else if (!row_is_cursor_line && !req) {
+                /* Not cursor line: render column ruler if this is the ruler column */
+                if (is_ruler_column) {
+                    emit_ruler_bg();
+                }
             }
 
             /* Apply syntax highlighting color if face changed */
@@ -2209,8 +2210,10 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
             TTputc(ch);
 
             /* Reset after highlighted/selected character */
-            if ((char_selected || char_highlighted) && !row_is_cursor_line && !req && !row_needs_highlight_clear) {
+            if (char_selected && !row_is_cursor_line && !req && !row_needs_highlight_clear) {
                 ttputs("\033[49m");
+            } else if (is_ruler_column && !row_is_cursor_line && !req) {
+                ttputs("\033[49m");  /* Reset after column ruler */
             }
 
             ++ttcol;
@@ -2394,210 +2397,6 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 	return true;
 }
 
-/*
- * Redisplay the mode line for the window pointed to by the "wp". This is the
- * only routine that has any idea of how the modeline is formatted. You can
- * change the modeline format by hacking at this routine. Called by "update"
- * any time there is a dirty window.
- */
-static void modeline(struct window *wp)
-{
-	char *cp;
-	int c;
-	int n;		/* cursor position count */
-	struct buffer *bp;
-	int i;		/* loop index */
-	int lchar;	/* character to draw line in buffer with */
-	int firstm;	/* is this the first mode? */
-	char tline[NLINE];	/* buffer for part of mode line */
-
-	n = wp->w_toprow + wp->w_ntrows;	/* Location. */
-	LOG_DEBUGF("Display: modeline() row=%d, t_ncol=%d, wp=%p", n, term.t_ncol, (void*)wp);
-	// Bounds check for vscreen array access
-	if (n >= term.t_mrow) {
-		LOG_WARN("Display: modeline() row out of bounds!");
-		return;  // Safety: don't access beyond vscreen bounds
-	}
-	vscreen[n]->v_flag |= VFCHG | VFREQ;	/* Redraw next time. */
-	// Don't force modeline colors - use terminal defaults
-	vtmove(n, 0);		/* Seek to right line. */
-	lchar = '-';		/* modeline border character */
-
-	bp = wp->w_bufp;
-		vtputc(lchar);
-
-	if ((bp->b_flag & BFCHG) != 0)	/* "*" if changed. */
-		vtputc('*');
-	else
-		vtputc(lchar);
-
-	n = 2;
-
-	safe_strcpy(tline, " ", sizeof(tline));
-	safe_strcat(tline, PROGRAM_NAME_LONG, sizeof(tline));
-	safe_strcat(tline, " ", sizeof(tline));
-	safe_strcat(tline, VERSION, sizeof(tline));
-	safe_strcat(tline, ": ", sizeof(tline));
-	cp = &tline[0];
-	while ((c = *cp++) != 0) {
-		vtputc(c);
-		++n;
-	}
-
-	cp = &bp->b_bname[0];
-	while ((c = *cp++) != 0) {
-		vtputc(c);
-		++n;
-	}
-
-	safe_strcpy(tline, " (", sizeof(tline));
-
-	/* display the modes */
-
-	firstm = true;
-	if ((bp->b_flag & BFTRUNC) != 0) {
-		firstm = false;
-        safe_strcat(tline, "Truncated", sizeof(tline));
-	}
-	for (i = 0; i < NUMMODES; i++)	/* add in the mode flags */
-		if (wp->w_bufp->b_mode & (1 << i)) {
-			if (firstm != true)
-                safe_strcat(tline, " ", sizeof(tline));
-			firstm = false;
-                safe_strcat(tline, mode2name[i], sizeof(tline));
-		}
-    safe_strcat(tline, ") ", sizeof(tline));
-
-	cp = &tline[0];
-	while ((c = *cp++) != 0) {
-		vtputc(c);
-		++n;
-	}
-
-	if (bp->b_fname[0] != 0 && strcmp(bp->b_bname, bp->b_fname) != 0)
-	{
-
-		cp = &bp->b_fname[0];
-
-		while ((c = *cp++) != 0) {
-			vtputc(c);
-			++n;
-		}
-
-		vtputc(' ');
-		++n;
-	}
-
-	// Instant status line statistics using cached values
-	char info_buffer[128];
-	int current_line = 1;
-	int total_lines;
-	long file_bytes;
-	int word_count;
-	
-	// Fast line number calculation - only count to current position
-	struct line *lp = bp->b_linep;
-	while ((lp = lforw(lp)) != wp->w_dotp && lp != bp->b_linep)
-		current_line++;
-	
-	// Get cached file statistics instantly (O(1) operation)
-	buffer_get_stats_fast(bp, &total_lines, &file_bytes, &word_count);
-	
-	// Fast UTF-8 aware column calculation using atomic cache
-	int current_col = calculate_display_column_cached(wp->w_dotp, wp->w_doto, 8) + 1;
-	
-	// Format complete status info using cached statistics
-	if (file_bytes >= 1024*1024) {
-		safe_snprintf(info_buffer, sizeof(info_buffer), " C%d L%d/%d %.1fMB %dW ",
-			current_col, current_line, total_lines, file_bytes / (1024.0*1024.0), word_count);
-	} else if (file_bytes >= 1024) {
-		safe_snprintf(info_buffer, sizeof(info_buffer), " C%d L%d/%d %.1fKB %dW ",
-			current_col, current_line, total_lines, file_bytes / 1024.0, word_count);
-	} else {
-		safe_snprintf(info_buffer, sizeof(info_buffer), " C%d L%d/%d %ldB %dW ",
-			current_col, current_line, total_lines, file_bytes, word_count);
-	}
-	
-	int info_len = strlen(info_buffer);
-	int padding = term.t_ncol - n - info_len;
-	
-	// Pad with line characters, leaving space for info
-	for (int i = 0; i < padding && n < term.t_ncol; i++) {
-		vtputc(lchar);
-		++n;
-	}
-	
-	// Add the dynamic info
-	cp = info_buffer;
-	while ((c = *cp++) != 0 && n < term.t_ncol) {
-		vtputc(c);
-		++n;
-	}
-	
-	while (n < term.t_ncol) {	/* Final padding if needed */
-		vtputc(lchar);
-		++n;
-	}
-
-	{			/* determine if top line, bottom line, or both are visible */
-		struct line *lp = wp->w_linep;
-		int rows = wp->w_ntrows;
-		char *msg = nullptr;
-
-		vtcol = n - 7;	/* strlen(" top ") plus a couple */
-		while (rows--) {
-			lp = lforw(lp);
-			if (lp == wp->w_bufp->b_linep) {
-				msg = " Bot ";
-				break;
-			}
-		}
-		if (lback(wp->w_linep) == wp->w_bufp->b_linep) {
-			if (msg) {
-				if (wp->w_linep == wp->w_bufp->b_linep)
-					msg = " Emp ";
-				else
-					msg = " All ";
-			} else {
-				msg = " Top ";
-			}
-		}
-		if (!msg) {
-			struct line *lp;
-			int numlines, predlines, ratio;
-
-			lp = lforw(bp->b_linep);
-			numlines = 0;
-			predlines = 0;
-			while (lp != bp->b_linep) {
-				if (lp == wp->w_linep) {
-					predlines = numlines;
-				}
-				++numlines;
-				lp = lforw(lp);
-			}
-			if (wp->w_dotp == bp->b_linep) {
-				msg = " Bot ";
-			} else {
-				ratio = 0;
-				if (numlines != 0)
-					ratio =
-					    (100L * predlines) / numlines;
-				if (ratio > 99)
-					ratio = 99;
-				safe_snprintf(tline, sizeof(tline), " %2d%% ", ratio);
-				msg = tline;
-			}
-		}
-
-		cp = msg;
-		while ((c = *cp++) != 0) {
-			vtputc(c);
-			++n;
-		}
-	}
-}
-
 void upmode(void)
 {				/* update all the mode lines */
 	struct window *wp;
@@ -2637,187 +2436,7 @@ void movecursor(int row, int col)
 	}
 }
 
-/*
- * Erase the message line. This is a special routine because the message line
- * is not considered to be part of the virtual screen. It always works
- * immediately; the terminal buffer is flushed via a call to the flusher.
- */
-void mlerase(void)
-{
-	movecursor(term.t_nrow, 0);
-	if (discmd == false)
-		return;
-
-	ttputs("\033[0m");  /* Reset to terminal defaults */
-	TTeeol();  /* Modern terminals always support clear-to-EOL */
-	TTflush();
-	mpresf = false;
-}
-
-/*
- * Write a message into the message line. Keep track of the physical cursor
- * position. A small class of printf like format items is handled. Assumes the
- * stack grows down; this assumption is made by the "++" in the argument scan
- * loop. Set the "message line" flag true.
- *
- * char *fmt;		format string for output
- * char *arg;		pointer to first argument to print
- */
-void mlwrite(const char *restrict fmt, ...)
-{
-	int c;		/* current char in format string */
-	va_list ap;
-
-	/* if we are not currently echoing on the command line, abort this */
-	if (discmd == false) {
-		movecursor(term.t_nrow, 0);
-		return;
-	}
-
-	movecursor(term.t_nrow, 0);
-	ttputs("\033[0m");  /* Reset to terminal defaults */
-	va_start(ap, fmt);
-	while ((c = *fmt++) != 0) {
-		if (c != '%') {
-			TTputc(c);
-			++ttcol;
-		} else {
-			c = *fmt++;
-			switch (c) {
-			case 'd':
-				mlputi(va_arg(ap, int), 10);
-				break;
-
-			case 'o':
-				mlputi(va_arg(ap, int), 8);
-				break;
-
-			case 'x':
-				mlputi(va_arg(ap, int), 16);
-				break;
-
-			case 'D':
-				mlputli(va_arg(ap, long), 10);
-				break;
-
-			case 's':
-				mlputs(va_arg(ap, char *));
-				break;
-
-			case 'f':
-				mlputf(va_arg(ap, int));
-				break;
-
-			default:
-				TTputc(c);
-				++ttcol;
-			}
-		}
-	}
-	va_end(ap);
-
-	TTeeol();  /* Clear to end of line */
-	TTflush();
-	mpresf = true;
-}
-
-/*
- * Force a string out to the message line regardless of the
- * current $discmd setting. This is needed when $debug is true
- * and for the write-message and clear-message-line commands
- *
- * char *s;		string to force out
- */
-void mlforce(const char *restrict s)
-{
-	int oldcmd;	/* original command display flag */
-
-	oldcmd = discmd;	/* save the discmd value */
-	discmd = true;		/* and turn display on */
-	mlwrite(s);		/* write the string out */
-	discmd = oldcmd;	/* and restore the original setting */
-}
-
-/*
- * Write out a string. Update the physical cursor position. This assumes that
- * the characters in the string all have width "1"; if this is not the case
- * things will get screwed up a little.
- */
-void mlputs(const char *restrict s)
-{
-	int c;
-
-	while ((c = *s++) != 0) {
-		TTputc(c);
-		++ttcol;
-	}
-}
-
-/*
- * Write out an integer, in the specified radix. Update the physical cursor
- * position.
- */
-static void mlputi(int i, int r)
-{
-	int q;
-	static char hexdigits[] = "0123456789ABCDEF";
-
-	if (i < 0) {
-		i = -i;
-		TTputc('-');
-	}
-
-	q = i / r;
-
-	if (q != 0)
-		mlputi(q, r);
-
-	TTputc(hexdigits[i % r]);
-	++ttcol;
-}
-
-/*
- * do the same except as a long integer.
- */
-static void mlputli(long l, int r)
-{
-	long q;
-
-	if (l < 0) {
-		l = -l;
-		TTputc('-');
-	}
-
-	q = l / r;
-
-	if (q != 0)
-		mlputli(q, r);
-
-	TTputc((int) (l % r) + '0');
-	++ttcol;
-}
-
-/*
- * write out a scaled integer with two decimal places
- *
- * int s;		scaled integer to output
- */
-static void mlputf(int s)
-{
-	int i;			/* integer portion of number */
-	int f;			/* fractional portion of number */
-
-	/* break it up */
-	i = s / 100;
-	f = s % 100;
-
-	/* send out the integer portion */
-	mlputi(i, 10);
-	TTputc('.');
-	TTputc((f / 10) + '0');
-	TTputc((f % 10) + '0');
-	ttcol += 3;
-}
+/* Note: Message line functions moved to message_line.c */
 
 /* Get terminal size from system.
    Store number of lines into *heightp and width into *widthp.
@@ -2886,383 +2505,4 @@ static int newscreensize(int h, int w)
 	return true;
 }
 
-#if MODERN
-/*
- * Modern unified status line matching user's Kitty+Vim+Bash aesthetic
- * Format: ● MODE │ filename │ type │ encoding │ modified │ size │ position │ time
- * Uses terminal colors and Unicode symbols for ecosystem consistency
- */
-
-/* Helper function to detect file type from filename extension */
-static const char* get_filetype_string(const char *filename)
-{
-	if (!filename || !filename[0])
-		return "TEXT";
-
-	/* Find the last dot in the filename */
-	const char *dot = strrchr(filename, '.');
-	if (!dot || dot == filename)
-		return "TEXT";
-
-	const char *ext = dot + 1;
-
-	/* Programming languages */
-	if (strcasecmp(ext, "c") == 0) return "C";
-	if (strcasecmp(ext, "h") == 0) return "C";
-	if (strcasecmp(ext, "cpp") == 0 || strcasecmp(ext, "cc") == 0 ||
-	    strcasecmp(ext, "cxx") == 0) return "C++";
-	if (strcasecmp(ext, "hpp") == 0 || strcasecmp(ext, "hh") == 0) return "C++";
-	if (strcasecmp(ext, "py") == 0) return "PYTHON";
-	if (strcasecmp(ext, "go") == 0) return "GO";
-	if (strcasecmp(ext, "rs") == 0) return "RUST";
-	if (strcasecmp(ext, "js") == 0) return "JS";
-	if (strcasecmp(ext, "ts") == 0) return "TS";
-	if (strcasecmp(ext, "jsx") == 0) return "JSX";
-	if (strcasecmp(ext, "tsx") == 0) return "TSX";
-	if (strcasecmp(ext, "java") == 0) return "JAVA";
-	if (strcasecmp(ext, "rb") == 0) return "RUBY";
-	if (strcasecmp(ext, "php") == 0) return "PHP";
-	if (strcasecmp(ext, "pl") == 0 || strcasecmp(ext, "pm") == 0) return "PERL";
-	if (strcasecmp(ext, "lua") == 0) return "LUA";
-	if (strcasecmp(ext, "hs") == 0) return "HASKELL";
-	if (strcasecmp(ext, "ml") == 0 || strcasecmp(ext, "mli") == 0) return "OCAML";
-	if (strcasecmp(ext, "ex") == 0 || strcasecmp(ext, "exs") == 0) return "ELIXIR";
-	if (strcasecmp(ext, "erl") == 0) return "ERLANG";
-	if (strcasecmp(ext, "clj") == 0) return "CLOJURE";
-	if (strcasecmp(ext, "scala") == 0) return "SCALA";
-	if (strcasecmp(ext, "kt") == 0) return "KOTLIN";
-	if (strcasecmp(ext, "swift") == 0) return "SWIFT";
-	if (strcasecmp(ext, "zig") == 0) return "ZIG";
-	if (strcasecmp(ext, "nim") == 0) return "NIM";
-	if (strcasecmp(ext, "v") == 0) return "V";
-	if (strcasecmp(ext, "d") == 0) return "D";
-	if (strcasecmp(ext, "cs") == 0) return "C#";
-	if (strcasecmp(ext, "fs") == 0 || strcasecmp(ext, "fsx") == 0) return "F#";
-	if (strcasecmp(ext, "vb") == 0) return "VB";
-
-	/* Shell/scripting */
-	if (strcasecmp(ext, "sh") == 0) return "SHELL";
-	if (strcasecmp(ext, "bash") == 0) return "BASH";
-	if (strcasecmp(ext, "zsh") == 0) return "ZSH";
-	if (strcasecmp(ext, "fish") == 0) return "FISH";
-	if (strcasecmp(ext, "ps1") == 0) return "PWSH";
-
-	/* Markup/data */
-	if (strcasecmp(ext, "html") == 0 || strcasecmp(ext, "htm") == 0) return "HTML";
-	if (strcasecmp(ext, "css") == 0) return "CSS";
-	if (strcasecmp(ext, "scss") == 0 || strcasecmp(ext, "sass") == 0) return "SCSS";
-	if (strcasecmp(ext, "xml") == 0) return "XML";
-	if (strcasecmp(ext, "json") == 0) return "JSON";
-	if (strcasecmp(ext, "yaml") == 0 || strcasecmp(ext, "yml") == 0) return "YAML";
-	if (strcasecmp(ext, "toml") == 0) return "TOML";
-	if (strcasecmp(ext, "ini") == 0) return "INI";
-	if (strcasecmp(ext, "conf") == 0 || strcasecmp(ext, "cfg") == 0) return "CONF";
-	if (strcasecmp(ext, "md") == 0 || strcasecmp(ext, "markdown") == 0) return "MD";
-	if (strcasecmp(ext, "rst") == 0) return "RST";
-	if (strcasecmp(ext, "tex") == 0) return "TEX";
-	if (strcasecmp(ext, "org") == 0) return "ORG";
-
-	/* Build/config */
-	if (strcasecmp(ext, "mk") == 0) return "MAKE";
-	if (strcasecmp(ext, "cmake") == 0) return "CMAKE";
-	if (strcasecmp(ext, "dockerfile") == 0) return "DOCKER";
-
-	/* SQL/DB */
-	if (strcasecmp(ext, "sql") == 0) return "SQL";
-
-	/* Lisp family */
-	if (strcasecmp(ext, "el") == 0) return "ELISP";
-	if (strcasecmp(ext, "lisp") == 0 || strcasecmp(ext, "cl") == 0) return "LISP";
-	if (strcasecmp(ext, "scm") == 0 || strcasecmp(ext, "ss") == 0) return "SCHEME";
-	if (strcasecmp(ext, "rkt") == 0) return "RACKET";
-
-	/* Assembly */
-	if (strcasecmp(ext, "asm") == 0 || strcasecmp(ext, "s") == 0) return "ASM";
-
-	/* Text/docs */
-	if (strcasecmp(ext, "txt") == 0) return "TEXT";
-	if (strcasecmp(ext, "log") == 0) return "LOG";
-	if (strcasecmp(ext, "diff") == 0 || strcasecmp(ext, "patch") == 0) return "DIFF";
-
-	/* Vim */
-	if (strcasecmp(ext, "vim") == 0) return "VIM";
-	if (strcasecmp(ext, "vimrc") == 0) return "VIM";
-
-	return "TEXT";
-}
-
-/* Helper function to count total lines in buffer */
-static int getlinecount_modern(struct buffer *bp)
-{
-	struct line *lp;
-	int count = 0;
-	
-	lp = lforw(bp->b_linep);
-	while (lp != bp->b_linep) {
-		count++;
-		lp = lforw(lp);
-	}
-	return count;
-}
-
-// Modern modeline matching user's preferred format
-static void modern_modeline(struct window *wp)
-{
-	char left_info[256];
-	char right_info[128];
-	struct buffer *bp = wp->w_bufp;
-	int n = wp->w_toprow + wp->w_ntrows;
-	int col_pos = 0;
-	char *cp;
-
-	// Bounds check for vscreen array access
-	if (n < 0 || n >= term.t_mrow || !vscreen || !vscreen[n]) {
-		return;  // Safety: don't access invalid vscreen
-	}
-
-	// Set up virtual screen - VFREQ flag tells updateline() this is status line
-	// updateline() will apply dark truecolor background for status line
-	vscreen[n]->v_flag |= VFCHG | VFREQ;
-	vtmove(n, 0);
-
-	// --- VIM MODE INDICATOR ---
-	// Show "EVIL" in red for first 3 seconds, then show current mode
-	char vim_mode_str[32] = "";
-	bool show_evil_splash = false;
-	int vim_active = atomic_load(&vim_mode_active);
-
-	if (vim_active) {
-		long current_time = (long)time(NULL);
-		if (evil_mode_start_time > 0 && (current_time - evil_mode_start_time) < 3) {
-			show_evil_splash = true;
-		}
-
-		if (show_evil_splash) {
-			// "EVIL" in red - matching spacing of other mode indicators
-			safe_strcpy(vim_mode_str, "   EVIL", sizeof(vim_mode_str));
-		} else {
-			// Show current mode
-			enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
-			switch (mode) {
-				case MODE_NORMAL:      safe_strcpy(vim_mode_str, "   NORMAL", sizeof(vim_mode_str)); break;
-				case MODE_INSERT:      safe_strcpy(vim_mode_str, "   INSERT", sizeof(vim_mode_str)); break;
-				case MODE_VISUAL:      safe_strcpy(vim_mode_str, "   VISUAL", sizeof(vim_mode_str)); break;
-				case MODE_VISUAL_LINE: safe_strcpy(vim_mode_str, "   V-LINE", sizeof(vim_mode_str)); break;
-				case MODE_REPLACE:     safe_strcpy(vim_mode_str, "   REPLACE", sizeof(vim_mode_str)); break;
-				default:               safe_strcpy(vim_mode_str, "   NORMAL", sizeof(vim_mode_str)); break;
-			}
-		}
-	}
-
-	// Get cached file statistics instantly (O(1) operation)
-	long file_size = 0;
-	int total_lines = 0;
-	int word_count = 0;
-	buffer_get_stats_fast(bp, &total_lines, &file_size, &word_count);
-
-	// Ensure valid stats - force recalc if they look uninitialized
-	if (total_lines <= 0 || (file_size == 0 && bp->b_linep && lforw(bp->b_linep) != bp->b_linep)) {
-		buffer_mark_stats_dirty(bp);
-		buffer_get_stats_fast(bp, &total_lines, &file_size, &word_count);
-	}
-
-	// Get cached line number instantly (O(1) operation)
-	int current_line = get_line_number_cached(wp);
-
-	// Format left: [MODE] FILENAME  TYPE  ENCODING  [MODIFIED] [WE] (with leading spacing buffer)
-	// Delta symbol for modified files - modern Unicode modification indicator
-	const char *mod_indicator = (bp->b_flag & BFCHG) ? "    Δ" : "";
-
-	// --- GIT STATUS INTEGRATION ---
-	char git_info[64] = "";
-	if (modeline_show_git) {
-		git_status_request_async(nullptr); // non-blocking, throttled
-		git_status_get_cached(git_info, sizeof(git_info));
-	}
-
-	// --- EXTENSION MODELINE SEGMENTS ---
-	char *ext_high = NULL;  // High urgency (mode indicators)
-	char *ext_low = NULL;   // Low urgency (informational)
-
-	// modeline_ext_position: 0=left, 1=right, 2=auto
-	if (modeline_ext_position == 0) {
-		// All segments on left
-		ext_high = extension_get_modeline_segments(-1);  // All
-	} else if (modeline_ext_position == 1) {
-		// All segments on right
-		ext_low = extension_get_modeline_segments(-1);   // All
-	} else {
-		// Auto: high urgency left, low urgency right
-		ext_high = extension_get_modeline_segments(UEMACS_MODELINE_URGENCY_HIGH);
-		ext_low = extension_get_modeline_segments(UEMACS_MODELINE_URGENCY_LOW);
-	}
-
-	// Compose left_info with vim mode and git
-	const char* fname = bp->b_fname[0] ? bp->b_fname : bp->b_bname;
-
-	// Build vim mode prefix for status line
-	// Note: EVIL color is handled in updateline() during actual terminal output
-	char vim_prefix[96] = "";
-	if (vim_active && vim_mode_str[0]) {
-		if (show_evil_splash) {
-			// Plain text - EVIL color applied by updateline()
-			safe_strcpy(vim_prefix, vim_mode_str, sizeof(vim_prefix));
-		} else {
-			// Map editor mode to palette mode index for coloring
-			enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
-			int mode_idx;
-			switch (mode) {
-				case MODE_NORMAL:      mode_idx = 0; break;
-				case MODE_INSERT:      mode_idx = 1; break;
-				case MODE_VISUAL:      mode_idx = 2; break;
-				case MODE_VISUAL_LINE: mode_idx = 3; break;
-				case MODE_REPLACE:     mode_idx = 5; break;
-				default:               mode_idx = 0; break;
-			}
-			snprintf(vim_prefix, sizeof(vim_prefix), "%s%s\x1b[39m", sgr_mode_color(mode_idx), vim_mode_str);
-		}
-	}
-
-	/* Get file type from extension */
-	const char *ftype = get_filetype_string(fname);
-
-	if (vim_active && vim_mode_str[0]) {
-		// Include vim mode in status line BEFORE filename
-		if (modeline_show_modes) {
-			if (git_info[0])
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s    %s    UTF-8%s", vim_prefix, fname, git_info, ftype, mod_indicator);
-			else
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s    UTF-8%s", vim_prefix, fname, ftype, mod_indicator);
-		} else {
-			if (git_info[0])
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s    %s%s", vim_prefix, fname, git_info, mod_indicator);
-			else
-				safe_snprintf(left_info, sizeof(left_info), "%s    %s%s", vim_prefix, fname, mod_indicator);
-		}
-	} else if (modeline_show_modes) {
-		if (git_info[0])
-			safe_snprintf(left_info, sizeof(left_info), "   %s    %s    %s    UTF-8%s", fname, git_info, ftype, mod_indicator);
-		else
-			safe_snprintf(left_info, sizeof(left_info), "   %s    %s    UTF-8%s", fname, ftype, mod_indicator);
-	} else {
-		if (git_info[0])
-			safe_snprintf(left_info, sizeof(left_info), "   %s    %s%s", fname, git_info, mod_indicator);
-		else
-			safe_snprintf(left_info, sizeof(left_info), "   %s%s", fname, mod_indicator);
-	}
-
-	// Append high-urgency extension segments to left side
-	if (ext_high && ext_high[0]) {
-		size_t curr_len = strlen(left_info);
-		if (curr_len + strlen(ext_high) + 5 < sizeof(left_info)) {
-			strncat(left_info, "    ", sizeof(left_info) - curr_len - 1);
-			strncat(left_info, ext_high, sizeof(left_info) - strlen(left_info) - 1);
-		}
-	}
-
-	// Format right: C{COL} L{LINE}/{TOTAL}  {SIZE} {WORDS}
-	char size_str[32];
-	if (file_size < 1024) {
-		snprintf(size_str, sizeof(size_str), "%ldB", file_size);
-	} else if (file_size < 1048576) {
-		snprintf(size_str, sizeof(size_str), "%.2fKB", file_size / 1024.0);
-	} else if (file_size < 1073741824) {
-		snprintf(size_str, sizeof(size_str), "%.2fMB", file_size / 1048576.0);
-	} else if (file_size < 1099511627776LL) {
-		snprintf(size_str, sizeof(size_str), "%.2fGB", file_size / 1073741824.0);
-	} else {
-		snprintf(size_str, sizeof(size_str), "%.2fTB", file_size / 1099511627776.0);
-	}
-
-	// Fast UTF-8 aware column calculation using atomic cache
-	int current_col = calculate_display_column_cached(wp->w_dotp, wp->w_doto, 8) + 1;
-
-	right_info[0] = '\0';
-	// Prepend low-urgency extension segments to right side
-	if (ext_low && ext_low[0]) {
-		strncat(right_info, ext_low, sizeof(right_info) - 1);
-		strncat(right_info, "    ", sizeof(right_info) - strlen(right_info) - 1);
-	}
-	if (modeline_show_position) {
-		char pos[64];
-		snprintf(pos, sizeof(pos), "C%d    L%d/%d", current_col, current_line, total_lines);
-		strncat(right_info, pos, sizeof(right_info) - strlen(right_info) - 1);
-	}
-	if (modeline_show_stats) {
-		char stats[64];
-		snprintf(stats, sizeof(stats), "    %s    %dW", size_str, word_count);
-		strncat(right_info, stats, sizeof(right_info) - strlen(right_info) - 1);
-	}
-	// Add trailing padding to match left side (3 spaces)
-	strncat(right_info, "   ", sizeof(right_info) - strlen(right_info) - 1);
-
-	// Display left info with proper UTF-8 handling for delta symbol
-	// Calculate display width of right_info (all ASCII, so strlen == display width)
-	int right_len = strlen(right_info);
-	int left_len = strlen(left_info);
-
-	// Render left_info with UTF-8 handling, passing ANSI escapes through to terminal
-	int i = 0;
-	while (i < left_len && col_pos < term.t_ncol - right_len - 1) {
-		unsigned char byte = (unsigned char)left_info[i];
-
-		// Output ANSI escape sequences directly to terminal (for colors)
-		if (byte == 0x1b) {
-			int seq_start = i;
-			i++;
-			// Find end of escape sequence
-			while (i < left_len) {
-				unsigned char eb = (unsigned char)left_info[i];
-				i++;
-				if ((eb >= 'A' && eb <= 'Z') || (eb >= 'a' && eb <= 'z'))
-					break;
-			}
-			// Output the escape sequence directly via vtputs
-			char seq_buf[64];
-			int seq_len = i - seq_start;
-			if (seq_len < (int)sizeof(seq_buf)) {
-				memcpy(seq_buf, &left_info[seq_start], seq_len);
-				seq_buf[seq_len] = '\0';
-				vtputs(seq_buf);
-			}
-			continue;
-		}
-
-		// Normal character processing with UTF-8
-		unicode_t c;
-		int bytes = utf8_to_unicode(left_info, i, left_len, &c);
-		if (bytes > 0) {
-			vtputc(c);
-			i += bytes;
-			col_pos++;
-		} else {
-			break;
-		}
-	}
-
-	// Fill middle with spaces
-	while (col_pos < term.t_ncol - right_len) {
-		vtputc(' ');
-		col_pos++;
-	}
-
-	// Display right info
-	cp = right_info;
-	while (*cp && col_pos < term.t_ncol) {
-		vtputc(*cp++);
-		col_pos++;
-	}
-
-	// Fill remainder
-	while (col_pos < term.t_ncol) {
-		vtputc(' ');
-		col_pos++;
-	}
-
-	// Cleanup extension segment strings
-	if (ext_high) free(ext_high);
-	if (ext_low) free(ext_low);
-	/* VFREQ flag tells updateline() to apply dark truecolor background */
-}
-
-#endif /* MODERN */
+/* Note: modern_modeline() and helpers moved to modeline.c */

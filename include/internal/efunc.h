@@ -70,6 +70,19 @@ extern int vim_till_char_forward(int f, int n);
 extern int vim_till_char_backward(int f, int n);
 extern int vim_repeat_find(int f, int n);
 extern int vim_repeat_find_reverse(int f, int n);
+
+/* vim_bindings.c - helpers shared with vim modules */
+extern int vim_getkey(void);
+extern int vim_get_effective_count(void);
+extern void vim_clear_pending_state(void);
+extern void vim_store_to_register(int is_delete, int linewise);
+extern void vim_record_text_object_change(char op, char prefix, char object, int count);
+
+/* vim_text_objects.c - text object selection helpers */
+extern int vim_select_word_object(bool inner);
+extern int vim_select_quote_object(char quote, bool inner);
+extern int vim_select_bracket_object(char open, char close, bool inner);
+
 extern int vim_replace_char(int f, int n);
 extern int vim_enter_replace_mode(int f, int n);
 extern int vim_toggle_case(int f, int n);
@@ -229,6 +242,7 @@ extern void vtinit_test(void);  /* Test-only: allocate screens without terminal 
 extern void vtfree(void);
 extern void vttidy(void);
 extern void vtmove(int row, int col);
+extern void vtputc(int c);  /* Write character to virtual screen */
 extern int upscreen(int f, int n);
 extern int update(int force);
 extern void updpos(void);
@@ -243,6 +257,7 @@ extern bool display_needs_update(void);
 extern void mark_display_clean(void);
 extern int updupd(int force);
 extern void upmode(void);
+extern void modern_modeline(struct window *wp);  /* modeline.c */
 extern void movecursor(int row, int col);
 extern void mlerase(void);
 extern void mlwrite(const char *fmt, ...);

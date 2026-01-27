@@ -32,7 +32,7 @@ extern struct vim_state g_vim_state; /* Global Vim Mode state */
 extern _Atomic(struct keymap *) vim_normal_keymap; /* Vim Normal Mode Keymap */
 extern _Atomic(struct keymap *) vim_visual_keymap; /* Vim Visual Mode Keymap */
 
-extern int fillcol;		/* Fill column                  */
+extern _Atomic int fillcol;		/* Fill column - C23 atomic */
 /* Modern keyboard macro system - stores full input events */
 typedef struct keyboard_macro {
 	input_key_event_t events[NKBDM];  /* Event storage */
@@ -63,11 +63,11 @@ extern int gbcolor;		/* global backgrnd color (black) */
 extern int gasave;		/* global ASAVE size            */
 extern int gacount;		/* count until next ASAVE       */
 extern _Atomic int sgarbf;		/* State of screen unknown - C23 atomic */
-extern int mpresf;		/* Stuff in message line        */
+extern _Atomic int mpresf;		/* Stuff in message line - C23 atomic */
 extern _Atomic int clexec;		/* command line execution flag - C23 atomic */
 extern _Atomic int mstore;		/* storing text to macro flag - C23 atomic */
-extern int discmd;		/* display command flag         */
-extern int disinp;		/* display input characters     */
+extern _Atomic int discmd;		/* display command flag - C23 atomic */
+extern _Atomic int disinp;		/* display input characters - C23 atomic */
 extern _Atomic(struct buffer *) bstore;	/* buffer to store macro text to - C23 atomic */
 extern int vtrow;		/* Row location of SW cursor */
 extern int vtcol;		/* Column location of SW cursor */
@@ -99,10 +99,10 @@ extern int saveflag;		/* Flags, saved with the $target var */
 extern char *fline;		/* dynamic return line */
 extern int flen;		/* current length of fline */
 extern int rval;		/* return value of a subprocess */
-extern int nullflag;
-extern int justflag;		/* justify, don't fill */
-extern int overlap;		/* line overlap in forw/back page */
-extern int scrollcount;		/* number of lines to scroll */
+extern _Atomic int nullflag;		/* accept null characters - C23 atomic */
+extern _Atomic int justflag;		/* justify, don't fill - C23 atomic */
+extern _Atomic int overlap;		/* line overlap in forw/back page - C23 atomic */
+extern _Atomic int scrollcount;		/* number of lines to scroll - C23 atomic */
 extern _Atomic int edit_transaction_depth; /* transactional editing depth */
 /* Display preferences */
 extern int highlight_current_line;
@@ -123,7 +123,6 @@ extern int modeline_show_modes;
 extern int modeline_show_position;
 extern int modeline_ext_position;  /* 0=left, 1=right, 2=auto */
 extern int modeline_ext_max_width; /* Max chars for extension segments */
-extern int linus_mode;  /* Classic modeline + B&W colors */
 /* Backup settings */
 extern int make_backup;
 extern char backup_dir[512];

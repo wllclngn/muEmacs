@@ -569,57 +569,68 @@ static int replaces(int kind, int f, int n)
 		nlrepl = (lforw(curwp->w_dotp) == curwp->w_bufp->b_linep);
 
 		if (kind) {
-		      pprompt:mlwrite(&tpat[0], &pat[0], &rpat[0]);
-		      qprompt:
-			update(true);
-			c = input_read_byte();
-			mlwrite("");
-
-			switch (c) {
-			case 'Y': case 'y': case ' ':
-				savematch();
-				break;
-			case 'N': case 'n':
-				move_char_forward(false, 1);
-				continue;
-			case '!':
-				kind = false;
-				break;
-			case 'U': case 'u':
-				if (lastline == nullptr) {
-					TTbeep();
-					goto pprompt;
+			int show_prompt = true;  /* true = show main prompt, false = just wait */
+			int prompt_done = false;
+			while (!prompt_done) {
+				if (show_prompt) {
+					mlwrite(&tpat[0], &pat[0], &rpat[0]);
 				}
-				curwp->w_dotp = lastline;
-				curwp->w_doto = lastoff;
-				lastline = nullptr;
-				lastoff = 0;
-				move_char_backward(false, rlength);
-				matchline = curwp->w_dotp;
-				matchoff = curwp->w_doto;
-				status = delins(rlength, patmatch, false);
-				if (status != true) return status;
-				--numsub;
-				move_char_backward(false, mlenold);
-				matchline = curwp->w_dotp;
-				matchoff = curwp->w_doto;
-				goto pprompt;
-			case '.':
-				curwp->w_dotp = origline;
-				curwp->w_doto = origoff;
-				curwp->w_flag |= WFMOVE;
-				[[fallthrough]];
-			case BELL:
-				mlwrite("ABORTED!");
-				return false;
-			default:
-				TTbeep();
-				[[fallthrough]];
-			case '?':
-				mlwrite
-				    ("[Y]es, [N]o, [!]Do rest, [U]ndo last, [^G]Abort, [.]Abort back, [?]Help: ");
-				goto qprompt;
+				show_prompt = true;  /* Reset for next iteration */
+				update(true);
+				c = input_read_byte();
+				mlwrite("");
+
+				switch (c) {
+				case 'Y': case 'y': case ' ':
+					savematch();
+					prompt_done = true;
+					break;
+				case 'N': case 'n':
+					move_char_forward(false, 1);
+					prompt_done = true;
+					continue;  /* Skip to next match */
+				case '!':
+					kind = false;
+					prompt_done = true;
+					break;
+				case 'U': case 'u':
+					if (lastline == nullptr) {
+						TTbeep();
+						continue;  /* show_prompt still true, loop again */
+					}
+					curwp->w_dotp = lastline;
+					curwp->w_doto = lastoff;
+					lastline = nullptr;
+					lastoff = 0;
+					move_char_backward(false, rlength);
+					matchline = curwp->w_dotp;
+					matchoff = curwp->w_doto;
+					status = delins(rlength, patmatch, false);
+					if (status != true) return status;
+					--numsub;
+					move_char_backward(false, mlenold);
+					matchline = curwp->w_dotp;
+					matchoff = curwp->w_doto;
+					continue;  /* show_prompt still true, loop again */
+				case '.':
+					curwp->w_dotp = origline;
+					curwp->w_doto = origoff;
+					curwp->w_flag |= WFMOVE;
+					[[fallthrough]];
+				case BELL:
+					mlwrite("ABORTED!");
+					return false;
+				default:
+					TTbeep();
+					[[fallthrough]];
+				case '?':
+					mlwrite
+					    ("[Y]es, [N]o, [!]Do rest, [U]ndo last, [^G]Abort, [.]Abort back, [?]Help: ");
+					show_prompt = false;  /* Just wait, don't show main prompt */
+					continue;
+				}
 			}
+			if (c == 'N' || c == 'n') continue;  /* Skip rest of loop for 'N' */
 		}
 
 		status = delins(matchlen, &rpat[0], true);
@@ -748,6 +759,7 @@ static int mcstr(void)
 	int pchr;
 	int status = true;
 	int does_closure = false;
+	int literal = false;  /* Flag for literal char handling */
 
 	if (magical) mcclear();
 	magical = false;
@@ -755,6 +767,7 @@ static int mcstr(void)
 	patptr = &pat[0];
 
 	while ((pchr = *patptr) && status) {
+		literal = false;
 		switch (pchr) {
 		case MC_CCL:
 			status = cclmake(&patptr, mcptr);
@@ -762,13 +775,13 @@ static int mcstr(void)
 			does_closure = true;
 			break;
 		case MC_BOL:
-			if (mj != 0) goto litcase;
+			if (mj != 0) { literal = true; break; }
 			mcptr->mc_type = BOL;
 			magical = true;
 			does_closure = false;
 			break;
 		case MC_EOL:
-			if (*(patptr + 1) != '\0') goto litcase;
+			if (*(patptr + 1) != '\0') { literal = true; break; }
 			mcptr->mc_type = EOL;
 			magical = true;
 			does_closure = false;
@@ -779,7 +792,7 @@ static int mcstr(void)
 			does_closure = true;
 			break;
 		case MC_CLOSURE:
-			if (!does_closure) goto litcase;
+			if (!does_closure) { literal = true; break; }
 			mj--; mcptr--;
 			mcptr->mc_type |= CLOSURE;
 			magical = true;
@@ -790,13 +803,16 @@ static int mcstr(void)
 				pchr = *++patptr;
 				magical = true;
 			}
-			[[fallthrough]];
+			literal = true;
+			break;
 		default:
-		      litcase:
-            mcptr->mc_type = LITCHAR;
+			literal = true;
+			break;
+		}
+		if (literal) {
+			mcptr->mc_type = LITCHAR;
 			mcptr->u.lchar = pchr;
 			does_closure = (pchr != '\n');
-			break;
 		}
 		mcptr++; patptr++; mj++;
 	}
@@ -1064,21 +1080,27 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 				c = nextch(&curline, &curoff, direct ^ DIR_REVERSE);
 				if (amatch(mcptr, direct, &curline, &curoff)) {
 					matchlen += nchars;
-					goto success;
+					*pcwline = curline;
+					*pcwoff = curoff;
+					return true;
 				}
 				if (nchars-- == 0) return false;
 			}
 		} else {
 			if (mcptr->mc_type == BOL) {
 				if (curoff == llength(curline)) {
-					c = nextch(&curline, &curoff, direct ^ DIR_REVERSE);
-					goto success;
+					(void)nextch(&curline, &curoff, direct ^ DIR_REVERSE);
+					*pcwline = curline;
+					*pcwoff = curoff;
+					return true;
 				} else return false;
 			}
 			if (mcptr->mc_type == EOL) {
 				if (curoff == 0) {
-					c = nextch(&curline, &curoff, direct ^ DIR_REVERSE);
-					goto success;
+					(void)nextch(&curline, &curoff, direct ^ DIR_REVERSE);
+					*pcwline = curline;
+					*pcwoff = curoff;
+					return true;
 				} else return false;
 			}
 			if (!mceq(c, mcptr)) return false;
@@ -1087,7 +1109,6 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 		mcptr++;
 	}
 
-      success:
 	*pcwline = curline;
 	*pcwoff = curoff;
 	return true;

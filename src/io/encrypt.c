@@ -20,8 +20,6 @@
 #include "efunc.h"
 #include "string_utils.h"
 
-extern char **environ;
-
 /*
  * run_shell_cmd - Modern replacement for system() using posix_spawn()
  *

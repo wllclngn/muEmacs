@@ -137,15 +137,18 @@ uemacs_cmd_fn extension_find_command(const char *name) {
 static int api_on(const char *event, uemacs_event_fn handler, void *user_data, int priority);
 static int api_off(const char *event, uemacs_event_fn handler);
 static bool api_emit(const char *event, void *data);
-static int api_config_int(const char *ext_name, const char *key, int default_val);
-static bool api_config_bool(const char *ext_name, const char *key, bool default_val);
-static const char *api_config_string(const char *ext_name, const char *key, const char *default_val);
+/* Config getters - also used by ext_host for IPC */
+int extension_config_get_int(const char *ext_name, const char *key, int default_val);
+bool extension_config_get_bool(const char *ext_name, const char *key, bool default_val);
+const char *extension_config_get_string(const char *ext_name, const char *key, const char *default_val);
 static struct buffer *api_current_buffer(void);
 static struct buffer *api_find_buffer(const char *name);
 static char *api_buffer_contents(struct buffer *bp, size_t *len);
 static const char *api_buffer_filename(struct buffer *bp);
 static const char *api_buffer_name(struct buffer *bp);
 static bool api_buffer_modified(struct buffer *bp);
+static void api_buffer_set_unmodified(struct buffer *bp);
+static void api_buffer_set_scratch(struct buffer *bp);
 static int api_buffer_insert(const char *text, size_t len);
 static int api_buffer_insert_at(struct buffer *bp, int line, int col, const char *text, size_t len);
 static struct buffer *api_buffer_create(const char *name);
@@ -213,9 +216,9 @@ static const api_registry_entry_t api_registry[] = {
     {"emit", FN(api_emit)},
 
     /* Configuration */
-    {"config_int", FN(api_config_int)},
-    {"config_bool", FN(api_config_bool)},
-    {"config_string", FN(api_config_string)},
+    {"config_int", FN(extension_config_get_int)},
+    {"config_bool", FN(extension_config_get_bool)},
+    {"config_string", FN(extension_config_get_string)},
 
     /* Command registration */
     {"register_command", FN(api_register_command)},
@@ -228,6 +231,8 @@ static const api_registry_entry_t api_registry[] = {
     {"buffer_filename", FN(api_buffer_filename)},
     {"buffer_name", FN(api_buffer_name)},
     {"buffer_modified", FN(api_buffer_modified)},
+    {"buffer_set_unmodified", FN(api_buffer_set_unmodified)},
+    {"buffer_set_scratch", FN(api_buffer_set_scratch)},
     {"buffer_insert", FN(api_buffer_insert)},
     {"buffer_insert_at", FN(api_buffer_insert_at)},
     {"buffer_create", FN(api_buffer_create)},
@@ -455,8 +460,8 @@ void extension_config_set_string(const char *ext_name, const char *key, const ch
     }
 }
 
-/* API getters - called by extensions */
-static int api_config_int(const char *ext_name, const char *key, int default_val) {
+/* API getters - called by extensions (and ext_host for IPC) */
+int extension_config_get_int(const char *ext_name, const char *key, int default_val) {
     char full_key[EXT_CONFIG_KEY_MAX];
     make_config_key(full_key, sizeof(full_key), ext_name, key);
 
@@ -467,7 +472,7 @@ static int api_config_int(const char *ext_name, const char *key, int default_val
     return default_val;
 }
 
-static bool api_config_bool(const char *ext_name, const char *key, bool default_val) {
+bool extension_config_get_bool(const char *ext_name, const char *key, bool default_val) {
     char full_key[EXT_CONFIG_KEY_MAX];
     make_config_key(full_key, sizeof(full_key), ext_name, key);
 
@@ -478,8 +483,8 @@ static bool api_config_bool(const char *ext_name, const char *key, bool default_
     return default_val;
 }
 
-static const char *api_config_string(const char *ext_name, const char *key,
-                                      const char *default_val) {
+const char *extension_config_get_string(const char *ext_name, const char *key,
+                                        const char *default_val) {
     char full_key[EXT_CONFIG_KEY_MAX];
     make_config_key(full_key, sizeof(full_key), ext_name, key);
 
@@ -711,6 +716,14 @@ static const char *api_buffer_name(struct buffer *bp) {
 
 static bool api_buffer_modified(struct buffer *bp) {
     return bp ? (bp->b_flag & BFCHG) != 0 : false;
+}
+
+static void api_buffer_set_unmodified(struct buffer *bp) {
+    if (bp) bp->b_flag &= ~BFCHG;
+}
+
+static void api_buffer_set_scratch(struct buffer *bp) {
+    if (bp) bp->b_flag |= BFINVS;  /* Mark as invisible/scratch - no save prompt */
 }
 
 static int api_buffer_insert(const char *text, size_t len) {
@@ -1432,6 +1445,28 @@ char *extension_get_modeline_segments(int urgency) {
     return result;
 }
 
+/* Check if any extension wants full modeline control */
+bool extension_modeline_has_full_override(void) {
+    for (int i = 0; i < MAX_MODELINE_SEGMENTS; i++) {
+        if (modeline_segments[i].active &&
+            modeline_segments[i].urgency == UEMACS_MODELINE_URGENCY_FULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Get full modeline from override extension (caller frees) */
+char *extension_get_modeline_full(void) {
+    for (int i = 0; i < MAX_MODELINE_SEGMENTS; i++) {
+        if (modeline_segments[i].active &&
+            modeline_segments[i].urgency == UEMACS_MODELINE_URGENCY_FULL) {
+            return modeline_segments[i].format_fn(modeline_segments[i].user_data);
+        }
+    }
+    return nullptr;
+}
+
 /* ============================================================================
  * The Global API Instance
  * ============================================================================ */
@@ -1445,9 +1480,9 @@ static struct uemacs_api global_api = {
     .emit = api_emit,
 
     /* Configuration access */
-    .config_int = api_config_int,
-    .config_bool = api_config_bool,
-    .config_string = api_config_string,
+    .config_int = extension_config_get_int,
+    .config_bool = extension_config_get_bool,
+    .config_string = extension_config_get_string,
 
     /* Command registration */
     .register_command = api_register_command,
@@ -1460,6 +1495,7 @@ static struct uemacs_api global_api = {
     .buffer_filename = api_buffer_filename,
     .buffer_name = api_buffer_name,
     .buffer_modified = api_buffer_modified,
+    .buffer_set_unmodified = api_buffer_set_unmodified,
     .buffer_insert = api_buffer_insert,
     .buffer_insert_at = api_buffer_insert_at,
     .buffer_create = api_buffer_create,

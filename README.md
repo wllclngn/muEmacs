@@ -1,6 +1,8 @@
-# μEmacs v1.0.0
+# μEmacs
 
 A modern, extensible C23 text editor for Linux terminals, descended from Linus Torvalds' personal uemacs project.
+
+*ATTENTION: As of January 2026, Linus Torvalds has been modernizing and updating his uemacs project. With this in mind, μEmacs will continue development but in different aspects while respecting the origins of the project. The core of the edtior will remain, but several modern pieces will be moved to the Extension level, ie Evil Mode and others. If you would like to use Linus' setup in μEmacs, please see the "linus-mode" in muEmacs-extensions.*
 
 ---
 
@@ -34,7 +36,7 @@ A modern, extensible C23 text editor for Linux terminals, descended from Linus T
 - **Palette System**: Theme-aware 256-color and truecolor with terminal palette integration
 - **Legacy Optimization Removed**: Deleted buggy 1980s scroll optimization (~150 lines of complexity)
 
-### Vim/Evil Mode (~2,100 lines)
+### Vim/Evil Mode
 - **Full Modal Editing**: Normal, Insert, Visual, Visual-Line, Visual-Block, Replace modes
 - **Motion Commands**: h/j/k/l, w/b/e/W/B/E, 0/$, ^/g_, gg/G, f/F/t/T, %
 - **Operators**: d (delete), c (change), y (yank) - composable with motions

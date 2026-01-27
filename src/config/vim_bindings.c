@@ -22,18 +22,15 @@ static focus_state_t current_focus = FOCUS_EDITOR;
 
 /* Forward declarations for internal (static) helper functions */
 static int vim_motion_with_operator(int (*motion)(int, int));
-static void vim_clear_pending_state(void);
-static int vim_get_effective_count(void);
 static int vim_get_word_under_cursor(void);
-static void vim_store_to_register(int is_delete, int linewise);
 static void vim_record_change(char op, char motion, int count, int linewise);
-static void vim_record_text_object_change(char op, char prefix, char object, int count);
 static void vim_record_replace_change(char ch, int count);
 static int vim_block_delete(int f, int n);
 static int vim_block_yank(int f, int n);
 
-/* Helper: get next key character using unified parser */
-static int vim_getkey(void) {
+/* Helper: get next key character using unified parser
+ * Non-static - shared with vim_find_char.c */
+int vim_getkey(void) {
     input_key_event_t evt;
     LOG_DEBUGF("VIM_GETKEY: waiting for input...");
     int ret = input_read_event(&evt);
@@ -264,16 +261,18 @@ int vim_delete_char(int f, int n) {
  *   operator operator  - operate on whole line (dd, cc, yy)
  */
 
-/* Clear pending state after operation completes */
-static void vim_clear_pending_state(void) {
+/* Clear pending state after operation completes
+ * Non-static - shared with vim_find_char.c */
+void vim_clear_pending_state(void) {
     g_vim_state.count = 0;
     g_vim_state.count_given = 0;
     g_vim_state.pending_op = 0;
     g_vim_state.op_count = 0;
 }
 
-/* Get effective count: multiply op_count and count, default to 1 */
-static int vim_get_effective_count(void) {
+/* Get effective count: multiply op_count and count, default to 1
+ * Non-static - shared with vim_find_char.c */
+int vim_get_effective_count(void) {
     int op_count = g_vim_state.op_count > 0 ? g_vim_state.op_count : 1;
     int count = g_vim_state.count > 0 ? g_vim_state.count : 1;
     return op_count * count;
@@ -790,243 +789,7 @@ static int vim_block_yank(int f, int n) {
     return true;
 }
 
-/*
- * f/F/t/T Character Motions
- *
- * f{char} - find char forward (cursor on char)
- * F{char} - find char backward (cursor on char)
- * t{char} - till char forward (cursor before char)
- * T{char} - till char backward (cursor after char)
- * ; - repeat last f/F/t/T
- * , - repeat last f/F/t/T in opposite direction
- */
-
-/* Core find char implementation */
-static int vim_find_char_impl(char cmd, char ch, int count) {
-    if (ch == 0) return false;
-
-    int direction = (cmd == 'f' || cmd == 't') ? 1 : -1;
-    int till_offset = (cmd == 't' || cmd == 'T') ? 1 : 0;
-
-    /* Store for repeat with ; and , */
-    g_vim_state.last_find_char = ch;
-    g_vim_state.last_find_cmd = cmd;
-
-    struct line *lp = curwp->w_dotp;
-    int line_len = llength(lp);
-    int start_offset = curwp->w_doto;
-    int found_pos = -1;
-
-    for (int i = 0; i < count; i++) {
-        found_pos = -1;
-
-        if (direction > 0) {
-            /* Search forward */
-            for (int pos = start_offset + 1; pos < line_len; pos++) {
-                if (lgetc(lp, pos) == ch) {
-                    found_pos = pos;
-                    break;
-                }
-            }
-        } else {
-            /* Search backward */
-            for (int pos = start_offset - 1; pos >= 0; pos--) {
-                if (lgetc(lp, pos) == ch) {
-                    found_pos = pos;
-                    break;
-                }
-            }
-        }
-
-        if (found_pos < 0) {
-            /* Character not found */
-            return false;
-        }
-
-        start_offset = found_pos;
-    }
-
-    /* Apply till offset */
-    if (till_offset) {
-        found_pos -= direction;
-        if (found_pos < 0 || found_pos >= line_len) {
-            return false;
-        }
-    }
-
-    /* Move cursor */
-    curwp->w_doto = found_pos;
-    curwp->w_flag |= WFMOVE;
-    return true;
-}
-
-/* Execute operator on find char result (mark already set at start) */
-static int vim_find_char_operator(char op, bool inclusive) {
-    if (inclusive) {
-        /* Include the character under cursor (for f, not t) */
-        move_char_forward(false, 1);
-    }
-
-    /* Perform the operation */
-    if (op == 'd' || op == 'c') {
-        region_kill(false, 1);
-        if (op == 'c') {
-            vim_enter_insert_mode(false, 1);
-        }
-    } else if (op == 'y') {
-        region_copy(false, 1);
-        swapmark(false, 0);  /* Return to start */
-        mlwrite("[Yanked]");
-    }
-    return true;
-}
-
-/* f - find char forward */
-int vim_find_char_forward(int f, int n) {
-    (void)f; (void)n;
-    int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
-
-    LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: entering, count=%d pending=%d", count, pending);
-    mlwrite("[f-]");
-    int ch = vim_getkey();
-    LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: got ch=0x%02x ('%c')", ch, (ch >= 32 && ch < 127) ? ch : '?');
-
-    if (pending) {
-        /* Operator pending - set mark at start, find char, execute op */
-        setmark(false, 0);
-        int result = vim_find_char_impl('f', ch, count);
-        vim_clear_pending_state();
-        if (result) {
-            return vim_find_char_operator(pending, true);  /* inclusive */
-        }
-        return false;
-    }
-
-    int result = vim_find_char_impl('f', ch, count);
-    LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: impl returned %d, cursor now at doto=%d", result, curwp->w_doto);
-    vim_clear_pending_state();
-    return result;
-}
-
-/* F - find char backward */
-int vim_find_char_backward(int f, int n) {
-    (void)f; (void)n;
-    int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
-
-    mlwrite("[F-]");
-    int ch = vim_getkey();
-
-    if (pending) {
-        setmark(false, 0);
-        int result = vim_find_char_impl('F', ch, count);
-        vim_clear_pending_state();
-        if (result) {
-            /* Backward motion: swap mark and point so region is correct */
-            swapmark(false, 0);
-            return vim_find_char_operator(pending, true);  /* inclusive */
-        }
-        return false;
-    }
-
-    int result = vim_find_char_impl('F', ch, count);
-    vim_clear_pending_state();
-    return result;
-}
-
-/* t - till char forward (stop before char) */
-int vim_till_char_forward(int f, int n) {
-    (void)f; (void)n;
-    int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
-
-    mlwrite("[t-]");
-    int ch = vim_getkey();
-
-    if (pending) {
-        setmark(false, 0);
-        int result = vim_find_char_impl('t', ch, count);
-        vim_clear_pending_state();
-        if (result) {
-            /* Till motion: include up to but not including target */
-            move_char_forward(false, 1);  /* Move past the stopping point */
-            return vim_find_char_operator(pending, false);  /* not inclusive */
-        }
-        return false;
-    }
-
-    int result = vim_find_char_impl('t', ch, count);
-    vim_clear_pending_state();
-    return result;
-}
-
-/* T - till char backward (stop after char) */
-int vim_till_char_backward(int f, int n) {
-    (void)f; (void)n;
-    int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
-
-    mlwrite("[T-]");
-    int ch = vim_getkey();
-
-    if (pending) {
-        setmark(false, 0);
-        int result = vim_find_char_impl('T', ch, count);
-        vim_clear_pending_state();
-        if (result) {
-            swapmark(false, 0);
-            return vim_find_char_operator(pending, false);
-        }
-        return false;
-    }
-
-    int result = vim_find_char_impl('T', ch, count);
-    vim_clear_pending_state();
-    return result;
-}
-
-/* ; - repeat last f/F/t/T */
-int vim_repeat_find(int f, int n) {
-    (void)f; (void)n;
-
-    if (g_vim_state.last_find_char == 0) {
-        mlwrite("[No previous find]");
-        return false;
-    }
-
-    int count = vim_get_effective_count();
-    int result = vim_find_char_impl(g_vim_state.last_find_cmd,
-                                     g_vim_state.last_find_char, count);
-    vim_clear_pending_state();
-    return result;
-}
-
-/* , - repeat last f/F/t/T in opposite direction */
-int vim_repeat_find_reverse(int f, int n) {
-    (void)f; (void)n;
-
-    if (g_vim_state.last_find_char == 0) {
-        mlwrite("[No previous find]");
-        return false;
-    }
-
-    /* Reverse the command */
-    char reversed_cmd;
-    switch (g_vim_state.last_find_cmd) {
-        case 'f': reversed_cmd = 'F'; break;
-        case 'F': reversed_cmd = 'f'; break;
-        case 't': reversed_cmd = 'T'; break;
-        case 'T': reversed_cmd = 't'; break;
-        default: return false;
-    }
-
-    int count = vim_get_effective_count();
-    int result = vim_find_char_impl(reversed_cmd,
-                                     g_vim_state.last_find_char, count);
-    vim_clear_pending_state();
-    return result;
-}
+/* Note: f/F/t/T character motions moved to vim_find_char.c */
 
 /*
  * Miscellaneous Commands: r, R, J, ~
@@ -1459,351 +1222,7 @@ int vim_search_word_backward(int f, int n) {
     return backhunt(false, 1);
 }
 
-/* =========== Text Objects =========== */
-
-/* Helper: Find matching bracket/paren/brace */
-static int vim_find_matching_bracket(char open, char close, int direction) {
-    int depth = 1;
-    struct line *lp = curwp->w_dotp;
-    int off = curwp->w_doto;
-
-    while (true) {
-        if (direction > 0) {
-            off++;
-            if (off >= llength(lp)) {
-                lp = lforw(lp);
-                if (lp == curbp->b_linep) return false;
-                off = 0;
-                continue;
-            }
-        } else {
-            off--;
-            if (off < 0) {
-                lp = lback(lp);
-                if (lp == curbp->b_linep) return false;
-                off = llength(lp) - 1;
-                if (off < 0) off = 0;
-                continue;
-            }
-        }
-
-        char c = lgetc(lp, off);
-        if (c == close) depth--;
-        else if (c == open) depth++;
-
-        if (depth == 0) {
-            curwp->w_dotp = lp;
-            curwp->w_doto = off;
-            curwp->w_flag |= WFMOVE;
-            return true;
-        }
-    }
-}
-
-/* Helper: Select word text object */
-static int vim_select_word_object(bool inner) {
-    /* Save start */
-    int orig = curwp->w_doto;
-
-    /* Move to start of word */
-    while (curwp->w_doto > 0) {
-        move_char_backward(false, 1);
-        if (!inword()) {
-            move_char_forward(false, 1);
-            break;
-        }
-    }
-
-    /* Set mark at start of word */
-    int word_start = curwp->w_doto;
-
-    /* If inner and we were on whitespace, restore */
-    if (!inword() && !inner) {
-        curwp->w_doto = orig;
-    }
-
-    setmark(false, 0);
-
-    /* Move to end of word */
-    curwp->w_doto = orig;
-    while (curwp->w_doto < llength(curwp->w_dotp) && inword()) {
-        move_char_forward(false, 1);
-    }
-
-    /* If around, include trailing whitespace */
-    if (!inner) {
-        while (curwp->w_doto < llength(curwp->w_dotp) &&
-               lgetc(curwp->w_dotp, curwp->w_doto) == ' ') {
-            move_char_forward(false, 1);
-        }
-    }
-
-    return true;
-}
-
-/* Helper: Select quoted string text object */
-static int vim_select_quote_object(char quote, bool inner) {
-    struct line *lp = curwp->w_dotp;
-    int len = llength(lp);
-    int pos = curwp->w_doto;
-
-    /* Find opening quote (search backward and forward) */
-    int start = -1, end = -1;
-
-    /* Search backward for opening quote */
-    for (int i = pos; i >= 0; i--) {
-        if (lgetc(lp, i) == quote) {
-            start = i;
-            break;
-        }
-    }
-
-    /* Search forward for closing quote */
-    for (int i = (start >= 0 ? start + 1 : pos); i < len; i++) {
-        if (lgetc(lp, i) == quote) {
-            end = i;
-            break;
-        }
-    }
-
-    if (start < 0 || end < 0 || start >= end) {
-        mlwrite("[No quoted string found]");
-        return false;
-    }
-
-    /* Adjust for inner (exclude quotes) vs around (include quotes) */
-    if (inner) {
-        start++;
-        end--;
-        if (start > end) {
-            /* Empty quoted string */
-            start = end;
-        }
-    }
-
-    /* Set mark at start, move to end */
-    curwp->w_doto = start;
-    setmark(false, 0);
-    curwp->w_doto = end + 1;
-    curwp->w_flag |= WFMOVE;
-
-    return true;
-}
-
-/* Helper: Select bracket text object */
-static int vim_select_bracket_object(char open, char close, bool inner) {
-    struct line *lp = curwp->w_dotp;
-    int off = curwp->w_doto;
-
-    /* Find opening bracket */
-    struct line *open_line = NULL;
-    int open_off = -1;
-    int depth = 0;
-
-    /* Check if we're on the bracket */
-    char c = lgetc(lp, off);
-    if (c == close) {
-        depth = 1;
-    } else if (c == open) {
-        open_line = lp;
-        open_off = off;
-    } else {
-        /* Search backward for opening bracket */
-        struct line *search_lp = lp;
-        int search_off = off;
-        while (true) {
-            search_off--;
-            if (search_off < 0) {
-                search_lp = lback(search_lp);
-                if (search_lp == curbp->b_linep) break;
-                search_off = llength(search_lp) - 1;
-                if (search_off < 0) search_off = 0;
-                continue;
-            }
-            c = lgetc(search_lp, search_off);
-            if (c == close) depth++;
-            else if (c == open) {
-                if (depth == 0) {
-                    open_line = search_lp;
-                    open_off = search_off;
-                    break;
-                }
-                depth--;
-            }
-        }
-    }
-
-    if (open_line == NULL) {
-        mlwrite("[No opening %c found]", open);
-        return false;
-    }
-
-    /* Find closing bracket from open position */
-    curwp->w_dotp = open_line;
-    curwp->w_doto = open_off;
-    if (!vim_find_matching_bracket(open, close, 1)) {
-        mlwrite("[No closing %c found]", close);
-        return false;
-    }
-
-    struct line *close_line = curwp->w_dotp;
-    int close_off = curwp->w_doto;
-
-    /* Set region */
-    if (inner) {
-        /* Inner: exclude brackets */
-        curwp->w_dotp = open_line;
-        curwp->w_doto = open_off + 1;
-        setmark(false, 0);
-        curwp->w_dotp = close_line;
-        curwp->w_doto = close_off;
-    } else {
-        /* Around: include brackets */
-        curwp->w_dotp = open_line;
-        curwp->w_doto = open_off;
-        setmark(false, 0);
-        curwp->w_dotp = close_line;
-        curwp->w_doto = close_off + 1;
-    }
-
-    curwp->w_flag |= WFMOVE;
-    return true;
-}
-
-/* Text object handler for 'i' (inner) prefix */
-int vim_text_object_inner(int f, int n) {
-    (void)f; (void)n;
-
-    enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
-    bool in_visual = (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE || mode == MODE_VISUAL_BLOCK);
-
-    if (g_vim_state.pending_op == 0 && !in_visual) {
-        /* No operator pending and not in visual mode - 'i' goes to insert mode */
-        return vim_enter_insert_mode(false, 1);
-    }
-
-    char pending = g_vim_state.pending_op;
-    if (!in_visual) {
-        vim_clear_pending_state();
-    }
-
-    mlwrite("[i-]");
-    int ch = vim_getkey();
-
-    int result = false;
-    switch (ch) {
-        case 'w': result = vim_select_word_object(true); break;
-        case 'W': result = vim_select_word_object(true); break;  /* Same as w for now */
-        case '"': result = vim_select_quote_object('"', true); break;
-        case '\'': result = vim_select_quote_object('\'', true); break;
-        case '`': result = vim_select_quote_object('`', true); break;
-        case '(': case ')': case 'b':
-            result = vim_select_bracket_object('(', ')', true); break;
-        case '{': case '}': case 'B':
-            result = vim_select_bracket_object('{', '}', true); break;
-        case '[': case ']':
-            result = vim_select_bracket_object('[', ']', true); break;
-        case '<': case '>':
-            result = vim_select_bracket_object('<', '>', true); break;
-        default:
-            mlwrite("[Unknown text object: i%c]", ch);
-            return false;
-    }
-
-    if (!result) return false;
-
-    /* In visual mode, just update the selection - don't execute operator */
-    if (in_visual) {
-        return true;
-    }
-
-    /* Record for dot repeat */
-    vim_record_text_object_change(pending, 'i', ch, 1);
-
-    /* Execute operator */
-    if (pending == 'd' || pending == 'c') {
-        region_kill(false, 1);
-        vim_store_to_register(1, 0);  /* Delete, character-wise */
-        if (pending == 'c') {
-            vim_enter_insert_mode(false, 1);
-        }
-    } else if (pending == 'y') {
-        region_copy(false, 1);
-        vim_store_to_register(0, 0);  /* Yank, character-wise */
-        swapmark(false, 0);
-        mlwrite("[Yanked]");
-    }
-
-    return true;
-}
-
-/* Text object handler for 'a' (around) prefix */
-int vim_text_object_around(int f, int n) {
-    (void)f; (void)n;
-
-    enum editor_mode mode = atomic_load(&g_vim_state.current_mode);
-    bool in_visual = (mode == MODE_VISUAL || mode == MODE_VISUAL_LINE || mode == MODE_VISUAL_BLOCK);
-
-    if (g_vim_state.pending_op == 0 && !in_visual) {
-        /* No operator pending and not in visual mode - 'a' appends after cursor */
-        move_char_forward(false, 1);
-        return vim_enter_insert_mode(false, 1);
-    }
-
-    char pending = g_vim_state.pending_op;
-    if (!in_visual) {
-        vim_clear_pending_state();
-    }
-
-    mlwrite("[a-]");
-    int ch = vim_getkey();
-
-    int result = false;
-    switch (ch) {
-        case 'w': result = vim_select_word_object(false); break;
-        case 'W': result = vim_select_word_object(false); break;
-        case '"': result = vim_select_quote_object('"', false); break;
-        case '\'': result = vim_select_quote_object('\'', false); break;
-        case '`': result = vim_select_quote_object('`', false); break;
-        case '(': case ')': case 'b':
-            result = vim_select_bracket_object('(', ')', false); break;
-        case '{': case '}': case 'B':
-            result = vim_select_bracket_object('{', '}', false); break;
-        case '[': case ']':
-            result = vim_select_bracket_object('[', ']', false); break;
-        case '<': case '>':
-            result = vim_select_bracket_object('<', '>', false); break;
-        default:
-            mlwrite("[Unknown text object: a%c]", ch);
-            return false;
-    }
-
-    if (!result) return false;
-
-    /* In visual mode, just update the selection - don't execute operator */
-    if (in_visual) {
-        return true;
-    }
-
-    /* Record for dot repeat */
-    vim_record_text_object_change(pending, 'a', ch, 1);
-
-    /* Execute operator */
-    if (pending == 'd' || pending == 'c') {
-        region_kill(false, 1);
-        vim_store_to_register(1, 0);  /* Delete, character-wise */
-        if (pending == 'c') {
-            vim_enter_insert_mode(false, 1);
-        }
-    } else if (pending == 'y') {
-        region_copy(false, 1);
-        vim_store_to_register(0, 0);  /* Yank, character-wise */
-        swapmark(false, 0);
-        mlwrite("[Yanked]");
-    }
-
-    return true;
-}
+/* Note: Text objects moved to vim_text_objects.c */
 
 /* =========== Register System =========== */
 
@@ -1864,8 +1283,9 @@ static char *vim_reg_get(char reg, int *len, int *linewise) {
     return g_vim_state.registers[idx].text;
 }
 
-/* Store killed/yanked text into appropriate register */
-static void vim_store_to_register(int is_delete, int linewise) {
+/* Store killed/yanked text into appropriate register
+ * Non-static - shared with vim_text_objects.c */
+void vim_store_to_register(int is_delete, int linewise) {
     /* Get text from temp kill buffer (where kinsert puts it) */
     extern char temp_kill_buf[];
     extern size_t temp_kill_len;
@@ -2051,8 +1471,9 @@ static void vim_record_change(char op, char motion, int count, int linewise) {
     last_change.valid = 1;
 }
 
-/* Record text object change */
-static void vim_record_text_object_change(char op, char prefix, char object, int count) {
+/* Record text object change
+ * Non-static - shared with vim_text_objects.c */
+void vim_record_text_object_change(char op, char prefix, char object, int count) {
     last_change.op = op;
     last_change.motion = prefix;    /* 'i' or 'a' */
     last_change.motion2 = object;   /* 'w', '"', '(', etc. */

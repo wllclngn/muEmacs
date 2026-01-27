@@ -10,6 +10,9 @@
 #include <stdatomic.h>
 #include "terminal/input_state.h"
 
+/* MurmurHash constant - defined here to avoid include order issues */
+#define KEYMAP_MURMURHASH_M1  0x85ebca6bU
+
 // Forward declarations
 struct buffer;
 struct window;
@@ -43,7 +46,7 @@ static inline bool keymap_key_eq(keymap_key_t a, keymap_key_t b) {
 static inline uint32_t keymap_key_hash(keymap_key_t key) {
 	uint32_t h = key.code ^ ((uint32_t)key.modifiers << 16);
 	h ^= h >> 16;
-	h *= 0x85ebca6b;
+	h *= KEYMAP_MURMURHASH_M1;
 	h ^= h >> 13;
 	return h;
 }

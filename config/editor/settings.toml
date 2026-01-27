@@ -4,7 +4,6 @@
 column_width = 80
 wrap = false
 evil_mode = false
-linus_mode = false  # true = classic modeline + B&W colors
 tab_width = 8           # Tab stop width (1-16)
 auto_save_interval = 256  # Keystrokes between auto-saves (0 = disabled)
 scroll_step = 1         # Lines to scroll per scroll command
@@ -495,6 +494,21 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 timeout = 5000              # Provider timeout in milliseconds
 auto_build = true           # Auto-compile extensions from source (20+ languages supported)
 
+# Extension initialization timeout (milliseconds).
+#
+# Extensions with heavyweight runtimes (Go, Haskell, Crystal, Ada) require
+# additional startup time for runtime initialization (GC, scheduler, thread
+# pools, etc). If you see "timeout waiting for READY" errors in the log for
+# specific extensions, increase this value.
+#
+# Default: 10000 (10 seconds) - sufficient for most Go/Haskell extensions
+# Minimum: 1000 (1 second)
+#
+# Note: This only affects initial extension loading at startup. Once loaded,
+# extensions respond quickly. Increase if running on slower hardware or if
+# loading many heavyweight extensions simultaneously.
+init_timeout = 10000
+
 # Per-filetype format providers (command receives buffer on stdin, outputs on stdout)
 [extensions.python]
 format = "black -q -"
@@ -570,6 +584,21 @@ curly_apostrophe = true       # Curly single quotes
 # Commands: switch-buffer (shadows built-in), pick-cancel
 max_candidates = 15              # Max visible candidates in picker
 modified_indicator = "Δ"         # Symbol for modified buffers (matches modeline)
+
+[extension.c_linus]
+# Linus Torvalds uEmacs/PK compatibility mode
+# Mirrors github.com/torvalds/uemacs terminal behavior exactly
+# Commands: linus-mode, linus-enable, linus-disable, linus-status, linus-pause
+#
+# When enabled:
+# - Classic modeline: "--* uEmacs/PK 4.0: buffer (modes) file  Bot/Top/All/%"
+# - VTIME-based terminal pause for bracket matching flash
+#
+# Linus's defaults from globals.c (Jan 2026):
+fillcol = 72                     # Fill column for paragraph wrapping
+tab_width = 8                    # Tab stop width (classic 8-char tabs)
+auto_save_interval = 256         # Keystrokes between auto-saves
+pause_decisec = 2                # Bracket flash pause (0.2 sec, in deciseconds)
 
 [extension.rust_re2]
 # RE2-style regex search powered by ripgrep

@@ -163,9 +163,6 @@ static void apply_setting(const char *section, const char *key, const char *valu
         if (strcmp(key, "insert_final_newline") == 0) {
             insert_final_newline = bool_val;
         }
-        if (strcmp(key, "linus_mode") == 0) {
-            linus_mode = bool_val;
-        }
     }
 
     /* [visual] section */
@@ -453,6 +450,12 @@ static void apply_setting(const char *section, const char *key, const char *valu
             extern void extension_set_auto_build(bool enabled);
             extension_set_auto_build(bool_val);
             LOG_DEBUGF("Extension: Set auto_build to %s", bool_val ? "true" : "false");
+        }
+        else if (strcmp(key, "init_timeout") == 0 && int_val >= 1000) {
+            /* Set extension initialization timeout (minimum 1 second) */
+            extern void ext_host_set_init_timeout(int timeout_ms);
+            ext_host_set_init_timeout(int_val);
+            LOG_DEBUGF("Extension: Set init_timeout to %d ms", int_val);
         }
     }
 

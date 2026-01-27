@@ -552,9 +552,9 @@ static int test_gapbuffer_poe_stress(void) {
 
     // Try multiple paths to find the Poe file
     const char *paths[] = {
-        "tests/data/poe-collected-works.txt",
-        "../tests/data/poe-collected-works.txt",
-        "../../tests/data/poe-collected-works.txt",
+        "tests/data/poe-collected-fictions.txt",
+        "../tests/data/poe-collected-fictions.txt",
+        "../../tests/data/poe-collected-fictions.txt",
         NULL
     };
 

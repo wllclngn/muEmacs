@@ -156,6 +156,7 @@ typedef char *(*uemacs_modeline_fn)(void *user_data);
 /* Modeline urgency levels */
 #define UEMACS_MODELINE_URGENCY_LOW  0  /* Informational (right side in auto mode) */
 #define UEMACS_MODELINE_URGENCY_HIGH 1  /* Mode indicator (left side in auto mode) */
+#define UEMACS_MODELINE_URGENCY_FULL 2  /* Full takeover - extension renders entire modeline */
 
 /* ============================================================================
  * The Editor API
@@ -226,6 +227,7 @@ struct uemacs_api {
     const char *(*buffer_filename)(struct buffer *bp);
     const char *(*buffer_name)(struct buffer *bp);
     bool (*buffer_modified)(struct buffer *bp);
+    void (*buffer_set_unmodified)(struct buffer *bp);
     int (*buffer_insert)(const char *text, size_t len);
     int (*buffer_insert_at)(struct buffer *bp, int line, int col,
                             const char *text, size_t len);
@@ -341,6 +343,7 @@ struct uemacs_api {
 
     struct buffer *(*buffer_first)(void);
     struct buffer *(*buffer_next)(struct buffer *bp);
+    /* NOTE: buffer_set_scratch available via get_function("buffer_set_scratch") */
 
     /* ─────────────────────────────────────────────────────────────────────────
      * ABI-Stable Function Lookup (API v4)
@@ -371,6 +374,12 @@ struct uemacs_api *uemacs_get_api(void);
 
 /* Get extension modeline segments (called by display.c) */
 char *extension_get_modeline_segments(int urgency);
+
+/* Check if any extension wants full modeline control */
+bool extension_modeline_has_full_override(void);
+
+/* Get full modeline from override extension (caller frees) */
+char *extension_get_modeline_full(void);
 
 /* ============================================================================
  * Extension Configuration Setters (called by settings.c during TOML parsing)

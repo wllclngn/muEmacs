@@ -97,6 +97,21 @@ void ext_host_init(void);
  */
 void ext_host_cleanup(void);
 
+/*
+ * Set extension initialization timeout (milliseconds)
+ *
+ * Extensions with heavyweight runtimes (Go, Haskell, Crystal) may need
+ * longer init times due to runtime startup overhead (GC, scheduler, etc).
+ * Default: 10000ms (10 seconds)
+ * Minimum: 1000ms (1 second)
+ */
+void ext_host_set_init_timeout(int timeout_ms);
+
+/*
+ * Get current extension initialization timeout
+ */
+int ext_host_get_init_timeout(void);
+
 /* =========================================================================
  * Runtime detection
  * ========================================================================= */

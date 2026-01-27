@@ -20,7 +20,7 @@ include/config.h
 
 # Debug/test artifacts
 *.log
-core
+/core
 core.*
 vgcore.*
 *.dSYM/

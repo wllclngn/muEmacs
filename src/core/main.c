@@ -181,6 +181,10 @@ static void initialize_editor(void)
     extern void palette_init(void);
     palette_init();
 
+    // Force initial display before extension loading (extensions may batch-build,
+    // which can take tens of seconds - don't leave the user staring at a blank screen)
+    update(true);
+
     // Initialize extension system (Layer 3)
     extern void extension_init(void);
     extern void extension_api_init(void);

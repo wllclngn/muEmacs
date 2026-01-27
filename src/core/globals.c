@@ -109,8 +109,8 @@ _Atomic int scrollcount = 1;		/* number of lines to scroll - C23 atomic */
 _Atomic int edit_transaction_depth = 0; /* transactional editing depth */
 
 /* Display preferences (user configurable) */
-int highlight_current_line = 1;     /* Highlight cursor row (DISABLED - causing memory issues) */
-int column_ruler_enabled = 1;       /* Enable vertical column ruler */
+int highlight_current_line = 0;     /* Highlight cursor row (off by default, set in settings.toml) */
+int column_ruler_enabled = 0;       /* Vertical column ruler (off by default, set in settings.toml) */
 int column_ruler_column = 80;       /* Ruler target column (1-based) */
 int hiline_style = 4;               /* 0 none, 1 underline, 2 bold, 3 dim, 4 background */
 int ruler_style = 1;                /* 0 none, 1 underline, 2 bold, 3 dim */

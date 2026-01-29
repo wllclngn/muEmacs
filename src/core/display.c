@@ -142,6 +142,7 @@ static _Atomic int prev_cursor_row = -1;
 static _Atomic int cursor_row_min = -1;
 static _Atomic int cursor_row_max = -1;
 
+
 /* Fast checksum calculation for change detection optimization */
 static uint32_t video_checksum(unicode_t *text, int len)
 {
@@ -220,6 +221,7 @@ volatile sig_atomic_t chg_width, chg_height;
 
 static int reframe(struct window *wp);
 static void updone(struct window *wp);
+static void updfrom(struct window *wp, int start_sline, struct line *start_lp, int start_line_num);
 static void updall(struct window *wp);
 static void updext(void);
 static int updateline(int row, struct video *vp1, struct video *vp2);
@@ -743,7 +745,7 @@ int update(int force)
 			reframe(wp);	/* check the framing */
 			if ((wp->w_flag & ~WFMODE) == WFEDIT) {
 				LOG_DEBUG("Display: updone() - single line edit");
-				updone(wp);	/* update EDITed line */
+				updone(wp);	/* update EDITed line (handles soft-wrap internally) */
 			} else if (wp->w_flag & ~WFMOVE) {
 				LOG_DEBUG("Display: updall() - full window refresh");
 				updall(wp);	/* update all lines */
@@ -1346,18 +1348,95 @@ static void updone(struct window *wp)
 	int sline;	/* physical screen line to update */
 
 	/* CRITICAL FIX: When soft-wrap is enabled, a single buffer line may span
-	 * multiple screen rows. updone() was designed for single-row updates and
-	 * cannot correctly handle multi-row wrapped lines. Fall back to updall()
-	 * which properly renders all continuation rows. */
+	 * multiple screen rows. Use per-window cache to avoid walking all lines
+	 * on every keystroke - only recalculate when cursor moves to different line
+	 * or window scrolls. */
 	if (wp->w_wrap_col > 0) {
-		int line_len = llength(wp->w_dotp);
-		int display_width = calculate_display_column_cached(wp->w_dotp, line_len, 8);
-		if (display_width >= wp->w_wrap_col) {
-			LOG_DEBUGF("Display: updone() soft-wrap line exceeds wrap_col (%d >= %d), using updall()",
-			           display_width, wp->w_wrap_col);
-			updall(wp);
+		int sline;
+		int line_num;
+
+		/* Check if cache is valid (same dotp and linep) */
+		if (wp->w_sline_dotp == wp->w_dotp && wp->w_sline_linep == wp->w_linep) {
+			/* Cache hit - use cached screen position */
+			sline = wp->w_sline_cache;
+			line_num = get_line_number(wp->w_bufp, wp->w_dotp) - 1;
+			LOG_DEBUGF("SOFTWRAP: cache HIT sline=%d", sline);
+		} else {
+			/* Cache miss - walk to find screen row (expensive but rare) */
+			LOG_DEBUG("SOFTWRAP: cache MISS - walking to find sline");
+			struct line *lp = wp->w_linep;
+			sline = wp->w_toprow;
+			line_num = get_line_number(wp->w_bufp, wp->w_linep);
+			if (line_num > 0) line_num--;
+
+			while (lp != wp->w_dotp && lp != wp->w_bufp->b_linep) {
+				if (lp != wp->w_bufp->b_linep) {
+					sline += calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+				} else {
+					sline++;
+				}
+				lp = lforw(lp);
+				if (line_num >= 0) line_num++;
+
+				if (sline >= wp->w_toprow + wp->w_ntrows) {
+					/* dotp not visible, fall back to updall */
+					updall(wp);
+					return;
+				}
+			}
+
+			/* Update cache */
+			wp->w_sline_dotp = wp->w_dotp;
+			wp->w_sline_linep = wp->w_linep;
+			wp->w_sline_cache = sline;
+		}
+
+		/* Calculate current row count for cursor line */
+		int cur_rows = calculate_wordwrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
+
+		/* Use expensive updfrom() only when row count changes */
+		if (cur_rows != wp->w_sline_rows) {
+			LOG_DEBUGF("Display: updone() soft-wrap rows changed %d->%d, using updfrom()",
+			           wp->w_sline_rows, cur_rows);
+			wp->w_sline_rows = cur_rows;
+			updfrom(wp, sline, wp->w_dotp, line_num);
 			return;
 		}
+
+		/* Row count unchanged - just update the specific rows for this line */
+		int rows_remaining = (wp->w_toprow + wp->w_ntrows) - sline;
+		vtmove(sline, 0);
+		int rows_used = show_line_wrapped(wp, wp->w_dotp, rows_remaining, line_num);
+
+		/* Mark all rows used by this line as changed and apply highlighting */
+		for (int r = 0; r < rows_used && (sline + r) < wp->w_toprow + wp->w_ntrows; r++) {
+			int row = sline + r;
+			vscreen[row]->v_flag |= VFCHG;
+			vscreen[row]->v_linep = wp->w_dotp;
+			vscreen[row]->v_flag &= ~VFREQ;
+
+			/* Fill to end of line on last row */
+			if (r == rows_used - 1) {
+				vtmove(row, vtcol);
+				vteeol();
+			}
+
+			/* Apply cursor line highlight */
+			if (highlight_current_line) {
+				for (int i = 0; i < term.t_ncol; i++) {
+					vscreen[row]->v_text[i] |= HIGHLIGHT_BIT;
+				}
+			}
+
+			/* Apply column ruler */
+			if (column_ruler_enabled) {
+				int idx = column_ruler_column - 1;
+				if (idx >= 0 && idx < term.t_ncol) {
+					vscreen[row]->v_text[idx] |= HIGHLIGHT_BIT;
+				}
+			}
+		}
+		return;
 	}
 
 	/* search down the line we want, accounting for soft-wrap */
@@ -1430,6 +1509,81 @@ static void updone(struct window *wp)
 		if (idx >= 0 && idx < term.t_ncol) {
 			vscreen[sline]->v_text[idx] |= HIGHLIGHT_BIT;
 		}
+	}
+}
+
+/*
+ * updfrom:
+ *	update lines from a given screen row to the bottom of window.
+ *	Used for soft-wrap edits where row count changes affect all subsequent rows.
+ *
+ * struct window *wp;		window to update
+ * int start_sline;		first screen row to update (absolute)
+ * struct line *start_lp;	buffer line at start_sline
+ * int start_line_num;		0-indexed line number of start_lp
+ */
+static void updfrom(struct window *wp, int start_sline, struct line *start_lp, int start_line_num)
+{
+	struct line *lp = start_lp;
+	int sline = start_sline;
+	int rows_remaining;
+	int line_num = start_line_num;
+
+	LOG_DEBUGF("UPDFROM: starting at sline=%d line_num=%d", sline, line_num);
+
+	while (sline < wp->w_toprow + wp->w_ntrows) {
+		rows_remaining = (wp->w_toprow + wp->w_ntrows) - sline;
+
+		if (sline < 0 || sline >= term.t_mrow) break;
+
+		vscreen[sline]->v_flag |= VFCHG;
+		vscreen[sline]->v_linep = lp;
+		vscreen[sline]->v_flag &= ~VFREQ;
+		vtmove(sline, 0);
+
+		int rows_used = 1;
+		bool has_content = (lp != wp->w_bufp->b_linep);
+		struct line *current_lp = lp;
+
+		if (has_content) {
+			rows_used = show_line_wrapped(wp, lp, rows_remaining, line_num);
+			lp = lforw(lp);
+			if (line_num >= 0) line_num++;
+		} else {
+			vtputc('~');
+			vteeol();
+			vscreen[sline]->v_linep = NULL;
+		}
+
+		/* Apply colors and fill for each row used */
+		for (int r = 0; r < rows_used && (sline + r) < wp->w_toprow + wp->w_ntrows; r++) {
+			int row = sline + r;
+			if (has_content) {
+				vscreen[row]->v_linep = current_lp;
+			}
+			if (has_content && r == rows_used - 1) {
+				vtmove(row, vtcol);
+				vteeol();
+			}
+			if (has_content && highlight_current_line && vscreen[row]->v_linep == wp->w_dotp) {
+				for (int i = 0; i < term.t_ncol; i++) {
+					vscreen[row]->v_text[i] |= HIGHLIGHT_BIT;
+				}
+			}
+			if (column_ruler_enabled) {
+				int idx = column_ruler_column - 1;
+				if (idx >= 0 && idx < term.t_ncol) {
+					vscreen[row]->v_text[idx] |= HIGHLIGHT_BIT;
+				}
+			}
+		}
+
+		sline += rows_used;
+	}
+
+	/* Update soft-wrap cache after updfrom() */
+	if (wp->w_wrap_col > 0 && wp->w_dotp) {
+		wp->w_sline_rows = calculate_wordwrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
 	}
 }
 
@@ -1592,6 +1746,21 @@ static void updall(struct window *wp)
 		sline += rows_used;
 	}
 	LOG_DEBUGF("UPDALL: END final sline=%d (expected %d)", sline, wp->w_toprow + wp->w_ntrows);
+
+	/* Update soft-wrap cache after full refresh - recalculate cursor screen position */
+	if (wp->w_wrap_col > 0 && wp->w_dotp) {
+		/* Find screen row for cursor line */
+		struct line *lp = wp->w_linep;
+		int cursor_sline = wp->w_toprow;
+		while (lp != wp->w_dotp && lp != wp->w_bufp->b_linep) {
+			cursor_sline += calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+			lp = lforw(lp);
+		}
+		wp->w_sline_dotp = wp->w_dotp;
+		wp->w_sline_linep = wp->w_linep;
+		wp->w_sline_cache = cursor_sline;
+		wp->w_sline_rows = calculate_wordwrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
+	}
 }
 
 /*

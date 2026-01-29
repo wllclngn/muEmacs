@@ -285,6 +285,12 @@ struct window {
 	// Atomic cursor position cache for instant status updates
 	_Atomic int w_line_cache;	/* Cached line number for w_dotp */
 	_Atomic bool w_line_cache_dirty; /* Line cache needs recalculation */
+
+	// Soft-wrap display cache - avoid recalculating screen position every keystroke
+	struct line *w_sline_dotp;	/* w_dotp when cache was computed */
+	struct line *w_sline_linep;	/* w_linep when cache was computed */
+	int w_sline_cache;		/* Cached screen row for cursor line */
+	int w_sline_rows;		/* Cached row count for cursor line */
 };
 
 /* Window flags - Standard enum */

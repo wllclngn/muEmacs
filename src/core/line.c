@@ -779,7 +779,8 @@ int ldelete(long n, int kflag)
     }
     deleted_text[collected_len] = '\0';
 
-	lchange(WFHARD);
+	/* Start with WFEDIT - only upgrade to WFHARD if we merge lines */
+	lchange(WFEDIT);
 	while (n > 0) {
 		dotp = curwp->w_dotp;
 		doto = curwp->w_doto;
@@ -793,6 +794,7 @@ int ldelete(long n, int kflag)
 		chunk = llength(dotp) - doto;
 		if (chunk > n) chunk = n;
 		if (chunk == 0) { /* End of line, merge.  */
+			lchange(WFHARD);  /* Line merge requires full refresh */
 			if (ldelnewline() == false || (kflag != false && kinsert('\n') == false))
 				goto undo_fail;
 			--n;

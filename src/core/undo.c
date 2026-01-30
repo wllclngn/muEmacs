@@ -401,8 +401,11 @@ int undo_operation(struct buffer *bp) {
     struct undo_operation *op = &stack->operations[undo_ptr];
     atomic_store(&stack->in_operation, true);
 
+    /* Position cursor - gotoline sets WFHARD, but we clear it and let
+     * the actual edit operation (ldelete/linsert) set appropriate flags */
     gotoline(true, op->dot_l);
     curwp->w_doto = op->dot_o;
+    curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
 
     bool success = false;
     if (op->type == EDIT_INSERT) {
@@ -424,6 +427,7 @@ int undo_operation(struct buffer *bp) {
             // apply previous op in group
             gotoline(true, pop->dot_l);
             curwp->w_doto = pop->dot_o;
+            curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
             if (pop->type == EDIT_INSERT) {
                 if (!ldelete(pop->text_length, false)) break;
             } else if (pop->type == EDIT_DELETE) {
@@ -455,8 +459,8 @@ int undo_operation(struct buffer *bp) {
         }
         refresh_modelines_for_buffer(bp);
     }
-    
-    curwp->w_flag |= WFHARD;
+
+    /* Don't force WFHARD - let ldelete/linsert set appropriate flags */
     atomic_store(&stack->in_operation, false);
     return success ? true : false;
 }
@@ -487,8 +491,11 @@ int redo_operation(struct buffer *bp) {
     struct undo_operation *op = &stack->operations[redo_ptr];
     atomic_store(&stack->in_operation, true);
 
+    /* Position cursor - gotoline sets WFHARD, but we clear it and let
+     * the actual edit operation (ldelete/linsert) set appropriate flags */
     gotoline(true, op->dot_l);
     curwp->w_doto = op->dot_o;
+    curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
 
     bool success = false;
     if (op->type == EDIT_INSERT) {
@@ -509,6 +516,7 @@ int redo_operation(struct buffer *bp) {
             if (nop->group_id != gid) break;
             gotoline(true, nop->dot_l);
             curwp->w_doto = nop->dot_o;
+            curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
             if (nop->type == EDIT_INSERT) {
                 if (!linsert_str(nop->text_data)) break;
             } else if (nop->type == EDIT_DELETE) {
@@ -530,7 +538,7 @@ int redo_operation(struct buffer *bp) {
         refresh_modelines_for_buffer(bp);
     }
 
-    curwp->w_flag |= WFHARD;
+    /* Don't force WFHARD - let ldelete/linsert set appropriate flags */
     atomic_store(&stack->in_operation, false);
     return success ? true : false;
 }

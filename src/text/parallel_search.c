@@ -42,6 +42,7 @@ struct search_thread_ctx {
     struct buffer *bp;
     int start_line_idx;
     int end_line_idx;
+    int start_offset;      /* Offset within first line to start searching (skip earlier matches) */
     const char *pattern;
     struct search_result result;
 };
@@ -88,33 +89,38 @@ static void *search_worker_safe(void *arg) {
 /*
  * Thread-safe region scanner (Duplicates logic from search.c to avoid global state)
  */
-static int parallel_scan_region(struct line *start_lp, struct line *end_lp, const char *pattern, struct search_result *res) {
+static int parallel_scan_region(struct line *start_lp, struct line *end_lp, const char *pattern, int start_offset, struct search_result *res) {
     struct line *curline = start_lp;
     int patlen = strlen(pattern);
     char line_buf[NSTRING];
-    
+    int first_line = 1;  /* Track if we're on the first line */
+
     if (patlen <= 0) return 0;
-    
+
     // Check if pattern has newline (not supported in simple BMH)
     if (strchr(pattern, '\n') || strchr(pattern, '\r')) {
-        return 0; 
+        return 0;
     }
-    
+
     struct boyer_moore_context bm = {0};
     bool case_sensitive = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
-    
+
     if (bm_init(&bm, (const unsigned char*)pattern, patlen, case_sensitive) != 0) {
         return 0;
     }
-    
+
     while (curline != end_lp) {
         int n = llength(curline);
         if (n > 0) {
+            /* On first line, start from start_offset to skip past cursor position */
+            int search_start = (first_line && start_offset < n) ? start_offset : 0;
+            first_line = 0;
+
             if (n >= NSTRING) n = NSTRING - 1;
             lget_text(curline, 0, (size_t)n, line_buf, NSTRING);
             line_buf[n] = '\0';
-            
-            int idx = bm_search(&bm, (const unsigned char*)line_buf, n, 0);
+
+            int idx = bm_search(&bm, (const unsigned char*)line_buf, n, search_start);
             if (idx >= 0) {
                 res->match_line = curline;
                 res->match_off = idx;
@@ -124,6 +130,7 @@ static int parallel_scan_region(struct line *start_lp, struct line *end_lp, cons
             }
         }
         curline = lforw(curline);
+        first_line = 0;
     }
     
     bm_free(&bm);
@@ -147,7 +154,7 @@ static void *run_worker(void *arg) {
     }
     
     if (start_lp && end_lp) {
-        parallel_scan_region(start_lp, end_lp, ctx->pattern, &ctx->result);
+        parallel_scan_region(start_lp, end_lp, ctx->pattern, ctx->start_offset, &ctx->result);
     }
     return nullptr;
 }
@@ -195,14 +202,17 @@ int parallel_search(const char *pattern, int direction) {
         contexts[i].bp = curbp;
         contexts[i].pattern = pattern;
         contexts[i].result.found = 0;
-        
+
         contexts[i].start_line_idx = start_idx + (i * chunk_size);
         if (i == num_threads - 1) {
             contexts[i].end_line_idx = total_lines; // To end
         } else {
             contexts[i].end_line_idx = contexts[i].start_line_idx + chunk_size;
         }
-        
+
+        /* First thread starts from cursor offset; others start from line beginning */
+        contexts[i].start_offset = (i == 0) ? curwp->w_doto : 0;
+
         if (pthread_create(&contexts[i].thread_id, nullptr, run_worker, &contexts[i]) == 0) {
             active_threads++;
         }
@@ -231,7 +241,8 @@ int parallel_search(const char *pattern, int direction) {
         matchline = first_match_line;
         matchoff = first_match_off;
         curwp->w_dotp = matchline;
-        curwp->w_doto = matchoff;
+        /* Position cursor at END of match so next search finds next occurrence */
+        curwp->w_doto = matchoff + (int)strlen(pattern);
         curwp->w_flag |= WFMOVE;
         return 1;
     }

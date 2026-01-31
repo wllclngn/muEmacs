@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 1.11.0
+    VERSION 1.11.1
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -13,7 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Feature toggles (defined early so they affect source lists and targets)
 option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
-option(UEMACS_DEBUG_LOG "Enable debug logging to /tmp/uemacs_debug.log" OFF)
+option(MUEMACS_DEBUG_LOG "Enable debug logging to /tmp/muemacs_debug.log" OFF)
 option(ENABLE_IO_URING "Enable io_uring for async I/O (requires liburing)" OFF)
 
 # io_uring support (optional - for async batch syscalls)
@@ -223,44 +223,44 @@ configure_file(
 )
 
 # Main library
-add_library(uemacs STATIC ${ALL_SOURCES})
+add_library(muemacs_core STATIC ${ALL_SOURCES})
 if(ENABLE_SEARCH_NFA)
-  target_compile_definitions(uemacs PRIVATE ENABLE_SEARCH_NFA=1)
+  target_compile_definitions(muemacs_core PRIVATE ENABLE_SEARCH_NFA=1)
 endif()
-target_compile_definitions(uemacs PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
+target_compile_definitions(muemacs_core PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
 # Debug logging (zero-cost when disabled)
-if(UEMACS_DEBUG_LOG)
-    target_compile_definitions(uemacs PRIVATE UEMACS_DEBUG_LOG=1)
-    message(STATUS "Debug logging ENABLED -> /tmp/uemacs_debug.log")
+if(MUEMACS_DEBUG_LOG)
+    target_compile_definitions(muemacs_core PRIVATE MUEMACS_DEBUG_LOG=1)
+    message(STATUS "Debug logging ENABLED -> /tmp/muemacs_debug.log")
 else()
-    target_compile_definitions(uemacs PRIVATE UEMACS_DEBUG_LOG=0)
+    target_compile_definitions(muemacs_core PRIVATE MUEMACS_DEBUG_LOG=0)
 endif()
 
 # Main executable
 add_executable(muEmacs main.c)
-target_link_libraries(muEmacs uemacs m Threads::Threads) # Link against the static library
+target_link_libraries(muEmacs muemacs_core m Threads::Threads) # Link against the static library
 set_target_properties(muEmacs PROPERTIES OUTPUT_NAME "μEmacs")
 
 # Extension runner executable (out-of-process extension host)
 # This binary loads extensions that require process isolation (Go, Ada, Haskell, etc.)
 # and proxies API calls back to the editor via IPC.
-add_executable(uemacs-ext-runner
+add_executable(muemacs-ext-runner
     src/uep/ext_runner.c
     src/uep/ext_ipc.c
     src/util/logger.c
 )
-target_include_directories(uemacs-ext-runner PRIVATE
+target_include_directories(muemacs-ext-runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
-target_link_libraries(uemacs-ext-runner
+target_link_libraries(muemacs-ext-runner
     dl                          # dlopen/dlsym for extension loading
     Threads::Threads           # pthreads
 )
-target_compile_definitions(uemacs-ext-runner PRIVATE
+target_compile_definitions(muemacs-ext-runner PRIVATE
     LINUX=1
     UNIX=1
     POSIX=1
@@ -269,10 +269,10 @@ target_compile_definitions(uemacs-ext-runner PRIVATE
     HAVE_CONFIG_H=1
 )
 # Share debug logging setting with main editor
-if(UEMACS_DEBUG_LOG)
-    target_compile_definitions(uemacs-ext-runner PRIVATE UEMACS_DEBUG_LOG=1)
+if(MUEMACS_DEBUG_LOG)
+    target_compile_definitions(muemacs-ext-runner PRIVATE MUEMACS_DEBUG_LOG=1)
 else()
-    target_compile_definitions(uemacs-ext-runner PRIVATE UEMACS_DEBUG_LOG=0)
+    target_compile_definitions(muemacs-ext-runner PRIVATE MUEMACS_DEBUG_LOG=0)
 endif()
 
 # Apply same compile definitions as the library so main.c builds consistently
@@ -289,7 +289,7 @@ target_compile_definitions(muEmacs PRIVATE
     HAVE_CONFIG_H=1
     _GNU_SOURCE
     _DEFAULT_SOURCE
-    UEMACS_DEBUG_LOG=$<BOOL:${UEMACS_DEBUG_LOG}>
+    MUEMACS_DEBUG_LOG=$<BOOL:${MUEMACS_DEBUG_LOG}>
 )
 
 # Integration test executable (TTY-capable stress testing)
@@ -410,7 +410,7 @@ target_compile_definitions(full_integration_test PRIVATE
 
 # Save crash reproduction test
 add_executable(save_crash_test tests/test_save_crash.c)
-target_link_libraries(save_crash_test uemacs Threads::Threads m)
+target_link_libraries(save_crash_test muemacs_core Threads::Threads m)
 target_include_directories(save_crash_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
@@ -433,7 +433,7 @@ target_compile_definitions(save_crash_test PRIVATE
 
 # Simple search microbenchmark
 add_executable(bench_search tests/bench/search_bench.c)
-target_link_libraries(bench_search uemacs Threads::Threads m)
+target_link_libraries(bench_search muemacs_core Threads::Threads m)
 target_include_directories(bench_search PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
@@ -443,7 +443,7 @@ target_compile_definitions(bench_search PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
 # Parallel search benchmark
 add_executable(bench_parallel tests/bench_parallel.c)
-target_link_libraries(bench_parallel uemacs Threads::Threads m)
+target_link_libraries(bench_parallel muemacs_core Threads::Threads m)
 target_include_directories(bench_parallel PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
@@ -464,7 +464,7 @@ add_custom_target(bench
 
 # Editor operations microbenchmark
 add_executable(bench_editor tests/bench/editor_bench.c)
-target_link_libraries(bench_editor uemacs Threads::Threads m)
+target_link_libraries(bench_editor muemacs_core Threads::Threads m)
 target_include_directories(bench_editor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
@@ -473,7 +473,7 @@ target_include_directories(bench_editor PRIVATE
 
 # Keymap lookup microbenchmark
 add_executable(bench_keymap tests/bench/keymap_bench.c)
-target_link_libraries(bench_keymap uemacs Threads::Threads m)
+target_link_libraries(bench_keymap muemacs_core Threads::Threads m)
 target_include_directories(bench_keymap PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
@@ -482,7 +482,7 @@ target_include_directories(bench_keymap PRIVATE
 
 # UTF-8 encode/decode microbenchmark
 add_executable(bench_utf8 tests/bench/utf8_bench.c)
-target_link_libraries(bench_utf8 uemacs Threads::Threads m)
+target_link_libraries(bench_utf8 muemacs_core Threads::Threads m)
 target_include_directories(bench_utf8 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
@@ -490,7 +490,7 @@ target_include_directories(bench_utf8 PRIVATE
 )
 
 # Compiler definitions
-target_compile_definitions(uemacs PRIVATE
+target_compile_definitions(muemacs_core PRIVATE
     LINUX=1
     UNIX=1
     POSIX=1
@@ -521,7 +521,7 @@ target_compile_definitions(full_integration_test PRIVATE
 )
 
 # Modern compiler flags for safety and optimization  
-target_compile_options(uemacs PRIVATE
+target_compile_options(muemacs_core PRIVATE
     # Production warnings - const correctness fixes completed
     -Wall -Wextra -Wpedantic
     -Wformat=2 -Wformat-security
@@ -546,7 +546,7 @@ target_compile_options(uemacs PRIVATE
 )
 
 # Linker flags
-target_link_options(uemacs PRIVATE
+target_link_options(muemacs_core PRIVATE
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-z,noexecstack
@@ -557,7 +557,7 @@ target_link_options(uemacs PRIVATE
 find_package(Threads REQUIRED)
 
 # Link libraries - only what modern Linux needs (no external deps for terminal)
-target_link_libraries(uemacs
+target_link_libraries(muemacs_core
     m                           # Math library
     Threads::Threads           # pthreads for mutex/signal masking
     util                        # PTY functions (forkpty, openpty)
@@ -566,15 +566,15 @@ target_link_libraries(uemacs
 
 # io_uring linkage (Linux 2026 async I/O)
 if(ENABLE_IO_URING AND URING_FOUND)
-    target_link_libraries(uemacs ${URING_LIBRARIES})
-    target_include_directories(uemacs PRIVATE ${URING_INCLUDE_DIRS})
-    target_compile_definitions(uemacs PRIVATE HAVE_LIBURING=1)
+    target_link_libraries(muemacs_core ${URING_LIBRARIES})
+    target_include_directories(muemacs_core PRIVATE ${URING_INCLUDE_DIRS})
+    target_compile_definitions(muemacs_core PRIVATE HAVE_LIBURING=1)
 endif()
 
 # Link libraries for integration tests  
 target_link_libraries(full_integration_test
     m                           # Math library
-    uemacs                      # Link against the uemacs static library
+    muemacs_core                      # Link against the muemacs_core static library
     Threads::Threads           # ensure pthreads available in tests too
 )
 
@@ -586,7 +586,7 @@ if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # Add include directories
-target_include_directories(uemacs PRIVATE
+target_include_directories(muemacs_core PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -602,14 +602,14 @@ target_include_directories(full_integration_test PRIVATE
 
 # Debug build with sanitizers
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT DISABLE_SANITIZERS)
-    target_compile_options(uemacs PRIVATE
+    target_compile_options(muemacs_core PRIVATE
         -fsanitize=address
         -fsanitize=undefined
         -fno-omit-frame-pointer
         -Werror
         -pedantic-errors
     )
-    target_link_options(uemacs PRIVATE
+    target_link_options(muemacs_core PRIVATE
         -fsanitize=address
         -fsanitize=undefined
     )
@@ -641,7 +641,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT DISABLE_SANITIZERS)
     # Note: The ext_runner intentionally does NOT use ASan so it can load
     # polyglot extensions (Go, Ada, Haskell) that have incompatible runtimes.
     # This is the whole point of process isolation!
-    # target_compile_options(uemacs-ext-runner PRIVATE ...)
+    # target_compile_options(muemacs-ext-runner PRIVATE ...)
 
     # Sanitizers for save_crash_test
     target_compile_options(save_crash_test PRIVATE
@@ -672,7 +672,7 @@ endif()
 include(GNUInstallDirs)
 
 # Install executables
-install(TARGETS muEmacs uemacs-ext-runner
+install(TARGETS muEmacs muemacs-ext-runner
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -731,7 +731,7 @@ install(FILES packaging/muEmacs.desktop
 )
 
 # Install application icon
-install(FILES packaging/uemacs.png
+install(FILES packaging/muemacs.png
     DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
 )
 

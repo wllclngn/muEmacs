@@ -4,7 +4,7 @@
  * Standalone executable spawned by ext_host for extensions requiring isolation.
  * Loads extension .so and proxies API calls back to editor via atomic ring buffers.
  *
- * Usage: uemacs-ext-runner --memfd N --ext PATH
+ * Usage: muemacs-ext-runner --memfd N --ext PATH
  *
  * C23 compliant
  */
@@ -19,6 +19,7 @@
 #include <getopt.h>
 #include <limits.h>
 #include <poll.h>
+#include <pthread.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -55,6 +56,41 @@ static ext_ipc_channel_t *g_ipc = NULL;
 static void *g_ext_handle = NULL;
 static volatile sig_atomic_t g_running = 1;
 static int g_death_fd = -1;  /* Read end of death pipe - POLLHUP when parent dies */
+static pthread_t g_death_watcher_thread;
+static bool g_death_watcher_started = false;
+
+/*
+ * Death pipe watcher thread - monitors the death pipe independently
+ * of the main command loop. When parent dies (POLLHUP), sets g_running = 0
+ * and sends SIGTERM to self to interrupt any blocking operations.
+ */
+static void *death_watcher_thread(void *arg)
+{
+    (void)arg;
+
+    struct pollfd pfd = {
+        .fd = g_death_fd,
+        .events = POLLIN
+    };
+
+    while (g_running) {
+        int ret = poll(&pfd, 1, 100);  /* 100ms timeout */
+        if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR | POLLNVAL))) {
+            /* Parent died - signal shutdown */
+            g_running = 0;
+            /* Send SIGTERM to self to break any blocking operations */
+            kill(getpid(), SIGTERM);
+            break;
+        }
+        if (ret < 0 && errno != EINTR) {
+            /* poll error - exit */
+            g_running = 0;
+            break;
+        }
+    }
+
+    return NULL;
+}
 
 /* Local command registry */
 typedef struct {
@@ -761,8 +797,8 @@ static generic_fn_t proxy_get_function(const char *name);
  * Proxy API struct
  * ========================================================================= */
 
-static struct uemacs_api proxy_api = {
-    .api_version = UEMACS_API_VERSION,
+static struct muemacs_api proxy_api = {
+    .api_version = MUEMACS_API_VERSION,
 
     .on = proxy_on,
     .off = proxy_off,
@@ -819,7 +855,7 @@ static struct uemacs_api proxy_api = {
     .modeline_register = proxy_modeline_register,
     .modeline_unregister = proxy_modeline_unregister,
     .modeline_refresh = proxy_modeline_refresh,
-    .struct_size = sizeof(struct uemacs_api),
+    .struct_size = sizeof(struct muemacs_api),
     .get_function = proxy_get_function,
 };
 
@@ -1117,10 +1153,24 @@ int main(int argc, char **argv)
     atomic_store_explicit(&g_ipc->shm->ext_ready, 1, memory_order_release);
     ipc_log("ext_runner[%d]: Signaled READY", getpid());
 
+    /* Start death watcher thread - ensures we exit even if main loop blocks */
+    if (g_death_fd >= 0) {
+        if (pthread_create(&g_death_watcher_thread, NULL, death_watcher_thread, NULL) == 0) {
+            g_death_watcher_started = true;
+            ipc_log("ext_runner[%d]: Death watcher thread started", getpid());
+        }
+    }
+
     /* Enter main loop */
     extension_main_loop();
 
     ipc_log("ext_runner[%d]: Exiting main loop", getpid());
+
+    /* Stop death watcher thread */
+    if (g_death_watcher_started) {
+        pthread_join(g_death_watcher_thread, NULL);
+        ipc_log("ext_runner[%d]: Death watcher thread joined", getpid());
+    }
 
     /* Cleanup */
     ipc_log("ext_runner[%d]: Calling ext cleanup", getpid());

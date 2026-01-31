@@ -1471,8 +1471,8 @@ char *extension_get_modeline_full(void) {
  * The Global API Instance
  * ============================================================================ */
 
-static struct uemacs_api global_api = {
-    .api_version = UEMACS_API_VERSION,
+static struct muemacs_api global_api = {
+    .api_version = MUEMACS_API_VERSION,
 
     /* Generic event system */
     .on = api_on,
@@ -1566,11 +1566,11 @@ static struct uemacs_api global_api = {
     .buffer_next = api_buffer_next,
 
     /* ABI-stable function lookup (API v4) */
-    .struct_size = sizeof(struct uemacs_api),
+    .struct_size = sizeof(struct muemacs_api),
     .get_function = api_get_function,
 };
 
-struct uemacs_api *uemacs_get_api(void) {
+struct muemacs_api *muemacs_get_api(void) {
     return &global_api;
 }
 

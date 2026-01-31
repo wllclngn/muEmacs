@@ -1,5 +1,5 @@
-#ifndef UEMACS_TEST_UTILS_H
-#define UEMACS_TEST_UTILS_H
+#ifndef MUEMACS_TEST_UTILS_H
+#define MUEMACS_TEST_UTILS_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +15,7 @@
 #include <time.h>
 #include <sys/resource.h>
 
-// Logging support - logs to /tmp/uemacs_debug.log when UEMACS_DEBUG_LOG is enabled
+// Logging support - logs to /tmp/muemacs_debug.log when MUEMACS_DEBUG_LOG is enabled
 #include "util/logger.h"
 
 #define RED     "\x1b[31m"
@@ -137,4 +137,4 @@ void test_init_editor(const char *name);
     } \
 } while (0)
 
-#endif // UEMACS_TEST_UTILS_H
+#endif // MUEMACS_TEST_UTILS_H

@@ -22,7 +22,7 @@ from base import UEmacsTest
 
 def test_record_and_execute_simple():
     """Record a simple macro and execute it."""
-    filename = '/tmp/uemacs_macro_test.txt'
+    filename = '/tmp/muemacs_macro_test.txt'
     with open(filename, 'w') as f:
         f.write("line one\n")
         f.write("line two\n")
@@ -79,7 +79,7 @@ def test_record_and_execute_simple():
 
 def test_macro_with_movement():
     """Record macro that moves and edits."""
-    filename = '/tmp/uemacs_macro_test.txt'
+    filename = '/tmp/muemacs_macro_test.txt'
     with open(filename, 'w') as f:
         f.write("aaa\n")
         f.write("bbb\n")
@@ -135,7 +135,7 @@ def test_macro_with_movement():
 
 def test_macro_delete_char():
     """Record macro that deletes a character on each line."""
-    filename = '/tmp/uemacs_macro_test.txt'
+    filename = '/tmp/muemacs_macro_test.txt'
     with open(filename, 'w') as f:
         f.write("Xaaa\n")
         f.write("Xbbb\n")
@@ -199,7 +199,7 @@ def test_macro_delete_char():
 
 def test_macro_message_display():
     """Verify macro recording shows feedback."""
-    filename = '/tmp/uemacs_macro_test.txt'
+    filename = '/tmp/muemacs_macro_test.txt'
     with open(filename, 'w') as f:
         f.write("test content\n")
         for i in range(10):

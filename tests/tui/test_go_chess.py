@@ -44,7 +44,7 @@ def _nuke_all():
 
     # Layer 3: Kill ext-runner by pattern (it's a path, not just a name)
     try:
-        subprocess.run(['pkill', '-9', '-f', 'uemacs-ext-runner'],
+        subprocess.run(['pkill', '-9', '-f', 'muemacs-ext-runner'],
                       capture_output=True, timeout=2)
     except:
         pass

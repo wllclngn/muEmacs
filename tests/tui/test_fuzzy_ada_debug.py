@@ -8,7 +8,7 @@ the exact crash point in the Ada/C bridge.
 Usage:
     python3 tests/tui/test_fuzzy_ada_debug.py
 
-After running, check /tmp/uemacs_debug.log for the crash point.
+After running, check /tmp/muemacs_debug.log for the crash point.
 """
 
 import sys
@@ -30,7 +30,7 @@ def test_fuzzy_find_crash():
     print("=" * 60)
 
     # Clear old log
-    log_path = "/tmp/uemacs_debug.log"
+    log_path = "/tmp/muemacs_debug.log"
     if os.path.exists(log_path):
         os.remove(log_path)
         print(f"Cleared old log: {log_path}")
@@ -171,7 +171,7 @@ def test_extension_loads():
     """Simple test to verify the extension loads at all."""
     print("Testing if fuzzy_ada extension loads...")
 
-    log_path = "/tmp/uemacs_debug.log"
+    log_path = "/tmp/muemacs_debug.log"
     if os.path.exists(log_path):
         os.remove(log_path)
 

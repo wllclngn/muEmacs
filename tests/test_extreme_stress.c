@@ -18,7 +18,7 @@ static void init_editor_minimal(const char* name) {
 }
 
 static int stress_factor(void) {
-    const char* s = getenv("UEMACS_STRESS");
+    const char* s = getenv("MUEMACS_STRESS");
     if (!s) return 1; // default intensity
     int f = atoi(s);
     if (f < 1) f = 1;
@@ -215,8 +215,8 @@ int test_extreme_file_size_stress(void) {
     // Simulate a large file with long lines (scalable)
     long lines = 50000L * F;
     int chars_per_line = 1000 * (F > 1 ? 2 : 1); // modestly scale line width
-    const char* env_lines = getenv("UEMACS_GIANT_LINES");
-    const char* env_width = getenv("UEMACS_GIANT_WIDTH");
+    const char* env_lines = getenv("MUEMACS_GIANT_LINES");
+    const char* env_width = getenv("MUEMACS_GIANT_WIDTH");
     if (env_lines) {
         long v = atol(env_lines);
         if (v > 0 && v < 1000000000L) lines = v; // sanity bounds
@@ -270,32 +270,32 @@ int test_extreme_stress_suite(void) {
     
     int total_passed = 0;
     
-    if (!getenv("UEMACS_SKIP_TEXT_OPS"))
+    if (!getenv("MUEMACS_SKIP_TEXT_OPS"))
         total_passed += test_extreme_text_operations();
     else
-        LOG_INFO("[INFO] Skipping EXTREME text operations (UEMACS_SKIP_TEXT_OPS=1)");
+        LOG_INFO("[INFO] Skipping EXTREME text operations (MUEMACS_SKIP_TEXT_OPS=1)");
 
-    if (!getenv("UEMACS_SKIP_MEM"))
+    if (!getenv("MUEMACS_SKIP_MEM"))
         total_passed += test_extreme_memory_stress();
     else
-        LOG_INFO("[INFO] Skipping EXTREME memory stress (UEMACS_SKIP_MEM=1)");
+        LOG_INFO("[INFO] Skipping EXTREME memory stress (MUEMACS_SKIP_MEM=1)");
 
-    if (!getenv("UEMACS_SKIP_CONCURRENT"))
+    if (!getenv("MUEMACS_SKIP_CONCURRENT"))
         total_passed += test_extreme_concurrent_stress();
     else
-        LOG_INFO("[INFO] Skipping EXTREME concurrent stress (UEMACS_SKIP_CONCURRENT=1)");
+        LOG_INFO("[INFO] Skipping EXTREME concurrent stress (MUEMACS_SKIP_CONCURRENT=1)");
 
-    if (!getenv("UEMACS_SKIP_GIANT_FILE"))
+    if (!getenv("MUEMACS_SKIP_GIANT_FILE"))
         total_passed += test_extreme_file_size_stress();
     else
-        LOG_INFO("[INFO] Skipping EXTREME giant file stress (UEMACS_SKIP_GIANT_FILE=1)");
+        LOG_INFO("[INFO] Skipping EXTREME giant file stress (MUEMACS_SKIP_GIANT_FILE=1)");
     
     LOG_INFOF("\n%s========================================%s", MAGENTA, RESET);
     int planned = 4
-        - (getenv("UEMACS_SKIP_TEXT_OPS") ? 1 : 0)
-        - (getenv("UEMACS_SKIP_MEM") ? 1 : 0)
-        - (getenv("UEMACS_SKIP_CONCURRENT") ? 1 : 0)
-        - (getenv("UEMACS_SKIP_GIANT_FILE") ? 1 : 0);
+        - (getenv("MUEMACS_SKIP_TEXT_OPS") ? 1 : 0)
+        - (getenv("MUEMACS_SKIP_MEM") ? 1 : 0)
+        - (getenv("MUEMACS_SKIP_CONCURRENT") ? 1 : 0)
+        - (getenv("MUEMACS_SKIP_GIANT_FILE") ? 1 : 0);
     if (planned <= 0) planned = 0;
     LOG_INFOF("EXTREME STRESS RESULTS: %d/%d tests passed", total_passed, planned);
     LOG_INFOF("%s========================================%s", MAGENTA, RESET);

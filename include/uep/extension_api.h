@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 /* Current API version */
-#define UEMACS_API_VERSION 4
+#define MUEMACS_API_VERSION 4
 
 /* Forward declarations */
 struct buffer;
@@ -31,7 +31,7 @@ struct line_tokens;
 struct syntax_language;
 struct input_key_event;
 struct uemacs_event;
-struct uemacs_api;
+struct muemacs_api;
 
 /* ============================================================================
  * Event System Types
@@ -135,7 +135,7 @@ typedef struct line_tokens uemacs_line_tokens_t;
  *
  * Note: The first parameter receives the syntax_language pointer from the
  * internal system. Extensions that registered with user_data can cast it
- * or use uemacs_get_api() to access the editor API.
+ * or use muemacs_get_api() to access the editor API.
  */
 typedef uemacs_lexer_state_t (*uemacs_syntax_lex_fn)(
     const struct syntax_language *lang,
@@ -162,7 +162,7 @@ typedef char *(*uemacs_modeline_fn)(void *user_data);
  * The Editor API
  * ============================================================================ */
 
-struct uemacs_api {
+struct muemacs_api {
     /* API version for compatibility checking */
     int api_version;
 
@@ -351,7 +351,7 @@ struct uemacs_api {
      * struct_size and get_function MUST be last for version detection.
      * ───────────────────────────────────────────────────────────────────────── */
 
-    size_t struct_size;  /* sizeof(struct uemacs_api) - for version detection */
+    size_t struct_size;  /* sizeof(struct muemacs_api) - for version detection */
 
     /*
      * Look up API function by name. Returns NULL if not found.
@@ -370,7 +370,7 @@ struct uemacs_api {
 };
 
 /* Get the global API instance */
-struct uemacs_api *uemacs_get_api(void);
+struct muemacs_api *muemacs_get_api(void);
 
 /* Get extension modeline segments (called by display.c) */
 char *extension_get_modeline_segments(int urgency);

@@ -46,7 +46,7 @@ void setup_phase_timeout() {
     test_timeout_occurred = 0;
     signal(SIGALRM, timeout_handler);
     int secs = PHASE_TIMEOUT_SECONDS;
-    const char* env_secs = getenv("UEMACS_PHASE_TIMEOUT");
+    const char* env_secs = getenv("MUEMACS_PHASE_TIMEOUT");
     if (env_secs) {
         int v = atoi(env_secs);
         if (v > 0 && v < 86400) {
@@ -73,11 +73,11 @@ void log_memory_usage() {
 }
 
 static int interactive_allowed(void) {
-    const char* gate = getenv("UEMACS_INTERACTIVE");
+    const char* gate = getenv("MUEMACS_INTERACTIVE");
     if (!gate || strcmp(gate, "1") != 0) {
         return 0;
     }
-    const char* force = getenv("UEMACS_FORCE_INTERACTIVE");
+    const char* force = getenv("MUEMACS_FORCE_INTERACTIVE");
     if (force && strcmp(force, "1") == 0) {
         return 1;
     }
@@ -91,7 +91,7 @@ static int interactive_allowed(void) {
 int run_expect_script(const char* script_name, const char* test_file) {
     // Global guard: only run interactive tests when explicitly enabled
     if (!interactive_allowed()) {
-        LOG_WARNF("[SKIP] Interactive tests disabled; skipping %s (set UEMACS_INTERACTIVE=1)", script_name);
+        LOG_WARNF("[SKIP] Interactive tests disabled; skipping %s (set MUEMACS_INTERACTIVE=1)", script_name);
         return 1; // treat as skip/success in CI
     }
     char tmp_path[64] = "/tmp/expect_run_XXXXXX";

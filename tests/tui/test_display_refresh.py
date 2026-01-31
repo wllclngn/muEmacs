@@ -78,7 +78,7 @@ def test_softwrap_continuous_typing():
     With 80-col terminal and 80-col wrap, long lines wrap to next screen row
     instead of showing $ overflow at column 79.
     """
-    filename = '/tmp/uemacs_softwrap_test.txt'
+    filename = '/tmp/muemacs_softwrap_test.txt'
     with open(filename, 'w') as f:
         f.write("\n")  # Empty first line
 
@@ -156,7 +156,7 @@ def test_softwrap_display_updates_every_keystroke():
 
     Tests that display doesn't lag behind buffer during typing.
     """
-    filename = '/tmp/uemacs_softwrap_keystroke.txt'
+    filename = '/tmp/muemacs_softwrap_keystroke.txt'
     with open(filename, 'w') as f:
         f.write("\n")
 
@@ -199,7 +199,7 @@ def test_softwrap_rapid_typing_no_lag():
 
     Tests the typeahead threshold fix (raised from 5 to 30).
     """
-    filename = '/tmp/uemacs_softwrap_rapid.txt'
+    filename = '/tmp/muemacs_softwrap_rapid.txt'
     with open(filename, 'w') as f:
         f.write("\n")
 
@@ -245,7 +245,7 @@ def test_multiple_enter_display_refresh():
 
     Tests that each newline triggers proper display update.
     """
-    filename = '/tmp/uemacs_enter_test.txt'
+    filename = '/tmp/muemacs_enter_test.txt'
     with open(filename, 'w') as f:
         f.write("Line 1\n")
 
@@ -288,7 +288,7 @@ def test_multiple_enter_display_refresh():
 
 def test_enter_creates_visible_lines():
     """Each Enter should create a visually distinct new line."""
-    filename = '/tmp/uemacs_enter_visible.txt'
+    filename = '/tmp/muemacs_enter_visible.txt'
     with open(filename, 'w') as f:
         f.write("Start\n")
 
@@ -342,7 +342,7 @@ def test_insert_mode_continuous_typing():
 
     This is the core bug: display lagging during normal typing.
     """
-    filename = '/tmp/uemacs_insert_typing.txt'
+    filename = '/tmp/muemacs_insert_typing.txt'
     with open(filename, 'w') as f:
         f.write("Test file\n")
 
@@ -380,7 +380,7 @@ def test_insert_mode_continuous_typing():
 
 def test_backspace_triggers_refresh():
     """Backspace should immediately update display."""
-    filename = '/tmp/uemacs_backspace.txt'
+    filename = '/tmp/muemacs_backspace.txt'
     with open(filename, 'w') as f:
         f.write("DELETE_ME extra text\n")
 
@@ -424,7 +424,7 @@ def test_no_typeahead_deferral_at_normal_speed():
 
     With threshold at 30, typing at 20 chars/sec should always update.
     """
-    filename = '/tmp/uemacs_typeahead.txt'
+    filename = '/tmp/muemacs_typeahead.txt'
     with open(filename, 'w') as f:
         f.write("\n")
 
@@ -472,7 +472,7 @@ def test_stress_insert_mode_60_seconds():
 
     The ultimate test for display refresh during editing.
     """
-    filename = '/tmp/uemacs_insert_stress.txt'
+    filename = '/tmp/muemacs_insert_stress.txt'
     with open(filename, 'w') as f:
         f.write("\n")
 

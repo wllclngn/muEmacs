@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_yank_to_named_register():
     """\"ayy should yank line to register a."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("first line\n")
         f.write("second line\n")
@@ -69,7 +69,7 @@ def test_yank_to_named_register():
 
 def test_delete_to_named_register():
     """\"add should delete line to register a."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("delete me\n")
         f.write("keep this\n")
@@ -124,7 +124,7 @@ def test_delete_to_named_register():
 
 def test_unnamed_register():
     """yy should work with unnamed register (default)."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("yank this\n")
         f.write("line two\n")
@@ -164,7 +164,7 @@ def test_unnamed_register():
 
 def test_register_prefix_display():
     """\" should show register selection prompt."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("test content\n")
         for i in range(10):

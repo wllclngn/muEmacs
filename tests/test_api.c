@@ -105,7 +105,7 @@ int test_api_search_crossline() {
     unmark(0,0);
     bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
-    setenv("UEMACS_TWO_WAY", "0", 1); // disable Two-Way temporarily for legacy cross-line
+    setenv("MUEMACS_TWO_WAY", "0", 1); // disable Two-Way temporarily for legacy cross-line
 
     // Create "he\nllo"
     const char* a = "he";

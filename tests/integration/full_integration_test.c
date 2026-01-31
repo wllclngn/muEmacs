@@ -92,9 +92,9 @@ int main(int argc, char* argv[]) {
 
     LOG_INFOF("[INFO] Using μEmacs binary: %s", uemacs_path);
 
-    // Check if expect is available and allowed (gated by UEMACS_INTERACTIVE)
+    // Check if expect is available and allowed (gated by MUEMACS_INTERACTIVE)
     const char* enable_expect = getenv("ENABLE_EXPECT");
-    const char* interactive_gate = getenv("UEMACS_INTERACTIVE");
+    const char* interactive_gate = getenv("MUEMACS_INTERACTIVE");
     if (system("which expect >/dev/null 2>&1") != 0 || !enable_expect || strcmp(enable_expect, "1") != 0 || !interactive_gate || strcmp(interactive_gate, "1") != 0) {
         LOG_WARN("[WARN] Interactive expect tests disabled; running non-interactive suite");
     } else {

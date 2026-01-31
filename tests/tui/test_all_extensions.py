@@ -18,7 +18,7 @@ import pyte
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "../.."))
 BINARY = os.path.join(PROJECT_ROOT, "build/bin/μEmacs")
-LOG_FILE = "/tmp/uemacs_debug.log"
+LOG_FILE = "/tmp/muemacs_debug.log"
 
 if not os.path.exists(BINARY):
     BINARY = os.path.join(PROJECT_ROOT, "build/bin/muEmacs")

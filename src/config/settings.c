@@ -547,7 +547,11 @@ static void apply_setting(const char *section, const char *key, const char *valu
                 } else if (strcmp(section, "keybindings.visual") == 0) {
                     target_map = atomic_load(&vim_visual_keymap);
                 } else if (strcmp(section, "keybindings.insert") == 0) {
-                    target_map = atomic_load(&global_keymap);
+                    /* Insert mode bindings only apply when evil_mode is active.
+                     * When evil_mode is off, skip these to avoid overwriting global bindings. */
+                    if (vim_mode_active) {
+                        target_map = atomic_load(&global_keymap);
+                    }
                 }
 
                 /* Bind it */

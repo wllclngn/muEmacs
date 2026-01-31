@@ -2,8 +2,8 @@
 // Each unit test module declares its entry point functions here
 // The integration test includes this header to call all tests
 
-#ifndef UEMACS_TEST_REGISTRY_H
-#define UEMACS_TEST_REGISTRY_H
+#ifndef MUEMACS_TEST_REGISTRY_H
+#define MUEMACS_TEST_REGISTRY_H
 
 // Util module tests
 int test_utf8_invalid_sequences(void);
@@ -84,4 +84,4 @@ int test_terminal_input_state(void); // Input state machine tests
 // Atomic cursor tests (Phase D)
 int test_atomic_cursor(void);       // Concurrent cursor variable tests
 
-#endif // UEMACS_TEST_REGISTRY_H
+#endif // MUEMACS_TEST_REGISTRY_H

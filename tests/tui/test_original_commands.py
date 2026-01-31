@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_mx_command():
     """M-x should open command prompt."""
-    filename = '/tmp/uemacs_test.txt'
+    filename = '/tmp/muemacs_test.txt'
     with open(filename, 'w') as f:
         f.write("test content\n")
         for i in range(10):
@@ -46,7 +46,7 @@ def test_mx_command():
 
 def test_ctrl_k_kill_line():
     """C-k should kill to end of line."""
-    filename = '/tmp/uemacs_test.txt'
+    filename = '/tmp/muemacs_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world test\n")
         for i in range(10):
@@ -75,7 +75,7 @@ def test_ctrl_k_kill_line():
 
 def test_ctrl_y_yank():
     """C-y should yank killed text."""
-    filename = '/tmp/uemacs_test.txt'
+    filename = '/tmp/muemacs_test.txt'
     with open(filename, 'w') as f:
         f.write("kill this line\n")
         f.write("second line\n")
@@ -115,7 +115,7 @@ def test_ctrl_y_yank():
 
 def test_ctrl_s_search():
     """C-s should start forward search."""
-    filename = '/tmp/uemacs_test.txt'
+    filename = '/tmp/muemacs_test.txt'
     with open(filename, 'w') as f:
         f.write("first line\n")
         f.write("second line\n")

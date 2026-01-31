@@ -24,7 +24,7 @@ static fn_t test_getbind_key(struct keymap *map, keymap_key_t key)
     return NULL;
 }
 
-// Verify that default key bindings match expected uEmacs behaviors
+// Verify that default key bindings match expected μEmacs behaviors
 int test_keymap_defaults() {
     int result = 1;
 

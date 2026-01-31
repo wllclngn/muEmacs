@@ -351,7 +351,7 @@ const ext_host_entry_t *ext_host_find(const char *name);
 
 /*
  * Set path to the ext_runner executable
- * Default: searches PATH for "uemacs-ext-runner"
+ * Default: searches PATH for "muemacs-ext-runner"
  */
 void ext_host_set_runner_path(const char *path);
 

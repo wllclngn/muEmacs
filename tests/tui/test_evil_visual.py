@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_visual_mode_entry():
     """'v' should enter visual mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -49,7 +49,7 @@ def test_visual_mode_entry():
 
 def test_visual_line_mode_entry():
     """'V' should enter visual line mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -83,7 +83,7 @@ def test_visual_line_mode_entry():
 
 def test_visual_mode_exit_esc():
     """ESC should exit visual mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -122,7 +122,7 @@ def test_visual_mode_exit_esc():
 
 def test_visual_delete():
     """'d' in visual mode should delete selection."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -158,7 +158,7 @@ def test_visual_delete():
 
 def test_visual_yank():
     """'y' in visual mode should yank selection."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -200,7 +200,7 @@ def test_visual_yank():
 
 def test_visual_change():
     """'c' in visual mode should change selection."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -243,7 +243,7 @@ def test_visual_line_delete():
     KNOWN ISSUE: Visual line mode delete (Vd) is currently broken.
     This test verifies current (broken) behavior until fixed.
     """
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("line 1\n")
         f.write("line 2\n")
@@ -282,7 +282,7 @@ def test_visual_line_delete():
 
 def test_visual_motion_extends():
     """Motions in visual mode should extend selection."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world foo bar\n")
         for i in range(5):
@@ -319,7 +319,7 @@ def test_visual_motion_extends():
 
 def test_visual_o_swaps_anchor():
     """'o' in visual mode should swap cursor to other end."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -365,7 +365,7 @@ def test_visual_o_swaps_anchor():
 
 def test_visual_line_multiline_delete():
     """'d' in visual line mode with multiple lines should delete all selected lines."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("line 1\n")
         f.write("line 2\n")
@@ -404,7 +404,7 @@ def test_visual_line_multiline_delete():
 
 def test_visual_block_entry():
     """Ctrl-V should enter visual block mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         f.write("hello world\n")
@@ -437,7 +437,7 @@ def test_visual_block_entry():
 
 def test_visual_block_delete():
     """Block delete should remove rectangular region from all lines."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         f.write("hello world\n")

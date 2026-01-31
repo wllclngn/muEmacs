@@ -1,5 +1,5 @@
-#ifndef UEMACS_TEST_API_H
-#define UEMACS_TEST_API_H
+#ifndef MUEMACS_TEST_API_H
+#define MUEMACS_TEST_API_H
 
 int test_api_insert_delete();
 int test_api_magic_basic();

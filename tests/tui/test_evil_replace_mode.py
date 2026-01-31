@@ -18,7 +18,7 @@ from base import UEmacsTest
 
 def test_replace_mode_entry():
     """'R' should enter replace mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -51,7 +51,7 @@ def test_replace_mode_entry():
 
 def test_replace_mode_overwrites():
     """In replace mode, typing should overwrite existing characters."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -86,7 +86,7 @@ def test_replace_mode_overwrites():
 
 def test_replace_mode_preserves_length():
     """Replace mode should not change line length when replacing same amount."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("abcdefghij\n")
         for i in range(5):
@@ -128,7 +128,7 @@ def test_replace_mode_preserves_length():
 
 def test_replace_mode_at_eol_inserts():
     """At end of line, replace mode should insert (like vim)."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("abc\n")
         for i in range(5):
@@ -166,7 +166,7 @@ def test_replace_mode_at_eol_inserts():
 
 def test_replace_mode_exit_esc():
     """ESC should exit replace mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):

@@ -25,7 +25,7 @@
 static FILE *log_file = nullptr;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static const char *LOG_PATH = "/tmp/uemacs_debug.log";
+static const char *LOG_PATH = "/tmp/muemacs_debug.log";
 
 void logger_init(void) {
     pthread_mutex_lock(&log_mutex);

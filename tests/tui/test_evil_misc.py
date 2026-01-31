@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_replace_char():
     """rx should replace character under cursor with 'x'."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -46,7 +46,7 @@ def test_replace_char():
 
 def test_replace_char_with_count():
     """3rx should replace 3 characters with 'x'."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -77,7 +77,7 @@ def test_replace_char_with_count():
 
 def test_toggle_case():
     """~ should toggle case of character and move right."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("Hello World\n")
         for i in range(5):
@@ -112,7 +112,7 @@ def test_toggle_case():
 
 def test_toggle_case_with_count():
     """3~ should toggle case of 3 characters."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("HELLO world\n")
         for i in range(5):

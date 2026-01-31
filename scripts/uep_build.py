@@ -70,7 +70,7 @@ def find_include_path() -> Optional[str]:
 
 
 def get_api_version() -> int:
-    """Read UEMACS_API_VERSION from extension.h header."""
+    """Read MUEMACS_API_VERSION from extension.h header."""
     inc = find_include_path()
     if not inc:
         return 4  # Default fallback
@@ -78,7 +78,7 @@ def get_api_version() -> int:
     try:
         content = header.read_text()
         for line in content.splitlines():
-            if line.startswith("#define UEMACS_API_VERSION "):
+            if line.startswith("#define MUEMACS_API_VERSION "):
                 parts = line.split()
                 if len(parts) >= 3:
                     return int(parts[2])
@@ -90,7 +90,7 @@ def get_api_version() -> int:
 def get_build_env() -> dict:
     """Get environment with API version set for subprocesses."""
     env = os.environ.copy()
-    env["UEMACS_API_VERSION"] = str(get_api_version())
+    env["MUEMACS_API_VERSION"] = str(get_api_version())
     return env
 
 
@@ -288,7 +288,7 @@ def build_c(ext_dir: Path, so_name: str) -> int:
 
     inc = find_include_path()
     api_ver = get_api_version()
-    cmd = ["gcc", "-shared", "-fPIC", "-O2", f"-DUEMACS_API_VERSION_BUILD={api_ver}", "-o", str(so_path)]
+    cmd = ["gcc", "-shared", "-fPIC", "-O2", f"-DMUEMACS_API_VERSION_BUILD={api_ver}", "-o", str(so_path)]
     if inc:
         cmd.extend(["-I", inc])
     cmd.extend([str(f) for f in files])
@@ -301,7 +301,7 @@ def build_cpp(ext_dir: Path, so_name: str) -> int:
     files = list(ext_dir.glob("*.cpp")) + list(ext_dir.glob("*.cc")) + list(ext_dir.glob("*.cxx"))
     inc = find_include_path()
     api_ver = get_api_version()
-    cmd = ["g++", "-shared", "-fPIC", "-O2", f"-DUEMACS_API_VERSION_BUILD={api_ver}", "-o", str(ext_dir / so_name)]
+    cmd = ["g++", "-shared", "-fPIC", "-O2", f"-DMUEMACS_API_VERSION_BUILD={api_ver}", "-o", str(ext_dir / so_name)]
     if inc:
         cmd.extend(["-I", inc])
     cmd.extend([str(f) for f in files])
@@ -602,7 +602,7 @@ def detect_and_build(ext_path: Path) -> int:
                 return 0
 
             # If API header changed, do a deep clean to purge all cached artifacts
-            # This is critical for ABI-breaking changes to struct uemacs_api
+            # This is critical for ABI-breaking changes to struct muemacs_api
             if api_changed:
                 deep_clean_extension(ext_dir, lang_name, so_name)
 

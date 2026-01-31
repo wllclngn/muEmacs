@@ -12,7 +12,7 @@
  *   LOG_ERROR("Component: Critical failure");
  *
  * Build:
- *   make debug-log   # Enables logging to /tmp/uemacs_debug.log
+ *   make debug-log   # Enables logging to /tmp/muemacs_debug.log
  *   make             # Release build (logging disabled, zero cost)
  */
 

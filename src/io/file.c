@@ -15,6 +15,7 @@
 
 #include "estruct.h"
 #include "internal/text_storage.h"
+#include "internal/piece_table.h"
 #include "edef.h"
 #include "efunc.h"
 #include "line.h"
@@ -214,50 +215,39 @@ static int readin_large(const char *fname, size_t file_size)
 
 	mlwrite("[READING LARGE FILE...]");
 
-	/* Scan for newlines and create view lines */
+	/* Get direct pointer to mmap'd buffer for SIMD-optimized memchr */
+	piece_table_t *pt = (piece_table_t *)bp->b_text;
+	const char *data = pt->original;
+	const char *data_end = data + file_size;
+
+	/* Scan for newlines using memchr - much faster than byte-by-byte */
 	size_t nline = 0;
-	size_t line_start = 0;
-	size_t pos = 0;
+	const char *line_start = data;
 
-	while (pos < file_size) {
-		char ch = TS_GET_CHAR(bp->b_text, pos);
-		if (ch == '\n') {
-			/* Found end of line - create view line */
-			size_t line_len = pos - line_start;
-			struct line *lp = lalloc_view(bp, line_start, line_len);
-			if (!lp) {
-				REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE VIEW LINE");
-				/* Clean up: free b_text */
-				TS_DESTROY(bp->b_text);
-				bp->b_text = nullptr;
-				return false;
-			}
+	while (line_start < data_end) {
+		const char *newline = memchr(line_start, '\n', (size_t)(data_end - line_start));
+		const char *line_end = newline ? newline : data_end;
+		size_t line_len = (size_t)(line_end - line_start);
+		size_t line_offset = (size_t)(line_start - data);
 
-			/* Link into buffer's line list */
-			struct line *lp2 = lback(bp->b_linep);
-			lp2->l_fp = lp;
-			lp->l_fp = bp->b_linep;
-			lp->l_bp = lp2;
-			bp->b_linep->l_bp = lp;
-
-			nline++;
-			line_start = pos + 1;
+		struct line *lp = lalloc_view(bp, line_offset, line_len);
+		if (!lp) {
+			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE VIEW LINE");
+			TS_DESTROY(bp->b_text);
+			bp->b_text = nullptr;
+			return false;
 		}
-		pos++;
-	}
 
-	/* Handle last line if no trailing newline */
-	if (line_start < file_size) {
-		size_t line_len = file_size - line_start;
-		struct line *lp = lalloc_view(bp, line_start, line_len);
-		if (lp) {
-			struct line *lp2 = lback(bp->b_linep);
-			lp2->l_fp = lp;
-			lp->l_fp = bp->b_linep;
-			lp->l_bp = lp2;
-			bp->b_linep->l_bp = lp;
-			nline++;
-		}
+		/* Link into buffer's line list */
+		struct line *lp2 = lback(bp->b_linep);
+		lp2->l_fp = lp;
+		lp->l_fp = bp->b_linep;
+		lp->l_bp = lp2;
+		bp->b_linep->l_bp = lp;
+
+		nline++;
+		if (!newline) break;  /* Last line had no trailing newline */
+		line_start = line_end + 1;  /* Skip past newline */
 	}
 
 	/* Build status message */
@@ -384,8 +374,9 @@ int readin(const char *fname, int lockfl)
 		lp1->l_fp = curbp->b_linep;
 		lp1->l_bp = lp2;
 		curbp->b_linep->l_bp = lp1;
-		for (i = 0; i < nbytes; ++i)
-			lputc(lp1, i, fline[i]);
+		/* Bulk insert - single TS_INSERT instead of char-by-char */
+		if (nbytes > 0)
+			TS_INSERT(lp1->storage, 0, fline, (size_t)nbytes);
 #if UEMACS_DEBUG_LOG
 		/* DEBUG: Check first line bytes after lputc */
 		if (nline == 0 && nbytes >= 3) {
@@ -548,10 +539,10 @@ int readin_from_memory(const char *data, size_t size)
 	const char *end = data + size;
 
 	while (line_start < end) {
-		/* Find end of line */
-		const char *line_end = line_start;
-		while (line_end < end && *line_end != '\n')
-			line_end++;
+		/* Find end of line using SIMD-optimized memchr */
+		const char *line_end = memchr(line_start, '\n', (size_t)(end - line_start));
+		if (!line_end)
+			line_end = end;  /* Last line without trailing newline */
 
 		int nbytes = (int)(line_end - line_start);
 
@@ -569,9 +560,9 @@ int readin_from_memory(const char *data, size_t size)
 		lp1->l_bp = lp2;
 		curbp->b_linep->l_bp = lp1;
 
-		/* Copy line content */
-		for (int i = 0; i < nbytes; i++)
-			lputc(lp1, i, line_start[i]);
+		/* Bulk insert - single TS_INSERT instead of char-by-char */
+		if (nbytes > 0)
+			TS_INSERT(lp1->storage, 0, line_start, (size_t)nbytes);
 
 		nline++;
 
@@ -940,8 +931,9 @@ int ifile(const char *fname)
 
 		/* and advance and write out the current line */
 		curwp->w_dotp = lp1;
-		for (i = 0; i < nbytes; ++i)
-			lputc(lp1, i, fline[i]);
+		/* Bulk insert - single TS_INSERT instead of char-by-char */
+		if (nbytes > 0)
+			TS_INSERT(lp1->storage, 0, fline, (size_t)nbytes);
 		++nline;
 	}
 	ffclose();		/* Ignore errors.       */

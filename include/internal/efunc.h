@@ -219,7 +219,7 @@ extern int transpose_line_down(int f, int n);
 /* Minimal, Linux‑only command set */
 
 /* main.c */
-extern int uemacs_main_entry(int argc, char *argv[]);
+extern int muemacs_main_entry(int argc, char *argv[]);
 extern void edinit(char *bname);
 extern int execute_event(input_key_event_t *evt, int f, int n);  /* Event-based dispatch */
 extern int quickexit(int f, int n);

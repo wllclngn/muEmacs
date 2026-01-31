@@ -107,7 +107,7 @@ typedef struct {
  * GLOBAL STATE
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-static loaded_extension_t extensions[UEMACS_MAX_EXTENSIONS];
+static loaded_extension_t extensions[MUEMACS_MAX_EXTENSIONS];
 static int extension_count_internal = 0;
 static bool extension_initialized = false;
 
@@ -169,7 +169,7 @@ static void pending_queue_add(const char *path, void *handle,
 }
 
 /* Forward declarations */
-extern struct uemacs_api *uemacs_get_api(void);
+extern struct muemacs_api *muemacs_get_api(void);
 static bool needs_rebuild(const char *ext_path);
 static char *get_extension_dir(const char *so_path);
 static char *get_extension_name(const char *path);
@@ -860,9 +860,9 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
         }
 
         /* Check API version */
-        if (ext->api_version != UEMACS_API_VERSION) {
+        if (ext->api_version != MUEMACS_API_VERSION) {
             LOG_ERRORF("Extension: API mismatch for '%s' (HAVE: v%d; NEED: v%d)",
-                       ext->name, ext->api_version, UEMACS_API_VERSION);
+                       ext->name, ext->api_version, MUEMACS_API_VERSION);
             dlclose(task->handle);
             continue;
         }
@@ -883,7 +883,7 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
 
         /* Find free slot (safe - single thread, no mutex needed) */
         loaded_extension_t *slot = nullptr;
-        for (int j = 0; j < UEMACS_MAX_EXTENSIONS; j++) {
+        for (int j = 0; j < MUEMACS_MAX_EXTENSIONS; j++) {
             if (!extensions[j].active) {
                 extensions[j].active = true;
                 slot = &extensions[j];
@@ -898,7 +898,7 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
 
         /* Initialize extension (safe - single thread, can modify shared state) */
         if (ext->init) {
-            struct uemacs_api *api = uemacs_get_api();
+            struct muemacs_api *api = muemacs_get_api();
             LOG_DEBUGF("Extension: Initializing %s with API (get_function=%s, struct_size=%zu)",
                        ext->name, api->get_function ? "SET" : "NULL", api->struct_size);
             double init_start = get_time_ms();
@@ -1279,7 +1279,7 @@ static bool is_extension_dir(const char *path) {
 [[nodiscard]]
 static loaded_extension_t *find_extension(const char *name) {
     if (!name) return nullptr;
-    for (int i = 0; i < UEMACS_MAX_EXTENSIONS; i++) {
+    for (int i = 0; i < MUEMACS_MAX_EXTENSIONS; i++) {
         if (extensions[i].active && extensions[i].ext &&
             extensions[i].ext->name &&
             strcmp(extensions[i].ext->name, name) == 0) {
@@ -1292,7 +1292,7 @@ static loaded_extension_t *find_extension(const char *name) {
 /* Find extension by path */
 [[nodiscard]]
 static loaded_extension_t *find_extension_by_path(const char *path) {
-    for (int i = 0; i < UEMACS_MAX_EXTENSIONS; i++) {
+    for (int i = 0; i < MUEMACS_MAX_EXTENSIONS; i++) {
         if (extensions[i].active && extensions[i].path &&
             strcmp(extensions[i].path, path) == 0) {
             return &extensions[i];
@@ -1306,7 +1306,7 @@ static loaded_extension_t *find_extension_by_path(const char *path) {
 static loaded_extension_t *find_free_slot(void) {
     pthread_mutex_lock(&extension_mutex);
     loaded_extension_t *slot = nullptr;
-    for (int i = 0; i < UEMACS_MAX_EXTENSIONS; i++) {
+    for (int i = 0; i < MUEMACS_MAX_EXTENSIONS; i++) {
         if (!extensions[i].active) {
             extensions[i].active = true;  /* Atomically claim slot */
             slot = &extensions[i];
@@ -1468,7 +1468,7 @@ int extension_poll_pending(void) {
             struct uemacs_extension *ext = p->entry();
             if (ext && ext->name) {
                 /* Check API version */
-                if (ext->api_version != UEMACS_API_VERSION) {
+                if (ext->api_version != MUEMACS_API_VERSION) {
                     LOG_ERRORF("Extension: API mismatch for '%s'", ext->name);
                     dlclose(p->handle);
                 } else if (find_extension(ext->name)) {
@@ -1478,7 +1478,7 @@ int extension_poll_pending(void) {
                     /* Find slot and init */
                     loaded_extension_t *slot = find_free_slot();
                     if (slot && ext->init) {
-                        struct uemacs_api *api = uemacs_get_api();
+                        struct muemacs_api *api = muemacs_get_api();
                         if (ext->init(api) == 0) {
                             slot->path = p->path;
                             p->path = NULL;  /* Transferred ownership */
@@ -1655,9 +1655,9 @@ int extension_load(const char *path) {
     }
 
     /* Check API version */
-    if (ext->api_version != UEMACS_API_VERSION) {
+    if (ext->api_version != MUEMACS_API_VERSION) {
         LOG_ERRORF("Extension: API mismatch for '%s' (HAVE: v%d; NEED: v%d)",
-                   ext->name, ext->api_version, UEMACS_API_VERSION);
+                   ext->name, ext->api_version, MUEMACS_API_VERSION);
         dlclose(handle);
         slot->active = false;
         return -2;  /* Special code for API mismatch */
@@ -1673,7 +1673,7 @@ int extension_load(const char *path) {
 
     /* Initialize extension */
     if (ext->init) {
-        struct uemacs_api *api = uemacs_get_api();
+        struct muemacs_api *api = muemacs_get_api();
         double init_start = get_time_ms();
         int init_result = ext->init(api);
         double init_time = get_time_ms() - init_start;
@@ -1761,7 +1761,7 @@ void extension_list(void) {
     }
 
     mlwrite("Loaded extensions:");
-    for (int i = 0; i < UEMACS_MAX_EXTENSIONS; i++) {
+    for (int i = 0; i < MUEMACS_MAX_EXTENSIONS; i++) {
         if (extensions[i].active && extensions[i].ext) {
             struct uemacs_extension *ext = extensions[i].ext;
             mlwrite("  %s v%s - %s",
@@ -2043,7 +2043,7 @@ void extension_cleanup(void) {
     inotify_watch_cleanup();
 
     /* Unload all in-process extensions in reverse order */
-    for (int i = UEMACS_MAX_EXTENSIONS - 1; i >= 0; i--) {
+    for (int i = MUEMACS_MAX_EXTENSIONS - 1; i >= 0; i--) {
         if (extensions[i].active && extensions[i].ext) {
             extension_unload(extensions[i].ext->name);
         }

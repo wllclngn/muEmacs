@@ -23,6 +23,7 @@
 #include "boyer_moore.h"
 #include "nfa.h"
 #include "parallel_search.h"
+#include "util/logger.h"
 
 /*
  * Search Strategy Enumeration
@@ -269,28 +270,32 @@ int scan_buffer_forward(const char *restrict pattern, int beg_or_end)
         if (bm_init(&bm, (const unsigned char*)pattern, patlen, case_sensitive) == 0) {
             struct line *lp = curline;
             int off = curoff;
-            
+            int lines_searched = 0;
+
             while (lp != curbp->b_linep) {
+                lines_searched++;
                 int n = llength(lp);
                 if (n > 0) {
                     int start = (lp == curline) ? off : 0;
+                    /* If cursor is at or past end of line, skip to next line */
+                    if (start >= n) {
+                        lp = lforw(lp);
+                        continue;
+                    }
                     const char *line_text = get_line_text(lp, line_buf, NSTRING);
-                    /* Ensure start is within bounds */
-                    int safe_start = (start < n) ? start : (n - 1);
-                    if (safe_start >= 0) {
-                        int idx = bm_search(&bm, (const unsigned char*)line_text, n, safe_start);
-                        if (idx >= 0) {
-                            matchline = lp; matchoff = idx;
-                            curwp->w_dotp = lp;
-                            curwp->w_doto = (beg_or_end == POS_END) ? (idx + patlen) : idx;
-                            curwp->w_flag |= WFMOVE;
-                            bm_free(&bm);
-                            return true;
-                        }
+                    int idx = bm_search(&bm, (const unsigned char*)line_text, n, start);
+                    if (idx >= 0) {
+                        matchline = lp; matchoff = idx;
+                        curwp->w_dotp = lp;
+                        curwp->w_doto = (beg_or_end == POS_END) ? (idx + patlen) : idx;
+                        curwp->w_flag |= WFMOVE;
+                        bm_free(&bm);
+                        return true;
                     }
                 }
                 lp = lforw(lp);
             }
+            LOG_DEBUGF("BMH: searched %d lines, no match for '%s'", lines_searched, pattern);
         }
         bm_free(&bm);
     }
@@ -332,9 +337,8 @@ int scan_buffer_forward(const char *restrict pattern, int beg_or_end)
  */
 int scan_buffer_backward(const char *restrict pattern, int beg_or_end)
 {
-    /* Reverse search beg_or_end toggle handled by caller logic usually,
-     * but legacy scanner did `beg_or_end ^= direct`. 
-     * Since direct=DIR_REVERSE=1, we toggle it here to match legacy behavior.
+    /* Toggle beg_or_end with direction to match Linus' original behavior.
+     * Reverse search called with POS_BEGIN, toggled to POS_END here.
      */
     beg_or_end ^= DIR_REVERSE;
 

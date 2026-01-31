@@ -92,7 +92,7 @@ class UEmacsTest:
             The filename that was created.
         """
         if filename is None:
-            filename = '/tmp/uemacs_tui_test.txt'
+            filename = '/tmp/muemacs_tui_test.txt'
         if content is None:
             content = "This is a test file.\n" + "".join(f"Line {i+2}\n" for i in range(20))
         with open(filename, 'w') as f:

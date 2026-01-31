@@ -22,7 +22,7 @@ from base import UEmacsTest
 
 def test_search_forward():
     """search-forward should find pattern."""
-    filename = '/tmp/uemacs_search_test.txt'
+    filename = '/tmp/muemacs_search_test.txt'
     with open(filename, 'w') as f:
         f.write("first line\n")
         f.write("second line\n")
@@ -63,7 +63,7 @@ def test_search_forward():
 
 def test_search_reverse():
     """search-reverse should search backward for pattern."""
-    filename = '/tmp/uemacs_search_test.txt'
+    filename = '/tmp/muemacs_search_test.txt'
     with open(filename, 'w') as f:
         f.write("first MARKER line\n")
         f.write("second line\n")
@@ -109,7 +109,7 @@ def test_search_reverse():
 
 def test_replace_string():
     """M-R should replace all occurrences."""
-    filename = '/tmp/uemacs_search_test.txt'
+    filename = '/tmp/muemacs_search_test.txt'
     with open(filename, 'w') as f:
         f.write("foo is here\n")
         f.write("and foo again\n")
@@ -157,7 +157,7 @@ def test_replace_string():
 
 def test_query_replace():
     """M-C-R should do interactive query replace."""
-    filename = '/tmp/uemacs_search_test.txt'
+    filename = '/tmp/muemacs_search_test.txt'
     with open(filename, 'w') as f:
         f.write("old text here\n")
         f.write("more old stuff\n")
@@ -210,7 +210,7 @@ def test_query_replace():
 
 def test_search_not_found():
     """Search for non-existent pattern should show message."""
-    filename = '/tmp/uemacs_search_test.txt'
+    filename = '/tmp/muemacs_search_test.txt'
     with open(filename, 'w') as f:
         f.write("some text\n")
         for i in range(10):

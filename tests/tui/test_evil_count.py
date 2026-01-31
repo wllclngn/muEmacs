@@ -84,7 +84,7 @@ def test_count_motion_up():
 def test_count_delete_chars():
     """3x should delete 3 characters."""
     # Create test file with known content
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("ABCDEFGHIJ\n")
         for i in range(10):
@@ -115,7 +115,7 @@ def test_count_delete_chars():
 def test_count_delete_lines():
     """2dd should delete 2 lines."""
     # Create test file with known content
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("Line 1\n")
         f.write("Line 2\n")
@@ -149,7 +149,7 @@ def test_count_delete_lines():
 def test_count_with_operator():
     """d3w should delete 3 words."""
     # Create test file with known content
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("one two three four five six\n")
         for i in range(10):

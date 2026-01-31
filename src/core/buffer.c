@@ -2,6 +2,7 @@
 
 #include        <stdio.h>
 #include        <signal.h>
+#include        <sys/stat.h>
 #include        <sys/wait.h>
 
 #include "estruct.h"
@@ -175,16 +176,26 @@ int swbuffer(struct buffer *bp)
 	}
 	curbp = bp; // Switch.
 	if (curbp->b_active != true) { // buffer not active yet
-		/* Try preloaded data first (async file read) */
-		char *preload_data = NULL;
-		size_t preload_size = 0;
-		if (file_preload_get(curbp->b_fname, &preload_data, &preload_size) == 0) {
-			/* Use preloaded data - no disk I/O needed */
-			readin_from_memory(preload_data, preload_size);
-			free(preload_data);
-		} else {
-			/* Fall back to synchronous disk read */
+		/* Check file size - large files use piece table (mmap) for O(1) loading */
+		struct stat st;
+		bool use_piece_table = (stat(curbp->b_fname, &st) == 0 &&
+		                        st.st_size >= (off_t)STORAGE_THRESHOLD_DEFAULT);
+
+		if (use_piece_table) {
+			/* Large file: skip preload, use mmap + piece table */
 			readin(curbp->b_fname, true);
+		} else {
+			/* Try preloaded data first (async file read) */
+			char *preload_data = NULL;
+			size_t preload_size = 0;
+			if (file_preload_get(curbp->b_fname, &preload_data, &preload_size) == 0) {
+				/* Use preloaded data - no disk I/O needed */
+				readin_from_memory(preload_data, preload_size);
+				free(preload_data);
+			} else {
+				/* Fall back to synchronous disk read */
+				readin(curbp->b_fname, true);
+			}
 		}
 		curbp->b_dotp = lforw(curbp->b_linep);
 		curbp->b_doto = 0;
@@ -704,6 +715,12 @@ int bclear(struct buffer *bp)
 	bp->b_flag &= ~BFCHG; // Not changed
 	while ((lp = lforw(bp->b_linep)) != bp->b_linep)
 		lfree(lp);
+
+	/* Release piece table storage for large file support */
+	if (bp->b_text) {
+		TS_DESTROY(bp->b_text);
+		bp->b_text = nullptr;
+	}
 	bp->b_dotp = bp->b_linep; // Fix "."
 	bp->b_doto = 0;
 	bp->b_markp = nullptr; // Invalidate "mark"

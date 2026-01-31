@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_delete_inner_word():
     """diw should delete the word under cursor."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world test\n")
         for i in range(5):
@@ -56,7 +56,7 @@ def test_delete_inner_word():
 
 def test_delete_around_word():
     """daw should delete word plus surrounding whitespace."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world test\n")
         for i in range(5):
@@ -94,7 +94,7 @@ def test_delete_around_word():
 
 def test_delete_inner_quote():
     """di\" should delete text inside quotes (not quotes themselves)."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write('say "hello world" now\n')
         for i in range(5):
@@ -139,7 +139,7 @@ def test_delete_inner_quote():
 
 def test_delete_around_quote():
     """da\" should delete quotes and their contents."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write('say "hello world" now\n')
         for i in range(5):
@@ -178,7 +178,7 @@ def test_delete_around_quote():
 
 def test_delete_inner_paren():
     """di( should delete text inside parentheses."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write('func(arg1, arg2) end\n')
         for i in range(5):
@@ -223,7 +223,7 @@ def test_delete_inner_paren():
 
 def test_change_inner_word():
     """ciw should delete word and enter insert mode."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world test\n")
         for i in range(5):

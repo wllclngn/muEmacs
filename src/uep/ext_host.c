@@ -261,8 +261,8 @@ static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
     /* Find runner */
     const char *runner = g_runner_path;
     if (!runner) {
-        static const char *build = "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/build/bin/uemacs-ext-runner";
-        runner = (access(build, X_OK) == 0) ? build : "uemacs-ext-runner";
+        static const char *build = "/home/mod/personal/PROGRAMMING/SYSTEM PROGRAMS/LINUX/μEmacs/build/bin/muemacs-ext-runner";
+        runner = (access(build, X_OK) == 0) ? build : "muemacs-ext-runner";
     }
 
     pid_t pid = fork();

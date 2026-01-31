@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_forward_search():
     """/pattern should find pattern forward."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         f.write("this is a test\n")
@@ -52,7 +52,7 @@ def test_forward_search():
 
 def test_backward_search():
     """?pattern should find pattern backward."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("start here\n")
         f.write("middle line\n")
@@ -92,7 +92,7 @@ def test_backward_search():
 
 def test_search_next():
     """n should repeat search in same direction."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("apple one\n")
         f.write("banana two\n")
@@ -138,7 +138,7 @@ def test_search_next():
 
 def test_search_prev():
     """N should repeat search in opposite direction (tests direction tracking)."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("first match here\n")    # Row 0 - first match
         f.write("middle line only\n")    # Row 1 - no match
@@ -191,7 +191,7 @@ def test_search_prev():
 
 def test_search_word_forward():
     """* should search forward for word under cursor."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world\n")
         f.write("this is nice\n")
@@ -224,7 +224,7 @@ def test_search_word_forward():
 
 def test_search_word_backward():
     """# should search backward for word under cursor."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("target word here\n")    # Row 0
         f.write("this is nice\n")        # Row 1

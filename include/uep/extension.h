@@ -14,34 +14,34 @@
 #include <stdbool.h>
 
 /* Forward declarations */
-struct uemacs_api;
+struct muemacs_api;
 struct buffer;
 
 /* Extension entry point symbol name */
 #define UEMACS_EXTENSION_ENTRY uemacs_extension_entry
 
 /* API version for compatibility checking */
-#define UEMACS_API_VERSION 4
+#define MUEMACS_API_VERSION 4
 
 /* Build-time API version - passed by uep_build.py via compiler flag.
  * Extensions should use this in their struct uemacs_extension.
- * Falls back to UEMACS_API_VERSION if not provided by build system. */
-#ifndef UEMACS_API_VERSION_BUILD
-#define UEMACS_API_VERSION_BUILD UEMACS_API_VERSION
+ * Falls back to MUEMACS_API_VERSION if not provided by build system. */
+#ifndef MUEMACS_API_VERSION_BUILD
+#define MUEMACS_API_VERSION_BUILD MUEMACS_API_VERSION
 #endif
 
 /* Maximum loaded extensions */
-#define UEMACS_MAX_EXTENSIONS 64
+#define MUEMACS_MAX_EXTENSIONS 64
 
 /* Extension descriptor - extensions must provide this */
 struct uemacs_extension {
-    int api_version;            /* Must match UEMACS_API_VERSION */
+    int api_version;            /* Must match MUEMACS_API_VERSION */
     const char *name;           /* Short name: "my-git-workflow" */
     const char *version;        /* Semantic version: "1.0.0" */
     const char *description;    /* Human-readable description */
 
     /* Lifecycle callbacks */
-    int  (*init)(struct uemacs_api *api);   /* Called on load, return 0 on success */
+    int  (*init)(struct muemacs_api *api);   /* Called on load, return 0 on success */
     void (*cleanup)(void);                   /* Called on unload */
 };
 

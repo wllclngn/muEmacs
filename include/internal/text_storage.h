@@ -39,7 +39,7 @@ typedef enum {
  * gap buffer's locality benefits.
  * ============================================================================ */
 
-#define STORAGE_THRESHOLD_DEFAULT     (10UL * 1024 * 1024)   /* 10 MB */
+#define STORAGE_THRESHOLD_DEFAULT     (2UL * 1024 * 1024)    /* 2 MB - lowered for faster mmap loading */
 #define STORAGE_THRESHOLD_READONLY    (1UL * 1024 * 1024)    /* 1 MB for viewing */
 #define STORAGE_THRESHOLD_HEAVY_EDIT  (50UL * 1024 * 1024)   /* 50 MB */
 #define STORAGE_FORCE_PIECE_TABLE     (100UL * 1024 * 1024)  /* 100 MB+ always piece table */

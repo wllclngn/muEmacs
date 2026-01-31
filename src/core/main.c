@@ -90,7 +90,7 @@ void usage(int status)
   exit(status);
 }
 
-int uemacs_main_entry(int argc, char **argv)
+int muemacs_main_entry(int argc, char **argv)
 {
 	struct main_args args = {0};
 	struct main_state state = {0};

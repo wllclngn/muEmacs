@@ -170,11 +170,11 @@ Multiple providers with automatic detection:
 - **Thread Safety**: Atomic operations throughout (cursor, display, undo, kill ring)
 - **Zero Legacy**: All MSDOS, VMS, Amiga, termcap code removed - Linux only
 
-### Main Interface: evil-mode, write-edit Enabled
+### Main Interface: evil-mode Enabled
 ![Editor](2025-12-31_14-03.png)
 
 ### Large Display View: Default muEmacs
-![Dense](2025-12-31_14-12.png)
+![Dense](2026-01-30_23-45.png)
 
 ## Installation
 
@@ -207,7 +207,7 @@ sudo cmake --install build
 ./install.py uninstall   # Remove installed binaries
 ./install.py test        # Run tests
 ./install.py --debug     # Debug build (ASAN/UBSAN, no logging)
-./install.py --debug-log # Debug build with logging to /tmp/uemacs_debug.log
+./install.py --debug-log # Debug build with logging to /tmp/muemacs_debug.log
 ```
 
 ### Dependencies

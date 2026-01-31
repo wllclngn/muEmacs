@@ -322,7 +322,7 @@ def test_realistic_poe_typing():
     print(f"Loaded {len(poe_lines)} lines of Poe text", flush=True)
 
     # Create temp file for test
-    test_file = '/tmp/uemacs_poe_test.txt'
+    test_file = '/tmp/muemacs_poe_test.txt'
     with open(test_file, 'w') as f:
         f.write('')  # Empty file
 

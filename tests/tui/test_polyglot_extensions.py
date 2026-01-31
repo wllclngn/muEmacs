@@ -11,7 +11,7 @@ Extensions tested:
 6. multicursor_pascal (Pascal) - Multiple cursors
 7. ai_crystal (Crystal) - AI completion
 
-Uses debug logs at /tmp/uemacs_debug.log to verify extension loading.
+Uses debug logs at /tmp/muemacs_debug.log to verify extension loading.
 """
 
 import sys
@@ -27,7 +27,7 @@ import pyte
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "../.."))
 BINARY = os.path.join(PROJECT_ROOT, "build/bin/μEmacs")
-LOG_FILE = "/tmp/uemacs_debug.log"
+LOG_FILE = "/tmp/muemacs_debug.log"
 
 if not os.path.exists(BINARY):
     BINARY = os.path.join(PROJECT_ROOT, "build/bin/muEmacs")
@@ -144,7 +144,7 @@ def test_extension_loading():
 
     log = read_log()
     if not log:
-        print("[ERROR] No debug log found at /tmp/uemacs_debug.log")
+        print("[ERROR] No debug log found at /tmp/muemacs_debug.log")
         print("  Ensure muEmacs is built with -DUEMACS_DEBUG_LOG=ON")
         t.close()
         return False

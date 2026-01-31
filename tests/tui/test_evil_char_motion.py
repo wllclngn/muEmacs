@@ -16,7 +16,7 @@ from base import UEmacsTest
 
 def test_find_char_forward():
     """fa should move cursor to next 'a'."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world apple\n")
         for i in range(10):
@@ -50,7 +50,7 @@ def test_find_char_forward():
 
 def test_find_char_backward():
     """Fa from end should find 'a' backward."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world apple\n")
         for i in range(10):
@@ -88,7 +88,7 @@ def test_find_char_backward():
 
 def test_till_char_forward():
     """ta should move cursor to just before next 'a'."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello world apple\n")
         for i in range(10):
@@ -121,7 +121,7 @@ def test_till_char_forward():
 
 def test_repeat_find():
     """; should repeat last f command."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("aaa bbb aaa ccc aaa\n")
         for i in range(10):
@@ -164,7 +164,7 @@ def test_repeat_find():
 
 def test_count_find():
     """2fa should find second 'a'."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("aaa bbb aaa ccc aaa\n")
         for i in range(10):
@@ -198,7 +198,7 @@ def test_count_find():
 
 def test_delete_till_char():
     """dta should delete from cursor to just before 'a'."""
-    filename = '/tmp/uemacs_evil_test.txt'
+    filename = '/tmp/muemacs_evil_test.txt'
     with open(filename, 'w') as f:
         f.write("hello apple\n")
         for i in range(10):

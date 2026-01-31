@@ -59,7 +59,7 @@ def cmd_build(args, source_dir):
         cmake_args.append("-DCMAKE_BUILD_TYPE=Release")
 
     if args.debug_log:
-        cmake_args.append("-DUEMACS_DEBUG_LOG=ON")
+        cmake_args.append("-DMUEMACS_DEBUG_LOG=ON")
 
     if args.prefix:
         cmake_args.append(f"-DCMAKE_INSTALL_PREFIX={args.prefix}")
@@ -152,7 +152,7 @@ def cmd_uninstall(args, source_dir):
     files = [
         prefix / "bin" / "μEmacs",
         prefix / "bin" / "muEmacs",
-        prefix / "bin" / "uemacs-ext-runner",
+        prefix / "bin" / "muemacs-ext-runner",
     ]
 
     removed = False

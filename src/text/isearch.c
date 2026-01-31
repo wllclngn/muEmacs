@@ -13,6 +13,7 @@
 
 static int echo_char(int c, int col);
 static bool isearch_read_event(input_key_event_t *out);
+static int match_pat_behind(const char *patrn);
 
 /* A couple of "own" variables for re-eat */
 
@@ -177,6 +178,10 @@ start_over:
 		/* Ctrl-R: search backward */
 		if (evt_is_ctrl(&evt, 'R')) {
 			n = -1;
+			/* If pattern matches immediately behind cursor, skip past it first */
+			if (pat[0] != '\0' && match_pat_behind(pat)) {
+				move_char_backward(true, strlen(pat));
+			}
 			status = scanmore(pat, n);
 			if (!isearch_read_event(&evt))
 				return false;
@@ -323,6 +328,40 @@ int scanmore(char *patrn, int dir)	/* search forward or back for a pattern      
 	}
 
 	return sts;		/* else, don't even try       */
+}
+
+/*
+ * Check if the pattern matches immediately BEHIND the cursor.
+ * Used before reverse search to detect if we're sitting right after a match.
+ * Returns true if pattern ends at current cursor position.
+ */
+static int match_pat_behind(const char *patrn)
+{
+	int patlen = strlen(patrn);
+	if (patlen == 0) return false;
+
+	/* Calculate start position: patlen chars before cursor */
+	struct line *lp = curwp->w_dotp;
+	int off = curwp->w_doto;
+
+	/* Move back patlen characters */
+	for (int i = 0; i < patlen; i++) {
+		if (off == 0) {
+			lp = lback(lp);
+			if (lp == curbp->b_linep)
+				return false;  /* Hit beginning of buffer */
+			off = llength(lp);
+			/* Account for newline at end of previous line */
+			if (patrn[patlen - 1 - i] != '\n')
+				return false;
+		} else {
+			off--;
+			if (lgetc(lp, off) != patrn[patlen - 1 - i] &&
+			    !eq(lgetc(lp, off), patrn[patlen - 1 - i]))
+				return false;
+		}
+	}
+	return true;
 }
 
 /*

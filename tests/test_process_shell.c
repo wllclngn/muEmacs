@@ -215,7 +215,7 @@ int test_environment_variables(void) {
     LOG_INFO("Testing environment variable setting...");
     total++;
     
-    const char* test_var_name = "UEMACS_TEST_VAR";
+    const char* test_var_name = "MUEMACS_TEST_VAR";
     const char* test_var_value = "test_value_123";
     
     if (setenv(test_var_name, test_var_value, 1) == 0) {
@@ -233,7 +233,7 @@ int test_environment_variables(void) {
     passed++; // Count as passed
     
     if (0) { // Disabled due to memory corruption
-    setenv("UEMACS_INHERIT_TEST", "inherited_value", 1);
+    setenv("MUEMACS_INHERIT_TEST", "inherited_value", 1);
     
     int pipefd[2];
     if (pipe(pipefd) == 0) {
@@ -244,7 +244,7 @@ int test_environment_variables(void) {
             close(pipefd[1]);
             
             // Child process checks if it inherited the variable
-            const char* inherited = getenv("UEMACS_INHERIT_TEST");
+            const char* inherited = getenv("MUEMACS_INHERIT_TEST");
             if (inherited) {
                 printf("%s", inherited);
             }
@@ -266,14 +266,14 @@ int test_environment_variables(void) {
         }
     }
     
-    unsetenv("UEMACS_INHERIT_TEST");
+    unsetenv("MUEMACS_INHERIT_TEST");
     } // End disabled block
     
     // Test environment variable expansion in commands
     LOG_INFO("Testing environment variable expansion...");
     total++;
     
-    setenv("UEMACS_EXPAND_TEST", "expanded", 1);
+    setenv("MUEMACS_EXPAND_TEST", "expanded", 1);
     
     int pipefd[2]; // Declare here to avoid compilation error
     if (pipe(pipefd) == 0) {
@@ -283,8 +283,8 @@ int test_environment_variables(void) {
             dup2(pipefd[1], STDOUT_FILENO);
             close(pipefd[1]);
             
-            // Shell should expand $UEMACS_EXPAND_TEST
-            execl("/bin/sh", "sh", "-c", "echo $UEMACS_EXPAND_TEST", NULL);
+            // Shell should expand $MUEMACS_EXPAND_TEST
+            execl("/bin/sh", "sh", "-c", "echo $MUEMACS_EXPAND_TEST", NULL);
             safe_child_exit(1);
         } else if (pid > 0) {
             close(pipefd[1]);
@@ -303,7 +303,7 @@ int test_environment_variables(void) {
         }
     }
     
-    unsetenv("UEMACS_EXPAND_TEST");
+    unsetenv("MUEMACS_EXPAND_TEST");
     
     LOG_INFOF("Environment variable tests: %d/%d passed\n", passed, total);
     return (passed == total);

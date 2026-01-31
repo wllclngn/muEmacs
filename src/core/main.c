@@ -30,6 +30,7 @@
 #include "terminal/input_state.h" /* Unified input parser */
 #include "editor_mode.h"        /* Vim mode state for replace mode */
 #include "uep/ext_host.h"       /* Out-of-process extension host */
+#include "util/file_preload.h"  /* Async file preloading */
 
 #ifndef GOOD
 #define GOOD    0
@@ -70,6 +71,7 @@ struct main_state {
 // Function prototypes for refactored main()
 static void initialize_platform(void);
 static int handle_help_version(int argc, char **argv);
+static const char *extract_first_filename(int argc, char **argv);
 static void initialize_editor(void);
 static int parse_command_line(int argc, char **argv, struct main_args *args);
 static void process_input_files(struct main_args *args, struct main_state *state);
@@ -100,12 +102,19 @@ int uemacs_main_entry(int argc, char **argv)
 	// Initialize debug logging (no-op if UEMACS_DEBUG_LOG=0)
 	logger_init();
 	LOG_INFO("uEmacs: Starting...");
-	
+
 	// Handle version and help early
 	if (handle_help_version(argc, argv))
 		return EXIT_SUCCESS;
-	
-	// Initialize editor subsystems
+
+	// Start async file preload BEFORE editor init (runs in parallel)
+	const char *first_file = extract_first_filename(argc, argv);
+	if (first_file) {
+		LOG_INFOF("uEmacs: Preloading file: %s", first_file);
+		file_preload_start(first_file);
+	}
+
+	// Initialize editor subsystems (runs IN PARALLEL with file preload)
 	initialize_editor();
 	
 	// Parse command line arguments
@@ -138,6 +147,19 @@ static void initialize_platform(void)
 	// Signal handlers are now initialized via signal_handlers_init() in curses.c
 	// No platform-specific signal setup needed here
 	(void)0;
+}
+
+// Extract first filename from argv for early preloading
+// Returns NULL if no file argument found
+static const char *extract_first_filename(int argc, char **argv)
+{
+	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] == '+') continue;          // Skip +line
+		if (argv[i][0] == '-') continue;          // Skip -flags
+		if (argv[i][0] == '@') continue;          // Skip @macros
+		return argv[i];                            // First bare filename
+	}
+	return NULL;
 }
 
 // Handle --help and --version early
@@ -351,6 +373,10 @@ loop:
 
 	/* Poll out-of-process extensions for pending messages (non-blocking) */
 	ext_host_poll_nonblocking();
+
+	/* Initialize any extensions that finished loading in background */
+	extern int extension_poll_pending(void);
+	extension_poll_pending();
 
 	/* Check EVIL flash timer - refresh modeline when 3-second splash expires */
 	{

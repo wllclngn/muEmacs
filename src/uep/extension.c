@@ -131,6 +131,43 @@ static int inotify_wd = -1;
 static time_t cached_api_mtime = 0;
 static bool api_mtime_cached = false;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ASYNC LOADING - Pending init queue
+ *
+ * Background threads do dlopen() + dlsym(), then add to this queue.
+ * Main loop drains queue and calls init() (single-threaded, no races).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    char *path;
+    void *handle;
+    extension_entry_fn entry;
+    ext_runtime_t runtime;
+    bool needs_isolation;
+} pending_ext_t;
+
+#define MAX_PENDING_EXTENSIONS 64
+static pending_ext_t pending_queue[MAX_PENDING_EXTENSIONS];
+static int pending_count = 0;
+static pthread_mutex_t pending_mutex = PTHREAD_MUTEX_INITIALIZER;
+static atomic_bool autoload_in_progress = false;
+
+/* Add extension to pending queue (called from background thread) */
+static void pending_queue_add(const char *path, void *handle,
+                              extension_entry_fn entry, ext_runtime_t runtime,
+                              bool needs_isolation) {
+    pthread_mutex_lock(&pending_mutex);
+    if (pending_count < MAX_PENDING_EXTENSIONS) {
+        pending_ext_t *p = &pending_queue[pending_count++];
+        p->path = strdup(path);
+        p->handle = handle;
+        p->entry = entry;
+        p->runtime = runtime;
+        p->needs_isolation = needs_isolation;
+    }
+    pthread_mutex_unlock(&pending_mutex);
+}
+
 /* Forward declarations */
 extern struct uemacs_api *uemacs_get_api(void);
 static bool needs_rebuild(const char *ext_path);
@@ -138,6 +175,7 @@ static char *get_extension_dir(const char *so_path);
 static char *get_extension_name(const char *path);
 static loaded_extension_t *find_extension(const char *name);
 static loaded_extension_t *find_extension_by_path(const char *path);
+static void extension_load_dir_async(const char *dir);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * MODERN LINUX SYSCALLS
@@ -668,6 +706,75 @@ static void *dlopen_thread_fn(void *arg) {
     task->dlopen_result = 0;
     atomic_store(&task->done, true);
     return nullptr;
+}
+
+/*
+ * Async dlopen worker - fire and forget.
+ * Does dlopen/dlsym, then adds to pending queue for main thread init.
+ */
+typedef struct {
+    char *path;
+} async_dlopen_arg_t;
+
+static void *async_dlopen_worker(void *arg) {
+    async_dlopen_arg_t *a = arg;
+    char *path = a->path;
+    free(a);
+
+    /* Detect runtime type */
+    char *ext_dir = get_extension_dir(path);
+    ext_runtime_t runtime = ext_host_detect_runtime(ext_dir);
+    bool needs_isolation = ext_host_needs_isolation(runtime);
+    free(ext_dir);
+
+    if (needs_isolation) {
+        /* Out-of-process extension - add to queue for spawning */
+        pending_queue_add(path, NULL, NULL, runtime, true);
+        free(path);
+        return NULL;
+    }
+
+    /* In-process: do dlopen */
+    void *handle = dlopen(path, RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
+    if (!handle) {
+        LOG_ERRORF("Extension: dlopen failed: %s", dlerror());
+        free(path);
+        return NULL;
+    }
+
+    /* Get entry point */
+    dlerror();
+    union {
+        void *ptr;
+        extension_entry_fn fn;
+    } entry_u;
+    entry_u.ptr = dlsym(handle, "uemacs_extension_entry");
+    extension_entry_fn entry = entry_u.fn;
+
+    const char *dl_error = dlerror();
+    if (dl_error || !entry) {
+        LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "NULL");
+        dlclose(handle);
+        free(path);
+        return NULL;
+    }
+
+    /* Add to pending queue - main thread will call init */
+    pending_queue_add(path, handle, entry, runtime, false);
+    free(path);
+    return NULL;
+}
+
+/* Fire-and-forget async extension load */
+static void async_load_extension(const char *path) {
+    async_dlopen_arg_t *arg = malloc(sizeof(*arg));
+    if (!arg) return;
+    arg->path = strdup(path);
+    if (!arg->path) { free(arg); return; }
+
+    pthread_t t;
+    pthread_create(&t, NULL, async_dlopen_worker, arg);
+    pthread_detach(t);
 }
 
 /*
@@ -1273,44 +1380,127 @@ void extension_init(void) {
     LOG_INFO("Extension: Subsystem initialized (Linux 2026 optimizations, hybrid IPC)");
 }
 
-/* Auto-load extensions from configured directory */
+/* Background autoload worker thread */
+static void *autoload_worker(void *arg) {
+    (void)arg;
+
+    /* Block SIGHUP in this thread */
+    sigset_t block_set;
+    sigemptyset(&block_set);
+    sigaddset(&block_set, SIGHUP);
+    pthread_sigmask(SIG_BLOCK, &block_set, NULL);
+
+    LOG_INFO("Extension: Background loading started");
+    double start = get_time_ms();
+
+    extension_load_dir_async(autoload_dir);
+
+    double elapsed = get_time_ms() - start;
+    LOG_INFOF("Extension: Background loading finished in %.1fms", elapsed);
+
+    atomic_store(&autoload_in_progress, false);
+    return NULL;
+}
+
+/* Auto-load extensions from configured directory (NON-BLOCKING) */
 void extension_autoload(void) {
     if (!autoload_dir[0]) {
         LOG_DEBUG("Extension: No auto-load directory configured");
         return;
     }
 
-    /* Block SIGHUP during extension loading to prevent spurious exits
-     * Child process forking can sometimes trigger SIGHUP to parent */
-    sigset_t block_set, old_set;
-    sigemptyset(&block_set);
-    sigaddset(&block_set, SIGHUP);
-    sigprocmask(SIG_BLOCK, &block_set, &old_set);
-
     /* Initialize inotify watch */
     inotify_watch_init(autoload_dir);
 
-    LOG_INFOF("Extension: Auto-loading from %s", autoload_dir);
+    LOG_INFOF("Extension: Starting background load from %s", autoload_dir);
 
-    double total_start = get_time_ms();
-    int loaded = extension_load_dir(autoload_dir);
-    double total_time = get_time_ms() - total_start;
+    /* Fire and forget - returns immediately */
+    atomic_store(&autoload_in_progress, true);
+    pthread_t thread;
+    pthread_create(&thread, NULL, autoload_worker, NULL);
+    pthread_detach(thread);
+}
 
-    if (loaded > 0) {
-        LOG_INFOF("Extension: Auto-loaded %d extension(s) in %.1fms", loaded, total_time);
-        if (total_time > 500.0) {
-            LOG_WARNF("Extension: SLOW STARTUP: Total extension load took %.1fms", total_time);
-        }
-    } else if (loaded == 0) {
-        LOG_DEBUG("Extension: No extensions found in auto-load directory");
+/*
+ * Poll for pending extensions and init them (called from main loop).
+ * Returns count of extensions initialized this call.
+ */
+int extension_poll_pending(void) {
+    /* Quick check without lock */
+    if (pending_count == 0) {
+        return 0;
     }
 
-    /* Restore signal mask - discard any pending SIGHUP from extension loading */
-    sigprocmask(SIG_SETMASK, &old_set, NULL);
+    /* Drain queue under lock, then init outside lock */
+    pending_ext_t local[MAX_PENDING_EXTENSIONS];
+    int count = 0;
 
-    /* Clear any SIGHUP that arrived while blocked */
-    extern volatile sig_atomic_t sig_hup_pending;
-    sig_hup_pending = 0;
+    pthread_mutex_lock(&pending_mutex);
+    count = pending_count;
+    if (count > 0) {
+        memcpy(local, pending_queue, count * sizeof(pending_ext_t));
+        pending_count = 0;
+    }
+    pthread_mutex_unlock(&pending_mutex);
+
+    if (count == 0) {
+        return 0;
+    }
+
+    LOG_DEBUGF("Extension: Initializing %d pending extension(s)", count);
+
+    int initialized = 0;
+    for (int i = 0; i < count; i++) {
+        pending_ext_t *p = &local[i];
+
+        if (p->needs_isolation) {
+            /* Out-of-process extension */
+            char *ext_name = get_extension_name(p->path);
+            if (ext_name) {
+                int result = ext_host_spawn_async(ext_name, p->path, p->runtime);
+                if (result >= 0) {
+                    initialized++;
+                }
+                free(ext_name);
+            }
+        } else if (p->handle && p->entry) {
+            /* In-process extension - run init */
+            struct uemacs_extension *ext = p->entry();
+            if (ext && ext->name) {
+                /* Check API version */
+                if (ext->api_version != UEMACS_API_VERSION) {
+                    LOG_ERRORF("Extension: API mismatch for '%s'", ext->name);
+                    dlclose(p->handle);
+                } else if (find_extension(ext->name)) {
+                    LOG_DEBUGF("Extension: Already loaded: %s", ext->name);
+                    dlclose(p->handle);
+                } else {
+                    /* Find slot and init */
+                    loaded_extension_t *slot = find_free_slot();
+                    if (slot && ext->init) {
+                        struct uemacs_api *api = uemacs_get_api();
+                        if (ext->init(api) == 0) {
+                            slot->path = p->path;
+                            p->path = NULL;  /* Transferred ownership */
+                            slot->handle = p->handle;
+                            slot->ext = ext;
+                            extension_count_internal++;
+                            initialized++;
+                            LOG_INFOF("Extension: Loaded '%s' v%s",
+                                      ext->name, ext->version ? ext->version : "?.?.?");
+                        } else {
+                            slot->active = false;
+                            dlclose(p->handle);
+                        }
+                    }
+                }
+            }
+        }
+
+        free(p->path);
+    }
+
+    return initialized;
 }
 
 /*
@@ -1778,10 +1968,66 @@ int extension_load_dir(const char *dir) {
     return loaded;
 }
 
+/*
+ * Async version of extension_load_dir - fire and forget.
+ * Scans directory, spawns async loaders for each .so found.
+ * Extensions are added to pending queue, main loop calls init().
+ */
+static void extension_load_dir_async(const char *dir) {
+    if (!dir || !*dir) return;
+
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        LOG_WARNF("Extension: Cannot open directory: %s", dir);
+        return;
+    }
+
+    int spawned = 0;
+    struct dirent *entry;
+    char full_path[PATH_MAX];
+
+    while ((entry = readdir(dp)) != NULL) {
+        if (entry->d_name[0] == '.') continue;
+        if (entry->d_name[0] == '_') continue;
+
+        size_t name_len = strlen(entry->d_name);
+        if (name_len > 9 && strcmp(entry->d_name + name_len - 9, ".disabled") == 0)
+            continue;
+
+        snprintf(full_path, sizeof(full_path), "%s/%s", dir, entry->d_name);
+
+        /* Direct .so file */
+        if (name_len > 3 && strcmp(entry->d_name + name_len - 3, ".so") == 0) {
+            if (is_file_fast(full_path)) {
+                async_load_extension(full_path);
+                spawned++;
+            }
+            continue;
+        }
+
+        /* Subdirectory - look for .so inside */
+        if (is_directory_fast(full_path)) {
+            char *so_path = find_first_so(full_path);
+            if (so_path) {
+                async_load_extension(so_path);
+                free(so_path);
+                spawned++;
+            }
+        }
+    }
+
+    closedir(dp);
+    LOG_INFOF("Extension: Spawned %d async loaders from %s", spawned, dir);
+}
+
 /* Get count of loaded extensions */
-[[nodiscard]]
 int extension_count(void) {
     return extension_count_internal;
+}
+
+/* Check if async loading is in progress */
+bool extension_loading_in_progress(void) {
+    return atomic_load(&autoload_in_progress) || pending_count > 0;
 }
 
 /* Cleanup extension subsystem */

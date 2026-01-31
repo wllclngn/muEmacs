@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 1.1.0
+    VERSION 1.11.0
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -102,6 +102,7 @@ endif()
 # I/O and file handling
 set(IO_SOURCES
     src/io/file.c
+    src/io/file_preload.c
     src/io/fileio.c
     src/io/input.c
     src/io/lock.c

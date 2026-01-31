@@ -514,6 +514,105 @@ int readin(const char *fname, int lockfl)
 }
 
 /*
+ * readin_from_memory:
+ *	Read file content from a pre-loaded memory buffer into curbp.
+ *	Used by async file preloading to avoid disk I/O.
+ *
+ *	const char *data	pre-read file content
+ *	size_t size		size of data buffer
+ */
+int readin_from_memory(const char *data, size_t size)
+{
+	struct line *lp1;
+	struct line *lp2;
+	struct window *wp;
+	int nline;
+	char mesg[NSTRING];
+
+	if (!data || size == 0) {
+		mlwrite("[EMPTY PRELOAD DATA]");
+		return false;
+	}
+
+	struct buffer *bp = curbp;
+	int s = bclear(bp);
+	if (s != true)
+		return s;
+	bp->b_flag &= ~(BFINVS | BFCHG);
+
+	mlwrite("[LOADING FROM PRELOAD]");
+	nline = 0;
+
+	/* Parse data into lines */
+	const char *line_start = data;
+	const char *end = data + size;
+
+	while (line_start < end) {
+		/* Find end of line */
+		const char *line_end = line_start;
+		while (line_end < end && *line_end != '\n')
+			line_end++;
+
+		int nbytes = (int)(line_end - line_start);
+
+		/* Allocate line */
+		lp1 = lalloc(nbytes);
+		if (lp1 == nullptr) {
+			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE MEMORY FOR PRELOADED LINE");
+			break;
+		}
+
+		/* Link into buffer */
+		lp2 = lback(curbp->b_linep);
+		lp2->l_fp = lp1;
+		lp1->l_fp = curbp->b_linep;
+		lp1->l_bp = lp2;
+		curbp->b_linep->l_bp = lp1;
+
+		/* Copy line content */
+		for (int i = 0; i < nbytes; i++)
+			lputc(lp1, i, line_start[i]);
+
+		nline++;
+
+		/* Skip past newline */
+		line_start = line_end;
+		if (line_start < end && *line_start == '\n')
+			line_start++;
+	}
+
+	/* Status message */
+	safe_snprintf(mesg, NSTRING, "(Preloaded %d line%s)", nline, nline == 1 ? "" : "s");
+	mlwrite(mesg);
+
+	/* Update buffer stats */
+	if (curbp) {
+		buffer_mark_stats_dirty(curbp);
+		int actual_lines = 0;
+		buffer_get_stats_fast(curbp, &actual_lines, nullptr, nullptr);
+		buffer_rebuild_index(curbp);
+		LOG_INFOF("File: Preloaded %d lines, b_line_count now %d", nline, actual_lines);
+	}
+
+	/* Reset horizontal scroll */
+	lbound = 0;
+
+	/* Update all windows showing this buffer */
+	for (wp = wheadp; wp != nullptr; wp = wp->w_wndp) {
+		if (wp->w_bufp == bp) {
+			wp->w_linep = lforw(bp->b_linep);
+			wp->w_dotp = lforw(bp->b_linep);
+			wp->w_doto = 0;
+			wp->w_markp = nullptr;
+			wp->w_marko = 0;
+			wp->w_flag |= WFMODE | WFHARD;
+		}
+	}
+
+	return true;
+}
+
+/*
  * Take a file name, and from it
  * fabricate a buffer name. This routine knows
  * about the syntax of file names on the target system.

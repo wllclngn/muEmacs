@@ -156,7 +156,7 @@ static int call_editor(uint32_t msg_type, const void *req, uint32_t req_len,
             slot_idx = ext_ipc_find_empty_slot(ring);
         }
         if (slot_idx < 0) {
-            /* Debug: dump slot states */
+            /* Debug: dump slot states (commented out for performance)
             FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
             if (diag) {
                 fprintf(diag, "[%d] call_editor: ring FULL! Slot states:\n", getpid());
@@ -166,39 +166,44 @@ static int call_editor(uint32_t msg_type, const void *req, uint32_t req_len,
                 }
                 fclose(diag);
             }
+            */
             return -1;  /* Still full */
         }
     }
 
     ext_ipc_slot_t *slot = &ring->slots[slot_idx];
 
-    /* Debug: log what we're sending */
+    /* Debug: log what we're sending (commented out for performance)
     FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
     if (diag) {
         fprintf(diag, "[%d] call_editor: slot=%d msg=0x%x writing...\n",
                 getpid(), slot_idx, msg_type);
         fclose(diag);
     }
+    */
 
     /* Write request */
     ext_ipc_slot_write(slot, msg_type, req, req_len);
 
-    /* Debug: log slot state after write */
-    diag = fopen("/tmp/ext_runner_diag.log", "a");
+    /* Debug: log slot state after write (commented out for performance)
+    FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
     if (diag) {
         fprintf(diag, "[%d] call_editor: slot=%d state after write=%u, waiting...\n",
                 getpid(), slot_idx, atomic_load(&slot->state));
         fclose(diag);
     }
+    */
 
     /* Spin-wait for response (30 second timeout) */
     if (!ext_ipc_slot_wait_complete(slot, 30000)) {
-        diag = fopen("/tmp/ext_runner_diag.log", "a");
+        /* Debug: log timeout (commented out for performance)
+        FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
         if (diag) {
             fprintf(diag, "[%d] call_editor: TIMEOUT! slot=%d state=%u\n",
                     getpid(), slot_idx, atomic_load(&slot->state));
             fclose(diag);
         }
+        */
         ext_ipc_slot_release(slot);
         return -2;  /* Timeout */
     }
@@ -1054,21 +1059,22 @@ int main(int argc, char **argv)
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
 
-    /* Early diagnostic - before IPC, write to known file */
+    /* Early diagnostic - before IPC, write to known file (commented out for performance)
     FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
     if (diag) {
         fprintf(diag, "[%d] Starting: memfd=%d ext=%s deathfd=%d\n",
                 getpid(), memfd, ext_path, g_death_fd);
         fflush(diag);
     }
+    */
 
     /* Attach to IPC channel */
     g_ipc = ext_ipc_attach(memfd);
     if (!g_ipc) {
-        if (diag) { fprintf(diag, "[%d] IPC attach FAILED\n", getpid()); fclose(diag); }
+        /* if (diag) { fprintf(diag, "[%d] IPC attach FAILED\n", getpid()); fclose(diag); } */
         return 1;
     }
-    if (diag) { fprintf(diag, "[%d] IPC attached OK\n", getpid()); fclose(diag); }
+    /* if (diag) { fprintf(diag, "[%d] IPC attached OK\n", getpid()); fclose(diag); } */
     ipc_log("ext_runner[%d]: IPC attached (magic=0x%x)", getpid(), g_ipc->shm->magic);
 
     /* Load extension .so - this triggers Go runtime init for CGO libs */

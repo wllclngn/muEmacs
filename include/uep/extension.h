@@ -65,6 +65,12 @@ int extension_load_dir(const char *dir);
 /* Get count of loaded extensions */
 int extension_count(void);
 
+/* Poll for pending extensions and init them (called from main loop) */
+int extension_poll_pending(void);
+
+/* Check if async loading is in progress */
+bool extension_loading_in_progress(void);
+
 /* Initialize extension subsystem */
 void extension_init(void);
 

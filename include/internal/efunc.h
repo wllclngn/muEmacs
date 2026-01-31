@@ -368,6 +368,7 @@ extern int filefind(int f, int n);
 extern int viewfile(int f, int n);
 extern int getfile(const char *fname, int lockfl);
 extern int readin(const char *fname, int lockfl);
+extern int readin_from_memory(const char *data, size_t size);
 extern void makename(char *bname, const char *fname);
 extern void unqname(char *name);
 extern int filewrite(int f, int n);

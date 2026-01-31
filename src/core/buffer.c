@@ -17,6 +17,7 @@
 #include "internal/syntax.h"
 #include "internal/text_storage.h"
 #include "internal/event_bus.h"
+#include "util/file_preload.h"
 
 /*
  * Hash table functions for O(1) buffer lookup by name
@@ -174,8 +175,17 @@ int swbuffer(struct buffer *bp)
 	}
 	curbp = bp; // Switch.
 	if (curbp->b_active != true) { // buffer not active yet
-		/* read it in and activate it */
-		readin(curbp->b_fname, true);
+		/* Try preloaded data first (async file read) */
+		char *preload_data = NULL;
+		size_t preload_size = 0;
+		if (file_preload_get(curbp->b_fname, &preload_data, &preload_size) == 0) {
+			/* Use preloaded data - no disk I/O needed */
+			readin_from_memory(preload_data, preload_size);
+			free(preload_data);
+		} else {
+			/* Fall back to synchronous disk read */
+			readin(curbp->b_fname, true);
+		}
 		curbp->b_dotp = lforw(curbp->b_linep);
 		curbp->b_doto = 0;
 		curbp->b_active = true;

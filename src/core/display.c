@@ -840,6 +840,8 @@ static int reframe(struct window *wp)
 {
 	struct line *lp, *lp0;
 	int i = 0;
+	int rows_per_line;
+	bool soft_wrap = (wp->w_wrap_col > 0);
 
 	/* if not a requested reframe, check for a needed one */
 	if ((wp->w_flag & WFFORCE) == 0) {
@@ -849,15 +851,20 @@ static int reframe(struct window *wp)
 		if (lp0 == wp->w_bufp->b_linep)
 			i = 0;
 		else {
-			i = -1;
+			/* With soft-wrap, the line above may occupy multiple rows */
+			if (soft_wrap && lp0 != wp->w_bufp->b_linep) {
+				i = -calculate_wordwrap_line_rows(lp0, wp->w_wrap_col, 8);
+			} else {
+				i = -1;
+			}
 			lp = lp0;
 		}
-		for (; i <= (int) (wp->w_ntrows); i++)
+		while (i <= (int)(wp->w_ntrows))
 		{
 			/* if the line is in the window, no reframe */
 			if (lp == wp->w_dotp) {
 				/* if not _quite_ in, we'll reframe gently */
-				if (i < 0 || i == wp->w_ntrows) {
+				if (i < 0 || i >= (int)(wp->w_ntrows)) {
 					/* if the terminal can't help, then
 					   we're simply outside */
 					if (term.t_scroll == nullptr)
@@ -871,7 +878,13 @@ static int reframe(struct window *wp)
 			if (lp == wp->w_bufp->b_linep)
 				break;
 
-			/* on to the next line */
+			/* on to the next line - account for soft-wrap row count */
+			if (soft_wrap && lp != wp->w_bufp->b_linep) {
+				rows_per_line = calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+			} else {
+				rows_per_line = 1;
+			}
+			i += rows_per_line;
 			lp = lforw(lp);
 		}
 	}
@@ -910,9 +923,14 @@ static int reframe(struct window *wp)
 		}
 	}
 
-	while (i != 0 && lback(lp) != wp->w_bufp->b_linep) {
-		--i;
+	while (i > 0 && lback(lp) != wp->w_bufp->b_linep) {
 		lp = lback(lp);
+		/* With soft-wrap, backing up one buffer line may cover multiple screen rows */
+		if (soft_wrap && lp != wp->w_bufp->b_linep) {
+			i -= calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+		} else {
+			--i;
+		}
 	}
 
 	/* Safety: ensure w_linep is never the sentinel (except empty buffer) */

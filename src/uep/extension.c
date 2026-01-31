@@ -151,6 +151,7 @@ static pending_ext_t pending_queue[MAX_PENDING_EXTENSIONS];
 static int pending_count = 0;
 static pthread_mutex_t pending_mutex = PTHREAD_MUTEX_INITIALIZER;
 static atomic_bool autoload_in_progress = false;
+static atomic_int async_threads_active = 0;  /* Count of in-flight async loaders */
 
 /* Add extension to pending queue (called from background thread) */
 static void pending_queue_add(const char *path, void *handle,
@@ -731,6 +732,7 @@ static void *async_dlopen_worker(void *arg) {
         /* Out-of-process extension - add to queue for spawning */
         pending_queue_add(path, NULL, NULL, runtime, true);
         free(path);
+        atomic_fetch_sub(&async_threads_active, 1);
         return NULL;
     }
 
@@ -739,6 +741,7 @@ static void *async_dlopen_worker(void *arg) {
     if (!handle) {
         LOG_ERRORF("Extension: dlopen failed: %s", dlerror());
         free(path);
+        atomic_fetch_sub(&async_threads_active, 1);
         return NULL;
     }
 
@@ -756,12 +759,14 @@ static void *async_dlopen_worker(void *arg) {
         LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "NULL");
         dlclose(handle);
         free(path);
+        atomic_fetch_sub(&async_threads_active, 1);
         return NULL;
     }
 
     /* Add to pending queue - main thread will call init */
     pending_queue_add(path, handle, entry, runtime, false);
     free(path);
+    atomic_fetch_sub(&async_threads_active, 1);
     return NULL;
 }
 
@@ -772,6 +777,7 @@ static void async_load_extension(const char *path) {
     arg->path = strdup(path);
     if (!arg->path) { free(arg); return; }
 
+    atomic_fetch_add(&async_threads_active, 1);
     pthread_t t;
     pthread_create(&t, NULL, async_dlopen_worker, arg);
     pthread_detach(t);
@@ -2035,6 +2041,20 @@ void extension_cleanup(void) {
     if (!extension_initialized) return;
 
     LOG_INFO("Extension: Shutting down...");
+
+    /* Wait for all async loader threads to finish (max 1s) */
+    for (int i = 0; i < 100 && atomic_load(&async_threads_active) > 0; i++) {
+        usleep(10000);  /* 10ms */
+    }
+
+    /* Free any pending extensions that weren't initialized */
+    for (int i = 0; i < pending_count; i++) {
+        free(pending_queue[i].path);
+        if (pending_queue[i].handle && !pending_queue[i].needs_isolation) {
+            dlclose(pending_queue[i].handle);
+        }
+    }
+    pending_count = 0;
 
     /* Shutdown all out-of-process extensions first */
     ext_host_cleanup();

@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 1.11.1
+    VERSION 1.11.2
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )

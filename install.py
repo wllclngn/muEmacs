@@ -16,136 +16,197 @@ Usage:
 """
 
 import argparse
-import os
 import sys
 import shutil
 import subprocess
 from pathlib import Path
+from datetime import datetime
 
-def run(cmd, check=True, capture=False, sudo=False, cwd=None):
-    """Run a command, optionally with sudo."""
-    if sudo:
-        cmd = ["sudo"] + cmd
-    if capture:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
-        return result.returncode, result.stdout, result.stderr
-    else:
-        result = subprocess.run(cmd, cwd=cwd)
-        return result.returncode, None, None
 
-def check_cmake():
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+def _timestamp() -> str:
+    """Get current timestamp in [HH:MM:SS] format."""
+    return datetime.now().strftime("[%H:%M:%S]")
+
+
+def log_info(msg: str) -> None:
+    print(f"{_timestamp()} [INFO]   {msg}")
+
+
+def log_warn(msg: str) -> None:
+    print(f"{_timestamp()} [WARN]   {msg}")
+
+
+def log_error(msg: str) -> None:
+    print(f"{_timestamp()} [ERROR]  {msg}")
+
+
+# =============================================================================
+# COMMAND EXECUTION
+# =============================================================================
+
+def run_cmd(cmd: list, cwd: Path | None = None) -> int:
+    """
+    Run a command with real-time output to terminal.
+    Returns the exit code.
+    """
+    print(f">>> {' '.join(cmd)}")
+    result = subprocess.run(cmd, cwd=cwd)
+    return result.returncode
+
+
+def run_cmd_capture(cmd: list, cwd: Path | None = None) -> tuple[int, str, str]:
+    """Run a command and capture output."""
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+    return result.returncode, result.stdout, result.stderr
+
+
+def run_cmd_sudo(cmd: list, cwd: Path | None = None) -> int:
+    """Run a command with sudo."""
+    return run_cmd(["sudo"] + cmd, cwd=cwd)
+
+
+# =============================================================================
+# DEPENDENCY CHECKS
+# =============================================================================
+
+def check_cmake() -> bool:
     """Check if cmake is available."""
-    ret, _, _ = run(["which", "cmake"], capture=True)
+    ret, _, _ = run_cmd_capture(["which", "cmake"])
     return ret == 0
 
-def check_compiler():
+
+def check_compiler() -> bool:
     """Check if a C compiler is available."""
     for compiler in ["gcc", "clang"]:
-        ret, _, _ = run(["which", compiler], capture=True)
+        ret, _, _ = run_cmd_capture(["which", compiler])
         if ret == 0:
             return True
     return False
 
-def cmd_build(args, source_dir):
+
+# =============================================================================
+# COMMANDS
+# =============================================================================
+
+def cmd_build(args, source_dir: Path) -> bool:
     """Build μEmacs."""
     build_dir = source_dir / "build"
 
-    # Configure
+    log_info("CONFIGURING BUILD")
+
     cmake_args = ["cmake", "-S", str(source_dir), "-B", str(build_dir)]
 
     if args.debug or args.debug_log:
         cmake_args.append("-DCMAKE_BUILD_TYPE=Debug")
+        log_info("Build type: Debug")
     else:
         cmake_args.append("-DCMAKE_BUILD_TYPE=Release")
+        log_info("Build type: Release")
 
     if args.debug_log:
-        cmake_args.append("-DMUEMACS_DEBUG_LOG=ON")
+        cmake_args.append("-DUEMACS_DEBUG_LOG=ON")
+        log_info("Debug logging: enabled")
 
     if args.prefix:
         cmake_args.append(f"-DCMAKE_INSTALL_PREFIX={args.prefix}")
+        log_info(f"Install prefix: {args.prefix}")
 
-    print("Configuring...")
-    ret, _, stderr = run(cmake_args, capture=True)
+    ret = run_cmd(cmake_args)
     if ret != 0:
-        print(f"ERROR: cmake configure failed!")
-        print(stderr)
+        log_error("cmake configure failed!")
         return False
+    log_info("Configuration complete")
 
     # Build
     import multiprocessing
     jobs = multiprocessing.cpu_count()
 
-    print(f"Building (using {jobs} jobs)...")
-    ret, _, stderr = run(["cmake", "--build", str(build_dir), f"-j{jobs}"], capture=True)
+    log_info("BUILDING")
+    log_info(f"Using {jobs} parallel jobs")
+
+    build_cmd = ["cmake", "--build", str(build_dir), f"-j{jobs}"]
+
+    ret = run_cmd(build_cmd)
     if ret != 0:
-        print(f"ERROR: Build failed!")
-        print(stderr)
+        log_error("Build failed!")
         return False
 
-    # Create symlink for ASCII-friendly name
+    # Check for binary
     bin_dir = build_dir / "bin"
-    if bin_dir.exists():
+    binary = bin_dir / "μEmacs"
+    if binary.exists():
+        size = binary.stat().st_size
+        log_info(f"Built {binary} ({size} bytes)")
+
+        # Create symlink for ASCII-friendly name
         symlink = bin_dir / "muEmacs"
-        target = bin_dir / "μEmacs"
-        if target.exists() and not symlink.exists():
+        if not symlink.exists():
             try:
                 symlink.symlink_to("μEmacs")
-            except:
+                log_info("Created muEmacs symlink")
+            except OSError:
                 pass
 
-    print("  OK: Build complete")
     return True
 
-def cmd_install(args, source_dir):
+
+def cmd_install(args, source_dir: Path) -> bool:
     """Build and install μEmacs."""
     if not cmd_build(args, source_dir):
         return False
 
     build_dir = source_dir / "build"
+    prefix = Path(args.prefix) if args.prefix else Path("/usr/local")
+    install_path = prefix / "bin" / "μEmacs"
 
-    print("Installing...")
-    ret, _, stderr = run(["cmake", "--install", str(build_dir)], sudo=True, capture=True)
+    log_info("INSTALLING")
+    log_info(f"Destination: {install_path}")
+
+    ret = run_cmd(["sudo", "cmake", "--install", str(build_dir)])
     if ret != 0:
-        print(f"ERROR: Install failed!")
-        print(stderr)
+        log_error("Install failed!")
         return False
 
     # Create ASCII-friendly symlink in install location
-    prefix = Path(args.prefix) if args.prefix else Path("/usr/local")
-    bin_path = prefix / "bin"
-    symlink = bin_path / "muEmacs"
-    target = bin_path / "μEmacs"
+    symlink = prefix / "bin" / "muEmacs"
+    target = prefix / "bin" / "μEmacs"
 
     if target.exists() and not symlink.exists():
-        ret, _, _ = run(["ln", "-sf", "μEmacs", str(symlink)], sudo=True)
+        run_cmd_sudo(["ln", "-sf", "μEmacs", str(symlink)])
+        log_info(f"Created symlink: {symlink}")
 
-    print("  OK: Installed")
+    if install_path.exists():
+        size = install_path.stat().st_size
+        log_info(f"Installed {install_path} ({size} bytes)")
+
     print()
-    print("=" * 50)
-    print("SUCCESS!")
-    print("=" * 50)
-    print()
-    print("Run:")
-    print("  μEmacs        # Unicode name")
-    print("  muEmacs       # ASCII-friendly alias")
-    print()
+    log_info("SUCCESS. Installation complete.")
+    log_info("RUN COMMAND: μEmacs (or muEmacs)")
 
     return True
 
-def cmd_clean(args, source_dir):
+
+def cmd_clean(args, source_dir: Path) -> bool:
     """Clean build directory."""
     build_dir = source_dir / "build"
 
+    log_info("CLEANING")
+
     if build_dir.exists():
-        print(f"Removing {build_dir}...")
+        log_info(f"Removing {build_dir}")
         shutil.rmtree(build_dir)
-        print("  OK: Cleaned")
+        log_info("Clean complete")
     else:
-        print("Nothing to clean")
+        log_info("Nothing to clean")
 
     return True
 
-def cmd_uninstall(args, source_dir):
+
+def cmd_uninstall(args, source_dir: Path) -> bool:
     """Remove installed files."""
     prefix = Path(args.prefix) if args.prefix else Path("/usr/local")
 
@@ -155,41 +216,57 @@ def cmd_uninstall(args, source_dir):
         prefix / "bin" / "muemacs-ext-runner",
     ]
 
+    log_info("UNINSTALLING")
+
     removed = False
     for f in files:
         if f.exists() or f.is_symlink():
-            print(f"Removing {f}...")
-            ret, _, _ = run(["rm", "-f", str(f)], sudo=True)
+            log_info(f"Removing {f}")
+            ret = run_cmd_sudo(["rm", "-f", str(f)])
             if ret == 0:
-                print("  OK: Removed")
+                log_info("Removed")
                 removed = True
             else:
-                print("  ERROR: Failed to remove")
+                log_error("Failed to remove")
 
     if not removed:
-        print("No installed files found")
+        log_warn("No installed files found")
 
     return True
 
-def cmd_test(args, source_dir):
+
+def cmd_test(args, source_dir: Path) -> bool:
     """Run tests."""
     build_dir = source_dir / "build"
     test_binary = build_dir / "bin" / "full_integration_test"
 
+    log_info("RUNNING TESTS")
+
     if not test_binary.exists():
-        print("Tests not built. Building first...")
+        log_info("Tests not built. Building first...")
         if not cmd_build(args, source_dir):
             return False
 
     if not test_binary.exists():
-        print("ERROR: Test binary not found")
+        log_error("Test binary not found")
         return False
 
-    print("Running tests...")
-    ret, _, _ = run([str(test_binary)])
+    log_info(f"Executing {test_binary}")
+    ret = run_cmd([str(test_binary)])
+
+    if ret == 0:
+        log_info("All tests passed")
+    else:
+        log_error("Some tests failed")
+
     return ret == 0
 
-def main():
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build and install μEmacs (micro Emacs)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -225,38 +302,36 @@ Examples:
 
     source_dir = Path(__file__).parent.resolve()
 
-    print("μEmacs installer")
-    print("================")
-    print(f"Source: {source_dir}")
+    print()
+    log_info("μEmacs installer")
+    log_info(f"Source: {source_dir}")
     print()
 
     # Check dependencies
     if args.command in ["install", "build", "test"]:
-        print("Checking dependencies...")
+        log_info("CHECKING DEPENDENCIES")
 
         if not check_cmake():
+            log_error("cmake not found!")
             print()
-            print("ERROR: cmake not found!")
+            log_info("Install it first:")
+            print("         Arch Linux:    sudo pacman -S cmake")
+            print("         Debian/Ubuntu: sudo apt install cmake build-essential")
+            print("         Fedora:        sudo dnf install cmake gcc")
             print()
-            print("Install it first:")
-            print("  Arch Linux:    sudo pacman -S cmake")
-            print("  Debian/Ubuntu: sudo apt install cmake build-essential")
-            print("  Fedora:        sudo dnf install cmake gcc")
-            print()
-            sys.exit(1)
-        print("  OK: cmake found")
+            return 1
+        log_info("cmake found")
 
         if not check_compiler():
+            log_error("C compiler not found!")
             print()
-            print("ERROR: C compiler not found!")
+            log_info("Install it first:")
+            print("         Arch Linux:    sudo pacman -S gcc")
+            print("         Debian/Ubuntu: sudo apt install build-essential")
+            print("         Fedora:        sudo dnf install gcc")
             print()
-            print("Install it first:")
-            print("  Arch Linux:    sudo pacman -S gcc")
-            print("  Debian/Ubuntu: sudo apt install build-essential")
-            print("  Fedora:        sudo dnf install gcc")
-            print()
-            sys.exit(1)
-        print("  OK: C compiler found")
+            return 1
+        log_info("C compiler found")
         print()
 
     # Run command
@@ -269,7 +344,12 @@ Examples:
     }
 
     success = commands[args.command](args, source_dir)
-    sys.exit(0 if success else 1)
+    return 0 if success else 1
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\nInterrupted by user.")
+        sys.exit(130)

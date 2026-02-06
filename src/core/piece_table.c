@@ -729,7 +729,7 @@ static size_t pt_char_to_byte(struct text_storage *ts, size_t line_num, size_t c
 
     while (byte_pos < line_len && char_count < char_pos) {
         char c = pt_get_char(ts, line_start + byte_pos);
-        byte_pos += utf8_byte_length_fast((unsigned char)c);
+        byte_pos += (size_t)utf8_byte_length_fast((unsigned char)c);
         char_count++;
     }
 
@@ -747,7 +747,7 @@ static size_t pt_byte_to_char(struct text_storage *ts, size_t line_num, size_t b
 
     while (curr_byte < byte_pos) {
         char c = pt_get_char(ts, line_start + curr_byte);
-        curr_byte += utf8_byte_length_fast((unsigned char)c);
+        curr_byte += (size_t)utf8_byte_length_fast((unsigned char)c);
         char_count++;
     }
 
@@ -763,7 +763,7 @@ static size_t pt_char_count(struct text_storage *ts, size_t line_num) {
 
     while (byte_pos < line_len) {
         char c = pt_get_char(ts, line_start + byte_pos);
-        byte_pos += utf8_byte_length_fast((unsigned char)c);
+        byte_pos += (size_t)utf8_byte_length_fast((unsigned char)c);
         char_count++;
     }
 

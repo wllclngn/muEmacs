@@ -266,8 +266,8 @@ static int test_lock_undolock_errors(void) {
     char nonexistent[] = "/tmp/uemacs_nonexistent_file_xyz123.txt";
     char *error = undolock(nonexistent);
 
-    // undolock returns NULL for ENOENT (file not found is not an error)
-    if (error != NULL) {
+    // undolock returns nullptr for ENOENT (file not found is not an error)
+    if (error != nullptr) {
         LOG_INFOF("[INFO] undolock on non-existent: %s", error);
         // This is acceptable behavior
     }
@@ -281,9 +281,9 @@ static int test_lock_undolock_errors(void) {
         fclose(fp);
 
         // Lock and unlock normally
-        if (dolock(testfile) == NULL) {
+        if (dolock(testfile) == nullptr) {
             error = undolock(testfile);
-            if (error != NULL) {
+            if (error != nullptr) {
                 LOG_ERRORF("[FAIL] undolock failed on valid lock: %s", error);
                 ok = 0;
             }
@@ -314,14 +314,14 @@ static int test_lock_dolock_direct(void) {
 
     // Lock file with dolock
     char *locker = dolock(testfile);
-    if (locker != NULL) {
+    if (locker != nullptr) {
         LOG_ERRORF("[FAIL] dolock failed: %s", locker);
         ok = 0;
     }
 
     // Try to lock again - should return current user
     locker = dolock(testfile);
-    if (locker == NULL) {
+    if (locker == nullptr) {
         LOG_ERROR("[FAIL] Second dolock should return locker info");
         ok = 0;
     } else {
@@ -330,7 +330,7 @@ static int test_lock_dolock_direct(void) {
 
     // Unlock
     char *unlock_result = undolock(testfile);
-    if (unlock_result != NULL) {
+    if (unlock_result != nullptr) {
         LOG_ERRORF("[FAIL] undolock failed: %s", unlock_result);
         ok = 0;
     }

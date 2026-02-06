@@ -284,7 +284,7 @@ static int test_wfhard_flag(void) {
     LOG_INFO("  Testing WFHARD window flag...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping");
+        LOG_WARN("[WARN] curwp is nullptr, skipping");
         return 1;
     }
 
@@ -322,7 +322,7 @@ static int test_highlight_triggers_flags(void) {
     LOG_INFO("  Testing highlight triggers appropriate flags...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping");
+        LOG_WARN("[WARN] curwp is nullptr, skipping");
         return 1;
     }
 

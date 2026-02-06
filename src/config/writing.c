@@ -26,11 +26,11 @@ int writing_mode_enable(int f, int n)
 
     if (saved_fillcol == -1)
         saved_fillcol = fillcol;
-    if (saved_wrap_flag == -1 && curbp != NULL)
+    if (saved_wrap_flag == -1 && curbp != nullptr)
         saved_wrap_flag = (curbp->b_mode & MDWRAP) ? 1 : 0;
 
     fillcol = target;
-    if (curbp != NULL) {
+    if (curbp != nullptr) {
         curbp->b_mode |= MDWRAP;
         upmode();
     }
@@ -50,7 +50,7 @@ int writing_mode_disable(int f, int n)
         if (saved_wrap_flag)
             curbp->b_mode |= MDWRAP;
         else
-            curbp->b_mode &= ~MDWRAP;
+            curbp->b_mode &= ~(uint32_t)MDWRAP;
         saved_wrap_flag = -1;
     }
     upmode();

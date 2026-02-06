@@ -119,14 +119,14 @@ static int test_safe_strcpy_empty_src(void) {
 
 static int test_safe_strcpy_null_pointer_src(void) {
     int ok = 1;
-    PHASE_START("STRING: STRCPY-NULL-SRC", "Copy with NULL source");
+    PHASE_START("STRING: STRCPY-nullptr-SRC", "Copy with nullptr source");
 
     char dest[64] = "ORIGINAL";
-    size_t result = safe_strcpy(dest, NULL, sizeof(dest));
+    size_t result = safe_strcpy(dest, nullptr, sizeof(dest));
 
     // Should return 0 and not modify dest
     if (result != 0) {
-        LOG_ERRORF("[FAIL] should return 0 for NULL src, got %zu", result);
+        LOG_ERRORF("[FAIL] should return 0 for nullptr src, got %zu", result);
         ok = 0;
     }
 
@@ -136,23 +136,23 @@ static int test_safe_strcpy_null_pointer_src(void) {
         ok = 0;
     }
 
-    PHASE_END("STRING: STRCPY-NULL-SRC", ok);
+    PHASE_END("STRING: STRCPY-nullptr-SRC", ok);
     return ok;
 }
 
 static int test_safe_strcpy_null_pointer_dest(void) {
     int ok = 1;
-    PHASE_START("STRING: STRCPY-NULL-DEST", "Copy with NULL destination");
+    PHASE_START("STRING: STRCPY-nullptr-DEST", "Copy with nullptr destination");
 
     const char *src = "Hello";
-    size_t result = safe_strcpy(NULL, src, 64);
+    size_t result = safe_strcpy(nullptr, src, 64);
 
     if (result != 0) {
-        LOG_ERRORF("[FAIL] should return 0 for NULL dest, got %zu", result);
+        LOG_ERRORF("[FAIL] should return 0 for nullptr dest, got %zu", result);
         ok = 0;
     }
 
-    PHASE_END("STRING: STRCPY-NULL-DEST", ok);
+    PHASE_END("STRING: STRCPY-nullptr-DEST", ok);
     return ok;
 }
 
@@ -305,13 +305,13 @@ static int test_safe_strcat_truncation(void) {
 
 static int test_safe_strcat_null_src(void) {
     int ok = 1;
-    PHASE_START("STRING: STRCAT-NULL-SRC", "Concatenate NULL source");
+    PHASE_START("STRING: STRCAT-nullptr-SRC", "Concatenate nullptr source");
 
     char dest[64] = "Hello";
-    size_t result = safe_strcat(dest, NULL, sizeof(dest));
+    size_t result = safe_strcat(dest, nullptr, sizeof(dest));
 
     if (result != 0) {
-        LOG_ERRORF("[FAIL] should return 0 for NULL src, got %zu", result);
+        LOG_ERRORF("[FAIL] should return 0 for nullptr src, got %zu", result);
         ok = 0;
     }
 
@@ -320,23 +320,23 @@ static int test_safe_strcat_null_src(void) {
         ok = 0;
     }
 
-    PHASE_END("STRING: STRCAT-NULL-SRC", ok);
+    PHASE_END("STRING: STRCAT-nullptr-SRC", ok);
     return ok;
 }
 
 static int test_safe_strcat_null_dest(void) {
     int ok = 1;
-    PHASE_START("STRING: STRCAT-NULL-DEST", "Concatenate NULL destination");
+    PHASE_START("STRING: STRCAT-nullptr-DEST", "Concatenate nullptr destination");
 
     const char *src = "Hello";
-    size_t result = safe_strcat(NULL, src, 64);
+    size_t result = safe_strcat(nullptr, src, 64);
 
     if (result != 0) {
-        LOG_ERRORF("[FAIL] should return 0 for NULL dest, got %zu", result);
+        LOG_ERRORF("[FAIL] should return 0 for nullptr dest, got %zu", result);
         ok = 0;
     }
 
-    PHASE_END("STRING: STRCAT-NULL-DEST", ok);
+    PHASE_END("STRING: STRCAT-nullptr-DEST", ok);
     return ok;
 }
 
@@ -364,7 +364,7 @@ static int test_safe_strcat_zero_size(void) {
 
 static int test_safe_strcat_not_null_terminated(void) {
     int ok = 1;
-    PHASE_START("STRING: STRCAT-NOT-NULL-TERM", "Concatenate into non-null-terminated buffer");
+    PHASE_START("STRING: STRCAT-NOT-nullptr-TERM", "Concatenate into non-null-terminated buffer");
 
     char dest[8];
     memset(dest, 'X', sizeof(dest));
@@ -381,7 +381,7 @@ static int test_safe_strcat_not_null_terminated(void) {
         ok = 0;
     }
 
-    PHASE_END("STRING: STRCAT-NOT-NULL-TERM", ok);
+    PHASE_END("STRING: STRCAT-NOT-nullptr-TERM", ok);
     return ok;
 }
 
@@ -477,13 +477,13 @@ static int test_safe_sprintf_truncation(void) {
 
 static int test_safe_sprintf_null_format(void) {
     int ok = 1;
-    PHASE_START("STRING: SPRINTF-NULL-FMT", "NULL format string");
+    PHASE_START("STRING: SPRINTF-nullptr-FMT", "nullptr format string");
 
     char dest[64] = "ORIGINAL";
-    size_t result = safe_sprintf(dest, sizeof(dest), NULL);
+    size_t result = safe_sprintf(dest, sizeof(dest), nullptr);
 
     if (result != 0) {
-        LOG_ERRORF("[FAIL] should return 0 for NULL format, got %zu", result);
+        LOG_ERRORF("[FAIL] should return 0 for nullptr format, got %zu", result);
         ok = 0;
     }
 
@@ -492,7 +492,7 @@ static int test_safe_sprintf_null_format(void) {
         ok = 0;
     }
 
-    PHASE_END("STRING: SPRINTF-NULL-FMT", ok);
+    PHASE_END("STRING: SPRINTF-nullptr-FMT", ok);
     return ok;
 }
 

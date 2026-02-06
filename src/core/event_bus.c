@@ -64,7 +64,7 @@ static uint32_t hash_string(const char *str) {
     uint32_t hash = 5381;
     int c;
     while ((c = *str++)) {
-        hash = ((hash << 5) + hash) + c;  /* hash * 33 + c */
+        hash = ((hash << 5) + hash) + (uint32_t)c;  /* hash * 33 + c */
     }
     return hash;
 }
@@ -325,7 +325,7 @@ const char **event_bus_list_events(int *count) {
         return nullptr;
     }
 
-    const char **events = calloc(g_event_bus.total_events, sizeof(char *));
+    const char **events = calloc((size_t)g_event_bus.total_events, sizeof(char *));
     if (!events) {
         if (count) *count = 0;
         return nullptr;

@@ -15,13 +15,13 @@ extern int fileread(int f, int n);
 // Direct keymap lookup helper for tests - uses modern keymap_key_t
 static fn_t test_getbind_key(struct keymap *map, keymap_key_t key)
 {
-    if (!map) return NULL;
+    if (!map) return nullptr;
 
     struct keymap_entry *entry = keymap_lookup(map, key);
     if (entry && !entry->is_prefix) {
         return atomic_load_explicit(&entry->binding.cmd, memory_order_relaxed);
     }
-    return NULL;
+    return nullptr;
 }
 
 // Verify that default key bindings match expected μEmacs behaviors

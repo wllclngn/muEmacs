@@ -12,7 +12,7 @@ static void report(const char* prefix, const char *err, va_list params)
 	REPORT_ERROR(ERR_COMMAND_UNKNOWN, msg);
 }
 
-void die(const char* err, ...)
+NORETURN void die(const char* err, ...)
 {
 	va_list params;
 

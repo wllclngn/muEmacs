@@ -323,8 +323,8 @@ int storemac(int f, int n)
 
 	/* construct the macro buffer name */
     SAFE_STRCPY(bname, "*Macro xx*");
-	bname[7] = '0' + (n / 10);
-	bname[8] = '0' + (n % 10);
+	bname[7] = (char)('0' + (n / 10));
+	bname[8] = (char)('0' + (n % 10));
 
 	/* set up the new macro buffer */
 	if ((bp = bfind(bname, true, BFINVS)) == nullptr) {
@@ -333,7 +333,8 @@ int storemac(int f, int n)
 	}
 
 	/* and make sure it is empty */
-	bclear(bp);
+	if (bclear(bp) != true)
+		return false;
 
 	/* and set the macro store pointers to it */
 	mstore = true;
@@ -375,7 +376,8 @@ int storeproc(int f, int n)
 	}
 
 	/* and make sure it is empty */
-	bclear(bp);
+	if (bclear(bp) != true)
+		return false;
 
 	/* and set the macro store pointers to it */
 	mstore = true;
@@ -516,7 +518,7 @@ static int scan_while_blocks(struct buffer *bp, struct exec_state *state)
 		i = llength(lp);
 		if (i >= NSTRING) i = NSTRING - 1;
 		for (int j = 0; j < i; j++) {
-			line_buf[j] = lgetc(lp, j);
+			line_buf[j] = (char)lgetc(lp, j);
 		}
 		line_buf[i] = '\0';
 		eline = line_buf;
@@ -601,14 +603,14 @@ static int execute_buffer_lines(struct buffer *bp, struct exec_state *state)
 	while (ctx.lp != ctx.hlp) {
 		// Allocate and copy line
 		ctx.linlen = llength(ctx.lp);
-		if ((ctx.einit = ctx.eline = (char*)safe_alloc(ctx.linlen + 1, "execution line buffer", __FILE__, __LINE__)) == nullptr) {
+		if ((ctx.einit = ctx.eline = (char*)safe_alloc((size_t)ctx.linlen + 1, "execution line buffer", __FILE__, __LINE__)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "OUT OF MEMORY DURING MACRO EXECUTION");
 			return false;
 		}
     if (ctx.linlen > 0) {
         /* Extract from gap buffer */
         for (int i = 0; i < ctx.linlen; i++) {
-            ctx.eline[i] = lgetc(ctx.lp, i);
+            ctx.eline[i] = (char)lgetc(ctx.lp, i);
         }
         ctx.eline[ctx.linlen] = '\0';
     } else {
@@ -689,7 +691,7 @@ static int process_line_directive(struct line_context *ctx, struct exec_state *s
 
 	// Handle macro store
 	if (mstore) {
-		ctx->linlen = strlen(ctx->eline);
+		ctx->linlen = (int)strlen(ctx->eline);
 		if ((ctx->mp = lalloc(ctx->linlen)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "OUT OF MEMORY WHILE STORING MACRO");
 			return false;
@@ -791,19 +793,19 @@ static int handle_control_flow(struct line_context *ctx, struct exec_state *stat
 		case DIR_GOTO:
 			if (state->execlevel == 0) {
 				ctx->eline = (char *)token(ctx->eline, golabel, NPAT);
-				linlen = strlen(golabel);
+				linlen = (int)strlen(golabel);
 				ctx->glp = ctx->hlp->l_fp;
 				while (ctx->glp != ctx->hlp) {
-					char first_char = (llength(ctx->glp) > 0) ? lgetc(ctx->glp, 0) : '\0';
+					char first_char = (llength(ctx->glp) > 0) ? (char)lgetc(ctx->glp, 0) : '\0';
 					if (first_char == '*' && llength(ctx->glp) > linlen) {
 						/* Extract label portion for comparison */
 						char label_buf[NPAT];
 						int extract_len = (linlen < NPAT - 1) ? linlen : NPAT - 1;
 						for (int i = 0; i < extract_len && i + 1 < llength(ctx->glp); i++) {
-							label_buf[i] = lgetc(ctx->glp, i + 1);
+							label_buf[i] = (char)lgetc(ctx->glp, i + 1);
 						}
 						label_buf[extract_len] = '\0';
-						if (strncmp(label_buf, golabel, linlen) == 0) {
+						if (strncmp(label_buf, golabel, (size_t)linlen) == 0) {
 							ctx->lp = ctx->glp;
 							return -1; // Continue to next line
 						}
@@ -939,7 +941,7 @@ int dofile(const char *fname)
 
 	/* if not displayed, remove the now unneeded buffer and exit */
 	if (bp->b_nwnd == 0)
-		zotbuf(bp);
+		(void)zotbuf(bp);  // cleanup; failure non-fatal
 	return true;
 }
 
@@ -957,8 +959,8 @@ int cbuf(int f, int n, int bufnum)
 	static char bufname[] = "*Macro xx*";
 
 	/* make the buffer name */
-	bufname[7] = '0' + (bufnum / 10);
-	bufname[8] = '0' + (bufnum % 10);
+	bufname[7] = (char)('0' + (bufnum / 10));
+	bufname[8] = (char)('0' + (bufnum % 10));
 
 	/* find the pointer to that buffer */
 	if ((bp = bfind(bufname, false, 0)) == nullptr) {

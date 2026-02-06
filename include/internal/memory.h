@@ -7,11 +7,15 @@
 
 #include <stddef.h>
 #include <assert.h>
+#include "c23_compat.h"
 
 /* Safe allocation functions */
+NODISCARD_MSG("allocated memory must be stored and freed")
 void* safe_alloc(size_t size, const char* context, const char* file, int line);
+NODISCARD_MSG("reallocated pointer must be stored")
 void* safe_realloc(void* old_ptr, size_t new_size, const char* context);
 void safe_free(void** ptr);
+NODISCARD_MSG("duplicated string must be stored and freed")
 char* safe_strdup(const char* str, const char* context);
 
 /* Memory tracking and debugging */
@@ -30,7 +34,7 @@ static_assert(sizeof(size_t) >= sizeof(void*), "size_t must be able to represent
     (type*)safe_alloc((size), ctx, __FILE__, __LINE__)
 
 #define SAFE_ARRAY(type, count, ctx) \
-    (type*)safe_alloc(sizeof(type) * (count), ctx, __FILE__, __LINE__)
+    (type*)safe_alloc(sizeof(type) * (size_t)(count), ctx, __FILE__, __LINE__)
 
 #define SAFE_REALLOC(ptr, new_size, ctx) \
     safe_realloc(ptr, new_size, ctx)

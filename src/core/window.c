@@ -26,7 +26,7 @@ int reposition(int f, int n)
 {
 	if (f == false)		/* default to 0 to center screen */
 		n = 0;
-	curwp->w_force = n;
+	curwp->w_force = (char)n;
 	curwp->w_flag |= WFFORCE;
 	return true;
 }
@@ -369,7 +369,7 @@ int window_split(int f, int n)
 	}
 	lp = curwp->w_linep;
 	if (!lp) {
-		mlwrite("Window line pointer NULL - cannot split");
+		mlwrite("Window line pointer nullptr - cannot split");
 		safe_free((void **)&wp);
 		return false;
 	}
@@ -460,12 +460,12 @@ int window_enlarge(int f, int n)
 	if (curwp->w_wndp == adjwp) {	/* Shrink below.        */
 		lp = adjwp->w_linep;
 		if (!lp) {
-			mlwrite("WINDOW LINE POINTER NULL");
+			mlwrite("WINDOW LINE POINTER nullptr");
 			return false;
 		}
 		for (i = 0; i < n && lp != adjwp->w_bufp->b_linep; ++i) {
 			if (!lp) {
-				mlwrite("LINE LIST CORRUPT (NULL)");
+				mlwrite("LINE LIST CORRUPT (nullptr)");
 				return false;
 			}
 			lp = lforw(lp);
@@ -475,12 +475,12 @@ int window_enlarge(int f, int n)
 	} else {		/* Shrink above.        */
 		lp = curwp->w_linep;
 		if (!lp) {
-			mlwrite("WINDOW LINE POINTER NULL");
+			mlwrite("WINDOW LINE POINTER nullptr");
 			return false;
 		}
 		for (i = 0; i < n && lback(lp) != curbp->b_linep; ++i) {
 			if (!lback(lp)) {
-				mlwrite("LINE LIST CORRUPT (NULL BACK)");
+				mlwrite("LINE LIST CORRUPT (nullptr BACK)");
 				return false;
 			}
 			lp = lback(lp);
@@ -528,13 +528,13 @@ int window_shrink(int f, int n)
 	if (curwp->w_wndp == adjwp) {	/* Grow below.          */
 		lp = adjwp->w_linep;
 		if (!lp) {
-			mlwrite("WINDOW LINE POINTER NULL");
+			mlwrite("WINDOW LINE POINTER nullptr");
 			return false;
 		}
 		for (i = 0; i < n && lback(lp) != adjwp->w_bufp->b_linep;
 		     ++i) {
 			if (!lback(lp)) {
-				mlwrite("LINE LIST CORRUPT (NULL BACK)");
+				mlwrite("LINE LIST CORRUPT (nullptr BACK)");
 				return false;
 			}
 			lp = lback(lp);
@@ -544,12 +544,12 @@ int window_shrink(int f, int n)
 	} else {		/* Grow above.          */
 		lp = curwp->w_linep;
 		if (!lp) {
-			mlwrite("WINDOW LINE POINTER NULL");
+			mlwrite("WINDOW LINE POINTER nullptr");
 			return false;
 		}
 		for (i = 0; i < n && lp != curbp->b_linep; ++i) {
 			if (!lp) {
-				mlwrite("LINE LIST CORRUPT (NULL)");
+				mlwrite("LINE LIST CORRUPT (nullptr)");
 				return false;
 			}
 			lp = lforw(lp);
@@ -730,7 +730,7 @@ int newsize(int f, int n)
 	}
 
 	/* screen is garbage */
-	term.t_nrow = n - 1;
+	term.t_nrow = (short)(n - 1);
 	sgarbf = true;
 	return true;
 }
@@ -756,9 +756,9 @@ int newwidth(int f, int n)
 	}
 
 	/* otherwise, just re-width it (no big deal) */
-	term.t_ncol = n;
-	term.t_margin = n / 10;
-	term.t_scrsiz = n - (term.t_margin * 2);
+	term.t_ncol = (short)n;
+	term.t_margin = (short)(n / 10);
+	term.t_scrsiz = (short)(n - (term.t_margin * 2));
 
 	/* florce all windows to redraw */
 	wp = wheadp;
@@ -909,7 +909,7 @@ void restore_windows_from_overlay(void) {
  *
  * height_rows: Number of rows for the terminal window
  *
- * Returns: Pointer to the new window, or NULL on failure
+ * Returns: Pointer to the new window, or nullptr on failure
  *
  * This function finds the bottom-most window, shrinks it, and creates
  * a new window below it for the terminal.

@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
     setlocale(LC_ALL, "en_US.UTF-8");
 
     /* Redirect stdin from /dev/null to prevent blocking */
-    if (freopen("/dev/null", "r", stdin) == NULL) {
+    if (freopen("/dev/null", "r", stdin) == nullptr) {
         perror("freopen /dev/null");
     }
 
@@ -125,9 +125,9 @@ int main(int argc, char *argv[]) {
         "./build/bin/muEmacs",
         "../build/bin/muEmacs",
         "../../build/bin/muEmacs",
-        NULL
+        nullptr
     };
-    for (int i = 0; binary_paths[i] != NULL; i++) {
+    for (int i = 0; binary_paths[i] != nullptr; i++) {
         if (access(binary_paths[i], X_OK) == 0) {
             uemacs_path = binary_paths[i];
             break;

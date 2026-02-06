@@ -30,9 +30,9 @@ static int run_shell_cmd(const char *cmd)
 {
     pid_t pid;
     int status;
-    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, nullptr};
 
-    if (posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0) {
+    if (posix_spawn(&pid, "/bin/sh", nullptr, nullptr, argv, environ) != 0) {
         return -1;  /* spawn failed */
     }
 

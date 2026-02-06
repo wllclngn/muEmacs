@@ -267,19 +267,19 @@ static void allocate_screens(void)
 		}
 	}
 
-	vscreen = (struct video**)safe_alloc(term.t_mrow * sizeof(struct video *), "vscreen", __FILE__, __LINE__);
+	vscreen = (struct video**)safe_alloc((size_t)term.t_mrow * sizeof(struct video *), "vscreen", __FILE__, __LINE__);
 	if (!vscreen) {
 		LOG_ERROR("Display: Failed to allocate virtual screen");
 		return;
 	}
 
-	pscreen = (struct video**)safe_alloc(term.t_mrow * sizeof(struct video *), "pscreen", __FILE__, __LINE__);
+	pscreen = (struct video**)safe_alloc((size_t)term.t_mrow * sizeof(struct video *), "pscreen", __FILE__, __LINE__);
 	if (!pscreen) {
 		LOG_ERROR("Display: Failed to allocate physical screen");
 		return;
 	}
 	for (i = 0; i < term.t_mrow; ++i) {
-		vp = (struct video*)safe_alloc(sizeof(struct video) + term.t_mcol*4, "video row", __FILE__, __LINE__);
+		vp = (struct video*)safe_alloc(sizeof(struct video) + (size_t)term.t_mcol*4, "video row", __FILE__, __LINE__);
 		if (!vp) {
 			LOG_ERRORF("Display: Failed to allocate video row %d", i);
 			return;
@@ -287,7 +287,7 @@ static void allocate_screens(void)
 		vp->v_flag = 0;
 		atomic_store(&vp->v_checksum, 0);
 		vscreen[i] = vp;
-		vp = (struct video*)safe_alloc(sizeof(struct video) + term.t_mcol*4, "physical video row", __FILE__, __LINE__);
+		vp = (struct video*)safe_alloc(sizeof(struct video) + (size_t)term.t_mcol*4, "physical video row", __FILE__, __LINE__);
 		vp->v_flag = 0;
 		/* Initialize pscreen v_text with impossible values to force first render.
 		 * Without this, zeroed pscreen may match zeroed vscreen rows,
@@ -409,7 +409,7 @@ void vtputc(int c)
 	 * Previously this escaped 0x80-0xA0 as hex, which broke UTF-8. */
 
 	if (vtcol >= 0) {
-		vp->v_text[vtcol] = c;
+		vp->v_text[vtcol] = (unicode_t)c;
 		// Mark line as changed - checksum will be updated later
 		vp->v_flag |= VFCHG;
 	}
@@ -420,12 +420,22 @@ void vtputc(int c)
 #define HIGHLIGHT_BIT 0x80000000U  /* High bit indicates cursor line/ruler highlight */
 #define SELECTION_BIT 0x40000000U  /* Selection highlight (different from cursor line) */
 
+/* C23 safety: validate bit-packing assumptions at compile time */
+static_assert(sizeof(unicode_t) == 4,
+              "unicode_t must be 32-bit for HIGHLIGHT/SELECTION/SYNTAX bit packing");
+static_assert((HIGHLIGHT_BIT & 0x001FFFFFU) == 0,
+              "HIGHLIGHT_BIT must not overlap Unicode codepoint range (U+0000..U+1FFFFF)");
+static_assert((SELECTION_BIT & HIGHLIGHT_BIT) == 0,
+              "SELECTION_BIT and HIGHLIGHT_BIT must not overlap");
+
 /* Syntax highlighting face encoding (4 bits = 16 faces) */
 #define SYNTAX_FACE_MASK  0x0F000000U  /* Bits 24-27: syntax face ID */
 #define SYNTAX_FACE_SHIFT 24
-#define SYNTAX_ENCODE_FACE(c, face) ((c) | (((unicode_t)(face) & 0x0F) << SYNTAX_FACE_SHIFT))
-#define SYNTAX_DECODE_FACE(c) (((c) & SYNTAX_FACE_MASK) >> SYNTAX_FACE_SHIFT)
+#define SYNTAX_ENCODE_FACE(c, face) ((unicode_t)(c) | (((unicode_t)(face) & 0x0F) << SYNTAX_FACE_SHIFT))
+#define SYNTAX_DECODE_FACE(c) ((int)(((c) & SYNTAX_FACE_MASK) >> SYNTAX_FACE_SHIFT))
 #define SYNTAX_STRIP_BITS(c) ((c) & ~(HIGHLIGHT_BIT | SELECTION_BIT | SYNTAX_FACE_MASK))
+static_assert((SYNTAX_FACE_MASK & (HIGHLIGHT_BIT | SELECTION_BIT)) == 0,
+              "SYNTAX_FACE_MASK must not overlap HIGHLIGHT_BIT or SELECTION_BIT");
 
 /*
  * vtputc_syntax:
@@ -528,7 +538,7 @@ static void vtputc_highlighted(int c)
 
 	/* Store character with highlight bit set */
 	if (vtcol >= 0) {
-		vp->v_text[vtcol] = c | HIGHLIGHT_BIT;
+		vp->v_text[vtcol] = (unicode_t)c | HIGHLIGHT_BIT;
 		// Mark line as changed - checksum will be updated later
 		vp->v_flag |= VFCHG;
 	}
@@ -580,7 +590,7 @@ static void vtputc_selected(int c)
 
 	/* Store character with selection bit set */
 	if (vtcol >= 0) {
-		vp->v_text[vtcol] = c | SELECTION_BIT;
+		vp->v_text[vtcol] = (unicode_t)c | SELECTION_BIT;
 		vp->v_flag |= VFCHG;
 	}
 	++vtcol;
@@ -1149,18 +1159,18 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 {
 	/* CRITICAL: Null check before dereferencing lp */
 	if (!lp) {
-		LOG_ERROR("Display: show_line_wrapped() FATAL - lp is NULL!");
+		LOG_ERROR("Display: show_line_wrapped() FATAL - lp is nullptr!");
 		return 1;
 	}
-	/* Note: lp->storage can be NULL for view mode lines (piece table backed) */
+	/* Note: lp->storage can be nullptr for view mode lines (piece table backed) */
 
 	int i = 0, len = llength(lp);
 	int in_selection = false;
 	int rows_used = 1;
 	int char_col = 0;  /* Character column for syntax lookup */
 
-	/* Get syntax state for this buffer (may be NULL if no highlighting) */
-	buffer_syntax_t *syn = NULL;
+	/* Get syntax state for this buffer (may be nullptr if no highlighting) */
+	buffer_syntax_t *syn = nullptr;
 	if (wp && wp->w_bufp && wp->w_bufp->b_syntax && line_num >= 0) {
 		syn = wp->w_bufp->b_syntax;
 	}
@@ -1239,7 +1249,7 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 		}
 
 		unicode_t c;
-		int bytes = utf8_to_unicode(line_text, i, actual_len, &c);
+		int bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
 
 		/* Debug: Log UTF-8 decode for first 5 chars of row 0 */
 		if (vtrow == 0 && i < 15) {
@@ -1324,16 +1334,16 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 			// Display other control chars as printable to avoid corruption
 			if (in_selection) {
 				vtputc_selected('^');
-				vtputc_selected('@' + c);
+				vtputc_selected((int)('@' + c));
 			} else {
 				vtputc_syntax('^', face);
-				vtputc_syntax('@' + c, face);
+				vtputc_syntax((int)('@' + c), face);
 			}
 		} else {
 			if (in_selection) {
-				vtputc_selected(c);
+				vtputc_selected((int)c);
 			} else {
-				vtputc_syntax(c, face);
+				vtputc_syntax((int)c, face);
 			}
 		}
 		i += bytes;
@@ -1370,33 +1380,33 @@ static void updone(struct window *wp)
 	 * on every keystroke - only recalculate when cursor moves to different line
 	 * or window scrolls. */
 	if (wp->w_wrap_col > 0) {
-		int sline;
+		int wrap_sline;
 		int line_num;
 
 		/* Check if cache is valid (same dotp and linep) */
 		if (wp->w_sline_dotp == wp->w_dotp && wp->w_sline_linep == wp->w_linep) {
 			/* Cache hit - use cached screen position */
-			sline = wp->w_sline_cache;
+			wrap_sline = wp->w_sline_cache;
 			line_num = get_line_number(wp->w_bufp, wp->w_dotp) - 1;
-			LOG_DEBUGF("SOFTWRAP: cache HIT sline=%d", sline);
+			LOG_DEBUGF("SOFTWRAP: cache HIT sline=%d", wrap_sline);
 		} else {
 			/* Cache miss - walk to find screen row (expensive but rare) */
 			LOG_DEBUG("SOFTWRAP: cache MISS - walking to find sline");
-			struct line *lp = wp->w_linep;
-			sline = wp->w_toprow;
+			struct line *walk_lp = wp->w_linep;
+			wrap_sline = wp->w_toprow;
 			line_num = get_line_number(wp->w_bufp, wp->w_linep);
 			if (line_num > 0) line_num--;
 
-			while (lp != wp->w_dotp && lp != wp->w_bufp->b_linep) {
-				if (lp != wp->w_bufp->b_linep) {
-					sline += calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+			while (walk_lp != wp->w_dotp && walk_lp != wp->w_bufp->b_linep) {
+				if (walk_lp != wp->w_bufp->b_linep) {
+					wrap_sline += calculate_wordwrap_line_rows(walk_lp, wp->w_wrap_col, 8);
 				} else {
-					sline++;
+					wrap_sline++;
 				}
-				lp = lforw(lp);
+				walk_lp = lforw(walk_lp);
 				if (line_num >= 0) line_num++;
 
-				if (sline >= wp->w_toprow + wp->w_ntrows) {
+				if (wrap_sline >= wp->w_toprow + wp->w_ntrows) {
 					/* dotp not visible, fall back to updall */
 					updall(wp);
 					return;
@@ -1406,7 +1416,7 @@ static void updone(struct window *wp)
 			/* Update cache */
 			wp->w_sline_dotp = wp->w_dotp;
 			wp->w_sline_linep = wp->w_linep;
-			wp->w_sline_cache = sline;
+			wp->w_sline_cache = wrap_sline;
 		}
 
 		/* Calculate current row count for cursor line */
@@ -1417,18 +1427,18 @@ static void updone(struct window *wp)
 			LOG_DEBUGF("Display: updone() soft-wrap rows changed %d->%d, using updfrom()",
 			           wp->w_sline_rows, cur_rows);
 			wp->w_sline_rows = cur_rows;
-			updfrom(wp, sline, wp->w_dotp, line_num);
+			updfrom(wp, wrap_sline, wp->w_dotp, line_num);
 			return;
 		}
 
 		/* Row count unchanged - just update the specific rows for this line */
-		int rows_remaining = (wp->w_toprow + wp->w_ntrows) - sline;
-		vtmove(sline, 0);
+		int rows_remaining = (wp->w_toprow + wp->w_ntrows) - wrap_sline;
+		vtmove(wrap_sline, 0);
 		int rows_used = show_line_wrapped(wp, wp->w_dotp, rows_remaining, line_num);
 
 		/* Mark all rows used by this line as changed and apply highlighting */
-		for (int r = 0; r < rows_used && (sline + r) < wp->w_toprow + wp->w_ntrows; r++) {
-			int row = sline + r;
+		for (int r = 0; r < rows_used && (wrap_sline + r) < wp->w_toprow + wp->w_ntrows; r++) {
+			int row = wrap_sline + r;
 			vscreen[row]->v_flag |= VFCHG;
 			vscreen[row]->v_linep = wp->w_dotp;
 			vscreen[row]->v_flag &= ~VFREQ;
@@ -1570,7 +1580,7 @@ static void updfrom(struct window *wp, int start_sline, struct line *start_lp, i
 		} else {
 			vtputc('~');
 			vteeol();
-			vscreen[sline]->v_linep = NULL;
+			vscreen[sline]->v_linep = nullptr;
 		}
 
 		/* Apply colors and fill for each row used */
@@ -1639,7 +1649,7 @@ static void updall(struct window *wp)
 
 	/* CRITICAL: Validate pointers before loop to catch null dereferences */
 	if (!vscreen) {
-		LOG_ERROR("Display: updall() FATAL - vscreen is NULL!");
+		LOG_ERROR("Display: updall() FATAL - vscreen is nullptr!");
 		return;
 	}
 	LOG_DEBUGF("UPDALL: entering loop linep=%p sline=%d t_mrow=%d t_nrow=%d",
@@ -1666,12 +1676,12 @@ static void updall(struct window *wp)
 
 		/* Hot path - logging disabled for performance
 		LOG_DEBUGF("Display: updall() row=%d, lp=%p, b_linep=%p, has_content=%d",
-		           sline, (void*)lp, (void*)(wp->w_bufp ? wp->w_bufp->b_linep : NULL), has_content); */
+		           sline, (void*)lp, (void*)(wp->w_bufp ? wp->w_bufp->b_linep : nullptr), has_content); */
 
 		if (has_content) {
 			/* Check display event handlers for folding/narrowing/etc. */
 			display_line_action_t line_action = DISPLAY_RENDER;
-			const char *substitute_text = NULL;
+			const char *substitute_text = nullptr;
 
 			if (event_bus_has_handlers(EVT_DISPLAY_LINE)) {
 				event_display_line_t evt = {
@@ -1680,7 +1690,7 @@ static void updall(struct window *wp)
 					.line_num = line_num,
 					.screen_row = sline,
 					.action = DISPLAY_RENDER,
-					.substitute = NULL,
+					.substitute = nullptr,
 					.substitute_face = 0,
 				};
 				event_bus_emit(EVT_DISPLAY_LINE, &evt, sizeof(evt));
@@ -1718,7 +1728,7 @@ static void updall(struct window *wp)
 			vtmove(sline, 0);
 			vtputc('~');
 			vteeol();
-			vscreen[sline]->v_linep = NULL;  /* No buffer line for this row */
+			vscreen[sline]->v_linep = nullptr;  /* No buffer line for this row */
 		}
 
 		/* Apply colors and fill remaining space for each row used */
@@ -1768,11 +1778,11 @@ static void updall(struct window *wp)
 	/* Update soft-wrap cache after full refresh - recalculate cursor screen position */
 	if (wp->w_wrap_col > 0 && wp->w_dotp) {
 		/* Find screen row for cursor line */
-		struct line *lp = wp->w_linep;
+		struct line *cache_lp = wp->w_linep;
 		int cursor_sline = wp->w_toprow;
-		while (lp != wp->w_dotp && lp != wp->w_bufp->b_linep) {
-			cursor_sline += calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
-			lp = lforw(lp);
+		while (cache_lp != wp->w_dotp && cache_lp != wp->w_bufp->b_linep) {
+			cursor_sline += calculate_wordwrap_line_rows(cache_lp, wp->w_wrap_col, 8);
+			cache_lp = lforw(cache_lp);
 		}
 		wp->w_sline_dotp = wp->w_dotp;
 		wp->w_sline_linep = wp->w_linep;
@@ -1798,47 +1808,47 @@ static int calculate_wordwrap_line_rows(struct line *lp, int wrap_col, int tab_w
 	lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
 
 	int i = 0;
-	int vtcol = 0;
+	int vcol = 0;
 	int rows = 1;
 	int last_space_i = -1;
-	int last_space_vtcol = -1;
+	int last_space_vcol = -1;
 
 	while (i < actual_len) {
 		unicode_t c;
-		int bytes = utf8_to_unicode(line_text, i, actual_len, &c);
+		int bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
 		if (bytes <= 0) bytes = 1;
 
 		/* Check for wrap BEFORE processing */
-		if (vtcol >= wrap_col) {
-			if (last_space_vtcol > 0 && c != ' ' && c != '\t') {
-				vtcol = last_space_vtcol;
+		if (vcol >= wrap_col) {
+			if (last_space_vcol > 0 && c != ' ' && c != '\t') {
+				vcol = last_space_vcol;
 				i = last_space_i;
-				bytes = utf8_to_unicode(line_text, i, actual_len, &c);
+				bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
 				if (bytes <= 0) bytes = 1;
 			}
 			if (c == ' ' || c == '\t') {
 				i += bytes;
 				last_space_i = -1;
-				last_space_vtcol = -1;
+				last_space_vcol = -1;
 			}
-			vtcol = 0;
+			vcol = 0;
 			rows++;
 			last_space_i = -1;
-			last_space_vtcol = -1;
+			last_space_vcol = -1;
 			continue;
 		}
 
 		if (c == ' ' || c == '\t') {
 			last_space_i = i + bytes;
-			last_space_vtcol = vtcol + 1;
+			last_space_vcol = vcol + 1;
 		}
 
 		if (c == '\t') {
-			vtcol = ((vtcol + tab_width) / tab_width) * tab_width;
+			vcol = ((vcol + tab_width) / tab_width) * tab_width;
 		} else if (c < 32 || c == 127) {
-			vtcol += 2;
+			vcol += 2;
 		} else {
-			vtcol++;
+			vcol++;
 		}
 		i += bytes;
 	}
@@ -1874,53 +1884,53 @@ static int calculate_wordwrap_cursor_pos(struct line *lp, int byte_offset, int w
 	lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
 
 	int i = 0;
-	int vtcol = 0;
+	int vcol = 0;
 	int rows = 0;
 	int last_space_i = -1;
-	int last_space_vtcol = -1;
+	int last_space_vcol = -1;
 
 	while (i < actual_len && i < byte_offset) {
 		unicode_t c;
-		int bytes = utf8_to_unicode(line_text, i, actual_len, &c);
+		int bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
 		if (bytes <= 0) bytes = 1;
 
 		/* Check for wrap BEFORE processing this character */
-		if (vtcol >= wrap_col) {
+		if (vcol >= wrap_col) {
 			/* Word wrap: backtrack to last space if available */
-			if (last_space_vtcol > 0 && c != ' ' && c != '\t') {
+			if (last_space_vcol > 0 && c != ' ' && c != '\t') {
 				/* Backtrack to after the space */
-				vtcol = last_space_vtcol;
+				vcol = last_space_vcol;
 				i = last_space_i;
-				bytes = utf8_to_unicode(line_text, i, actual_len, &c);
+				bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
 				if (bytes <= 0) bytes = 1;
 			}
 			/* Skip leading space on new line */
 			if (c == ' ' || c == '\t') {
 				i += bytes;
 				last_space_i = -1;
-				last_space_vtcol = -1;
+				last_space_vcol = -1;
 			}
 			/* Wrap to next row */
-			vtcol = 0;
+			vcol = 0;
 			rows++;
 			last_space_i = -1;
-			last_space_vtcol = -1;
+			last_space_vcol = -1;
 			continue;
 		}
 
 		/* Track spaces for word-wrap */
 		if (c == ' ' || c == '\t') {
 			last_space_i = i + bytes;
-			last_space_vtcol = vtcol + 1;
+			last_space_vcol = vcol + 1;
 		}
 
 		/* Calculate display width */
 		if (c == '\t') {
-			vtcol = ((vtcol + tab_width) / tab_width) * tab_width;
+			vcol = ((vcol + tab_width) / tab_width) * tab_width;
 		} else if (c < 32 || c == 127) {
-			vtcol += 2;  /* Control char like ^A */
+			vcol += 2;  /* Control char like ^A */
 		} else {
-			vtcol++;  /* Normal char */
+			vcol++;  /* Normal char */
 		}
 		i += bytes;
 	}
@@ -1928,12 +1938,12 @@ static int calculate_wordwrap_cursor_pos(struct line *lp, int byte_offset, int w
 	/* Post-loop check: if cursor is at/past wrap_col and there's more text,
 	 * the next character would wrap, so cursor should be on the next row.
 	 * If cursor is at end of buffer, it stays at end of current visual line. */
-	if (vtcol >= wrap_col && byte_offset < actual_len) {
+	if (vcol >= wrap_col && byte_offset < actual_len) {
 		rows++;
-		vtcol = 0;
+		vcol = 0;
 	}
 
-	*out_col = vtcol;
+	*out_col = vcol;
 	return rows;
 }
 
@@ -2394,7 +2404,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
                 current_face = face;
             }
 
-            TTputc(ch);
+            TTputc((int)ch);
 
             /* Reset after highlighted/selected character */
             if (char_selected && !row_is_cursor_line && !req && !row_needs_highlight_clear) {
@@ -2477,7 +2487,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 			cp5 = cp3;	/* fewer characters. */
 	}
 
-	movecursor(row, cp1 - &vp1->v_text[0]);	/* Go to start of line. */
+	movecursor(row, (int)(cp1 - &vp1->v_text[0]));	/* Go to start of line. */
 
 	/* Sync highlight state BEFORE reset (raw_rev tracks state internally) */
 	(*term.t_rev)(false);
@@ -2542,7 +2552,7 @@ static int updateline(int row, struct video *vp1, struct video *vp2)
 			current_face = face;
 		}
 
-		TTputc(ch);
+		TTputc((int)ch);
 
 		/* Reset after highlighted/selected character */
 		if ((char_selected || char_highlighted) && !row_is_cursor_line && !req) {

@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 1.11.2
+    VERSION 1.12.0
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -132,7 +132,7 @@ set(PLATFORM_SOURCES
 
 # Terminal handling - Linux only (pure raw ANSI, no ncurses dependency)
 set(TERMINAL_SOURCES
-    src/terminal/drivers/curses.c
+    src/terminal/drivers/ansi.c
     src/terminal/modern-term.c
     src/terminal/capability.c
     src/terminal/cleanup.c
@@ -530,7 +530,15 @@ target_compile_options(muemacs_core PRIVATE
     -Wno-unused-parameter
     -Wno-unused-variable
     -Wno-unused-function
-    
+
+    # C23 safety sweep - type and conversion warnings
+    -Wconversion
+    -Wsign-conversion
+    -Wshadow
+    -Wdouble-promotion
+    -Wrestrict
+    -Wcast-align
+
     # Security hardening
     -fstack-protector-strong
     -fstack-clash-protection

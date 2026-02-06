@@ -22,7 +22,7 @@
 stats_t stats = {0};
 
 // Global path to uemacs binary
-const char* uemacs_path = NULL;
+const char* uemacs_path = nullptr;
 
 // Modern timeout-based error handling
 volatile int test_timeout_occurred = 0;
@@ -117,7 +117,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
         memset(&tio, 0, sizeof(tio));
         tio.c_cflag = B38400 | CS8 | CREAD | CLOCAL;
     }
-    cpid = forkpty(&mfd, NULL, &tio, NULL);
+    cpid = forkpty(&mfd, nullptr, &tio, nullptr);
     if (cpid == -1) {
         // Fallback: no PTY available -> skip running expect entirely
         LOG_WARNF("[SKIP] PTY unavailable; skipping expect script %s", script_name);
@@ -128,7 +128,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
         // Child: set env and exec shell to run the command
         setenv("LSAN_OPTIONS", "detect_leaks=0", 1);
         setenv("ASAN_OPTIONS", "detect_leaks=0", 1);
-        execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
+        execl("/bin/sh", "sh", "-c", cmd, (char*)nullptr);
         _exit(127);
     }
 
@@ -142,7 +142,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
 
     fd_set rfds;
     struct timeval tv;
-    time_t start = time(NULL);
+    time_t start = time(nullptr);
     char buf[1024];
     int finished = 0;
     while (!finished) {
@@ -150,7 +150,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
         FD_SET(mfd, &rfds);
         tv.tv_sec = 1;
         tv.tv_usec = 0;
-        int rv = select(mfd + 1, &rfds, NULL, NULL, &tv);
+        int rv = select(mfd + 1, &rfds, nullptr, nullptr, &tv);
         if (rv > 0 && FD_ISSET(mfd, &rfds)) {
             ssize_t n = read(mfd, buf, sizeof(buf));
             if (n > 0) {
@@ -160,7 +160,7 @@ int run_expect_script(const char* script_name, const char* test_file) {
             }
         }
         // Timeout guard (Phase timeout handler also exists)
-        if (difftime(time(NULL), start) > PHASE_TIMEOUT_SECONDS) {
+        if (difftime(time(nullptr), start) > PHASE_TIMEOUT_SECONDS) {
             LOG_WARN("[PTyRunner] Timeout exceeded. Killing child...");
             kill(cpid, SIGKILL);
             finished = 1;
@@ -491,7 +491,7 @@ int test_keymap_validation() {
 // Create an empty test buffer
 struct buffer *test_setup_buffer(const char *name) {
     struct buffer *bp = bfind((char *)name, true, 0);
-    if (!bp) return NULL;
+    if (!bp) return nullptr;
 
     // Switch to the new buffer
     curbp = bp;
@@ -507,7 +507,7 @@ struct buffer *test_setup_buffer(const char *name) {
 // Create a test buffer with N lines of content
 struct buffer *test_setup_buffer_with_lines(const char *name, int num_lines) {
     struct buffer *bp = bfind((char *)name, true, 0);
-    if (!bp) return NULL;
+    if (!bp) return nullptr;
 
     struct buffer *oldbp = curbp;
     curbp = bp;
@@ -551,7 +551,7 @@ void test_cleanup_buffer(struct buffer *bp, struct buffer *oldbp) {
     }
     if (bp) {
         bp->b_flag &= ~BFCHG;  // Mark as unmodified to avoid prompts
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 

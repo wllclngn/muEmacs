@@ -21,18 +21,18 @@ extern struct line* lalloc(int used);
 static struct line* make_buffer(void) {
     struct line* l1 = lalloc(8);
     struct line* l2 = lalloc(8);
-    if (!l1 || !l2) return NULL;
+    if (!l1 || !l2) return nullptr;
     TS_INSERT(l1->storage, 0, "foo", 3);
     TS_INSERT(l2->storage, 0, "bar", 3);
     l1->l_fp = l2; l2->l_bp = l1;
-    l1->l_bp = l2->l_fp = NULL;
+    l1->l_bp = l2->l_fp = nullptr;
     return l1;
 }
 #else
 // Helper: stub for when NFA is disabled
 static void* make_buffer(void) {
     LOG_INFO("[SKIP] make_buffer called but NFA disabled");
-    return NULL;
+    return nullptr;
 }
 #endif
 
@@ -41,7 +41,7 @@ static int test_anchor_start(void) {
     nfa_program_info nfa = {0};
     if (!nfa_compile("^foo", 1, &nfa)) return 0;
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l && moff == 0) ? 1 : 0;
 }
@@ -57,7 +57,7 @@ static int test_anchor_end(void) {
     nfa_program_info nfa = {0};
     if (!nfa_compile("bar$", 1, &nfa)) return 0;
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l->l_fp, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l->l_fp && moff == 0) ? 1 : 0;
 }
@@ -72,7 +72,7 @@ static int test_anchor_end(void) {
 static int test_cross_line(void) {
     // Test searching across multiple lines in a buffer
     struct line* l = make_buffer();  // Creates l1="foo", l2="bar"
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
 
     // Search for "foo" on line 1
     nfa_program_info nfa1 = {0};
@@ -99,7 +99,7 @@ static int test_class_and_closure(void) {
     // NFA only supports *, not + operator. Use fo[o]* to match "f" + one-or-more "o"s
     if (!nfa_compile("fo[o]*", 1, &nfa)) return 0;
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l && moff == 0) ? 1 : 0;
 }
@@ -115,7 +115,7 @@ static int test_case_fold(void) {
     nfa_program_info nfa = {0};
     if (!nfa_compile("FOO", 0, &nfa)) return 0;
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l && moff == 0) ? 1 : 0;
 }
@@ -147,9 +147,9 @@ static int test_anchors_only(void) {
     struct line* l = lalloc(8);  // Empty line (gap buffer has 0 content)
     if (!l) return 0;
     // Terminate the buffer - lalloc creates a circular self-reference by default
-    l->l_fp = NULL;
-    l->l_bp = NULL;
-    struct line* mlp = NULL; int moff = 0;
+    l->l_fp = nullptr;
+    l->l_bp = nullptr;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l && moff == 0) ? 1 : 0;
 }
@@ -167,12 +167,12 @@ static int test_negated_class(void) {
     struct line* l = lalloc(8);
     if (!l) return 0;
     // Terminate the buffer - lalloc creates a circular self-reference by default
-    l->l_fp = NULL;
-    l->l_bp = NULL;
+    l->l_fp = nullptr;
+    l->l_bp = nullptr;
 
     // Test 1: "foo" - 'f' is not 'a', so [^a]oo SHOULD match
     TS_INSERT(l->storage, 0, "foo", 3);
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     if (!(mlp == l && moff == 0)) return 0;
 
@@ -195,7 +195,7 @@ static int test_zero_length_match(void) {
     nfa_program_info nfa = {0};
     if (!nfa_compile("^", 1, &nfa)) return 0;
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l && moff == 0) ? 1 : 0;
 }
@@ -211,7 +211,7 @@ static int test_multiline_anchor(void) {
     nfa_program_info nfa = {0};
     if (!nfa_compile("^bar$", 1, &nfa)) return 0;
     struct line* l = make_buffer();
-    struct line* mlp = NULL; int moff = 0;
+    struct line* mlp = nullptr; int moff = 0;
     if (!nfa_search_forward(&nfa, l->l_fp, 0, 0, &mlp, &moff)) return 0;
     return (mlp == l->l_fp && moff == 0) ? 1 : 0;
 }

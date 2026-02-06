@@ -176,6 +176,7 @@ int swbuffer(struct buffer *bp)
 	}
 	curbp = bp; // Switch.
 	if (curbp->b_active != true) { // buffer not active yet
+		int status;
 		/* Check file size - large files use piece table (mmap) for O(1) loading */
 		struct stat st;
 		bool use_piece_table = (stat(curbp->b_fname, &st) == 0 &&
@@ -183,24 +184,26 @@ int swbuffer(struct buffer *bp)
 
 		if (use_piece_table) {
 			/* Large file: skip preload, use mmap + piece table */
-			readin(curbp->b_fname, true);
+			status = readin(curbp->b_fname, true);
 		} else {
 			/* Try preloaded data first (async file read) */
-			char *preload_data = NULL;
+			char *preload_data = nullptr;
 			size_t preload_size = 0;
 			if (file_preload_get(curbp->b_fname, &preload_data, &preload_size) == 0) {
 				/* Use preloaded data - no disk I/O needed */
-				readin_from_memory(preload_data, preload_size);
+				status = readin_from_memory(preload_data, preload_size);
 				free(preload_data);
 			} else {
 				/* Fall back to synchronous disk read */
-				readin(curbp->b_fname, true);
+				status = readin(curbp->b_fname, true);
 			}
 		}
 		curbp->b_dotp = lforw(curbp->b_linep);
 		curbp->b_doto = 0;
 		curbp->b_active = true;
-		curbp->b_mode |= gmode; // P.K.
+		curbp->b_mode |= (uint32_t)gmode; // P.K.
+		if (status != true)
+			mlwrite("[Error reading %s]", curbp->b_fname);
 	}
 	curwp->w_bufp = bp;
 	curwp->w_linep = bp->b_linep; // For macros, ignored.
@@ -303,7 +306,7 @@ int zotbuf(struct buffer *bp)
 	/* Free syntax highlighting state */
 	if (bp->b_syntax) {
 		syntax_free(bp->b_syntax);
-		bp->b_syntax = NULL;
+		bp->b_syntax = nullptr;
 	}
 
 	/* Release undo stack memory */
@@ -512,18 +515,18 @@ int makelist(int iflag)
 		snprintf(b, sizeof(b), "%6ld ", nbytes);
 		cp2 = &b[0];
 		while ((c = *cp2++) != 0)
-			*cp1++ = c;
+			*cp1++ = (char)c;
 		*cp1++ = ' ';	/* Gap.                 */
 		cp2 = &bp->b_bname[0];	/* Buffer name          */
 		while ((c = *cp2++) != 0)
-			*cp1++ = c;
+			*cp1++ = (char)c;
 		cp2 = &bp->b_fname[0];	/* File name            */
 		if (*cp2 != 0) {
 			while (cp1 < &line[3 + 1 + 5 + 1 + 6 + 4 + NBUFN])
 				*cp1++ = ' ';
 			while ((c = *cp2++) != 0) {
 				if (cp1 < &line[MAXLINE - 1])
-					*cp1++ = c;
+					*cp1++ = (char)c;
 			}
 		}
 		*cp1 = 0;	/* Add to the buffer.   */
@@ -542,13 +545,13 @@ int makelist(int iflag)
  * on the end. Return true if it worked and
  * false if you ran out of room.
  */
-int addline(char *text)
+int addline(const char *text)
 {
 	struct line *lp;
 	int i;
 	int ntext;
 
-	ntext = strlen(text);
+	ntext = (int)strlen(text);
 	if ((lp = lalloc(ntext)) == nullptr) {
 		REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE LINE FOR BUFFER LIST");
 		return false;
@@ -593,7 +596,7 @@ int anycb(void)
  * and the "cflag" is true, create it. The "bflag" is
  * the settings for the flags in in buffer.
  */
-struct buffer *bfind(char *bname, int cflag, int bflag)
+struct buffer *bfind(const char *bname, int cflag, int bflag)
 {
 	struct buffer *bp;
 	struct buffer *sb; // buffer to insert after
@@ -638,8 +641,8 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 		bp->b_doto = 0;
 		bp->b_markp = nullptr;
 		bp->b_marko = 0;
-		bp->b_flag = bflag;
-		bp->b_mode = gmode;
+		bp->b_flag = (uint8_t)bflag;
+		bp->b_mode = (uint32_t)gmode;
 		bp->b_nwnd = 0;
 		bp->b_linep = lp;
         safe_strcpy(bp->b_fname, "", NFILEN);
@@ -679,7 +682,7 @@ struct buffer *bfind(char *bname, int cflag, int bflag)
 		bp->b_term_data = nullptr;
 
 		// Initialize syntax highlighting fields
-		bp->b_syntax = NULL;
+		bp->b_syntax = nullptr;
 		bp->b_lang_id = -1;
 
 		// Add buffer to hash table for instant O(1) lookup
@@ -803,7 +806,7 @@ void buffer_get_stats_fast(struct buffer *bp, int *line_count, long *byte_count,
 			// Count words in line
 			bool in_word = false;
 			for (int i = 0; i < line_len; i++) {
-				char c = lgetc(lp, i);
+				char c = (char)lgetc(lp, i);
 				if (c == ' ' || c == '\t' || c == '\n') {
 					in_word = false;
 				} else if (!in_word) {
@@ -880,7 +883,7 @@ int buffer_index_insert(struct buffer *bp, int line_idx, struct line *lp)
 		LOG_DEBUGF("BufferIndex: Resizing %zu -> %zu (count=%d)", capacity, new_capacity, current_count);
 
 		if (bp->b_line_index) {
-			memcpy(new_index, bp->b_line_index, sizeof(struct line *) * current_count);
+			memcpy(new_index, bp->b_line_index, sizeof(struct line *) * (size_t)current_count);
 			SAFE_FREE(bp->b_line_index);
 		}
 		bp->b_line_index = new_index;
@@ -897,7 +900,7 @@ int buffer_index_insert(struct buffer *bp, int line_idx, struct line *lp)
 		}
 		memmove(&bp->b_line_index[line_idx + 1],
 				&bp->b_line_index[line_idx],
-				sizeof(struct line *) * (current_count - line_idx));
+				sizeof(struct line *) * (size_t)(current_count - line_idx));
 	}
 	
 	bp->b_line_index[line_idx] = lp;
@@ -922,9 +925,9 @@ int buffer_index_delete(struct buffer *bp, int line_idx)
 	
 	// Shift elements down
 	if (line_idx < current_count - 1) {
-		memmove(&bp->b_line_index[line_idx], 
-				&bp->b_line_index[line_idx + 1], 
-				sizeof(struct line *) * (current_count - 1 - line_idx));
+		memmove(&bp->b_line_index[line_idx],
+				&bp->b_line_index[line_idx + 1],
+				sizeof(struct line *) * (size_t)(current_count - 1 - line_idx));
 	}
 	
 	// Clear last element (optional, but safe)

@@ -15,6 +15,7 @@
 #include <stddef.h>  /* for size_t */
 #include "terminal/input_state.h"  /* for input_key_event_t */
 #include "keymap.h"  /* for keymap_key_t */
+#include "c23_compat.h"  /* for NODISCARD, NORETURN */
 
 struct magic;  /* Forward declarations */
 struct region;
@@ -220,7 +221,7 @@ extern int transpose_line_down(int f, int n);
 
 /* main.c */
 extern int muemacs_main_entry(int argc, char *argv[]);
-extern void edinit(char *bname);
+extern void edinit(const char *bname);
 extern int execute_event(input_key_event_t *evt, int f, int n);  /* Event-based dispatch */
 extern int quickexit(int f, int n);
 extern int quit(int f, int n);
@@ -234,8 +235,6 @@ extern int nullproc(int f, int n);
 extern int metafn(int f, int n);
 extern int cex(int f, int n);
 extern int unarg(int f, int n);
-extern int cexit(int status);
-
 /* display.c */
 extern void vtinit(void);
 extern void vtinit_test(void);  /* Test-only: allocate screens without terminal I/O */
@@ -275,7 +274,7 @@ extern int lowerregion(int f, int n);
 extern int upperregion(int f, int n);
 extern int getregion(struct region *rp);
 
-/* posix.c / curses.c */
+/* posix.c / ansi.c */
 extern void ttopen(void);
 extern void ttclose(void);
 extern int ttputc(int c);
@@ -325,7 +324,7 @@ extern int apropos_command(int f, int n);
 extern int buildlist(int type, const char *mstring);
 extern int string_contains(const char *source, const char *sub);
 extern keymap_key_t read_key(int mflag);      /* Read key as modern keymap_key_t */
-extern int startup(const char *sfname);
+NODISCARD extern int startup(const char *sfname);
 extern const char *flook(const char *fname, int hflag);
 extern void cmdstr_key(keymap_key_t key, char *seq);  /* Modern key to string */
 extern fn_t getbind_event(input_key_event_t *evt);    /* Event-based binding lookup */
@@ -342,17 +341,17 @@ extern int keymap_stats_cmd(int f, int n);
 /* buffer.c */
 extern int usebuffer(int f, int n);
 extern int nextbuffer(int f, int n);
-extern int swbuffer(struct buffer *bp);
+NODISCARD extern int swbuffer(struct buffer *bp);
 extern int killbuffer(int f, int n);
-extern int zotbuf(struct buffer *bp);
+NODISCARD extern int zotbuf(struct buffer *bp);
 extern int namebuffer(int f, int n);
 extern int listbuffers(int f, int n);
-extern int makelist(int iflag);
-extern int addline(char *text);
-extern int anycb(void);
-extern int bclear(struct buffer *bp);
+NODISCARD extern int makelist(int iflag);
+NODISCARD extern int addline(const char *text);
+NODISCARD extern int anycb(void);
+NODISCARD extern int bclear(struct buffer *bp);
 extern int unmark(int f, int n);
-extern struct buffer *bfind(char *bname, int cflag, int bflag);
+NODISCARD extern struct buffer *bfind(const char *bname, int cflag, int bflag);
 extern void buffer_update_stats_incremental(struct buffer *bp, int line_delta, long byte_delta, int word_delta);
 extern void buffer_mark_stats_dirty(struct buffer *bp);
 extern void buffer_get_stats_fast(struct buffer *bp, int *line_count, long *byte_count, int *word_count);
@@ -362,20 +361,20 @@ extern struct line *buffer_index_get(struct buffer *bp, int line_idx);
 extern int buffer_rebuild_index(struct buffer *bp);
 
 /* file.c */
-extern int fileread(int f, int n);
+NODISCARD extern int fileread(int f, int n);
 extern int insfile(int f, int n);
-extern int filefind(int f, int n);
+NODISCARD extern int filefind(int f, int n);
 extern int viewfile(int f, int n);
-extern int getfile(const char *fname, int lockfl);
-extern int readin(const char *fname, int lockfl);
-extern int readin_from_memory(const char *data, size_t size);
+NODISCARD extern int getfile(const char *fname, int lockfl);
+NODISCARD extern int readin(const char *fname, int lockfl);
+NODISCARD extern int readin_from_memory(const char *data, size_t size);
 extern void makename(char *bname, const char *fname);
 extern void unqname(char *name);
-extern int filewrite(int f, int n);
-extern int filesave(int f, int n);
-extern int writeout(const char *fn);
+NODISCARD extern int filewrite(int f, int n);
+NODISCARD extern int filesave(int f, int n);
+NODISCARD extern int writeout(const char *fn);
 extern int filename(int f, int n);
-extern int ifile(const char *fname);
+NODISCARD extern int ifile(const char *fname);
 
 /* encrypt.c - external tool encryption */
 extern int encrypt_buffer_gpg(int f, int n);
@@ -386,12 +385,12 @@ extern int encrypt_buffer_auto(int f, int n);
 extern int show_encryption_tools(int f, int n);
 
 /* fileio.c */
-extern int ffropen(const char *fn);
-extern int ffwopen(const char *fn);
-extern int ffclose(void);
-extern int ffputline(char *buf, int nbuf);
-extern int ffgetline(void);
-extern int fexist(const char *fname);
+NODISCARD extern int ffropen(const char *fn);
+NODISCARD extern int ffwopen(const char *fn);
+NODISCARD extern int ffclose(void);
+NODISCARD extern int ffputline(const char *buf, int nbuf);
+NODISCARD extern int ffgetline(void);
+NODISCARD extern int fexist(const char *fname);
 
 /* exec.c */
 extern int namedcmd(int f, int n);

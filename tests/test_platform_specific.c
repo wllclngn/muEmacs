@@ -120,7 +120,7 @@ int test_signal_handling_linux(void) {
     sigemptyset(&mask);
     sigaddset(&mask, SIGUSR1);
 
-    if (sigprocmask(SIG_BLOCK, &mask, NULL) == 0) {
+    if (sigprocmask(SIG_BLOCK, &mask, nullptr) == 0) {
         int signal_fd = signalfd(-1, &mask, SFD_CLOEXEC);
         if (signal_fd >= 0) {
             LOG_INFO("[SUCCESS] Signalfd: created signal file descriptor");
@@ -129,7 +129,7 @@ int test_signal_handling_linux(void) {
         }
 
         // Restore signal mask
-        sigprocmask(SIG_UNBLOCK, &mask, NULL);
+        sigprocmask(SIG_UNBLOCK, &mask, nullptr);
     }
 
     // Test real-time signals
@@ -163,7 +163,7 @@ int test_memory_management_linux(void) {
     LOG_INFO("Testing mmap with Linux flags...");
     total++;
     
-    void* mapped = mmap(NULL, 4096, PROT_READ | PROT_WRITE, 
+    void* mapped = mmap(nullptr, 4096, PROT_READ | PROT_WRITE, 
                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mapped != MAP_FAILED) {
         // Test memory access
@@ -201,7 +201,7 @@ int test_memory_management_linux(void) {
 static void* thread_function(void* arg) {
     int* value = (int*)arg;
     *value = 42;
-    return NULL;
+    return nullptr;
 }
 
 // Test threading primitives
@@ -216,8 +216,8 @@ int test_threading_primitives(void) {
     pthread_t thread;
     int thread_data = 0;
     
-    if (pthread_create(&thread, NULL, thread_function, &thread_data) == 0) {
-        if (pthread_join(thread, NULL) == 0) {
+    if (pthread_create(&thread, nullptr, thread_function, &thread_data) == 0) {
+        if (pthread_join(thread, nullptr) == 0) {
             if (thread_data == 42) {
                 LOG_INFO("[SUCCESS] Pthread: thread created, executed, and joined");
                 passed++;
@@ -278,7 +278,7 @@ int test_ipc_mechanisms(void) {
     LOG_INFO("Testing shared memory...");
     total++;
     
-    void* shared_mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE,
+    void* shared_mem = mmap(nullptr, 4096, PROT_READ | PROT_WRITE,
                            MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if (shared_mem != MAP_FAILED) {
         char* shared_data = (char*)shared_mem;

@@ -36,7 +36,7 @@ static int getgoal(struct line *dlp)
 	col = 0;
 	dbo = 0;
 	while (dbo != len) {
-		unicode_t c = lgetc(dlp, dbo);
+		unicode_t c = (unicode_t)lgetc(dlp, dbo);
 		newcol = col;
 
 		/* Take tabs, ^X and \xx hex characters into account */
@@ -90,7 +90,7 @@ int move_char_backward(int f, int n)
 			do {
 				unsigned char c;
 				curwp->w_doto--;
-				c = lgetc(curwp->w_dotp, curwp->w_doto);
+				c = (unsigned char)lgetc(curwp->w_dotp, curwp->w_doto);
 				if (is_beginning_utf8(c))
 					break;
 			} while (curwp->w_doto);
@@ -134,7 +134,7 @@ int move_char_forward(int f, int n)
 			do {
 				unsigned char c;
 				curwp->w_doto++;
-				c = lgetc(curwp->w_dotp, curwp->w_doto);
+				c = (unsigned char)lgetc(curwp->w_dotp, curwp->w_doto);
 				if (is_beginning_utf8(c))
 					break;
 			} while (curwp->w_doto < len);

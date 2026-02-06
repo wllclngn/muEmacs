@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     edinit("save_crash_test");
     varinit();
 
-    if (curbp == NULL) {
+    if (curbp == nullptr) {
         LOG_INFO("Error: No current buffer after initialization");
         return 1;
     }
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
     const char* saved_file = "poe_saved_modified.txt";
 
     // Clear the current buffer first to ensure a clean slate for reading the file
-    bclear(curbp);
+    (void)bclear(curbp);
 
     LOG_INFOF("Loading '%s' into buffer...", original_file);
     // Use readin to load the file

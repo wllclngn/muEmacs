@@ -510,7 +510,7 @@ int display_pad(char* dest, size_t dest_size, const char* src, int target_cols, 
  * safe_atoi - Convert string to int with error handling
  *
  * Uses strtol() internally with proper validation.
- * Returns default_val if str is NULL, empty, or not a valid integer.
+ * Returns default_val if str is nullptr, empty, or not a valid integer.
  */
 int safe_atoi(const char *str, int default_val)
 {

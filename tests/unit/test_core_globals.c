@@ -45,14 +45,14 @@ static int test_globals_modenames(void) {
     PHASE_START("GLOBALS: MODENAMES", "Mode name arrays");
 
     // Test modename array has entries
-    if (modename[0] == NULL) {
-        LOG_ERROR("[FAIL] modename[0] is NULL");
+    if (modename[0] == nullptr) {
+        LOG_ERROR("[FAIL] modename[0] is nullptr");
         ok = 0;
     }
 
     // Test mode2name array has entries
-    if (mode2name[0] == NULL) {
-        LOG_ERROR("[FAIL] mode2name[0] is NULL");
+    if (mode2name[0] == nullptr) {
+        LOG_ERROR("[FAIL] mode2name[0] is nullptr");
         ok = 0;
     }
 
@@ -73,13 +73,13 @@ static int test_globals_modenames(void) {
     // Verify each modename entry is non-null (iterate based on modecode length)
     int mode_count = 0;
     for (int i = 0; i < modecode_len; i++) {
-        if (modename[i] == NULL) {
-            LOG_ERRORF("[FAIL] modename[%d] is NULL", i);
+        if (modename[i] == nullptr) {
+            LOG_ERRORF("[FAIL] modename[%d] is nullptr", i);
             ok = 0;
             break;
         }
-        if (mode2name[i] == NULL) {
-            LOG_ERRORF("[FAIL] mode2name[%d] is NULL but modename[%d] exists", i, i);
+        if (mode2name[i] == nullptr) {
+            LOG_ERRORF("[FAIL] mode2name[%d] is nullptr but modename[%d] exists", i, i);
             ok = 0;
             break;
         }
@@ -103,17 +103,17 @@ static int test_globals_colornames(void) {
     PHASE_START("GLOBALS: COLORNAMES", "Color name array");
 
     // Test cname array has entries
-    if (cname[0] == NULL) {
-        LOG_ERROR("[FAIL] cname[0] is NULL");
+    if (cname[0] == nullptr) {
+        LOG_ERROR("[FAIL] cname[0] is nullptr");
         ok = 0;
     }
 
     // Test specific color names
     const char *expected_colors[] = {
-        "BLACK", "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "CYAN", "WHITE", NULL
+        "BLACK", "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "CYAN", "WHITE", nullptr
     };
 
-    for (int i = 0; expected_colors[i] != NULL; i++) {
+    for (int i = 0; expected_colors[i] != nullptr; i++) {
         if (strcmp(cname[i], expected_colors[i]) != 0) {
             LOG_ERRORF("[FAIL] cname[%d] expected '%s', got '%s'", i, expected_colors[i], cname[i]);
             ok = 0;
@@ -130,17 +130,17 @@ static int test_globals_directives(void) {
     PHASE_START("GLOBALS: DIRECTIVES", "Directive name array");
 
     // Test dname array has entries
-    if (dname[0] == NULL) {
-        LOG_ERROR("[FAIL] dname[0] is NULL");
+    if (dname[0] == nullptr) {
+        LOG_ERROR("[FAIL] dname[0] is nullptr");
         ok = 0;
     }
 
     // Test some expected directive names
     const char *expected[] = {
-        "if", "else", "endif", "goto", "return", "endm", "while", "endwhile", "break", "force", NULL
+        "if", "else", "endif", "goto", "return", "endm", "while", "endwhile", "break", "force", nullptr
     };
 
-    for (int i = 0; expected[i] != NULL; i++) {
+    for (int i = 0; expected[i] != nullptr; i++) {
         if (strcmp(dname[i], expected[i]) != 0) {
             LOG_ERRORF("[FAIL] dname[%d] expected '%s', got '%s'", i, expected[i], dname[i]);
             ok = 0;
@@ -202,7 +202,7 @@ static int test_globals_buffer_hash(void) {
     // The buffer_hash_table should be zero-initialized
     int non_null_count = 0;
     for (int i = 0; i < BUFFER_HASH_SIZE; i++) {
-        if (buffer_hash_table[i] != NULL) {
+        if (buffer_hash_table[i] != nullptr) {
             non_null_count++;
         }
     }

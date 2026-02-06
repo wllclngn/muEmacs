@@ -417,7 +417,7 @@ static int vim_motion_with_operator(int (*motion)(int, int)) {
 
     if (g_vim_state.pending_op) {
         /* Execute operator with this motion */
-        char op = g_vim_state.pending_op;
+        char op = (char)g_vim_state.pending_op;
         return vim_execute_operator_with_motion(op, motion, count);
     }
 
@@ -810,7 +810,7 @@ int vim_replace_char(int f, int n) {
     }
 
     /* Record for dot repeat */
-    vim_record_replace_change(ch, count);
+    vim_record_replace_change((char)ch, count);
 
     /* Replace count characters */
     for (int i = 0; i < count; i++) {
@@ -829,7 +829,7 @@ int vim_replace_char(int f, int n) {
                 buf[j] = (char)lgetc(curwp->w_dotp, curwp->w_doto + j);
             }
             unicode_t uc;
-            byte_len = utf8_to_unicode(buf, 0, to_read, &uc);
+            byte_len = (int)utf8_to_unicode(buf, 0, (unsigned)to_read, &uc);
             if (byte_len <= 0) byte_len = 1;  /* Fallback for invalid UTF-8 */
         }
 
@@ -967,7 +967,7 @@ static int vim_jump_to_mark(char mark_char, bool exact_position) {
     int idx = mark_char - 'a';
     struct line *target_line = g_vim_state.marks[idx].line;
 
-    if (target_line == NULL) {
+    if (target_line == nullptr) {
         mlwrite("[Mark '%c' not set]", mark_char);
         return false;
     }
@@ -999,7 +999,7 @@ static int vim_jump_to_mark(char mark_char, bool exact_position) {
     }
 
     mlwrite("[Mark '%c' invalid (line deleted?)]", mark_char);
-    g_vim_state.marks[idx].line = NULL;  /* Clear invalid mark */
+    g_vim_state.marks[idx].line = nullptr;  /* Clear invalid mark */
     return false;
 }
 
@@ -1013,7 +1013,7 @@ int vim_goto_mark_line(int f, int n) {
 
     if (ch == '\'') {
         /* '': Jump to last jump position */
-        if (g_vim_state.last_jump_line == NULL) {
+        if (g_vim_state.last_jump_line == nullptr) {
             mlwrite("[No previous position]");
             return false;
         }
@@ -1033,7 +1033,7 @@ int vim_goto_mark_line(int f, int n) {
         return true;
     }
 
-    return vim_jump_to_mark(ch, false);
+    return vim_jump_to_mark((char)ch, false);
 }
 
 /* `{a-z}: Go to mark exact position */
@@ -1046,7 +1046,7 @@ int vim_goto_mark_exact(int f, int n) {
 
     if (ch == '`') {
         /* ``: Jump to last jump position (exact) */
-        if (g_vim_state.last_jump_line == NULL) {
+        if (g_vim_state.last_jump_line == nullptr) {
             mlwrite("[No previous position]");
             return false;
         }
@@ -1068,7 +1068,7 @@ int vim_goto_mark_exact(int f, int n) {
         return true;
     }
 
-    return vim_jump_to_mark(ch, true);
+    return vim_jump_to_mark((char)ch, true);
 }
 
 /* =========== Search Commands =========== */
@@ -1168,7 +1168,7 @@ static int vim_get_word_under_cursor(void) {
     int len = end - start;
     if (len >= NPAT) len = NPAT - 1;
     for (int i = 0; i < len; i++) {
-        pat[i] = lgetc(curwp->w_dotp, start + i);
+        pat[i] = (char)lgetc(curwp->w_dotp, start + i);
     }
     pat[len] = '\0';
 
@@ -1249,10 +1249,10 @@ static void vim_reg_store(char reg, const char *text, int len, int linewise) {
         /* Append to existing content */
         int old_len = g_vim_state.registers[idx].len;
         int new_len = old_len + len;
-        char *new_text = SAFE_ALLOC_SIZED(char, new_len + 1, "vim register append");
+        char *new_text = SAFE_ALLOC_SIZED(char, (size_t)new_len + 1, "vim register append");
         if (new_text) {
-            memcpy(new_text, g_vim_state.registers[idx].text, old_len);
-            memcpy(new_text + old_len, text, len);
+            memcpy(new_text, g_vim_state.registers[idx].text, (size_t)old_len);
+            memcpy(new_text + old_len, text, (size_t)len);
             new_text[new_len] = '\0';
             SAFE_FREE(g_vim_state.registers[idx].text);
             g_vim_state.registers[idx].text = new_text;
@@ -1265,9 +1265,9 @@ static void vim_reg_store(char reg, const char *text, int len, int linewise) {
         if (g_vim_state.registers[idx].text) {
             SAFE_FREE(g_vim_state.registers[idx].text);
         }
-        g_vim_state.registers[idx].text = SAFE_ALLOC_SIZED(char, len + 1, "vim register store");
+        g_vim_state.registers[idx].text = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "vim register store");
         if (g_vim_state.registers[idx].text) {
-            memcpy(g_vim_state.registers[idx].text, text, len);
+            memcpy(g_vim_state.registers[idx].text, text, (size_t)len);
             g_vim_state.registers[idx].text[len] = '\0';
             g_vim_state.registers[idx].len = len;
             g_vim_state.registers[idx].linewise = linewise;
@@ -1298,13 +1298,13 @@ void vim_store_to_register(int is_delete, int linewise) {
     if (reg == 0) reg = '"';  /* Use unnamed register */
 
     /* Store to selected register */
-    vim_reg_store(reg, temp_kill_buf, len, linewise);
+    vim_reg_store(reg, temp_kill_buf, (int)len, linewise);
 
     /* Also store to yank register (0) for yanks, or shift delete stack for deletes */
     if (!is_delete) {
         /* Yank: also store to register 0 */
         if (reg != '0' && reg != '"') {
-            vim_reg_store('0', temp_kill_buf, len, linewise);
+            vim_reg_store('0', temp_kill_buf, (int)len, linewise);
         }
     } else {
         /* Delete: shift registers 1-9 down, put new text in 1 */
@@ -1317,10 +1317,10 @@ void vim_store_to_register(int is_delete, int linewise) {
                 g_vim_state.registers[i + 1] = g_vim_state.registers[i];
             }
             /* Clear register 1 and store new content */
-            g_vim_state.registers[1].text = NULL;
+            g_vim_state.registers[1].text = nullptr;
             g_vim_state.registers[1].len = 0;
             g_vim_state.registers[1].linewise = 0;
-            vim_reg_store('1', temp_kill_buf, len, linewise);
+            vim_reg_store('1', temp_kill_buf, (int)len, linewise);
         }
     }
 
@@ -1340,7 +1340,7 @@ int vim_register_prefix(int f, int n) {
         (ch >= '0' && ch <= '9') ||
         ch == '"' || ch == '+' || ch == '*' || ch == '_' || ch == '-') {
 
-        g_vim_state.pending_register = ch;
+        g_vim_state.pending_register = (char)ch;
         mlwrite("[\"%c]", ch);
         return true;
     }
@@ -1656,7 +1656,7 @@ int evil_mode(int f, int n) {
 
     if (atomic_load(&vim_mode_active)) {
         LOG_INFO("Vim: Evil Mode ENABLED");
-        evil_mode_start_time = (long)time(NULL);  /* Start 3-second flash timer */
+        evil_mode_start_time = (long)time(nullptr);  /* Start 3-second flash timer */
         atomic_store(&g_vim_state.current_mode, MODE_NORMAL);
         curwp->w_flag |= WFMODE;  /* Trigger modeline refresh */
         mlwrite("[EVIL: ENABLED]");

@@ -16,7 +16,7 @@
 unsigned utf8_to_unicode(const char *line, unsigned index, unsigned len, unicode_t *res)
 {
 	unsigned value;
-	unsigned char c = line[index];
+	unsigned char c = (unsigned char)line[index];
 	unsigned bytes, mask, i;
 
 	*res = c;
@@ -49,7 +49,7 @@ unsigned utf8_to_unicode(const char *line, unsigned index, unsigned len, unicode
 
     /* Ok, do the bytes */
     for (i = 1; i < bytes; i++) {
-        c = line[i];
+        c = (unsigned char)line[i];
         if ((c & 0xc0) != 0x80)
             return 1;
         value = (value << 6) | (c & 0x3f);

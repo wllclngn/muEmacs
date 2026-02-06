@@ -109,8 +109,8 @@ void perf_end_timing(const char* operation) {
         perf_timer_t* timer = &perf_stats.timers[i];
         if (timer->operation == operation && timer->elapsed_ns == 0) {
             clock_gettime(CLOCK_MONOTONIC, &timer->end);
-            timer->elapsed_ns = (timer->end.tv_sec - timer->start.tv_sec) * 1000000000ULL +
-                              (timer->end.tv_nsec - timer->start.tv_nsec);
+            timer->elapsed_ns = (uint64_t)(timer->end.tv_sec - timer->start.tv_sec) * 1000000000ULL +
+                              (uint64_t)(timer->end.tv_nsec - timer->start.tv_nsec);
             break;
         }
     }
@@ -121,8 +121,8 @@ void perf_report(void) {
     
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
-    uint64_t total_ns = (now.tv_sec - perf_stats.start_time.tv_sec) * 1000000000ULL +
-                       (now.tv_nsec - perf_stats.start_time.tv_nsec);
+    uint64_t total_ns = (uint64_t)(now.tv_sec - perf_stats.start_time.tv_sec) * 1000000000ULL +
+                       (uint64_t)(now.tv_nsec - perf_stats.start_time.tv_nsec);
     
     mlwrite("=== PERFORMANCE REPORT ===");
     mlwrite("TOTAL RUNTIME: %llu MS", total_ns / 1000000);

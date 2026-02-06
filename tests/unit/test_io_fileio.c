@@ -37,7 +37,7 @@ static int test_ffropen(void) {
     }
 
     // Close it
-    ffclose();
+    (void)ffclose();
 
     // Test opening non-existent file
     result = ffropen("/nonexistent/file/path/test.txt");
@@ -69,7 +69,7 @@ static int test_ffwopen(void) {
         LOG_ERRORF("[FAIL] ffwopen should succeed, got %d", result);
         ok = 0;
     } else {
-        ffclose();
+        (void)ffclose();
         // Verify file was created
         if (access(tmpfile, F_OK) != 0) {
             LOG_ERROR("[FAIL] File was not created");
@@ -166,7 +166,7 @@ static int test_ffputline(void) {
         ok = 0;
     }
 
-    ffclose();
+    (void)ffclose();
 
     // Verify file contents
     FILE *fp = fopen(tmpfile, "r");
@@ -247,7 +247,7 @@ static int test_ffgetline(void) {
         ok = 0;
     }
 
-    ffclose();
+    (void)ffclose();
     unlink(tmpfile);
 
     PHASE_END("FILEIO: FFGETLINE", ok);
@@ -322,7 +322,7 @@ static int test_long_lines(void) {
         }
     }
 
-    ffclose();
+    (void)ffclose();
     unlink(tmpfile);
 
     PHASE_END("FILEIO: LONGLINES", ok);
@@ -351,7 +351,7 @@ static int test_empty_file(void) {
         ok = 0;
     }
 
-    ffclose();
+    (void)ffclose();
     unlink(tmpfile);
 
     PHASE_END("FILEIO: EMPTYFILE", ok);

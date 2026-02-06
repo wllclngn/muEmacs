@@ -204,11 +204,11 @@ int test_macro_execution_engine(void) {
         char* commands = macros[0].commands;
         int command_count = 0;
         char* token = strtok(commands, ";");
-        while (token != NULL) {
+        while (token != nullptr) {
             // Trim whitespace
             while (*token == ' ') token++;
             command_count++;
-            token = strtok(NULL, ";");
+            token = strtok(nullptr, ";");
         }
         
         if (command_count >= 2) {
@@ -563,7 +563,7 @@ int test_variable_scope_management(void) {
     local_scope.count++;
     
     // Test variable resolution (local should shadow global)
-    const char* resolved_value = NULL;
+    const char* resolved_value = nullptr;
     for (int i = 0; i < local_scope.count; i++) {
         if (strcmp(local_scope.vars[i].name, "global-setting") == 0) {
             resolved_value = local_scope.vars[i].value;
@@ -797,7 +797,7 @@ int test_conditional_execution(void) {
     const char* file_type = "c";
     const char* buffer_state = "modified";
     
-    const char* action_result = NULL;
+    const char* action_result = nullptr;
     if (strcmp(file_type, "c") == 0) {
         if (strcmp(buffer_state, "modified") == 0) {
             action_result = "compile-and-save";
@@ -812,7 +812,7 @@ int test_conditional_execution(void) {
         LOG_INFOF("[SUCCESS] Nested conditionals: correct action '%s'", action_result);
         passed++;
     } else {
-        LOG_ERRORF("[FAIL] Nested conditionals: unexpected action '%s'", action_result ? action_result : "NULL");
+        LOG_ERRORF("[FAIL] Nested conditionals: unexpected action '%s'", action_result ? action_result : "nullptr");
     }
     
     LOG_INFOF("Conditional execution tests: %d/%d passed", passed, total);

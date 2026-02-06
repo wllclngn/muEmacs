@@ -65,8 +65,8 @@ int help(int f, int n)
 		/* and read the stuff in */
 		if (getfile(fname, false) == false)
 			return false;
-	} else
-		swbuffer(bp);
+	} else if (swbuffer(bp) != true)
+		return false;
 
 	/* make this window in VIEW mode, update all mode lines */
 	curwp->w_bufp->b_mode |= MDVIEW;
@@ -147,7 +147,7 @@ int bindtokey(int f, int n)
 	struct keymap *dst = nullptr;
 	if (key.modifiers & MOD_META) {
 		dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-		key.modifiers &= ~MOD_META;  /* Clear meta since using meta map */
+		key.modifiers &= (uint16_t)~MOD_META;  /* Clear meta since using meta map */
 	} else {
 		dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
 	}
@@ -191,7 +191,7 @@ int unbindkey(int f, int n)
 	struct keymap *dst = nullptr;
 	if (key.modifiers & MOD_META) {
 		dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-		key.modifiers &= ~MOD_META;
+		key.modifiers &= (uint16_t)~MOD_META;
 	} else {
 		dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
 	}
@@ -342,7 +342,7 @@ static void append_bindings_for_map(struct keymap *map, const char *prefix_str,
                     if (prefix_str && prefix_str[0]) {
                         size_t plen = strlen(prefix_str);
                         memcpy(&outseq[*cpos], prefix_str, plen);
-                        *cpos += plen;
+                        *cpos += (int)plen;
                     }
                     /* Add the key binding */
                     cmdstr_key(entry->key, &outseq[*cpos]);
@@ -409,7 +409,7 @@ int buildlist(int type, const char *mstring)
 
 		/* add in the command name */
         SAFE_STRCPY(outseq, nptr->n_name);
-		cpos = strlen(outseq);
+		cpos = (int)strlen(outseq);
 
 		/* if we are executing an apropos command..... */
 		if (type == false &&
@@ -558,7 +558,7 @@ const char *flook(const char *fname, int hflag)
 
 			/* and try it out */
 			if (ffropen(fspec) == FIOSUC) {
-				ffclose();
+				(void)ffclose();
 				return fspec;
 			}
 		}
@@ -566,7 +566,7 @@ const char *flook(const char *fname, int hflag)
 
 	/* always try the current directory first */
 	if (ffropen(fname) == FIOSUC) {
-		ffclose();
+		(void)ffclose();
 		return fname;
 	}
 	/* get the PATH variable */
@@ -587,7 +587,7 @@ const char *flook(const char *fname, int hflag)
 
 			/* and try it out */
 			if (ffropen(fspec) == FIOSUC) {
-				ffclose();
+				(void)ffclose();
 				return fspec;
 			}
 
@@ -602,7 +602,7 @@ const char *flook(const char *fname, int hflag)
 
 		/* and try it out */
 		if (ffropen(fspec) == FIOSUC) {
-			ffclose();
+			(void)ffclose();
 			return fspec;
 		}
 	}
@@ -675,7 +675,7 @@ fn_t getbind_event(input_key_event_t *evt)
 
     // Build key code from event
     uint32_t code = evt->code;
-    uint8_t mods = evt->modifiers;
+    uint8_t mods = (uint8_t)evt->modifiers;
 
     LOG_DEBUGF("BIND: input type=%d code=0x%X ('%c') mods=0x%X",
                evt->type, code,
@@ -744,7 +744,7 @@ fn_t getbind_event(input_key_event_t *evt)
         map = atomic_load_explicit(&meta_keymap, memory_order_acquire);
         map_name = "meta";
         // Key in meta keymap doesn't have META flag, just the base key
-        key_mods &= ~MOD_META;
+        key_mods &= (uint16_t)~MOD_META;
     }
 
     keymap_key_t lookup_key = keymap_key_make(code, key_mods);

@@ -30,9 +30,9 @@ static int run_shell_cmd(const char *cmd)
 {
     pid_t pid;
     int status;
-    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, nullptr};
 
-    if (posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0) {
+    if (posix_spawn(&pid, "/bin/sh", nullptr, nullptr, argv, environ) != 0) {
         return -1;
     }
 
@@ -178,9 +178,9 @@ static int run_clipboard_cmd_set(const char *cmd, const char *text, size_t len) 
     /* Suppress stderr */
     posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
 
-    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, nullptr};
 
-    if (posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ) != 0) {
+    if (posix_spawn(&pid, "/bin/sh", &actions, nullptr, argv, environ) != 0) {
         posix_spawn_file_actions_destroy(&actions);
         close(pipefd[0]);
         close(pipefd[1]);
@@ -220,9 +220,9 @@ static int run_clipboard_cmd_get(const char *cmd, char *buf, size_t maxlen) {
     /* Suppress stderr */
     posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
 
-    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, nullptr};
 
-    if (posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ) != 0) {
+    if (posix_spawn(&pid, "/bin/sh", &actions, nullptr, argv, environ) != 0) {
         posix_spawn_file_actions_destroy(&actions);
         close(pipefd[0]);
         close(pipefd[1]);
@@ -236,7 +236,7 @@ static int run_clipboard_cmd_get(const char *cmd, char *buf, size_t maxlen) {
     ssize_t total = 0;
     ssize_t n;
     while (total < (ssize_t)maxlen - 1 &&
-           (n = read(pipefd[0], buf + total, maxlen - 1 - total)) > 0) {
+           (n = read(pipefd[0], buf + total, maxlen - 1 - (size_t)total)) > 0) {
         total += n;
     }
     buf[total] = '\0';
@@ -283,16 +283,16 @@ static int xsel_get(char *buf, size_t maxlen) {
 
 /* Detect terminal OSC 52 support (best-effort heuristic) */
 bool clipboard_osc52_supported(void) {
-    const char *term = getenv("TERM");
-    if (!term) return false;
+    const char *term_env = getenv("TERM");
+    if (!term_env) return false;
 
     /* Terminals known to support OSC 52 */
-    if (strstr(term, "kitty") ||
-        strstr(term, "alacritty") ||
-        strstr(term, "foot") ||
-        strstr(term, "xterm") ||
-        strstr(term, "tmux") ||
-        strstr(term, "screen")) {
+    if (strstr(term_env, "kitty") ||
+        strstr(term_env, "alacritty") ||
+        strstr(term_env, "foot") ||
+        strstr(term_env, "xterm") ||
+        strstr(term_env, "tmux") ||
+        strstr(term_env, "screen")) {
         return true;
     }
 

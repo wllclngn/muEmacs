@@ -75,19 +75,19 @@ int input_parser_feed(input_parser_t *p, uint8_t byte, input_key_event_t *out) {
                 uint32_t cp = 0;
                 switch (p->utf8_expected) {
                 case 2:
-                    cp = ((p->utf8_buf[0] & 0x1F) << 6) |
-                         (p->utf8_buf[1] & 0x3F);
+                    cp = (uint32_t)((p->utf8_buf[0] & 0x1F) << 6) |
+                         (uint32_t)(p->utf8_buf[1] & 0x3F);
                     break;
                 case 3:
-                    cp = ((p->utf8_buf[0] & 0x0F) << 12) |
-                         ((p->utf8_buf[1] & 0x3F) << 6) |
-                         (p->utf8_buf[2] & 0x3F);
+                    cp = (uint32_t)((p->utf8_buf[0] & 0x0F) << 12) |
+                         (uint32_t)((p->utf8_buf[1] & 0x3F) << 6) |
+                         (uint32_t)(p->utf8_buf[2] & 0x3F);
                     break;
                 case 4:
-                    cp = ((p->utf8_buf[0] & 0x07) << 18) |
-                         ((p->utf8_buf[1] & 0x3F) << 12) |
-                         ((p->utf8_buf[2] & 0x3F) << 6) |
-                         (p->utf8_buf[3] & 0x3F);
+                    cp = (uint32_t)((p->utf8_buf[0] & 0x07) << 18) |
+                         (uint32_t)((p->utf8_buf[1] & 0x3F) << 12) |
+                         (uint32_t)((p->utf8_buf[2] & 0x3F) << 6) |
+                         (uint32_t)(p->utf8_buf[3] & 0x3F);
                     break;
                 }
                 p->utf8_expected = 0;
@@ -122,7 +122,7 @@ int input_parser_feed(input_parser_t *p, uint8_t byte, input_key_event_t *out) {
             /* C0 control characters: convert to letter + MOD_CTRL
              * e.g., 0x13 (Ctrl-S) -> 'S' (0x53) with MOD_CTRL
              * Keymaps store CONTROL|'S', not CONTROL|0x13 */
-            emit_char(p, out, byte + '@', MOD_CTRL);
+            emit_char(p, out, (uint32_t)(byte + '@'), MOD_CTRL);
             return 1;
         } else if (byte >= 0x80 && byte < 0xC0) {
             /* Invalid UTF-8 start byte or C1 control */
@@ -293,7 +293,7 @@ int input_parser_feed(input_parser_t *p, uint8_t byte, input_key_event_t *out) {
             return handle_csi_final(p, byte, out);
         } else if (is_c0_control(byte)) {
             /* Execute C0 control inline, stay in CSI - convert to letter */
-            emit_char(p, out, byte + '@', MOD_CTRL);
+            emit_char(p, out, (uint32_t)(byte + '@'), MOD_CTRL);
             return 1;
         } else {
             /* Invalid */
@@ -316,7 +316,7 @@ int input_parser_feed(input_parser_t *p, uint8_t byte, input_key_event_t *out) {
             return handle_csi_final(p, byte, out);
         } else if (is_c0_control(byte)) {
             /* Execute C0 control inline - convert to letter */
-            emit_char(p, out, byte + '@', MOD_CTRL);
+            emit_char(p, out, (uint32_t)(byte + '@'), MOD_CTRL);
             return 1;
         } else {
             p->state = INPUT_CSI_IGNORE;
@@ -866,7 +866,7 @@ static int handle_kitty_key(input_parser_t *p, input_key_event_t *out) {
         return 1;
     case KITTY_KEY_TAB:
         if (mods & MOD_SHIFT) {
-            emit_special(p, out, SPECIAL_BACKTAB, mods & ~MOD_SHIFT);
+            emit_special(p, out, SPECIAL_BACKTAB, mods & (uint16_t)~MOD_SHIFT);
         } else {
             emit_char(p, out, '\t', mods);
         }
@@ -931,7 +931,7 @@ static int parse_sgr_mouse(input_parser_t *p, uint8_t final, input_key_event_t *
     if (y < 0) y = 0;
 
     /* Extract button (bits 0-1 + bits 6-7 for extended) */
-    uint8_t button = (cb & 0x03) | ((cb & 0xC0) >> 4);
+    uint8_t button = (uint8_t)((cb & 0x03) | ((cb & 0xC0) >> 4));
 
     /* Extract modifiers from button code (bits 2-4) */
     uint16_t mods = MOD_NONE;

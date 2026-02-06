@@ -60,7 +60,7 @@ static const syntax_language_t *builtin_languages[] = {
     &lang_toml,
     &lang_yaml,
     &lang_json,
-    NULL
+    nullptr
 };
 
 #define BUILTIN_LANG_COUNT (sizeof(builtin_languages) / sizeof(builtin_languages[0]) - 1)
@@ -107,16 +107,16 @@ void syntax_shutdown(void) {
 
 line_tokens_t *line_tokens_alloc(int capacity) {
     line_tokens_t *lt = SAFE_ALLOC(line_tokens_t, "line tokens");
-    if (!lt) return NULL;
+    if (!lt) return nullptr;
 
     lt->data = SAFE_ARRAY(uint16_t, capacity * 2, "line tokens data");
     if (!lt->data) {
         SAFE_FREE(lt);
-        return NULL;
+        return nullptr;
     }
 
     lt->count = 0;
-    lt->capacity = capacity;
+    lt->capacity = (uint16_t)capacity;
     return lt;
 }
 
@@ -140,10 +140,10 @@ int line_tokens_add(line_tokens_t *lt, uint16_t end_col, uint16_t face) {
     if (lt->count >= lt->capacity) {
         int new_cap = lt->capacity * 2;
         if (new_cap < 16) new_cap = 16;
-        uint16_t *new_data = SAFE_REALLOC(lt->data, new_cap * 2 * sizeof(uint16_t), "line tokens grow");
+        uint16_t *new_data = SAFE_REALLOC(lt->data, (size_t)new_cap * 2 * sizeof(uint16_t), "line tokens grow");
         if (!new_data) return -1;
         lt->data = new_data;
-        lt->capacity = new_cap;
+        lt->capacity = (uint16_t)new_cap;
     }
 
     /* Add token pair */
@@ -187,7 +187,7 @@ int line_tokens_get_face(const line_tokens_t *lt, int col) {
 
 buffer_syntax_t *syntax_create(int initial_lines) {
     buffer_syntax_t *syn = SAFE_ALLOC(buffer_syntax_t, "buffer syntax");
-    if (!syn) return NULL;
+    if (!syn) return nullptr;
 
     if (initial_lines > 0) {
         syn->lines = SAFE_ARRAY(line_tokens_t, initial_lines, "syntax lines");
@@ -196,7 +196,7 @@ buffer_syntax_t *syntax_create(int initial_lines) {
             SAFE_FREE(syn->lines);
             SAFE_FREE(syn->states);
             SAFE_FREE(syn);
-            return NULL;
+            return nullptr;
         }
         syn->line_count = initial_lines;
     }
@@ -236,8 +236,8 @@ int syntax_resize(buffer_syntax_t *syn, int new_count) {
     }
 
     /* Growing */
-    line_tokens_t *new_lines = SAFE_REALLOC(syn->lines, new_count * sizeof(line_tokens_t), "syntax lines grow");
-    lexer_state_t *new_states = SAFE_REALLOC(syn->states, new_count * sizeof(lexer_state_t), "syntax states grow");
+    line_tokens_t *new_lines = SAFE_REALLOC(syn->lines, (size_t)new_count * sizeof(line_tokens_t), "syntax lines grow");
+    lexer_state_t *new_states = SAFE_REALLOC(syn->states, (size_t)new_count * sizeof(lexer_state_t), "syntax states grow");
 
     if (!new_lines || !new_states) {
         /* Partial failure - try to recover */
@@ -251,7 +251,7 @@ int syntax_resize(buffer_syntax_t *syn, int new_count) {
 
     /* Zero new entries */
     for (int i = syn->line_count; i < new_count; i++) {
-        syn->lines[i].data = NULL;
+        syn->lines[i].data = nullptr;
         syn->lines[i].count = 0;
         syn->lines[i].capacity = 0;
         syn->states[i] = LEXER_STATE_INIT;
@@ -320,7 +320,7 @@ int syntax_detect_language(const char *filename) {
             if (!ext_languages[i].in_use) continue;
             for (int j = 0; ext_languages[i].patterns[j]; j++) {
                 if (pattern_match(ext_languages[i].patterns[j], base)) {
-                    return BUILTIN_LANG_COUNT + i;
+                    return (int)BUILTIN_LANG_COUNT + i;
                 }
             }
         }
@@ -330,7 +330,7 @@ int syntax_detect_language(const char *filename) {
             if (!ext_languages[i].in_use) continue;
             for (int j = 0; ext_languages[i].patterns[j]; j++) {
                 if (pattern_match(ext_languages[i].patterns[j], base)) {
-                    return BUILTIN_LANG_COUNT + i;
+                    return (int)BUILTIN_LANG_COUNT + i;
                 }
             }
         }
@@ -352,18 +352,18 @@ int syntax_detect_language(const char *filename) {
 }
 
 const syntax_language_t *syntax_get_language(int lang_id) {
-    if (lang_id < 0) return NULL;
+    if (lang_id < 0) return nullptr;
 
     if (lang_id < (int)BUILTIN_LANG_COUNT) {
         return builtin_languages[lang_id];
     }
 
-    int ext_id = lang_id - BUILTIN_LANG_COUNT;
+    int ext_id = lang_id - (int)BUILTIN_LANG_COUNT;
     if (ext_id < MAX_EXT_LANGUAGES && ext_languages[ext_id].in_use) {
         return &ext_languages[ext_id].lang;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 /* ============================================================================
@@ -412,7 +412,7 @@ int syntax_register_language(
         }
         pat_count++;
     }
-    ext_languages[slot].patterns[pat_count] = NULL;
+    ext_languages[slot].patterns[pat_count] = nullptr;
 
     /* Set up language */
     ext_languages[slot].lang.name = name;
@@ -422,7 +422,7 @@ int syntax_register_language(
     ext_languages[slot].in_use = true;
     ext_language_count++;
 
-    return BUILTIN_LANG_COUNT + slot;
+    return (int)BUILTIN_LANG_COUNT + slot;
 }
 
 int syntax_unregister_language(const char *name) {
@@ -434,7 +434,7 @@ int syntax_unregister_language(const char *name) {
             /* Free patterns */
             for (int j = 0; ext_languages[i].patterns[j]; j++) {
                 free(ext_languages[i].patterns[j]);
-                ext_languages[i].patterns[j] = NULL;
+                ext_languages[i].patterns[j] = nullptr;
             }
             ext_languages[i].in_use = false;
             ext_language_count--;

@@ -40,7 +40,7 @@ struct vim_state {
 
     /* Named marks (a-z) - position stored as line/column pairs */
     struct {
-        struct line *line;           /* Line pointer (NULL if not set) */
+        struct line *line;           /* Line pointer (nullptr if not set) */
         int offset;                  /* Column offset */
     } marks[26];                     /* 26 marks: a-z */
 
@@ -60,6 +60,11 @@ struct vim_state {
     } registers[36];                 /* 0-9 (numbered) + a-z (named) */
     int yank_register;               /* Which register gets next yank (0 or specific) */
 };
+
+static_assert(sizeof(((struct vim_state *)0)->marks) / sizeof(((struct vim_state *)0)->marks[0]) == 26,
+              "Vim marks array must have exactly 26 entries (a-z)");
+static_assert(sizeof(((struct vim_state *)0)->registers) / sizeof(((struct vim_state *)0)->registers[0]) == 36,
+              "Vim registers array must have exactly 36 entries (0-9 + a-z)");
 
 /* Operator Pending Codes */
 enum vim_operator {

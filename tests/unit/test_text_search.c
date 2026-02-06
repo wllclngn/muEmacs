@@ -27,7 +27,7 @@ int test_bmh_threshold_switching() {
     PHASE_START("SEARCH: BMH-THRESHOLD", "Testing BMH threshold switching logic");
 
     init_editor_minimal("search-threshold");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Setup test buffer with content
@@ -192,7 +192,7 @@ int test_cross_line_search() {
     PHASE_START("SEARCH: CROSS-LINE", "Testing cross-line search capabilities");
 
     init_editor_minimal("search-crossline");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Setup multi-line buffer
@@ -276,7 +276,7 @@ int test_search_performance() {
     PHASE_START("SEARCH: PERFORMANCE", "Testing search performance on large text");
 
     init_editor_minimal("search-performance");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     curwp->w_dotp = curbp->b_linep;
@@ -362,7 +362,7 @@ int test_case_insensitive_search() {
     PHASE_START("SEARCH: CASE-INSENSITIVE", "Testing case-insensitive search");
 
     init_editor_minimal("search-case");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     curwp->w_dotp = curbp->b_linep;
@@ -422,7 +422,7 @@ int test_naive_reverse_search() {
     PHASE_START("SEARCH: NAIVE-DIR_REVERSE", "Testing naive reverse search fallback");
 
     init_editor_minimal("search-naive-rev");
-    bclear(curbp);
+    (void)bclear(curbp);
     
     // Insert text: "abc def ghi"
     linsert(1, 'a'); linsert(1, 'b'); linsert(1, 'c'); linsert(1, ' ');

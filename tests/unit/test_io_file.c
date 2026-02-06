@@ -37,7 +37,7 @@ static int test_file_names(void) {
 
     // Cleanup
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("FILE: NAMES", ok);
     return ok;
@@ -96,7 +96,7 @@ static int test_file_write(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
     unlink(test_path);
 
     PHASE_END("FILE: WRITE", ok);
@@ -160,7 +160,7 @@ static int test_file_read(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
     unlink(test_path);
 
     PHASE_END("FILE: READ", ok);
@@ -199,7 +199,7 @@ static int test_file_modified(void) {
 
     // Set filename and save
     strncpy(bp->b_fname, test_path, sizeof(bp->b_fname) - 1);
-    filesave(false, 1);
+    (void)filesave(false, 1);
 
     // After save, should not be modified
     if (bp->b_flag & BFCHG) {
@@ -211,7 +211,7 @@ static int test_file_modified(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
     unlink(test_path);
 
     PHASE_END("FILE: MODIFIED", ok);

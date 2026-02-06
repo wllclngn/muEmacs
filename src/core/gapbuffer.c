@@ -127,7 +127,7 @@ static int expand_gap_buffer(struct gap_buffer *gb, size_t min_additional) {
     } else {
         // Normal geometric growth for small operations (amortized O(1))
         while (new_capacity - gb->logical_size < min_additional) {
-            new_capacity = (size_t)(new_capacity * GAP_BUFFER_GROW_FACTOR);
+            new_capacity = (size_t)((double)new_capacity * GAP_BUFFER_GROW_FACTOR);
         }
     }
 
@@ -421,7 +421,7 @@ size_t gap_buffer_gap_size(struct gap_buffer *gb) {
 // Calculate fragmentation ratio
 double gap_buffer_fragmentation(struct gap_buffer *gb) {
     if (!gb || gb->capacity == 0) return 0.0;
-    return (double)(gb->gap_end - gb->gap_start) / gb->capacity;
+    return (double)(gb->gap_end - gb->gap_start) / (double)gb->capacity;
 }
 
 // Compact gap buffer by removing unused space

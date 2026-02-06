@@ -237,10 +237,10 @@ int scan_buffer_forward(const char *restrict pattern, int beg_or_end)
 {
     struct line *curline = curwp->w_dotp;
     int curoff = curwp->w_doto;
-    int patlen = strlen(pattern);
+    int patlen = (int)strlen(pattern);
     bool case_sensitive = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
     bool pat_has_nl = (strchr(pattern, '\n') != nullptr) || (strchr(pattern, '\r') != nullptr);
-    
+
     /* Thread-safe buffer for line text */
     char line_buf[NSTRING];
 
@@ -311,14 +311,14 @@ int scan_buffer_forward(const char *restrict pattern, int beg_or_end)
         matchoff = curoff;
         c = nextch(&curline, &curoff, DIR_FORWARD);
 
-        if (eq(c, pattern[0])) {
+        if (eq((unsigned char)c, (unsigned char)pattern[0])) {
             scanline = curline;
             scanoff = curoff;
             patptr = &pattern[0];
 
             while (*++patptr != '\0') {
                 c = nextch(&scanline, &scanoff, DIR_FORWARD);
-                if (!eq(c, *patptr)) goto fail;
+                if (!eq((unsigned char)c, (unsigned char)*patptr)) goto fail;
             }
 
             /* Match found */
@@ -344,10 +344,10 @@ int scan_buffer_backward(const char *restrict pattern, int beg_or_end)
 
     struct line *curline = curwp->w_dotp;
     int curoff = curwp->w_doto;
-    int patlen = strlen(pattern);
+    int patlen = (int)strlen(pattern);
     bool case_sensitive = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
     bool pat_has_nl = (strchr(pattern, '\n') != nullptr) || (strchr(pattern, '\r') != nullptr);
-    
+
     /* Thread-safe buffer for line text */
     char line_buf[NSTRING];
 
@@ -397,14 +397,14 @@ int scan_buffer_backward(const char *restrict pattern, int beg_or_end)
         matchoff = curoff;
         c = nextch(&curline, &curoff, DIR_REVERSE);
 
-        if (eq(c, pattern[patlen - 1])) {
+        if (eq((unsigned char)c, (unsigned char)pattern[patlen - 1])) {
             scanline = curline;
             scanoff = curoff;
             patptr = &pattern[patlen - 1];
 
             while (patptr > pattern) {
                 c = nextch(&scanline, &scanoff, DIR_REVERSE);
-                if (!eq(c, *--patptr)) goto fail;
+                if (!eq((unsigned char)c, (unsigned char)*--patptr)) goto fail;
             }
 
             /* Match found */
@@ -429,8 +429,8 @@ int scan_buffer_backward(const char *restrict pattern, int beg_or_end)
 int eq(unsigned char bc, unsigned char pc)
 {
 	if ((curwp->w_bufp->b_mode & MDEXACT) == 0) {
-		bc = to_upper(bc);
-		pc = to_upper(pc);
+		bc = (unsigned char)to_upper(bc);
+		pc = (unsigned char)to_upper(pc);
 	}
 	return bc == pc;
 }
@@ -452,7 +452,7 @@ static int readpattern(const char *restrict prompt, char *restrict apat, int src
         safe_strcpy(apat, tpat, NPAT);
 		if (srch) {
 			rvstrcpy(tap, apat, NPAT);
-			mlenold = matchlen = strlen(apat);
+			mlenold = matchlen = (unsigned int)strlen(apat);
 		}
 		if ((curwp->w_bufp->b_mode & MDMAGIC) == 0) {
 			mcclear();
@@ -485,7 +485,7 @@ static void savematch(void)
 		curline = matchline;
 
 		for (j = 0; j < matchlen; j++)
-			*ptr++ = nextch(&curline, &curoff, DIR_FORWARD);
+			*ptr++ = (char)nextch(&curline, &curoff, DIR_FORWARD);
 
 		*ptr = '\0';
 	}
@@ -549,7 +549,7 @@ static int replaces(int kind, int f, int n)
 	if ((status = readpattern("with", &rpat[0], false)) == ABORT)
 		return status;
 
-	rlength = strlen(&rpat[0]);
+	rlength = (int)strlen(&rpat[0]);
 	nlflag = (pat[matchlen - 1] == '\n');
 	nlrepl = false;
 
@@ -581,7 +581,7 @@ static int replaces(int kind, int f, int n)
 				}
 				show_prompt = true;  /* Reset for next iteration */
 				update(true);
-				c = input_read_byte();
+				c = (char)input_read_byte();
 				mlwrite("");
 
 				switch (c) {
@@ -612,7 +612,7 @@ static int replaces(int kind, int f, int n)
 					status = delins(rlength, patmatch, false);
 					if (status != true) return status;
 					--numsub;
-					move_char_backward(false, mlenold);
+					move_char_backward(false, (int)mlenold);
 					matchline = curwp->w_dotp;
 					matchoff = curwp->w_doto;
 					continue;  /* show_prompt still true, loop again */
@@ -637,7 +637,7 @@ static int replaces(int kind, int f, int n)
 			if (c == 'N' || c == 'n') continue;  /* Skip rest of loop for 'N' */
 		}
 
-		status = delins(matchlen, &rpat[0], true);
+		status = delins((int)matchlen, &rpat[0], true);
 		if (status != true) return status;
 
 		if (kind) {
@@ -682,14 +682,14 @@ int delins(int dlength, char *instr, int use_meta)
 int expandp(char *srcstr, char *deststr, int maxlength)
 {
 	unsigned char c;
-	while ((c = *srcstr++) != 0) {
+	while ((c = (unsigned char)*srcstr++) != 0) {
 		if (c == '\n') {
 			*deststr++ = '<'; *deststr++ = 'N'; *deststr++ = 'L'; *deststr++ = '>';
 			maxlength -= 4;
 		}
 		else if ((c > 0 && c < 0x20) || c == DEL_KEY) {
 			*deststr++ = '^';
-			*deststr++ = c ^ 0x40;
+			*deststr++ = (char)(c ^ 0x40);
 			maxlength -= 2;
 		}
 		else if (c == '%') {
@@ -697,7 +697,7 @@ int expandp(char *srcstr, char *deststr, int maxlength)
 			maxlength -= 2;
 		}
 		else {
-			*deststr++ = c;
+			*deststr++ = (char)c;
 			maxlength--;
 		}
 		if (maxlength < 4) {
@@ -848,7 +848,7 @@ static int rmcstr(void)
 		case MC_DITTO:
 			if (mj != 0) {
 				rmcptr->mc_type = LITCHAR;
-				if ((rmcptr->rstr = (char*)safe_alloc(mj + 1, "replace string", __FILE__, __LINE__)) == nullptr) {
+				if ((rmcptr->rstr = (char*)safe_alloc((size_t)mj + 1, "replace string", __FILE__, __LINE__)) == nullptr) {
 					mlwrite("OUT OF MEMORY");
 					status = false;
 					break;
@@ -862,7 +862,7 @@ static int rmcstr(void)
 			break;
 		case MC_ESC:
 			rmcptr->mc_type = LITCHAR;
-			if ((rmcptr->rstr = (char*)safe_alloc(mj + 2, "replace escape string", __FILE__, __LINE__)) == nullptr) {
+			if ((rmcptr->rstr = (char*)safe_alloc((size_t)mj + 2, "replace escape string", __FILE__, __LINE__)) == nullptr) {
 				mlwrite("OUT OF MEMORY");
 				status = false;
 				break;
@@ -881,7 +881,7 @@ static int rmcstr(void)
 
 	if (rmagical && mj > 0) {
 		rmcptr->mc_type = LITCHAR;
-		if ((rmcptr->rstr = (char*)safe_alloc(mj + 1, "replace literal string", __FILE__, __LINE__)) == nullptr) {
+		if ((rmcptr->rstr = (char*)safe_alloc((size_t)mj + 1, "replace literal string", __FILE__, __LINE__)) == nullptr) {
 			mlwrite("OUT OF MEMORY");
 			status = false;
 		}
@@ -920,7 +920,7 @@ static int mceq(int bc, struct magic *mt)
 	bc = bc & 0xFF;
 	switch (mt->mc_type & MASKCL) {
 	case LITCHAR:
-		result = eq(bc, mt->u.lchar);
+		result = eq((unsigned char)bc, (unsigned char)mt->u.lchar);
 		break;
 	case ANY:
 		result = (bc != '\n');
@@ -1000,7 +1000,7 @@ static int biteq(int bc, char *cclmap)
 {
 	bc = bc & 0xFF;
 	if (bc >= HICHAR) return false;
-	return (*(cclmap + (bc >> 3)) & (1U << (bc & 7))) ? true : false;
+	return ((unsigned char)*(cclmap + (bc >> 3)) & (1U << ((unsigned)bc & 7U))) ? true : false;
 }
 
 static char *clearbits(void)
@@ -1015,7 +1015,7 @@ static char *clearbits(void)
 static void setbit(int bc, char *cclmap)
 {
 	bc = bc & 0xFF;
-	if (bc < HICHAR) *(cclmap + (bc >> 3)) |= (1U << (bc & 7));
+	if (bc < HICHAR) *(cclmap + (bc >> 3)) = (char)((unsigned char)*(cclmap + (bc >> 3)) | (1U << ((unsigned)bc & 7U)));
 }
 
 /*
@@ -1083,7 +1083,7 @@ static int amatch(struct magic *mcptr, int direct, struct line **pcwline, int *p
 			for (;;) {
 				c = nextch(&curline, &curoff, direct ^ DIR_REVERSE);
 				if (amatch(mcptr, direct, &curline, &curoff)) {
-					matchlen += nchars;
+					matchlen += (unsigned int)nchars;
 					*pcwline = curline;
 					*pcwoff = curoff;
 					return true;

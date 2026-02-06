@@ -26,8 +26,8 @@ int main() {
     printf("vim_normal_keymap: %p\n", (void*)nkm);
     printf("vim_visual_keymap: %p\n", (void*)vkm);
 
-    if (!nkm) { printf("[FAIL] vim_normal_keymap is NULL\n"); return 1; }
-    if (!vkm) { printf("[FAIL] vim_visual_keymap is NULL\n"); return 1; }
+    if (!nkm) { printf("[FAIL] vim_normal_keymap is nullptr\n"); return 1; }
+    if (!vkm) { printf("[FAIL] vim_visual_keymap is nullptr\n"); return 1; }
 
     // Check ESC (Ctrl+[) binding - this is what test_vim_mode_switching checks
     printf("\n--- Mode Switching ---\n");

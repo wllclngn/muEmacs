@@ -91,7 +91,7 @@ static void *search_worker_safe(void *arg) {
  */
 static int parallel_scan_region(struct line *start_lp, struct line *end_lp, const char *pattern, int start_offset, struct search_result *res) {
     struct line *curline = start_lp;
-    int patlen = strlen(pattern);
+    int patlen = (int)strlen(pattern);
     char line_buf[NSTRING];
     int first_line = 1;  /* Track if we're on the first line */
 
@@ -177,7 +177,7 @@ int parallel_search(const char *pattern, int direction) {
     }
     
     // Determine number of threads
-    int num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+    int num_threads = (int)sysconf(_SC_NPROCESSORS_ONLN);
     if (num_threads > MAX_THREADS) num_threads = MAX_THREADS;
     if (num_threads < 2) return 0; 
     

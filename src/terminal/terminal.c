@@ -209,16 +209,16 @@ static void term_putchar(terminal_state_t *ts, struct buffer *bp, char c) {
     /* Ensure we have space up to cur_col with spaces if needed */
     while (len < ts->cur_col) {
         char space = ' ';
-        TS_INSERT(lp->storage, len, &space, 1);
+        TS_INSERT(lp->storage, (size_t)len, &space, 1);
         len++;
     }
 
     /* Insert or overwrite character */
     if (ts->cur_col < len) {
         /* Overwrite existing character */
-        TS_DELETE(lp->storage, ts->cur_col, 1);
+        TS_DELETE(lp->storage, (size_t)ts->cur_col, 1);
     }
-    TS_INSERT(lp->storage, ts->cur_col, &c, 1);
+    TS_INSERT(lp->storage, (size_t)ts->cur_col, &c, 1);
     ts->cur_col++;
 }
 
@@ -313,7 +313,7 @@ static void handle_csi(terminal_state_t *ts, struct buffer *bp, char final) {
             int len = llength(ts->current_line);
             if (mode == 0 && ts->cur_col < len) {
                 /* Erase from cursor to end of line */
-                TS_DELETE(ts->current_line->storage, ts->cur_col, len - ts->cur_col);
+                TS_DELETE(ts->current_line->storage, (size_t)ts->cur_col, (size_t)(len - ts->cur_col));
             } else if (mode == 1 && ts->cur_col > 0) {
                 /* Erase from start to cursor */
                 for (int i = 0; i < ts->cur_col; i++) {
@@ -321,7 +321,7 @@ static void handle_csi(terminal_state_t *ts, struct buffer *bp, char final) {
                 }
             } else if (mode == 2) {
                 /* Erase entire line */
-                TS_DELETE(ts->current_line->storage, 0, len);
+                TS_DELETE(ts->current_line->storage, 0, (size_t)len);
             }
         }
         break;
@@ -342,7 +342,7 @@ static void handle_csi(terminal_state_t *ts, struct buffer *bp, char final) {
                 lp = next;
             }
             if (ts->current_line) {
-                TS_DELETE(ts->current_line->storage, 0, llength(ts->current_line));
+                TS_DELETE(ts->current_line->storage, 0, (size_t)llength(ts->current_line));
             }
             ts->cur_col = 0;
         }
@@ -548,7 +548,7 @@ int terminal_open_split(int f, int n) {
     if (!term_wp) {
         LOG_ERROR("Terminal: Failed to create split window");
         mlwrite("Cannot create terminal window");
-        bp->b_mode &= ~MDTBUFFER;
+        bp->b_mode &= ~(uint32_t)MDTBUFFER;
         return false;
     }
     LOG_DEBUGF("Terminal: Split window created at row %d", term_wp->w_toprow);
@@ -593,7 +593,7 @@ int terminal_open_split(int f, int n) {
     if (ts->fd < 0) {
         LOG_ERROR("Terminal: Failed to spawn PTY");
         SAFE_FREE(ts);
-        bp->b_mode &= ~MDTBUFFER;
+        bp->b_mode &= ~(uint32_t)MDTBUFFER;
         mlwrite("Cannot spawn PTY");
         return false;
     }
@@ -708,7 +708,7 @@ int terminal_close(int f, int n) {
 
     /* Clear terminal buffer mode */
     if (bp) {
-        bp->b_mode &= ~MDTBUFFER;
+        bp->b_mode &= ~(uint32_t)MDTBUFFER;
         bp->b_nwnd--;
         LOG_DEBUG("Terminal: Buffer mode cleared");
     }
@@ -814,7 +814,7 @@ bool terminal_handle_key_event(input_key_event_t *evt) {
 
     if (len > 0) {
         LOG_DEBUGF("Terminal: Writing %d bytes to PTY", len);
-        pty_write(ts->fd, buf, len);
+        pty_write(ts->fd, buf, (size_t)len);
     }
 
     return true;
@@ -961,10 +961,10 @@ int terminal_send_line(int f, int n) {
 
     /* Send line to terminal using gap buffer */
     if (len > 0) {
-        char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal send line");
+        char *text = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "terminal send line");
         if (text) {
-            TS_GET_TEXT(lp->storage, 0, len, text, len);
-            pty_write(ts->fd, text, len);
+            TS_GET_TEXT(lp->storage, 0, (size_t)len, text, (size_t)len);
+            pty_write(ts->fd, text, (size_t)len);
             SAFE_FREE(text);
         }
     }
@@ -1037,10 +1037,10 @@ int terminal_send_region(int f, int n) {
 
         /* Send the line portion using gap buffer */
         if (to_send > 0) {
-            char *text = SAFE_ALLOC_SIZED(char, to_send + 1, "terminal send region");
+            char *text = SAFE_ALLOC_SIZED(char, (size_t)to_send + 1, "terminal send region");
             if (text) {
-                TS_GET_TEXT(lp->storage, start, to_send, text, to_send);
-                pty_write(ts->fd, text, to_send);
+                TS_GET_TEXT(lp->storage, (size_t)start, (size_t)to_send, text, (size_t)to_send);
+                pty_write(ts->fd, text, (size_t)to_send);
                 SAFE_FREE(text);
             }
         }
@@ -1134,7 +1134,7 @@ int terminal_create_named(const char *name) {
     if (!term_wp) {
         LOG_ERROR("Terminal: Failed to create split window");
         mlwrite("Cannot create terminal window");
-        bp->b_mode &= ~MDTBUFFER;
+        bp->b_mode &= ~(uint32_t)MDTBUFFER;
         return false;
     }
 
@@ -1181,7 +1181,7 @@ int terminal_create_named(const char *name) {
     if (ts->fd < 0) {
         LOG_ERROR("Terminal: Failed to spawn PTY");
         SAFE_FREE(ts);
-        bp->b_mode &= ~MDTBUFFER;
+        bp->b_mode &= ~(uint32_t)MDTBUFFER;
         mlwrite("Cannot spawn PTY");
         return false;
     }
@@ -1317,9 +1317,9 @@ int terminal_list(int f, int n) {
     blistp = bp;
 
     /* Add header */
-    addline("Active Terminals:");
-    addline("=================");
-    addline("");
+    (void)addline("Active Terminals:");
+    (void)addline("=================");
+    (void)addline("");
 
     /* List each terminal */
     char line[256];
@@ -1334,13 +1334,13 @@ int terminal_list(int f, int n) {
 
             snprintf(line, sizeof(line), "  %-20s  %-10s  pid=%d  %s",
                      tbp->b_bname, name, pid, status);
-            addline(line);
+            (void)addline(line);
         }
     }
 
-    addline("");
+    (void)addline("");
     snprintf(line, sizeof(line), "Total: %d terminal(s)", count);
-    addline(line);
+    (void)addline(line);
 
     /* Restore blistp */
     blistp = saved_blistp;
@@ -1399,10 +1399,10 @@ int terminal_send_buffer(int f, int n) {
         int len = llength(lp);
 
         if (len > 0) {
-            char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal send buffer line");
+            char *text = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "terminal send buffer line");
             if (text) {
-                TS_GET_TEXT(lp->storage, 0, len, text, len);
-                pty_write(ts->fd, text, len);
+                TS_GET_TEXT(lp->storage, 0, (size_t)len, text, (size_t)len);
+                pty_write(ts->fd, text, (size_t)len);
                 bytes_sent += len;
                 SAFE_FREE(text);
             }
@@ -1477,9 +1477,9 @@ int terminal_capture(int f, int n) {
         int len = llength(lp);
 
         if (len > 0) {
-            char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal capture line");
+            char *text = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "terminal capture line");
             if (text) {
-                TS_GET_TEXT(lp->storage, 0, len, text, len);
+                TS_GET_TEXT(lp->storage, 0, (size_t)len, text, (size_t)len);
                 /* Insert text character by character */
                 for (int i = 0; i < len; i++) {
                     linsert(1, text[i]);
@@ -1517,7 +1517,7 @@ int terminal_toggle(int f, int n) {
 
         /* Remove terminal window */
         struct window *wp = wheadp;
-        struct window *prev = NULL;
+        struct window *prev = nullptr;
 
         while (wp && wp != terminal_window) {
             prev = wp;
@@ -1545,17 +1545,17 @@ int terminal_toggle(int f, int n) {
             SAFE_FREE(wp);
         }
 
-        terminal_window = NULL;
+        terminal_window = nullptr;
         sgarbf = true;
         mlwrite("[Terminal hidden]");
         return true;
     } else {
         /* Terminal is hidden - find and show terminal buffer */
-        struct buffer *bp = NULL;
+        struct buffer *bp = nullptr;
 
         /* Look for any terminal buffer in registry */
         for (int i = 0; i < MAX_TERMINALS; i++) {
-            if (terminal_registry[i] != NULL) {
+            if (terminal_registry[i] != nullptr) {
                 bp = terminal_registry[i];
                 break;
             }

@@ -112,12 +112,12 @@ static int test_vim_keymap_init(void) {
     struct keymap *vkm = atomic_load(&vim_visual_keymap);
 
     if (!nkm) {
-        LOG_ERROR("[FAIL] vim_normal_keymap is NULL after init");
+        LOG_ERROR("[FAIL] vim_normal_keymap is nullptr after init");
         result = 0;
     }
 
     if (!vkm) {
-        LOG_ERROR("[FAIL] vim_visual_keymap is NULL after init");
+        LOG_ERROR("[FAIL] vim_visual_keymap is nullptr after init");
         result = 0;
     }
 
@@ -136,7 +136,7 @@ static int test_vim_navigation_bindings(void) {
 
     struct keymap *nkm = atomic_load(&vim_normal_keymap);
     if (!nkm) {
-        LOG_ERROR("[FAIL] vim_normal_keymap is NULL");
+        LOG_ERROR("[FAIL] vim_normal_keymap is nullptr");
         return 0;
     }
 
@@ -209,7 +209,7 @@ static int test_vim_operator_bindings(void) {
 
     struct keymap *nkm = atomic_load(&vim_normal_keymap);
     if (!nkm) {
-        LOG_ERROR("[FAIL] vim_normal_keymap is NULL");
+        LOG_ERROR("[FAIL] vim_normal_keymap is nullptr");
         return 0;
     }
 
@@ -248,7 +248,7 @@ static int test_vim_visual_bindings(void) {
     struct keymap *vkm = atomic_load(&vim_visual_keymap);
 
     if (!nkm || !vkm) {
-        LOG_ERROR("[FAIL] Keymaps are NULL");
+        LOG_ERROR("[FAIL] Keymaps are nullptr");
         return 0;
     }
 
@@ -298,7 +298,7 @@ static int test_vim_user_bindings(void) {
 
     struct keymap *nkm = atomic_load(&vim_normal_keymap);
     if (!nkm) {
-        LOG_ERROR("[FAIL] vim_normal_keymap is NULL");
+        LOG_ERROR("[FAIL] vim_normal_keymap is nullptr");
         return 0;
     }
 
@@ -327,7 +327,7 @@ static int test_vim_mode_switching(void) {
 
     struct keymap *nkm = atomic_load(&vim_normal_keymap);
     if (!nkm) {
-        LOG_ERROR("[FAIL] vim_normal_keymap is NULL");
+        LOG_ERROR("[FAIL] vim_normal_keymap is nullptr");
         return 0;
     }
 

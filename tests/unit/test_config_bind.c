@@ -45,9 +45,9 @@ static int test_bind_getbind(void) {
         ok = 0;
     }
 
-    // Test unbound key should return NULL
+    // Test unbound key should return nullptr
     func = test_getbind(keymap_key_make(0xFF, 0xFF));  // Invalid key/mods
-    if (func != NULL) {
+    if (func != nullptr) {
         LOG_ERROR("[FAIL] Invalid key returned non-null binding");
         ok = 0;
     }
@@ -64,20 +64,20 @@ static int test_bind_getfname(void) {
     // Test getting name from function pointer
     char *name = getfname(move_char_forward);
     if (!name || strcmp(name, "forward-character") != 0) {
-        LOG_ERRORF("[FAIL] move_char_forward name lookup failed: '%s'", name ? name : "NULL");
+        LOG_ERRORF("[FAIL] move_char_forward name lookup failed: '%s'", name ? name : "nullptr");
         ok = 0;
     }
 
     name = getfname(move_char_backward);
     if (!name || strcmp(name, "backward-character") != 0) {
-        LOG_ERRORF("[FAIL] move_char_backward name lookup failed: '%s'", name ? name : "NULL");
+        LOG_ERRORF("[FAIL] move_char_backward name lookup failed: '%s'", name ? name : "nullptr");
         ok = 0;
     }
 
-    // Test NULL function should return NULL
-    name = getfname(NULL);
-    if (name != NULL) {
-        LOG_ERROR("[FAIL] NULL function returned non-null name");
+    // Test nullptr function should return nullptr
+    name = getfname(nullptr);
+    if (name != nullptr) {
+        LOG_ERROR("[FAIL] nullptr function returned non-null name");
         ok = 0;
     }
 
@@ -105,20 +105,20 @@ static int test_bind_fncmatch(void) {
 
     // Test non-existent function name
     func = fncmatch("nonexistent-function-xyz");
-    if (func != NULL) {
+    if (func != nullptr) {
         LOG_ERROR("[FAIL] fncmatch found non-existent function");
         ok = 0;
     }
 
-    // Test NULL/empty name
-    func = fncmatch(NULL);
-    if (func != NULL) {
-        LOG_ERROR("[FAIL] fncmatch(NULL) returned non-null");
+    // Test nullptr/empty name
+    func = fncmatch(nullptr);
+    if (func != nullptr) {
+        LOG_ERROR("[FAIL] fncmatch(nullptr) returned non-null");
         ok = 0;
     }
 
     func = fncmatch("");
-    if (func != NULL) {
+    if (func != nullptr) {
         LOG_ERROR("[FAIL] fncmatch('') returned non-null");
         ok = 0;
     }
@@ -255,13 +255,13 @@ static int test_bind_transbind(void) {
     // Test getting binding for a key string
     char *name = transbind("^F");
     if (!name || strcmp(name, "forward-character") != 0) {
-        LOG_ERRORF("[FAIL] transbind('^F') returned '%s'", name ? name : "NULL");
+        LOG_ERRORF("[FAIL] transbind('^F') returned '%s'", name ? name : "nullptr");
         ok = 0;
     }
 
     name = transbind("^B");
     if (!name || strcmp(name, "backward-character") != 0) {
-        LOG_ERRORF("[FAIL] transbind('^B') returned '%s'", name ? name : "NULL");
+        LOG_ERRORF("[FAIL] transbind('^B') returned '%s'", name ? name : "nullptr");
         ok = 0;
     }
 
@@ -269,7 +269,7 @@ static int test_bind_transbind(void) {
     // Use a key that's unlikely to be bound
     name = transbind("M-^Z");
     if (!name || strcmp(name, "ERROR") != 0) {
-        LOG_ERRORF("[FAIL] transbind unbound key didn't return 'ERROR': '%s'", name ? name : "NULL");
+        LOG_ERRORF("[FAIL] transbind unbound key didn't return 'ERROR': '%s'", name ? name : "nullptr");
         ok = 0;
     }
 

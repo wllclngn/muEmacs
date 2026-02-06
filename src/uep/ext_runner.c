@@ -52,8 +52,8 @@ static int safe_atoi(const char *str, int default_val)
  * Global state
  * ========================================================================= */
 
-static ext_ipc_channel_t *g_ipc = NULL;
-static void *g_ext_handle = NULL;
+static ext_ipc_channel_t *g_ipc = nullptr;
+static void *g_ext_handle = nullptr;
 static volatile sig_atomic_t g_running = 1;
 static int g_death_fd = -1;  /* Read end of death pipe - POLLHUP when parent dies */
 static pthread_t g_death_watcher_thread;
@@ -89,7 +89,7 @@ static void *death_watcher_thread(void *arg)
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 /* Local command registry */
@@ -167,7 +167,7 @@ static uemacs_cmd_fn find_local_command(const char *name)
             return g_local_commands[i].fn;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* =========================================================================
@@ -296,7 +296,7 @@ static int proxy_on(const char *event, uemacs_event_fn handler, void *user_data,
     /* Notify editor */
     ext_ipc_event_sub_t req = { .priority = priority };
     strncpy(req.event_name, event, sizeof(req.event_name) - 1);
-    return call_editor(EXT_MSG_EVENT_SUBSCRIBE, &req, sizeof(req), NULL, NULL);
+    return call_editor(EXT_MSG_EVENT_SUBSCRIBE, &req, sizeof(req), nullptr, nullptr);
 }
 
 static int proxy_off(const char *event, uemacs_event_fn handler)
@@ -314,7 +314,7 @@ static int proxy_off(const char *event, uemacs_event_fn handler)
 
     ext_ipc_event_sub_t req = {0};
     strncpy(req.event_name, event, sizeof(req.event_name) - 1);
-    return call_editor(EXT_MSG_EVENT_UNSUBSCRIBE, &req, sizeof(req), NULL, NULL);
+    return call_editor(EXT_MSG_EVENT_UNSUBSCRIBE, &req, sizeof(req), nullptr, nullptr);
 }
 
 static bool proxy_emit(const char *event, void *data)
@@ -397,7 +397,7 @@ static int proxy_register_command(const char *name, uemacs_cmd_fn func)
     ext_ipc_cmd_register_t req;
     memset(&req, 0, sizeof(req));
     strncpy(req.name, name, sizeof(req.name) - 1);
-    int result = call_editor(EXT_MSG_REGISTER_CMD, &req, sizeof(req), NULL, NULL);
+    int result = call_editor(EXT_MSG_REGISTER_CMD, &req, sizeof(req), nullptr, nullptr);
 
     ipc_log("ext_runner[%d]: REGISTER_CMD complete '%s' result=%d", getpid(), name, result);
 
@@ -419,14 +419,14 @@ static int proxy_unregister_command(const char *name)
     ext_ipc_cmd_register_t req;
     memset(&req, 0, sizeof(req));
     strncpy(req.name, name, sizeof(req.name) - 1);
-    return call_editor(EXT_MSG_UNREGISTER_CMD, &req, sizeof(req), NULL, NULL);
+    return call_editor(EXT_MSG_UNREGISTER_CMD, &req, sizeof(req), nullptr, nullptr);
 }
 
 static struct buffer *proxy_current_buffer(void)
 {
     uintptr_t handle = 0;
     uint32_t resp_len = sizeof(handle);
-    call_editor(EXT_MSG_CURRENT_BUFFER, NULL, 0, &handle, &resp_len);
+    call_editor(EXT_MSG_CURRENT_BUFFER, nullptr, 0, &handle, &resp_len);
     return (struct buffer *)handle;
 }
 
@@ -440,7 +440,7 @@ static struct buffer *proxy_find_buffer(const char *name)
 
 static char *proxy_buffer_contents(struct buffer *bp, size_t *len)
 {
-    static char *contents_buf = NULL;
+    static char *contents_buf = nullptr;
     static size_t contents_size = 0;
 
     if (!contents_buf) {
@@ -454,7 +454,7 @@ static char *proxy_buffer_contents(struct buffer *bp, size_t *len)
                              contents_buf, &resp_len);
     if (result < 0) {
         if (len) *len = 0;
-        return NULL;
+        return nullptr;
     }
     if (len) *len = resp_len;
     return contents_buf;
@@ -467,7 +467,7 @@ static const char *proxy_buffer_filename(struct buffer *bp)
     uintptr_t handle = (uintptr_t)bp;
     if (call_editor(EXT_MSG_BUFFER_FILENAME, &handle, sizeof(handle),
                     filename_buf, &resp_len) < 0)
-        return NULL;
+        return nullptr;
     return filename_buf;
 }
 
@@ -477,7 +477,7 @@ static const char *proxy_buffer_name(struct buffer *bp)
     uint32_t resp_len = sizeof(name_buf);
     uintptr_t handle = (uintptr_t)bp;
     if (call_editor(EXT_MSG_BUFFER_NAME, &handle, sizeof(handle), name_buf, &resp_len) < 0)
-        return NULL;
+        return nullptr;
     return name_buf;
 }
 
@@ -492,7 +492,7 @@ static bool proxy_buffer_modified(struct buffer *bp)
 
 static int proxy_buffer_insert(const char *text, size_t len)
 {
-    return call_editor(EXT_MSG_BUFFER_INSERT, text, len, NULL, NULL);
+    return call_editor(EXT_MSG_BUFFER_INSERT, text, len, nullptr, nullptr);
 }
 
 static int proxy_buffer_insert_at(struct buffer *bp, int line, int col,
@@ -508,7 +508,7 @@ static int proxy_buffer_insert_at(struct buffer *bp, int line, int col,
     *(int32_t *)p = col; p += sizeof(int32_t);
     memcpy(p, text, len);
 
-    int result = call_editor(EXT_MSG_BUFFER_INSERT, req, req_size, NULL, NULL);
+    int result = call_editor(EXT_MSG_BUFFER_INSERT, req, req_size, nullptr, nullptr);
     free(req);
     return result;
 }
@@ -524,26 +524,26 @@ static struct buffer *proxy_buffer_create(const char *name)
 static int proxy_buffer_switch(struct buffer *bp)
 {
     uintptr_t handle = (uintptr_t)bp;
-    return call_editor(EXT_MSG_BUFFER_SWITCH, &handle, sizeof(handle), NULL, NULL);
+    return call_editor(EXT_MSG_BUFFER_SWITCH, &handle, sizeof(handle), nullptr, nullptr);
 }
 
 static int proxy_buffer_clear(struct buffer *bp)
 {
     uintptr_t handle = (uintptr_t)bp;
-    return call_editor(EXT_MSG_BUFFER_CLEAR, &handle, sizeof(handle), NULL, NULL);
+    return call_editor(EXT_MSG_BUFFER_CLEAR, &handle, sizeof(handle), nullptr, nullptr);
 }
 
 static void proxy_buffer_set_scratch(struct buffer *bp)
 {
     uintptr_t handle = (uintptr_t)bp;
-    call_editor(EXT_MSG_BUFFER_SET_SCRATCH, &handle, sizeof(handle), NULL, NULL);
+    call_editor(EXT_MSG_BUFFER_SET_SCRATCH, &handle, sizeof(handle), nullptr, nullptr);
 }
 
 static void proxy_get_point(int *line, int *col)
 {
     ext_ipc_point_t point = {0};
     uint32_t resp_len = sizeof(point);
-    call_editor(EXT_MSG_GET_POINT, NULL, 0, &point, &resp_len);
+    call_editor(EXT_MSG_GET_POINT, nullptr, 0, &point, &resp_len);
     if (line) *line = point.line;
     if (col) *col = point.col;
 }
@@ -551,7 +551,7 @@ static void proxy_get_point(int *line, int *col)
 static void proxy_set_point(int line, int col)
 {
     ext_ipc_point_t point = { .line = line, .col = col };
-    call_editor(EXT_MSG_SET_POINT, &point, sizeof(point), NULL, NULL);
+    call_editor(EXT_MSG_SET_POINT, &point, sizeof(point), nullptr, nullptr);
 }
 
 static int proxy_get_line_count(struct buffer *bp)
@@ -567,8 +567,8 @@ static char *proxy_get_word_at_point(void)
 {
     static char word_buf[256];
     uint32_t resp_len = sizeof(word_buf);
-    if (call_editor(EXT_MSG_GET_WORD, NULL, 0, word_buf, &resp_len) < 0)
-        return NULL;
+    if (call_editor(EXT_MSG_GET_WORD, nullptr, 0, word_buf, &resp_len) < 0)
+        return nullptr;
     return word_buf;
 }
 
@@ -576,22 +576,22 @@ static char *proxy_get_current_line(void)
 {
     static char line_buf[4096];
     uint32_t resp_len = sizeof(line_buf);
-    if (call_editor(EXT_MSG_GET_LINE, NULL, 0, line_buf, &resp_len) < 0)
-        return NULL;
+    if (call_editor(EXT_MSG_GET_LINE, nullptr, 0, line_buf, &resp_len) < 0)
+        return nullptr;
     return line_buf;
 }
 
 static char *proxy_get_line_at(struct buffer *bp, int line_num)
 {
     (void)bp; (void)line_num;
-    return NULL;  /* TODO: implement if needed */
+    return nullptr;  /* TODO: implement if needed */
 }
 
 /* Window operations - not applicable for out-of-process */
-static struct window *proxy_current_window(void) { return NULL; }
+static struct window *proxy_current_window(void) { return nullptr; }
 static int proxy_window_count(void) { return 1; }
 static int proxy_window_set_wrap_col(struct window *wp, int col) { (void)wp; (void)col; return 0; }
-static struct window *proxy_window_at_row(int screen_row) { (void)screen_row; return NULL; }
+static struct window *proxy_window_at_row(int screen_row) { (void)screen_row; return nullptr; }
 static int proxy_window_switch(struct window *wp) { (void)wp; return 0; }
 
 /* Screen/cursor helpers - not applicable for out-of-process */
@@ -678,7 +678,7 @@ static int proxy_find_file_line(const char *path, int line)
     memcpy(req, path, path_len);
     *(int32_t *)(req + path_len) = line;
 
-    int result = call_editor(EXT_MSG_FIND_FILE, req, req_size, NULL, NULL);
+    int result = call_editor(EXT_MSG_FIND_FILE, req, req_size, nullptr, nullptr);
     free(req);
     return result;
 }
@@ -692,7 +692,7 @@ static int proxy_shell_command(const char *cmd, char **output, size_t *len)
     int result = call_editor(EXT_MSG_SHELL_COMMAND, cmd, strlen(cmd) + 1,
                              output_buf, &resp_len);
 
-    if (output) *output = (result >= 0) ? output_buf : NULL;
+    if (output) *output = (result >= 0) ? output_buf : nullptr;
     if (len) *len = (result >= 0) ? resp_len : 0;
     return result;
 }
@@ -705,7 +705,7 @@ static void proxy_free(void *ptr) {
     free(ptr);
 }
 static char *proxy_strdup(const char *s) {
-    return s ? strdup(s) : NULL;
+    return s ? strdup(s) : nullptr;
 }
 
 /* Logging */
@@ -776,12 +776,12 @@ static int proxy_modeline_register(const char *name, uemacs_modeline_fn format_f
     memset(&req, 0, sizeof(req));
     strncpy(req.name, name, sizeof(req.name) - 1);
     req.priority = urgency;
-    return call_editor(EXT_MSG_MODELINE_REGISTER, &req, sizeof(req), NULL, NULL);
+    return call_editor(EXT_MSG_MODELINE_REGISTER, &req, sizeof(req), nullptr, nullptr);
 }
 
 static int proxy_modeline_unregister(const char *name)
 {
-    return call_editor(EXT_MSG_MODELINE_REGISTER, name, strlen(name) + 1, NULL, NULL);
+    return call_editor(EXT_MSG_MODELINE_REGISTER, name, strlen(name) + 1, nullptr, nullptr);
 }
 
 static void proxy_modeline_refresh(void)
@@ -862,7 +862,7 @@ static struct muemacs_api proxy_api = {
 /* Implementation of proxy_get_function */
 static generic_fn_t proxy_get_function(const char *name)
 {
-    if (!name) return NULL;
+    if (!name) return nullptr;
 
     #define ENTRY(n, fn) if (strcmp(name, #n) == 0) return (generic_fn_t)(fn)
 
@@ -924,7 +924,7 @@ static generic_fn_t proxy_get_function(const char *name)
     ENTRY(modeline_refresh, proxy_modeline_refresh);
 
     #undef ENTRY
-    return NULL;
+    return nullptr;
 }
 
 /* =========================================================================
@@ -952,7 +952,7 @@ static void handle_command(ext_ipc_slot_t *slot)
     }
 
     /* Mark command slot as complete (editor will release it) */
-    ext_ipc_slot_complete(slot, result, NULL, 0);
+    ext_ipc_slot_complete(slot, result, nullptr, 0);
 }
 
 /* =========================================================================
@@ -1000,14 +1000,14 @@ static void extension_main_loop(void)
                     handle_command(slot);
                 } else if (slot->msg_type == EXT_MSG_SHUTDOWN) {
                     g_running = 0;
-                    ext_ipc_slot_complete(slot, 0, NULL, 0);
+                    ext_ipc_slot_complete(slot, 0, nullptr, 0);
                     break;
                 } else if (slot->msg_type == EXT_MSG_EVENT_EMIT) {
                     /* Dispatch to local handlers */
                     const char *event_name = (const char *)slot->payload;
                     uemacs_event_t event = {
                         .name = event_name,
-                        .data = NULL,
+                        .data = nullptr,
                         .data_size = 0,
                         .consumed = false,
                     };
@@ -1018,9 +1018,9 @@ static void extension_main_loop(void)
                                 &event, g_local_handlers[i].user_data);
                         }
                     }
-                    ext_ipc_slot_complete(slot, event.consumed ? 1 : 0, NULL, 0);
+                    ext_ipc_slot_complete(slot, event.consumed ? 1 : 0, nullptr, 0);
                 } else {
-                    ext_ipc_slot_complete(slot, -1, NULL, 0);
+                    ext_ipc_slot_complete(slot, -1, nullptr, 0);
                 }
             }
         }
@@ -1036,7 +1036,7 @@ static void extension_main_loop(void)
         } else {
             /* Fallback: no death pipe, just sleep */
             struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000000 };  /* 10ms */
-            nanosleep(&ts, NULL);
+            nanosleep(&ts, nullptr);
         }
     }
 }
@@ -1057,7 +1057,7 @@ static void print_usage(const char *prog)
 int main(int argc, char **argv)
 {
     int memfd = -1;
-    const char *ext_path = NULL;
+    const char *ext_path = nullptr;
 
     static struct option long_options[] = {
         {"memfd",   required_argument, 0, 'm'},
@@ -1068,7 +1068,7 @@ int main(int argc, char **argv)
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "m:e:d:h", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "m:e:d:h", long_options, nullptr)) != -1) {
         switch (opt) {
         case 'm': memfd = safe_atoi(optarg, -1); break;
         case 'e': ext_path = optarg; break;
@@ -1092,8 +1092,8 @@ int main(int argc, char **argv)
         .sa_flags = SA_RESTART
     };
     sigemptyset(&sa.sa_mask);
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, nullptr);
+    sigaction(SIGINT, &sa, nullptr);
 
     /* Early diagnostic - before IPC, write to known file (commented out for performance)
     FILE *diag = fopen("/tmp/ext_runner_diag.log", "a");
@@ -1135,7 +1135,7 @@ int main(int argc, char **argv)
 
     struct uemacs_extension *ext = get_extension();
     if (!ext) {
-        ipc_log("ext_runner[%d]: Entry returned NULL", getpid());
+        ipc_log("ext_runner[%d]: Entry returned nullptr", getpid());
         dlclose(g_ext_handle);
         ext_ipc_destroy(g_ipc);
         return 1;
@@ -1155,7 +1155,7 @@ int main(int argc, char **argv)
 
     /* Start death watcher thread - ensures we exit even if main loop blocks */
     if (g_death_fd >= 0) {
-        if (pthread_create(&g_death_watcher_thread, NULL, death_watcher_thread, NULL) == 0) {
+        if (pthread_create(&g_death_watcher_thread, nullptr, death_watcher_thread, nullptr) == 0) {
             g_death_watcher_started = true;
             ipc_log("ext_runner[%d]: Death watcher thread started", getpid());
         }
@@ -1168,7 +1168,7 @@ int main(int argc, char **argv)
 
     /* Stop death watcher thread */
     if (g_death_watcher_started) {
-        pthread_join(g_death_watcher_thread, NULL);
+        pthread_join(g_death_watcher_thread, nullptr);
         ipc_log("ext_runner[%d]: Death watcher thread joined", getpid());
     }
 

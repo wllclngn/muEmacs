@@ -15,10 +15,14 @@
 #include <stdatomic.h>
 
 /* Buffer sizes - generous to handle all modern terminal sequences */
-#define INPUT_CSI_BUF_SIZE      256     /* CSI parameter buffer (was 64) */
-#define INPUT_STRING_BUF_SIZE   8192    /* OSC/APC/DCS string buffer */
-#define INPUT_PENDING_SIZE      256     /* Lookahead pushback buffer (was 64, increased for rapid input) */
-#define INPUT_UTF8_BUF_SIZE     4       /* UTF-8 continuation bytes */
+static constexpr int INPUT_CSI_BUF_SIZE      = 256;   /* CSI parameter buffer (was 64) */
+static constexpr int INPUT_STRING_BUF_SIZE   = 8192;  /* OSC/APC/DCS string buffer */
+static constexpr int INPUT_PENDING_SIZE      = 256;   /* Lookahead pushback buffer (was 64, increased for rapid input) */
+static constexpr int INPUT_UTF8_BUF_SIZE     = 4;     /* UTF-8 continuation bytes */
+
+static_assert(INPUT_CSI_BUF_SIZE >= 64, "CSI buffer must handle long sequences");
+static_assert(INPUT_PENDING_SIZE >= 64, "Pending buffer must handle rapid input");
+static_assert(INPUT_UTF8_BUF_SIZE >= 4, "UTF-8 buffer must hold max sequence length");
 
 /* Parser states - follows VT500 state machine model */
 typedef enum {

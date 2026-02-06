@@ -333,7 +333,7 @@ const char *json_error_str(int code) {
 
 /* JSON building helpers */
 
-int json_build_start(char *buf, size_t bufsize) {
+int json_build_start(char *restrict buf, size_t bufsize) {
     if (bufsize < 2) return -1;
     buf[0] = '{';
     buf[1] = '\0';
@@ -375,7 +375,7 @@ static size_t json_escape_string(char *dst, size_t dstsize, const char *src) {
                 if ((unsigned char)*s < 0x20) {
                     /* Control character - escape as \u00XX */
                     if (di + 6 >= dstsize) goto done;
-                    di += snprintf(dst + di, dstsize - di, "\\u%04x", (unsigned char)*s);
+                    di += (size_t)snprintf(dst + di, dstsize - di, "\\u%04x", (unsigned char)*s);
                 } else {
                     dst[di++] = *s;
                 }
@@ -388,7 +388,7 @@ done:
     return di;
 }
 
-int json_build_string(char *buf, size_t bufsize, const char *key, const char *value) {
+int json_build_string(char *restrict buf, size_t bufsize, const char *restrict key, const char *restrict value) {
     size_t len = strlen(buf);
     bool needs_comma = (len > 1 && buf[len - 1] != '{');
 
@@ -408,7 +408,7 @@ int json_build_string(char *buf, size_t bufsize, const char *key, const char *va
     return 0;
 }
 
-int json_build_int(char *buf, size_t bufsize, const char *key, int value) {
+int json_build_int(char *restrict buf, size_t bufsize, const char *restrict key, int value) {
     size_t len = strlen(buf);
     bool needs_comma = (len > 1 && buf[len - 1] != '{');
 
@@ -425,7 +425,7 @@ int json_build_int(char *buf, size_t bufsize, const char *key, int value) {
     return 0;
 }
 
-int json_build_bool(char *buf, size_t bufsize, const char *key, bool value) {
+int json_build_bool(char *restrict buf, size_t bufsize, const char *restrict key, bool value) {
     size_t len = strlen(buf);
     bool needs_comma = (len > 1 && buf[len - 1] != '{');
 
@@ -442,7 +442,7 @@ int json_build_bool(char *buf, size_t bufsize, const char *key, bool value) {
     return 0;
 }
 
-int json_build_end(char *buf, size_t bufsize) {
+int json_build_end(char *restrict buf, size_t bufsize) {
     size_t len = strlen(buf);
     if (len + 2 > bufsize) return -1;
     buf[len] = '}';

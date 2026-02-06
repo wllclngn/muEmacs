@@ -66,7 +66,7 @@ int calculate_display_column(const char *text, int byte_offset, int tab_width)
     
     while (i < byte_offset && text[i]) {
         unicode_t c;
-        int bytes = utf8_to_unicode((char*)text, i, byte_offset, &c);
+        int bytes = (int)utf8_to_unicode((char*)text, (unsigned)i, (unsigned)byte_offset, &c);
         
         if (bytes <= 0) break; // Invalid UTF-8, stop
         
@@ -112,9 +112,9 @@ int calculate_display_column_cached(struct line *lp, int byte_offset, int tab_wi
             int remaining = llength(lp) - i;
             int extract_len = (remaining > 6) ? 6 : remaining;
             for (int j = 0; j < extract_len; j++) {
-                utf8_seq[j] = lgetc(lp, i + j);
+                utf8_seq[j] = (char)lgetc(lp, i + j);
             }
-            int bytes = utf8_to_unicode(utf8_seq, 0, extract_len, &c);
+            int bytes = (int)utf8_to_unicode(utf8_seq, 0, (unsigned)extract_len, &c);
             
             if (bytes <= 0) break; // Invalid UTF-8, stop
             
@@ -138,10 +138,10 @@ int calculate_display_column_cached(struct line *lp, int byte_offset, int tab_wi
     } else {
         // Cache miss - calculate from scratch and update cache
         // Extract text - handles both regular and view mode lines
-        char *line_text = safe_alloc(llength(lp) + 1, "display width temp", __FILE__, __LINE__);
+        char *line_text = safe_alloc((size_t)llength(lp) + 1, "display width temp", __FILE__, __LINE__);
         int column = 0;
         if (line_text) {
-            lget_text(lp, 0, (size_t)llength(lp), line_text, llength(lp) + 1);
+            lget_text(lp, 0, (size_t)llength(lp), line_text, (size_t)llength(lp) + 1);
             column = calculate_display_column(line_text, byte_offset, tab_width);
             safe_free((void **)&line_text);
         }

@@ -150,7 +150,7 @@ static void initialize_platform(void)
 }
 
 // Extract first filename from argv for early preloading
-// Returns NULL if no file argument found
+// Returns nullptr if no file argument found
 static const char *extract_first_filename(int argc, char **argv)
 {
 	for (int i = 1; i < argc; i++) {
@@ -159,7 +159,7 @@ static const char *extract_first_filename(int argc, char **argv)
 		if (argv[i][0] == '@') continue;          // Skip @macros
 		return argv[i];                            // First bare filename
 	}
-	return NULL;
+	return nullptr;
 }
 
 // Handle --help and --version early
@@ -324,7 +324,7 @@ static void process_input_files(struct main_args *args, struct main_state *state
 
 	// if invoked with no other startup files, run the system startup file here
 	if (args->startflag == false) {
-		startup("");
+		(void)startup("");  // best-effort: editor continues even without startup file
 		args->startflag = true;
 	}
 	discmd = true;		// P.K.
@@ -332,10 +332,10 @@ static void process_input_files(struct main_args *args, struct main_state *state
 	// if there are any files to read, read the first one!
 	bp = bfind("main", false, 0);
 	if (args->firstbp != nullptr && (gflags & GFREAD)) {
-		swbuffer(args->firstbp);
-		zotbuf(bp);
+		if (swbuffer(args->firstbp) == true)
+			(void)zotbuf(bp);  // cleanup default buffer; failure non-fatal
 	} else {
-		bp->b_mode |= gmode;
+		bp->b_mode |= (uint32_t)gmode;
 	}
 
 	// Deal with startup gotos and searches
@@ -382,7 +382,7 @@ loop:
 	{
 		static bool evil_flash_was_active = false;
 		bool evil_flash_active = (evil_mode_start_time > 0 &&
-		                          (time(NULL) - evil_mode_start_time) < 3);
+		                          (time(nullptr) - evil_mode_start_time) < 3);
 		if (evil_flash_was_active && !evil_flash_active) {
 			/* Flash just expired - refresh modelines */
 			upmode();
@@ -537,7 +537,7 @@ loop:
  * as an argument, because the main routine may have been told to read in a
  * file by default, and we want the buffer name to be right.
  */
-void edinit(char *bname)
+void edinit(const char *bname)
 {
 	struct buffer *bp;
 	struct window *wp;

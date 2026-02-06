@@ -262,7 +262,7 @@ int ext_host_invoke_command(const char *cmd_name, int f, int n);
  * Find which extension owns a command
  *
  * cmd_name: Command name
- * Returns: Extension name or NULL if not found
+ * Returns: Extension name or nullptr if not found
  */
 const char *ext_host_find_command_owner(const char *cmd_name);
 
@@ -336,7 +336,7 @@ int ext_host_count(void);
 
 /*
  * Get extension entry by index (for iteration)
- * Returns NULL if index out of range or slot inactive.
+ * Returns nullptr if index out of range or slot inactive.
  */
 const ext_host_entry_t *ext_host_get_entry(int index);
 

@@ -35,7 +35,7 @@ int test_command_execution(void) {
             dup2(pipefd[1], STDOUT_FILENO);
             close(pipefd[1]);
             
-            execl("/bin/echo", "echo", "test_output", NULL);
+            execl("/bin/echo", "echo", "test_output", nullptr);
             safe_child_exit(1); // Should not reach here
         } else if (pid > 0) {
             // Parent process
@@ -69,7 +69,7 @@ int test_command_execution(void) {
             dup2(pipefd[1], STDOUT_FILENO);
             close(pipefd[1]);
             
-            execl("/bin/ls", "ls", "/tmp", NULL);
+            execl("/bin/ls", "ls", "/tmp", nullptr);
             safe_child_exit(1);
         } else if (pid > 0) {
             close(pipefd[1]);
@@ -95,7 +95,7 @@ int test_command_execution(void) {
     pid_t error_pid = fork();
     if (error_pid == 0) {
         // Try to execute non-existent command
-        execl("/bin/nonexistent_command", "nonexistent_command", NULL);
+        execl("/bin/nonexistent_command", "nonexistent_command", nullptr);
         safe_child_exit(127); // Command not found
     } else if (error_pid > 0) {
         int status;
@@ -126,7 +126,7 @@ int test_shell_command_integration(void) {
         passed++;
     } else {
         // Try common shell locations
-        const char* common_shells[] = {"/bin/bash", "/bin/sh", "/usr/bin/bash", NULL};
+        const char* common_shells[] = {"/bin/bash", "/bin/sh", "/usr/bin/bash", nullptr};
         for (int i = 0; common_shells[i]; i++) {
             if (access(common_shells[i], X_OK) == 0) {
                 LOG_INFOF("[SUCCESS] Shell detection: found %s", common_shells[i]);
@@ -149,7 +149,7 @@ int test_shell_command_integration(void) {
             close(pipefd[1]);
             
             // Use shell to execute pipeline: echo test | wc -w
-            execl("/bin/sh", "sh", "-c", "echo 'one two three' | wc -w", NULL);
+            execl("/bin/sh", "sh", "-c", "echo 'one two three' | wc -w", nullptr);
             safe_child_exit(1);
         } else if (pid > 0) {
             close(pipefd[1]);
@@ -180,7 +180,7 @@ int test_shell_command_integration(void) {
             close(pipefd[1]);
             
             // Test pwd built-in
-            execl("/bin/sh", "sh", "-c", "pwd", NULL);
+            execl("/bin/sh", "sh", "-c", "pwd", nullptr);
             safe_child_exit(1);
         } else if (pid > 0) {
             close(pipefd[1]);
@@ -284,7 +284,7 @@ int test_environment_variables(void) {
             close(pipefd[1]);
             
             // Shell should expand $MUEMACS_EXPAND_TEST
-            execl("/bin/sh", "sh", "-c", "echo $MUEMACS_EXPAND_TEST", NULL);
+            execl("/bin/sh", "sh", "-c", "echo $MUEMACS_EXPAND_TEST", nullptr);
             safe_child_exit(1);
         } else if (pid > 0) {
             close(pipefd[1]);
@@ -394,7 +394,7 @@ int test_pipe_handling(void) {
                 }
                 
                 free(large_buffer);
-                large_buffer = NULL; // Prevent double free
+                large_buffer = nullptr; // Prevent double free
             }
         }
         
@@ -418,7 +418,7 @@ int test_process_spawning(void) {
     pid_t pid = fork();
     if (pid == 0) {
         // Child process
-        execl("/bin/true", "true", NULL); // Command that always succeeds
+        execl("/bin/true", "true", nullptr); // Command that always succeeds
         safe_child_exit(1); // Should not reach here
     } else if (pid > 0) {
         // Parent process
@@ -438,7 +438,7 @@ int test_process_spawning(void) {
     pid = fork();
     if (pid == 0) {
         // Try to exec non-existent file
-        execl("/nonexistent/command", "command", NULL);
+        execl("/nonexistent/command", "command", nullptr);
         safe_child_exit(127); // Command not found
     } else if (pid > 0) {
         int status;
@@ -646,7 +646,7 @@ int test_subprocess_communication(void) {
             timeout.tv_usec = 0;
             
             ssize_t bytes_read = 0;
-            if (select(pipe_to_parent[0] + 1, &readfds, NULL, NULL, &timeout) > 0) {
+            if (select(pipe_to_parent[0] + 1, &readfds, nullptr, nullptr, &timeout) > 0) {
                 bytes_read = read(pipe_to_parent[0], buffer, sizeof(buffer) - 1);
             }
             close(pipe_to_parent[0]);
@@ -681,7 +681,7 @@ int test_subprocess_communication(void) {
             close(stdout_pipe[1]);
             
             // Execute cat command (echoes input to output)
-            execl("/bin/cat", "cat", NULL);
+            execl("/bin/cat", "cat", nullptr);
             safe_child_exit(1);
         } else if (pid > 0) {
             close(stdin_pipe[0]);

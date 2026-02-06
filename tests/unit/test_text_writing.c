@@ -25,7 +25,7 @@ int test_writing_mode_toggle() {
     PHASE_START("WRITING: TOGGLE", "Testing writing mode enable/disable");
 
     init_editor_minimal("writing-toggle");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Save initial state
@@ -87,7 +87,7 @@ int test_writing_mode_custom_column() {
     PHASE_START("WRITING: CUSTOM-COLUMN", "Testing writing mode with custom column width");
 
     init_editor_minimal("writing-custom");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Save original fillcol to restore at end
@@ -132,7 +132,7 @@ int test_writing_mode_bounds() {
     PHASE_START("WRITING: BOUNDS", "Testing writing mode column width bounds");
 
     init_editor_minimal("writing-bounds");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Save original fillcol to restore at end
@@ -187,7 +187,7 @@ int test_writing_mode_state_preservation() {
     PHASE_START("WRITING: STATE-PRESERVATION", "Testing state preservation across toggles");
 
     init_editor_minimal("writing-state");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Save original fillcol to restore at end
@@ -240,7 +240,7 @@ int test_writing_mode_cycles() {
     PHASE_START("WRITING: CYCLES", "Testing multiple enable/disable cycles");
 
     init_editor_minimal("writing-cycles");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     int initial_fillcol = fillcol;
@@ -284,7 +284,7 @@ int test_writing_mode_wrap_interaction() {
     PHASE_START("WRITING: WRAP-INTERACTION", "Testing wrap mode interaction");
 
     init_editor_minimal("writing-wrap");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Save original fillcol to restore at end

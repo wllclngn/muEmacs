@@ -19,7 +19,7 @@ static int test_pty_spawn_close(void) {
     PHASE_START("PTY: SPAWN/CLOSE", "PTY allocation and cleanup");
 
     pid_t pid;
-    int master_fd = pty_spawn(NULL, &pid, 24, 80);
+    int master_fd = pty_spawn(nullptr, &pid, 24, 80);
 
     if (master_fd < 0) {
         LOG_ERROR("[FAIL] pty_spawn failed");
@@ -40,7 +40,7 @@ static int test_pty_spawn_close(void) {
     if (pty_child_alive(pid)) {
         // Kill if still alive
         kill(pid, SIGKILL);
-        waitpid(pid, NULL, 0);
+        waitpid(pid, nullptr, 0);
     }
 
     LOG_INFOF("[%sOK%s] child process exited after pty_close", GREEN, RESET);
@@ -76,7 +76,7 @@ static int test_pty_spawn_failure(void) {
 
     // Attempt spawn - should fail
     pid_t pid = -999;
-    int master_fd = pty_spawn(NULL, &pid, 24, 80);
+    int master_fd = pty_spawn(nullptr, &pid, 24, 80);
 
     // Restore original limit immediately
     setrlimit(RLIMIT_NPROC, &orig_limit);
@@ -130,7 +130,7 @@ static int test_pty_shell_failure(void) {
     close(master_fd);
     if (result == 0) {  // Still running
         kill(pid, SIGKILL);
-        waitpid(pid, NULL, 0);
+        waitpid(pid, nullptr, 0);
     }
 
     PHASE_END("PTY: SHELL EXEC FAILURE", ok);
@@ -143,7 +143,7 @@ static int test_pty_operations_after_close(void) {
     PHASE_START("PTY: OPS ON DEAD PTY", "Test I/O on closed PTY");
 
     pid_t pid;
-    int master_fd = pty_spawn(NULL, &pid, 24, 80);
+    int master_fd = pty_spawn(nullptr, &pid, 24, 80);
 
     if (master_fd < 0) {
         LOG_ERROR("[FAIL] pty_spawn failed");
@@ -184,7 +184,7 @@ static int test_pty_read_nonblocking(void) {
     PHASE_START("PTY: READ NONBLOCKING", "Test non-blocking read behavior");
 
     pid_t pid;
-    int master_fd = pty_spawn(NULL, &pid, 24, 80);
+    int master_fd = pty_spawn(nullptr, &pid, 24, 80);
 
     if (master_fd < 0) {
         LOG_ERROR("[FAIL] pty_spawn failed");
@@ -234,7 +234,7 @@ static int test_pty_resize(void) {
     PHASE_START("PTY: RESIZE", "Test PTY window size changes");
 
     pid_t pid;
-    int master_fd = pty_spawn(NULL, &pid, 24, 80);
+    int master_fd = pty_spawn(nullptr, &pid, 24, 80);
 
     if (master_fd < 0) {
         LOG_ERROR("[FAIL] pty_spawn failed");
@@ -274,7 +274,7 @@ static int test_pty_data_available(void) {
     PHASE_START("PTY: DATA AVAILABLE", "Test select-based data detection");
 
     pid_t pid;
-    int master_fd = pty_spawn(NULL, &pid, 24, 80);
+    int master_fd = pty_spawn(nullptr, &pid, 24, 80);
 
     if (master_fd < 0) {
         LOG_ERROR("[FAIL] pty_spawn failed");

@@ -15,7 +15,7 @@
  * C Language
  * ============================================================================ */
 
-static const char *c_extensions[] = {".c", ".h", NULL};
+static const char *c_extensions[] = {".c", ".h", nullptr};
 
 static const char *c_keywords[] = {
     "auto", "break", "case", "const", "continue", "default", "do", "else",
@@ -25,7 +25,7 @@ static const char *c_keywords[] = {
     "_Complex", "_Generic", "_Imaginary", "_Noreturn", "_Static_assert",
     "_Thread_local", "alignas", "alignof", "bool", "static_assert",
     "thread_local", "typeof", "typeof_unqual",
-    NULL
+    nullptr
 };
 
 static const char *c_types[] = {
@@ -34,13 +34,13 @@ static const char *c_types[] = {
     "int8_t", "int16_t", "int32_t", "int64_t",
     "uint8_t", "uint16_t", "uint32_t", "uint64_t",
     "FILE", "NULL",
-    NULL
+    nullptr
 };
 
 static const char *c_constants[] = {
     "NULL", "true", "false", "EOF", "stdin", "stdout", "stderr",
     "EXIT_SUCCESS", "EXIT_FAILURE",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_c = {
@@ -49,7 +49,7 @@ const syntax_language_t lang_c = {
     .keywords = c_keywords,
     .types = c_types,
     .constants = c_constants,
-    .builtins = NULL,
+    .builtins = nullptr,
     .line_comment = "//",
     .block_start = "/*",
     .block_end = "*/",
@@ -61,14 +61,14 @@ const syntax_language_t lang_c = {
     .has_triple_quote = false,
     .preprocessor = "#",
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * C++ Language
  * ============================================================================ */
 
-static const char *cpp_extensions[] = {".cpp", ".cc", ".cxx", ".hpp", ".hxx", ".h++", NULL};
+static const char *cpp_extensions[] = {".cpp", ".cc", ".cxx", ".hpp", ".hxx", ".h++", nullptr};
 
 static const char *cpp_keywords[] = {
     /* C keywords */
@@ -81,12 +81,12 @@ static const char *cpp_keywords[] = {
     "class", "compl", "concept", "consteval", "constexpr", "constinit",
     "const_cast", "co_await", "co_return", "co_yield", "decltype", "delete",
     "dynamic_cast", "explicit", "export", "friend", "mutable", "namespace",
-    "new", "noexcept", "not", "not_eq", "nullptr", "operator", "or", "or_eq",
+    "new", "noexcept", "not", "not_eq", "NULL", "operator", "or", "or_eq",
     "private", "protected", "public", "reinterpret_cast", "requires",
     "static_assert", "static_cast", "template", "this", "throw", "try",
     "typeid", "typename", "using", "virtual", "xor", "xor_eq", "override",
     "final",
-    NULL
+    nullptr
 };
 
 static const char *cpp_types[] = {
@@ -95,7 +95,7 @@ static const char *cpp_types[] = {
     "string", "vector", "map", "set", "list", "deque", "array", "pair",
     "tuple", "optional", "variant", "any", "span", "string_view",
     "unique_ptr", "shared_ptr", "weak_ptr",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_cpp = {
@@ -104,7 +104,7 @@ const syntax_language_t lang_cpp = {
     .keywords = cpp_keywords,
     .types = cpp_types,
     .constants = c_constants,
-    .builtins = NULL,
+    .builtins = nullptr,
     .line_comment = "//",
     .block_start = "/*",
     .block_end = "*/",
@@ -117,14 +117,14 @@ const syntax_language_t lang_cpp = {
     .has_triple_quote = false,
     .preprocessor = "#",
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Zig Language
  * ============================================================================ */
 
-static const char *zig_extensions[] = {".zig", NULL};
+static const char *zig_extensions[] = {".zig", nullptr};
 
 static const char *zig_keywords[] = {
     "addrspace", "align", "allowzero", "and", "anyframe", "anytype", "asm",
@@ -135,7 +135,7 @@ static const char *zig_keywords[] = {
     "resume", "return", "struct", "suspend", "switch", "test", "threadlocal",
     "try", "union", "unreachable", "usingnamespace", "var", "volatile",
     "while",
-    NULL
+    nullptr
 };
 
 static const char *zig_types[] = {
@@ -145,12 +145,12 @@ static const char *zig_types[] = {
     "c_char", "c_short", "c_ushort", "c_int", "c_uint", "c_long", "c_ulong",
     "c_longlong", "c_ulonglong", "comptime_int", "comptime_float",
     "anyerror", "anyopaque", "anytype", "noreturn", "type", "void",
-    NULL
+    nullptr
 };
 
 static const char *zig_constants[] = {
     "null", "undefined", "true", "false",
-    NULL
+    nullptr
 };
 
 static const char *zig_builtins[] = {
@@ -161,7 +161,7 @@ static const char *zig_builtins[] = {
     "@min", "@max", "@abs", "@sqrt", "@log", "@exp", "@sin", "@cos",
     "@memcpy", "@memset", "@atomicLoad", "@atomicStore", "@cmpxchg",
     "@panic", "@compileError", "@compileLog",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_zig = {
@@ -172,49 +172,49 @@ const syntax_language_t lang_zig = {
     .constants = zig_constants,
     .builtins = zig_builtins,
     .line_comment = "//",
-    .block_start = NULL,  /* Zig has no block comments */
-    .block_end = NULL,
+    .block_start = nullptr,  /* Zig has no block comments */
+    .block_end = nullptr,
     .nested_comments = false,
     .has_single_quote_str = true,   /* char literals */
     .has_double_quote_str = true,
     .has_backtick_str = false,
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Go Language
  * ============================================================================ */
 
-static const char *go_extensions[] = {".go", NULL};
+static const char *go_extensions[] = {".go", nullptr};
 
 static const char *go_keywords[] = {
     "break", "case", "chan", "const", "continue", "default", "defer", "else",
     "fallthrough", "for", "func", "go", "goto", "if", "import", "interface",
     "map", "package", "range", "return", "select", "struct", "switch", "type",
     "var",
-    NULL
+    nullptr
 };
 
 static const char *go_types[] = {
     "bool", "byte", "complex64", "complex128", "error", "float32", "float64",
     "int", "int8", "int16", "int32", "int64", "rune", "string",
     "uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
-    NULL
+    nullptr
 };
 
 static const char *go_constants[] = {
     "true", "false", "nil", "iota",
-    NULL
+    nullptr
 };
 
 static const char *go_builtins[] = {
     "append", "cap", "close", "complex", "copy", "delete", "imag", "len",
     "make", "new", "panic", "print", "println", "real", "recover",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_go = {
@@ -233,16 +233,16 @@ const syntax_language_t lang_go = {
     .has_backtick_str = true,       /* raw strings */
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Rust Language
  * ============================================================================ */
 
-static const char *rust_extensions[] = {".rs", NULL};
+static const char *rust_extensions[] = {".rs", nullptr};
 
 static const char *rust_keywords[] = {
     "as", "async", "await", "break", "const", "continue", "crate", "dyn",
@@ -250,7 +250,7 @@ static const char *rust_keywords[] = {
     "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
     "self", "Self", "static", "struct", "super", "trait", "true", "type",
     "unsafe", "use", "where", "while",
-    NULL
+    nullptr
 };
 
 static const char *rust_types[] = {
@@ -258,19 +258,19 @@ static const char *rust_types[] = {
     "str", "u8", "u16", "u32", "u64", "u128", "usize",
     "Box", "Cell", "Option", "Result", "Rc", "Arc", "RefCell", "Mutex",
     "String", "Vec", "HashMap", "HashSet", "BTreeMap", "BTreeSet",
-    NULL
+    nullptr
 };
 
 static const char *rust_constants[] = {
     "true", "false", "None", "Some", "Ok", "Err",
-    NULL
+    nullptr
 };
 
 static const char *rust_builtins[] = {
     "println", "print", "eprintln", "eprint", "format", "panic", "assert",
     "assert_eq", "assert_ne", "debug_assert", "todo", "unimplemented",
     "unreachable", "vec", "include", "include_str", "include_bytes",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_rust = {
@@ -290,16 +290,16 @@ const syntax_language_t lang_rust = {
     .has_raw_strings = true,
     .raw_string_prefix = 'r',
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * JavaScript Language
  * ============================================================================ */
 
-static const char *js_extensions[] = {".js", ".mjs", ".cjs", ".jsx", NULL};
+static const char *js_extensions[] = {".js", ".mjs", ".cjs", ".jsx", nullptr};
 
 static const char *js_keywords[] = {
     "async", "await", "break", "case", "catch", "class", "const", "continue",
@@ -307,7 +307,7 @@ static const char *js_keywords[] = {
     "finally", "for", "function", "if", "import", "in", "instanceof", "let",
     "new", "of", "return", "static", "super", "switch", "this", "throw",
     "try", "typeof", "var", "void", "while", "with", "yield",
-    NULL
+    nullptr
 };
 
 static const char *js_types[] = {
@@ -317,19 +317,19 @@ static const char *js_types[] = {
     "Set", "SharedArrayBuffer", "String", "Symbol", "TypedArray",
     "Uint8Array", "Uint8ClampedArray", "Uint16Array", "Uint32Array",
     "WeakMap", "WeakSet",
-    NULL
+    nullptr
 };
 
 static const char *js_constants[] = {
     "true", "false", "null", "undefined", "NaN", "Infinity",
-    NULL
+    nullptr
 };
 
 static const char *js_builtins[] = {
     "console", "document", "window", "globalThis", "process",
     "setTimeout", "setInterval", "clearTimeout", "clearInterval",
     "fetch", "require", "module", "exports",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_javascript = {
@@ -348,16 +348,16 @@ const syntax_language_t lang_javascript = {
     .has_backtick_str = true,   /* template literals */
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * TypeScript Language
  * ============================================================================ */
 
-static const char *ts_extensions[] = {".ts", ".tsx", ".mts", ".cts", NULL};
+static const char *ts_extensions[] = {".ts", ".tsx", ".mts", ".cts", nullptr};
 
 static const char *ts_keywords[] = {
     /* JS keywords + TS specific */
@@ -372,7 +372,7 @@ static const char *ts_keywords[] = {
     "string", "super", "switch", "symbol", "this", "throw", "true", "try",
     "type", "typeof", "undefined", "unique", "unknown", "var", "void",
     "while", "with", "yield",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_typescript = {
@@ -391,16 +391,16 @@ const syntax_language_t lang_typescript = {
     .has_backtick_str = true,
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Java Language
  * ============================================================================ */
 
-static const char *java_extensions[] = {".java", NULL};
+static const char *java_extensions[] = {".java", nullptr};
 
 static const char *java_keywords[] = {
     "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
@@ -411,7 +411,7 @@ static const char *java_keywords[] = {
     "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
     "transient", "try", "void", "volatile", "while", "var", "yield", "record",
     "sealed", "permits", "non-sealed",
-    NULL
+    nullptr
 };
 
 static const char *java_types[] = {
@@ -420,12 +420,12 @@ static const char *java_types[] = {
     "StringBuilder", "System", "Thread", "Throwable", "Void",
     "ArrayList", "HashMap", "HashSet", "LinkedList", "List", "Map", "Set",
     "Optional", "Stream", "Comparable", "Comparator", "Iterator", "Iterable",
-    NULL
+    nullptr
 };
 
 static const char *java_constants[] = {
     "true", "false", "null",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_java = {
@@ -434,7 +434,7 @@ const syntax_language_t lang_java = {
     .keywords = java_keywords,
     .types = java_types,
     .constants = java_constants,
-    .builtins = NULL,
+    .builtins = nullptr,
     .line_comment = "//",
     .block_start = "/*",
     .block_end = "*/",
@@ -444,16 +444,16 @@ const syntax_language_t lang_java = {
     .has_backtick_str = false,
     .has_raw_strings = false,
     .has_triple_quote = true,      /* Java 15+ text blocks */
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Python Language
  * ============================================================================ */
 
-static const char *python_extensions[] = {".py", ".pyw", ".pyi", NULL};
+static const char *python_extensions[] = {".py", ".pyw", ".pyi", nullptr};
 
 static const char *python_keywords[] = {
     "False", "None", "True", "and", "as", "assert", "async", "await", "break",
@@ -461,7 +461,7 @@ static const char *python_keywords[] = {
     "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal",
     "not", "or", "pass", "raise", "return", "try", "while", "with", "yield",
     "match", "case", "type",
-    NULL
+    nullptr
 };
 
 static const char *python_types[] = {
@@ -470,7 +470,7 @@ static const char *python_types[] = {
     "NoneType", "Callable", "Iterable", "Iterator", "Generator", "Sequence",
     "Mapping", "MutableMapping", "Set", "MutableSet", "Optional", "Union",
     "Any", "TypeVar", "Generic", "Protocol", "Final", "Literal", "ClassVar",
-    NULL
+    nullptr
 };
 
 static const char *python_builtins[] = {
@@ -483,7 +483,7 @@ static const char *python_builtins[] = {
     "oct", "open", "ord", "pow", "print", "property", "range", "repr",
     "reversed", "round", "set", "setattr", "slice", "sorted", "staticmethod",
     "str", "sum", "super", "tuple", "type", "vars", "zip", "__import__",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_python = {
@@ -491,11 +491,11 @@ const syntax_language_t lang_python = {
     .extensions = python_extensions,
     .keywords = python_keywords,
     .types = python_types,
-    .constants = NULL,
+    .constants = nullptr,
     .builtins = python_builtins,
     .line_comment = "#",
-    .block_start = NULL,
-    .block_end = NULL,
+    .block_start = nullptr,
+    .block_end = nullptr,
     .nested_comments = false,
     .has_single_quote_str = true,
     .has_double_quote_str = true,
@@ -503,21 +503,21 @@ const syntax_language_t lang_python = {
     .has_raw_strings = true,
     .raw_string_prefix = 'r',
     .has_triple_quote = true,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Bash Language
  * ============================================================================ */
 
-static const char *bash_extensions[] = {".sh", ".bash", ".zsh", ".fish", NULL};
+static const char *bash_extensions[] = {".sh", ".bash", ".zsh", ".fish", nullptr};
 
 static const char *bash_keywords[] = {
     "case", "do", "done", "elif", "else", "esac", "fi", "for", "function",
     "if", "in", "select", "then", "time", "until", "while", "coproc",
-    NULL
+    nullptr
 };
 
 static const char *bash_builtins[] = {
@@ -529,46 +529,46 @@ static const char *bash_builtins[] = {
     "readarray", "readonly", "return", "set", "shift", "shopt", "source",
     "suspend", "test", "times", "trap", "true", "type", "typeset", "ulimit",
     "umask", "unalias", "unset", "wait",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_bash = {
     .name = "bash",
     .extensions = bash_extensions,
     .keywords = bash_keywords,
-    .types = NULL,
-    .constants = NULL,
+    .types = nullptr,
+    .constants = nullptr,
     .builtins = bash_builtins,
     .line_comment = "#",
-    .block_start = NULL,
-    .block_end = NULL,
+    .block_start = nullptr,
+    .block_end = nullptr,
     .nested_comments = false,
     .has_single_quote_str = true,
     .has_double_quote_str = true,
     .has_backtick_str = true,   /* command substitution (legacy) */
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Lua Language
  * ============================================================================ */
 
-static const char *lua_extensions[] = {".lua", NULL};
+static const char *lua_extensions[] = {".lua", nullptr};
 
 static const char *lua_keywords[] = {
     "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
     "goto", "if", "in", "local", "nil", "not", "or", "repeat", "return",
     "then", "true", "until", "while",
-    NULL
+    nullptr
 };
 
 static const char *lua_types[] = {
     "string", "number", "boolean", "table", "function", "thread", "userdata",
-    NULL
+    nullptr
 };
 
 static const char *lua_builtins[] = {
@@ -576,7 +576,7 @@ static const char *lua_builtins[] = {
     "load", "loadfile", "next", "pairs", "pcall", "print", "rawequal",
     "rawget", "rawlen", "rawset", "require", "select", "setmetatable",
     "tonumber", "tostring", "type", "xpcall", "_G", "_VERSION",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_lua = {
@@ -584,7 +584,7 @@ const syntax_language_t lang_lua = {
     .extensions = lua_extensions,
     .keywords = lua_keywords,
     .types = lua_types,
-    .constants = NULL,
+    .constants = nullptr,
     .builtins = lua_builtins,
     .line_comment = "--",
     .block_start = "--[[",
@@ -595,16 +595,16 @@ const syntax_language_t lang_lua = {
     .has_backtick_str = false,
     .has_raw_strings = false,      /* Lua uses [[ ]] for long strings */
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * SQL Language
  * ============================================================================ */
 
-static const char *sql_extensions[] = {".sql", NULL};
+static const char *sql_extensions[] = {".sql", nullptr};
 
 static const char *sql_keywords[] = {
     "ADD", "ALL", "ALTER", "AND", "AS", "ASC", "BETWEEN", "BY", "CASE",
@@ -615,7 +615,7 @@ static const char *sql_keywords[] = {
     "OR", "ORDER", "OUTER", "PRIMARY", "REFERENCES", "RIGHT", "SELECT", "SET",
     "TABLE", "THEN", "UNION", "UNIQUE", "UPDATE", "VALUES", "VIEW", "WHEN",
     "WHERE", "WITH",
-    NULL
+    nullptr
 };
 
 static const char *sql_types[] = {
@@ -623,14 +623,14 @@ static const char *sql_types[] = {
     "DATETIME", "DECIMAL", "DOUBLE", "FLOAT", "INT", "INTEGER", "INTERVAL",
     "NCHAR", "NVARCHAR", "NUMERIC", "REAL", "SMALLINT", "TEXT", "TIME",
     "TIMESTAMP", "TINYINT", "VARBINARY", "VARCHAR",
-    NULL
+    nullptr
 };
 
 static const char *sql_builtins[] = {
     "AVG", "COUNT", "MAX", "MIN", "SUM", "ABS", "CEIL", "FLOOR", "ROUND",
     "CONCAT", "LENGTH", "LOWER", "UPPER", "SUBSTRING", "TRIM", "COALESCE",
     "NULLIF", "CAST", "CONVERT", "NOW", "CURRENT_DATE", "CURRENT_TIME",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_sql = {
@@ -638,7 +638,7 @@ const syntax_language_t lang_sql = {
     .extensions = sql_extensions,
     .keywords = sql_keywords,
     .types = sql_types,
-    .constants = NULL,
+    .constants = nullptr,
     .builtins = sql_builtins,
     .line_comment = "--",
     .block_start = "/*",
@@ -649,27 +649,27 @@ const syntax_language_t lang_sql = {
     .has_backtick_str = true,       /* MySQL identifier quotes */
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = false,        /* SQL keywords are case-insensitive */
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * Markdown (simplified - headings, code blocks)
  * ============================================================================ */
 
-static const char *md_extensions[] = {".md", ".markdown", NULL};
+static const char *md_extensions[] = {".md", ".markdown", nullptr};
 
 const syntax_language_t lang_markdown = {
     .name = "markdown",
     .extensions = md_extensions,
-    .keywords = NULL,
-    .types = NULL,
-    .constants = NULL,
-    .builtins = NULL,
-    .line_comment = NULL,
-    .block_start = NULL,
-    .block_end = NULL,
+    .keywords = nullptr,
+    .types = nullptr,
+    .constants = nullptr,
+    .builtins = nullptr,
+    .line_comment = nullptr,
+    .block_start = nullptr,
+    .block_end = nullptr,
     .nested_comments = false,
     .has_single_quote_str = false,
     .has_double_quote_str = false,
@@ -678,91 +678,91 @@ const syntax_language_t lang_markdown = {
     .has_triple_quote = true,   /* code blocks */
     .preprocessor = "#",        /* headings */
     .case_sensitive = true,
-    .custom_lexer = NULL,       /* TODO: custom lexer for MD */
+    .custom_lexer = nullptr,       /* TODO: custom lexer for MD */
 };
 
 /* ============================================================================
  * TOML Language
  * ============================================================================ */
 
-static const char *toml_extensions[] = {".toml", NULL};
+static const char *toml_extensions[] = {".toml", nullptr};
 
 static const char *toml_keywords[] = {
     "true", "false",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_toml = {
     .name = "toml",
     .extensions = toml_extensions,
     .keywords = toml_keywords,
-    .types = NULL,
-    .constants = NULL,
-    .builtins = NULL,
+    .types = nullptr,
+    .constants = nullptr,
+    .builtins = nullptr,
     .line_comment = "#",
-    .block_start = NULL,
-    .block_end = NULL,
+    .block_start = nullptr,
+    .block_end = nullptr,
     .nested_comments = false,
     .has_single_quote_str = true,
     .has_double_quote_str = true,
     .has_backtick_str = false,
     .has_raw_strings = false,
     .has_triple_quote = true,   /* multiline strings */
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * YAML Language
  * ============================================================================ */
 
-static const char *yaml_extensions[] = {".yaml", ".yml", NULL};
+static const char *yaml_extensions[] = {".yaml", ".yml", nullptr};
 
 static const char *yaml_keywords[] = {
     "true", "false", "yes", "no", "on", "off", "null", "~",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_yaml = {
     .name = "yaml",
     .extensions = yaml_extensions,
     .keywords = yaml_keywords,
-    .types = NULL,
-    .constants = NULL,
-    .builtins = NULL,
+    .types = nullptr,
+    .constants = nullptr,
+    .builtins = nullptr,
     .line_comment = "#",
-    .block_start = NULL,
-    .block_end = NULL,
+    .block_start = nullptr,
+    .block_end = nullptr,
     .nested_comments = false,
     .has_single_quote_str = true,
     .has_double_quote_str = true,
     .has_backtick_str = false,
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = false,    /* YAML booleans are case-insensitive */
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };
 
 /* ============================================================================
  * JSON Language
  * ============================================================================ */
 
-static const char *json_extensions[] = {".json", ".jsonc", NULL};
+static const char *json_extensions[] = {".json", ".jsonc", nullptr};
 
 static const char *json_keywords[] = {
     "true", "false", "null",
-    NULL
+    nullptr
 };
 
 const syntax_language_t lang_json = {
     .name = "json",
     .extensions = json_extensions,
     .keywords = json_keywords,
-    .types = NULL,
-    .constants = NULL,
-    .builtins = NULL,
+    .types = nullptr,
+    .constants = nullptr,
+    .builtins = nullptr,
     .line_comment = "//",       /* JSONC supports comments */
     .block_start = "/*",
     .block_end = "*/",
@@ -772,7 +772,7 @@ const syntax_language_t lang_json = {
     .has_backtick_str = false,
     .has_raw_strings = false,
     .has_triple_quote = false,
-    .preprocessor = NULL,
+    .preprocessor = nullptr,
     .case_sensitive = true,
-    .custom_lexer = NULL,
+    .custom_lexer = nullptr,
 };

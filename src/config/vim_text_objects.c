@@ -46,7 +46,7 @@ static int vim_find_matching_bracket(char open, char close, int direction) {
             }
         }
 
-        char c = lgetc(lp, off);
+        char c = (char)lgetc(lp, off);
         if (c == close) depth--;
         else if (c == open) depth++;
 
@@ -162,12 +162,12 @@ int vim_select_bracket_object(char open, char close, bool inner) {
     int off = curwp->w_doto;
 
     /* Find opening bracket */
-    struct line *open_line = NULL;
+    struct line *open_line = nullptr;
     int open_off = -1;
     int depth = 0;
 
     /* Check if we're on the bracket */
-    char c = lgetc(lp, off);
+    char c = (char)lgetc(lp, off);
     if (c == close) {
         depth = 1;
     } else if (c == open) {
@@ -186,7 +186,7 @@ int vim_select_bracket_object(char open, char close, bool inner) {
                 if (search_off < 0) search_off = 0;
                 continue;
             }
-            c = lgetc(search_lp, search_off);
+            c = (char)lgetc(search_lp, search_off);
             if (c == close) depth++;
             else if (c == open) {
                 if (depth == 0) {
@@ -199,7 +199,7 @@ int vim_select_bracket_object(char open, char close, bool inner) {
         }
     }
 
-    if (open_line == NULL) {
+    if (open_line == nullptr) {
         mlwrite("[No opening %c found]", open);
         return false;
     }
@@ -250,7 +250,7 @@ int vim_text_object_inner(int f, int n) {
         return vim_enter_insert_mode(false, 1);
     }
 
-    char pending = g_vim_state.pending_op;
+    char pending = (char)g_vim_state.pending_op;
     if (!in_visual) {
         vim_clear_pending_state();
     }
@@ -286,7 +286,7 @@ int vim_text_object_inner(int f, int n) {
     }
 
     /* Record for dot repeat */
-    vim_record_text_object_change(pending, 'i', ch, 1);
+    vim_record_text_object_change(pending, 'i', (char)ch, 1);
 
     /* Execute operator */
     if (pending == 'd' || pending == 'c') {
@@ -320,7 +320,7 @@ int vim_text_object_around(int f, int n) {
         return vim_enter_insert_mode(false, 1);
     }
 
-    char pending = g_vim_state.pending_op;
+    char pending = (char)g_vim_state.pending_op;
     if (!in_visual) {
         vim_clear_pending_state();
     }
@@ -356,7 +356,7 @@ int vim_text_object_around(int f, int n) {
     }
 
     /* Record for dot repeat */
-    vim_record_text_object_change(pending, 'a', ch, 1);
+    vim_record_text_object_change(pending, 'a', (char)ch, 1);
 
     /* Execute operator */
     if (pending == 'd' || pending == 'c') {

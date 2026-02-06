@@ -11,10 +11,10 @@ int test_git_status_integration(void) {
     // Test 1: Git repository detection
     total++;
     LOG_INFO("Testing Git repository detection...");
-    const char* test_paths[] = {".git", "../.git", "../../.git", NULL};
+    const char* test_paths[] = {".git", "../.git", "../../.git", nullptr};
     int git_repo_found = 0;
     
-    for (int i = 0; test_paths[i] != NULL; i++) {
+    for (int i = 0; test_paths[i] != nullptr; i++) {
         struct stat st;
         if (stat(test_paths[i], &st) == 0 && S_ISDIR(st.st_mode)) {
             git_repo_found = 1;
@@ -44,9 +44,9 @@ int test_clipboard_operations(void) {
     LOG_INFO("Testing clipboard system detection...");
     
     // Check for X11 clipboard support
-    int x11_available = (getenv("DISPLAY") != NULL);
+    int x11_available = (getenv("DISPLAY") != nullptr);
     // Check for Wayland clipboard support  
-    int wayland_available = (getenv("WAYLAND_DISPLAY") != NULL);
+    int wayland_available = (getenv("WAYLAND_DISPLAY") != nullptr);
     
     if (x11_available || wayland_available) {
         LOG_INFOF("[SUCCESS] Clipboard system available (%s)", x11_available ? "X11" : "Wayland");
@@ -70,15 +70,15 @@ int test_plugin_system(void) {
     LOG_INFO("Testing plugin loading simulation...");
     
     // Simulate plugin discovery
-    const char* plugin_dirs[] = {"./plugins", "/usr/lib/uemacs/plugins", NULL};
+    const char* plugin_dirs[] = {"./plugins", "/usr/lib/uemacs/plugins", nullptr};
     int plugins_found = 0;
     
-    for (int i = 0; plugin_dirs[i] != NULL; i++) {
+    for (int i = 0; plugin_dirs[i] != nullptr; i++) {
         DIR* dir = opendir(plugin_dirs[i]);
         if (dir) {
             struct dirent* entry;
-            while ((entry = readdir(dir)) != NULL) {
-                if (strstr(entry->d_name, ".so") != NULL) {
+            while ((entry = readdir(dir)) != nullptr) {
+                if (strstr(entry->d_name, ".so") != nullptr) {
                     plugins_found++;
                 }
             }
@@ -102,10 +102,10 @@ int test_shell_integration(void) {
     total++;
     LOG_INFO("Testing environment variable expansion...");
     
-    const char* test_vars[] = {"$HOME", "$USER", "$PATH", NULL};
+    const char* test_vars[] = {"$HOME", "$USER", "$PATH", nullptr};
     int vars_expanded = 0;
     
-    for (int i = 0; test_vars[i] != NULL; i++) {
+    for (int i = 0; test_vars[i] != nullptr; i++) {
         const char* var = test_vars[i];
         if (var[0] == '$' && (isalnum(var[1]) || var[1] == '{')) {
             const char* env_val = getenv(var + 1);
@@ -139,11 +139,11 @@ int test_desktop_integration(void) {
         "/usr/share/mime",
         "/usr/local/share/mime", 
         "~/.local/share/mime",
-        NULL
+        nullptr
     };
     
     int mime_system_found = 0;
-    for (int i = 0; mime_dirs[i] != NULL; i++) {
+    for (int i = 0; mime_dirs[i] != nullptr; i++) {
         struct stat st;
         if (stat(mime_dirs[i], &st) == 0 && S_ISDIR(st.st_mode)) {
             mime_system_found = 1;

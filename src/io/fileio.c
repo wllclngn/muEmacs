@@ -69,7 +69,7 @@ int ffclose(void)
  * and the "nbuf" is its length, less the free newline. Return the status.
  * Check only at the newline.
  */
-int ffputline(char *buf, int nbuf)
+int ffputline(const char *buf, int nbuf)
 {
 	/* Bulk write instead of character-by-character (major I/O optimization) */
 	if (nbuf > 0) {
@@ -111,7 +111,7 @@ int ffgetline(void)
 
 	/* if we don't have an fline, allocate one */
 	if (fline == nullptr)
-		if ((fline = (char*)safe_alloc(flen = NSTRING, "file line buffer", __FILE__, __LINE__)) == nullptr) {
+		if ((fline = (char*)safe_alloc((size_t)(flen = NSTRING), "file line buffer", __FILE__, __LINE__)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE FILE LINE BUFFER");
 			return FIOMEM;
 		}
@@ -130,7 +130,7 @@ int ffgetline(void)
 				c = EOF;
 			} else {
 				// Valid line (could be empty)
-				i = strlen(fline);
+				i = (int)strlen(fline);
 				c = '\n';  // safe_fread_line already removed newline, so simulate it
 			}
 		}
@@ -140,11 +140,11 @@ int ffgetline(void)
 	}
 	while (c != EOF && c != '\n') {
 		if (c) {
-			fline[i++] = c;
+			fline[i++] = (char)c;
 			/* if it's longer, get more room */
 			if (i >= flen) {
 				if ((tmpline =
-				     (char*)safe_alloc(flen + NSTRING, "expanded line buffer", __FILE__, __LINE__)) == nullptr) {
+				     (char*)safe_alloc((size_t)(flen + NSTRING), "expanded line buffer", __FILE__, __LINE__)) == nullptr) {
 					LOG_ERRORF("FileIO: Line buffer expansion failed (flen=%d)", flen);
 					return FIOMEM;
 				}

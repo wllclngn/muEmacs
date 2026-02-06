@@ -37,16 +37,16 @@ int test_poe_gutenberg_wrap(void)
 
     init_editor_minimal("poe-wrap");
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Try multiple paths since tests can run from different directories
     const char* paths[] = {
         "tests/data/poe-collected-fictions.txt",      // From project root
         "../tests/data/poe-collected-fictions.txt",   // From build/
-        NULL
+        nullptr
     };
-    const char* path = NULL;
+    const char* path = nullptr;
     for (int i = 0; paths[i]; i++) {
         if (access(paths[i], R_OK) == 0) {
             path = paths[i];

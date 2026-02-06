@@ -21,7 +21,7 @@ static void init_undo_test(const char* name) {
 }
 
 static void setup_empty_line(void) {
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     curwp->w_dotp = curbp->b_linep;
     curwp->w_doto = 0;

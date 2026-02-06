@@ -64,7 +64,7 @@ size_t count_buffer_bytes(struct buffer* bp) {
     
     size_t total = 0;
     FOR_EACH_LINE_IN_BUFFER(lp, bp) {
-        total += llength(lp);
+        total += (size_t)llength(lp);
         total++; // Add newline character
     }
     
@@ -85,7 +85,7 @@ bool line_is_whitespace_only(struct line* lp) {
     
     int len = llength(lp);
     for (int i = 0; i < len; i++) {
-        char c = lgetc(lp, i);
+        char c = (char)lgetc(lp, i);
         if (c != ' ' && c != '\t' && c != '\r') {
             return false;
         }

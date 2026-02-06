@@ -110,7 +110,7 @@ static int test_profiler_timing(void) {
 
     // Simulate some work
     struct timespec ts = {0, 10000000}; // 10ms
-    nanosleep(&ts, NULL);
+    nanosleep(&ts, nullptr);
 
     perf_end_timing("test_operation");
 

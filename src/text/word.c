@@ -523,7 +523,7 @@ int fillpara(int f, int n)
 	size_t total_size = 0;
 	int line_count = 0;
 	for (struct line *lp = bopline; lp != eopline && lp != curbp->b_linep; lp = lforw(lp)) {
-		total_size += llength(lp) + 1;
+		total_size += (size_t)llength(lp) + 1;
 		line_count++;
 	}
 	if (total_size == 0 || line_count == 0) return true;
@@ -539,7 +539,7 @@ int fillpara(int f, int n)
 		int len = llength(lp);
 		int start = (lp == bopline) ? start_offset : 0;
 		for (int i = start; i < len; i++) {
-			char c = lgetc(lp, i);
+			char c = (char)lgetc(lp, i);
 			if (c != '\r') {  /* Skip CR characters */
 				para_buf[pos++] = c;
 			}
@@ -601,7 +601,7 @@ int fillpara(int f, int n)
 			if (*p == '.') dotflag = 1;
 			p++;
 		}
-		int wordlen = p - word_start;  /* Byte length for memcpy */
+		int wordlen = (int)(p - word_start);  /* Byte length for memcpy */
 		if (wordlen == 0) continue;
 
 		/* Calculate display width (UTF-8 aware) */
@@ -624,8 +624,8 @@ int fillpara(int f, int n)
 		}
 
 		/* Add word */
-		memcpy(output + out_pos, word_start, wordlen);
-		out_pos += wordlen;
+		memcpy(output + out_pos, word_start, (size_t)wordlen);
+		out_pos += (size_t)wordlen;
 		clength += wordwidth;  /* Use display width, not byte length */
 		firstflag = 0;
 
@@ -747,7 +747,7 @@ int justpara(int f, int n)
 				char utf8_word[NSTRING * 4];
 				int utf8_len = 0;
 				for (i = 0; i < wordlen; i++) {
-					utf8_len += unicode_to_utf8(wbuf[i], utf8_word + utf8_len);
+					utf8_len += (int)unicode_to_utf8(wbuf[i], utf8_word + utf8_len);
 				}
 				utf8_word[utf8_len] = '\0';
 				if (!linstr(utf8_word))

@@ -143,7 +143,7 @@ void check_file_changes(void) {
         return;
     }
     
-    length = read(inotify_fd, buffer, EVENT_BUF_LEN);
+    length = (int)read(inotify_fd, buffer, EVENT_BUF_LEN);
     pthread_mutex_unlock(&watch_mutex);
     
     if (length < 0) return;
@@ -160,7 +160,7 @@ void check_file_changes(void) {
             handle_file_deletion(event->wd);
         }
         
-        i += EVENT_SIZE + event->len;
+        i += (int)(EVENT_SIZE + event->len);
     }
 }
 
@@ -275,9 +275,9 @@ int get_git_branch(char *branch, int maxlen) {
     posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
 
     /* Use git -C to specify directory */
-    char *argv[] = {"git", "-C", dir, "symbolic-ref", "--short", "HEAD", NULL};
+    char *argv[] = {"git", "-C", dir, "symbolic-ref", "--short", "HEAD", nullptr};
 
-    if (posix_spawnp(&pid, "git", &actions, NULL, argv, environ) != 0) {
+    if (posix_spawnp(&pid, "git", &actions, nullptr, argv, environ) != 0) {
         posix_spawn_file_actions_destroy(&actions);
         close(pipefd[0]);
         close(pipefd[1]);
@@ -288,7 +288,7 @@ int get_git_branch(char *branch, int maxlen) {
 
     int result = false;
     FILE *fp = fdopen(pipefd[0], "r");
-    if (fp && safe_fread_line(branch, maxlen, fp) > 0) {
+    if (fp && safe_fread_line(branch, (size_t)maxlen, fp) > 0) {
         /* Remove trailing newline */
         branch[strcspn(branch, "\n")] = '\0';
         result = true;
@@ -296,7 +296,7 @@ int get_git_branch(char *branch, int maxlen) {
     if (fp) fclose(fp);
     else close(pipefd[0]);
 
-    waitpid(pid, NULL, 0);
+    waitpid(pid, nullptr, 0);
     return result;
 }
 
@@ -323,9 +323,9 @@ int git_file_modified(void) {
     /* Redirect stderr to /dev/null */
     posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
 
-    char *argv[] = {"git", "status", "--porcelain", curbp->b_fname, NULL};
+    char *argv[] = {"git", "status", "--porcelain", curbp->b_fname, nullptr};
 
-    if (posix_spawnp(&pid, "git", &actions, NULL, argv, environ) != 0) {
+    if (posix_spawnp(&pid, "git", &actions, nullptr, argv, environ) != 0) {
         posix_spawn_file_actions_destroy(&actions);
         close(pipefd[0]);
         close(pipefd[1]);
@@ -342,7 +342,7 @@ int git_file_modified(void) {
     if (fp) fclose(fp);
     else close(pipefd[0]);
 
-    waitpid(pid, NULL, 0);
+    waitpid(pid, nullptr, 0);
     return modified;
 }
 

@@ -53,7 +53,7 @@
 static double get_time_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1000000.0;
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -696,7 +696,7 @@ static void *dlopen_thread_fn(void *arg) {
 
     const char *dl_error = dlerror();
     if (dl_error || !task->entry) {
-        LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "NULL entry");
+        LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "nullptr entry");
         dlclose(task->handle);
         task->handle = nullptr;
         task->dlopen_result = -1;
@@ -730,10 +730,10 @@ static void *async_dlopen_worker(void *arg) {
 
     if (needs_isolation) {
         /* Out-of-process extension - add to queue for spawning */
-        pending_queue_add(path, NULL, NULL, runtime, true);
+        pending_queue_add(path, nullptr, nullptr, runtime, true);
         free(path);
         atomic_fetch_sub(&async_threads_active, 1);
-        return NULL;
+        return nullptr;
     }
 
     /* In-process: do dlopen */
@@ -742,7 +742,7 @@ static void *async_dlopen_worker(void *arg) {
         LOG_ERRORF("Extension: dlopen failed: %s", dlerror());
         free(path);
         atomic_fetch_sub(&async_threads_active, 1);
-        return NULL;
+        return nullptr;
     }
 
     /* Get entry point */
@@ -756,18 +756,18 @@ static void *async_dlopen_worker(void *arg) {
 
     const char *dl_error = dlerror();
     if (dl_error || !entry) {
-        LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "NULL");
+        LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "nullptr");
         dlclose(handle);
         free(path);
         atomic_fetch_sub(&async_threads_active, 1);
-        return NULL;
+        return nullptr;
     }
 
     /* Add to pending queue - main thread will call init */
     pending_queue_add(path, handle, entry, runtime, false);
     free(path);
     atomic_fetch_sub(&async_threads_active, 1);
-    return NULL;
+    return nullptr;
 }
 
 /* Fire-and-forget async extension load */
@@ -779,7 +779,7 @@ static void async_load_extension(const char *path) {
 
     atomic_fetch_add(&async_threads_active, 1);
     pthread_t t;
-    pthread_create(&t, NULL, async_dlopen_worker, arg);
+    pthread_create(&t, nullptr, async_dlopen_worker, arg);
     pthread_detach(t);
 }
 
@@ -853,7 +853,7 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
         /* Get extension descriptor */
         struct uemacs_extension *ext = task->entry();
         if (!ext) {
-            LOG_ERROR("Extension: Entry function returned NULL");
+            LOG_ERROR("Extension: Entry function returned nullptr");
             dlclose(task->handle);
             continue;
         }
@@ -906,7 +906,7 @@ static int serial_init_extensions(dlopen_task_t *tasks, int count) {
         if (ext->init) {
             struct muemacs_api *api = muemacs_get_api();
             LOG_DEBUGF("Extension: Initializing %s with API (get_function=%s, struct_size=%zu)",
-                       ext->name, api->get_function ? "SET" : "NULL", api->struct_size);
+                       ext->name, api->get_function ? "SET" : "nullptr", api->struct_size);
             double init_start = get_time_ms();
             int init_result = ext->init(api);
             double init_time = get_time_ms() - init_start;
@@ -1394,7 +1394,7 @@ static void *autoload_worker(void *arg) {
     sigset_t block_set;
     sigemptyset(&block_set);
     sigaddset(&block_set, SIGHUP);
-    pthread_sigmask(SIG_BLOCK, &block_set, NULL);
+    pthread_sigmask(SIG_BLOCK, &block_set, nullptr);
 
     LOG_INFO("Extension: Background loading started");
     double start = get_time_ms();
@@ -1405,7 +1405,7 @@ static void *autoload_worker(void *arg) {
     LOG_INFOF("Extension: Background loading finished in %.1fms", elapsed);
 
     atomic_store(&autoload_in_progress, false);
-    return NULL;
+    return nullptr;
 }
 
 /* Auto-load extensions from configured directory (NON-BLOCKING) */
@@ -1423,7 +1423,7 @@ void extension_autoload(void) {
     /* Fire and forget - returns immediately */
     atomic_store(&autoload_in_progress, true);
     pthread_t thread;
-    pthread_create(&thread, NULL, autoload_worker, NULL);
+    pthread_create(&thread, nullptr, autoload_worker, nullptr);
     pthread_detach(thread);
 }
 
@@ -1444,7 +1444,7 @@ int extension_poll_pending(void) {
     pthread_mutex_lock(&pending_mutex);
     count = pending_count;
     if (count > 0) {
-        memcpy(local, pending_queue, count * sizeof(pending_ext_t));
+        memcpy(local, pending_queue, (size_t)count * sizeof(pending_ext_t));
         pending_count = 0;
     }
     pthread_mutex_unlock(&pending_mutex);
@@ -1487,7 +1487,7 @@ int extension_poll_pending(void) {
                         struct muemacs_api *api = muemacs_get_api();
                         if (ext->init(api) == 0) {
                             slot->path = p->path;
-                            p->path = NULL;  /* Transferred ownership */
+                            p->path = nullptr;  /* Transferred ownership */
                             slot->handle = p->handle;
                             slot->ext = ext;
                             extension_count_internal++;
@@ -1515,7 +1515,7 @@ int extension_poll_pending(void) {
  */
 static char *get_extension_dir(const char *so_path) {
     char *dir = SAFE_STRDUP(so_path, "extension dir");
-    if (!dir) return NULL;
+    if (!dir) return nullptr;
 
     char *last_slash = strrchr(dir, '/');
     if (last_slash) {
@@ -1637,7 +1637,7 @@ int extension_load(const char *path) {
     }
 
     if (!entry) {
-        LOG_ERROR("Extension: Entry point is NULL");
+        LOG_ERROR("Extension: Entry point is nullptr");
         dlclose(handle);
         slot->active = false;
         return -1;
@@ -1646,7 +1646,7 @@ int extension_load(const char *path) {
     /* Get extension descriptor */
     struct uemacs_extension *ext = entry();
     if (!ext) {
-        LOG_ERROR("Extension: Entry function returned NULL");
+        LOG_ERROR("Extension: Entry function returned nullptr");
         dlclose(handle);
         slot->active = false;
         return -1;
@@ -1992,7 +1992,7 @@ static void extension_load_dir_async(const char *dir) {
     struct dirent *entry;
     char full_path[PATH_MAX];
 
-    while ((entry = readdir(dp)) != NULL) {
+    while ((entry = readdir(dp)) != nullptr) {
         if (entry->d_name[0] == '.') continue;
         if (entry->d_name[0] == '_') continue;
 

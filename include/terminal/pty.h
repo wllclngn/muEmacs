@@ -11,7 +11,7 @@
 /*
  * pty_spawn - Allocate PTY and fork shell process
  *
- * shell: Path to shell (NULL or empty uses $SHELL or /bin/sh)
+ * shell: Path to shell (nullptr or empty uses $SHELL or /bin/sh)
  * child_pid: Output parameter for child process PID
  * rows: Initial terminal rows
  * cols: Initial terminal columns

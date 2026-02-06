@@ -125,9 +125,9 @@ enum FileStatus {
 };
 
 // C23: Command flags with binary literals 
-#define CFCPCN  0b0000000000000001U	/* Last command was C-P, C-N    */
-#define CFKILL  0b0000000000000010U	/* Last command was a kill      */
-#define CFYANK  0b0000000000000100U	/* Last command was a yank      */
+#define CFCPCN  0b0000000000000001	/* Last command was C-P, C-N    */
+#define CFKILL  0b0000000000000010	/* Last command was a kill      */
+#define CFYANK  0b0000000000000100	/* Last command was a yank      */
 
 // C23: Control characters with clearer representation
 #define	BELL	0b00000111U		/* a bell character             */
@@ -353,18 +353,18 @@ struct buffer {
 	/* Legacy b_key removed - use external GPG/age via encrypt.c */
 
 	void *b_term_data;	/* Modern terminal state (terminal.h) */
-	struct keymap *b_local_keymap;	/* Buffer-local keybindings (NULL = use global) */
+	struct keymap *b_local_keymap;	/* Buffer-local keybindings (nullptr = use global) */
 
-	/* Syntax highlighting state (NULL = no highlighting) */
+	/* Syntax highlighting state (nullptr = no highlighting) */
 	struct buffer_syntax *b_syntax;
 	int b_lang_id;	/* Language ID for syntax highlighting (-1 = unknown) */
 
 	/* Large file support: buffer-level piece table storage
-	 * When b_text is non-NULL, lines are "views" into this storage
+	 * When b_text is non-nullptr, lines are "views" into this storage
 	 * rather than owning their own gap buffers. This enables O(1)
 	 * file loading via mmap for files >= 10MB.
 	 */
-	struct text_storage *b_text;	/* Buffer-level storage (NULL = per-line mode) */
+	struct text_storage *b_text;	/* Buffer-level storage (nullptr = per-line mode) */
 };
 
 /* Buffer flags - Standard enum */

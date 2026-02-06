@@ -29,7 +29,7 @@ static void cleanup_test_buffer(struct buffer *bp, struct buffer *oldbp) {
     }
     if (bp) {
         bp->b_flag &= ~BFCHG;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -40,7 +40,7 @@ static int test_line_alloc(void) {
 
     struct line *lp = lalloc(32);
     if (!lp) {
-        LOG_ERROR("[FAIL] lalloc returned NULL");
+        LOG_ERROR("[FAIL] lalloc returned nullptr");
         ok = 0;
         PHASE_END("LINE: ALLOC", ok);
         return ok;
@@ -381,7 +381,7 @@ static int test_line_yank(void) {
     }
 
     // Test yank with count
-    bclear(bp);
+    (void)bclear(bp);
     curwp->w_dotp = lforw(bp->b_linep);
     curwp->w_doto = 0;
 

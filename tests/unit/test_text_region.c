@@ -11,7 +11,7 @@
 // Helper: setup a test buffer with content
 static struct buffer *setup_region_buffer(const char *name) {
     struct buffer *bp = bfind((char *)name, true, 0);
-    if (!bp) return NULL;
+    if (!bp) return nullptr;
 
     curbp = bp;
     curwp->w_bufp = bp;
@@ -40,7 +40,7 @@ static void cleanup_buffer(struct buffer *bp, struct buffer *oldbp) {
     }
     if (bp) {
         bp->b_flag &= ~BFCHG;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -267,7 +267,7 @@ static int test_region_lower(void) {
     }
 
     // Replace content with mixed case
-    bclear(bp);
+    (void)bclear(bp);
     linstr("HELLO WORLD");
     curwp->w_dotp = lforw(bp->b_linep);
     curwp->w_doto = 0;
@@ -316,7 +316,7 @@ static int test_region_upper(void) {
     }
 
     // Replace content with lowercase
-    bclear(bp);
+    (void)bclear(bp);
     linstr("hello world");
     curwp->w_dotp = lforw(bp->b_linep);
     curwp->w_doto = 0;

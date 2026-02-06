@@ -59,7 +59,7 @@ static int patch(int s, int target) {
     return s;
 }
 
-static inline void cls_set(unsigned char *cls, int b) { cls[b >> 3] |= (1u << (b & 7)); }
+static inline void cls_set(unsigned char *cls, int b) { cls[b >> 3] |= (unsigned char)(1u << (b & 7)); }
 static inline int cls_has(const unsigned char *cls, int b) { return (cls[b >> 3] & (1u << (b & 7))) != 0; }
 
 /* Compile subset: ^? (atom\*)* $? ; atom: '.', literal, or char class [...] */
@@ -290,8 +290,8 @@ bool nfa_search_forward(const nfa_program_info* prog,
     for (;;) {
         if (!lp || lp == curbp->b_linep) break;
         int n = llength(lp);
-        bool at_eol = (off == n);
-        if (at_eol) {
+        bool cur_at_eol = (off == n);
+        if (cur_at_eol) {
             /* Check for EOL anchor matches before advancing to next line */
             slist eol_closure = {0};
             for (int i = 0; i < cur.n; i++) {

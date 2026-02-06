@@ -332,7 +332,7 @@ static size_t gap_storage_char_to_byte(struct text_storage *ts, size_t line_num,
 
     while (byte_pos < line_len && char_count < char_pos) {
         char c = gap_buffer_get_char(gb, line_start + byte_pos);
-        byte_pos += utf8_byte_length_fast((unsigned char)c);
+        byte_pos += (size_t)utf8_byte_length_fast((unsigned char)c);
         char_count++;
     }
 
@@ -352,7 +352,7 @@ static size_t gap_storage_byte_to_char(struct text_storage *ts, size_t line_num,
 
     while (curr_byte < byte_pos) {
         char c = gap_buffer_get_char(gb, line_start + curr_byte);
-        curr_byte += utf8_byte_length_fast((unsigned char)c);
+        curr_byte += (size_t)utf8_byte_length_fast((unsigned char)c);
         char_count++;
     }
 
@@ -370,7 +370,7 @@ static size_t gap_storage_char_count(struct text_storage *ts, size_t line_num) {
 
     while (byte_pos < line_len) {
         char c = gap_buffer_get_char(gb, line_start + byte_pos);
-        byte_pos += utf8_byte_length_fast((unsigned char)c);
+        byte_pos += (size_t)utf8_byte_length_fast((unsigned char)c);
         char_count++;
     }
 

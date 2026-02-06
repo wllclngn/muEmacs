@@ -48,10 +48,10 @@ static void *preload_worker(void *arg)
     if (stat(fname, &st) != 0 || !S_ISREG(st.st_mode)) {
         pthread_mutex_lock(&preload_lock);
         preload_cache.status = -1;
-        preload_cache.data = NULL;
+        preload_cache.data = nullptr;
         preload_cache.size = 0;
         pthread_mutex_unlock(&preload_lock);
-        return NULL;
+        return nullptr;
     }
 
     size_t file_size = (size_t)st.st_size;
@@ -61,10 +61,10 @@ static void *preload_worker(void *arg)
     if (!buf) {
         pthread_mutex_lock(&preload_lock);
         preload_cache.status = -1;
-        preload_cache.data = NULL;
+        preload_cache.data = nullptr;
         preload_cache.size = 0;
         pthread_mutex_unlock(&preload_lock);
-        return NULL;
+        return nullptr;
     }
 
     /* Open and read file */
@@ -73,10 +73,10 @@ static void *preload_worker(void *arg)
         free(buf);
         pthread_mutex_lock(&preload_lock);
         preload_cache.status = -1;
-        preload_cache.data = NULL;
+        preload_cache.data = nullptr;
         preload_cache.size = 0;
         pthread_mutex_unlock(&preload_lock);
-        return NULL;
+        return nullptr;
     }
 
     /* Read entire file */
@@ -100,7 +100,7 @@ static void *preload_worker(void *arg)
     preload_cache.status = 1;  /* Done */
     pthread_mutex_unlock(&preload_lock);
 
-    return NULL;
+    return nullptr;
 }
 
 void file_preload_start(const char *fname)
@@ -122,12 +122,12 @@ void file_preload_start(const char *fname)
     /* Initialize cache */
     strncpy(preload_cache.fname, fname, NFILEN - 1);
     preload_cache.fname[NFILEN - 1] = '\0';
-    preload_cache.data = NULL;
+    preload_cache.data = nullptr;
     preload_cache.size = 0;
     preload_cache.status = 0;  /* Pending */
 
     /* Spawn worker thread */
-    if (pthread_create(&preload_thread, NULL, preload_worker, NULL) == 0) {
+    if (pthread_create(&preload_thread, nullptr, preload_worker, nullptr) == 0) {
         thread_active = 1;
     } else {
         preload_cache.status = -1;  /* Failed to spawn */
@@ -160,7 +160,7 @@ int file_preload_get(const char *fname, char **data, size_t *size)
 {
     if (!fname || !data || !size) return -1;
 
-    *data = NULL;
+    *data = nullptr;
     *size = 0;
 
     pthread_mutex_lock(&preload_lock);
@@ -174,7 +174,7 @@ int file_preload_get(const char *fname, char **data, size_t *size)
     /* If still pending, wait for thread */
     if (preload_cache.status == 0 && thread_active) {
         pthread_mutex_unlock(&preload_lock);
-        pthread_join(preload_thread, NULL);
+        pthread_join(preload_thread, nullptr);
         pthread_mutex_lock(&preload_lock);
         thread_active = 0;
     }
@@ -190,7 +190,7 @@ int file_preload_get(const char *fname, char **data, size_t *size)
     *size = preload_cache.size;
 
     /* Clear cache (caller now owns the data) */
-    preload_cache.data = NULL;
+    preload_cache.data = nullptr;
     preload_cache.size = 0;
     preload_cache.fname[0] = '\0';
     preload_cache.status = 0;
@@ -206,7 +206,7 @@ void file_preload_cleanup(void)
     /* Wait for thread if active */
     if (thread_active) {
         pthread_mutex_unlock(&preload_lock);
-        pthread_join(preload_thread, NULL);
+        pthread_join(preload_thread, nullptr);
         pthread_mutex_lock(&preload_lock);
         thread_active = 0;
     }
@@ -214,7 +214,7 @@ void file_preload_cleanup(void)
     /* Free any cached data */
     if (preload_cache.data) {
         free(preload_cache.data);
-        preload_cache.data = NULL;
+        preload_cache.data = nullptr;
     }
 
     preload_cache.size = 0;

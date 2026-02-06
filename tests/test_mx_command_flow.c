@@ -25,7 +25,7 @@ int test_mx_command_flow(void)
     }
 
     unmark(0, 0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Prepare a simple buffer line: "HelloWorld"

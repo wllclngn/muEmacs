@@ -119,7 +119,7 @@ extern int transpose_line_down(int f, int n);
 /* Minimal, Linux‑only command set */
 
 /* main.c */
-extern void edinit(char *bname);
+extern void edinit(const char *bname);
 extern int execute_event(input_key_event_t *evt, int f, int n);  /* Event-based dispatch */
 extern int quickexit(int f, int n);
 extern int quit(int f, int n);
@@ -133,8 +133,6 @@ extern int nullproc(int f, int n);
 extern int metafn(int f, int n);
 extern int cex(int f, int n);
 extern int unarg(int f, int n);
-extern int cexit(int status);
-
 /* display.c */
 extern void vtinit(void);
 extern void vtfree(void);
@@ -150,8 +148,8 @@ extern void upmode(void);
 extern void movecursor(int row, int col);
 extern void mlerase(void);
 extern void mlwrite(const char *fmt, ...);
-extern void mlforce(char *s);
-extern void mlputs(char *s);
+extern void mlforce(const char *s);
+extern void mlputs(const char *s);
 extern void getscreensize(int *widthp, int *heightp);
 extern void sizesignal(int signr);
 
@@ -162,7 +160,7 @@ extern int lowerregion(int f, int n);
 extern int upperregion(int f, int n);
 extern int getregion(struct region *rp);
 
-/* posix.c / curses.c */
+/* posix.c / ansi.c */
 extern void ttopen(void);
 extern void ttclose(void);
 extern int ttputc(int c);
@@ -213,40 +211,40 @@ extern int zotbuf(struct buffer *bp);
 extern int namebuffer(int f, int n);
 extern int listbuffers(int f, int n);
 extern int makelist(int iflag);
-extern int addline(char *text);
+extern int addline(const char *text);
 extern int anycb(void);
 extern int bclear(struct buffer *bp);
 extern int unmark(int f, int n);
 /* Lookup a buffer by name. */
-extern struct buffer *bfind(char *bname, int cflag, int bflag);
+extern struct buffer *bfind(const char *bname, int cflag, int bflag);
 
 /* file.c */
 extern int fileread(int f, int n);
 extern int insfile(int f, int n);
 extern int filefind(int f, int n);
 extern int viewfile(int f, int n);
-extern int getfile(char *fname, int lockfl);
-extern int readin(char *fname, int lockfl);
-extern void makename(char *bname, char *fname);
+extern int getfile(const char *fname, int lockfl);
+extern int readin(const char *fname, int lockfl);
+extern void makename(char *bname, const char *fname);
 extern void unqname(char *name);
 extern int filewrite(int f, int n);
 extern int filesave(int f, int n);
-extern int writeout(char *fn);
+extern int writeout(const char *fn);
 extern int filename(int f, int n);
-extern int ifile(char *fname);
+extern int ifile(const char *fname);
 
 /* fileio.c */
-extern int ffropen(char *fn);
-extern int ffwopen(char *fn);
+extern int ffropen(const char *fn);
+extern int ffwopen(const char *fn);
 extern int ffclose(void);
-extern int ffputline(char *buf, int nbuf);
+extern int ffputline(const char *buf, int nbuf);
 extern int ffgetline(void);
-extern int fexist(char *fname);
+extern int fexist(const char *fname);
 
 /* exec.c */
 extern int namedcmd(int f, int n);
 extern int execcmd(int f, int n);
-extern int docmd(char *cline);
+extern int docmd(const char *cline);
 extern char *token(char *src, char *tok, int size);
 extern int macarg(char *tok);
 extern int nextarg(const char *prompt, char *buffer, int size);
@@ -257,7 +255,7 @@ extern int execbuf(int f, int n);
 extern int dobuf(struct buffer *bp);
 extern void freewhile(struct while_block *wp);
 extern int execfile(int f, int n);
-extern int dofile(char *fname);
+extern int dofile(const char *fname);
 extern int cbuf(int f, int n, int bufnum);
 
 // Modern C23 unified buffer dispatch - replaces 40 identical functions  
@@ -279,7 +277,7 @@ extern int spawn(int f, int n);
 extern int execprg(int f, int n);
 extern int pipecmd(int f, int n);
 extern int filter_buffer(int f, int n);
-extern int sys(char *cmd);
+extern int sys(const char *cmd);
 extern int shellprog(char *cmd);
 extern int execprog(char *cmd);
 

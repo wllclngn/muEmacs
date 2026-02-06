@@ -10,6 +10,7 @@
 
 /* Max #chars in a var name. */
 #define	NVSIZE	10
+static_assert(NVSIZE >= 2 && NVSIZE <= 64, "NVSIZE must be reasonable for variable names");
 
 /* Structure to hold user variables and their definitions. */
 struct user_variable {

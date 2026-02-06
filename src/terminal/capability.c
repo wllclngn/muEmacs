@@ -115,7 +115,7 @@ terminal_caps_t detect_terminal_capabilities(void) {
     }
     
     /* Environment-based detection */
-    const char* term = getenv("TERM");
+    const char* term_env = getenv("TERM");
     const char* colorterm = getenv("COLORTERM");
     const char* term_program = getenv("TERM_PROGRAM");
     
@@ -133,8 +133,8 @@ terminal_caps_t detect_terminal_capabilities(void) {
     }
     
     /* Terminal-specific features */
-    if (term) {
-        if (strstr(term, "kitty")) {
+    if (term_env) {
+        if (strstr(term_env, "kitty")) {
             caps.truecolor = true;
             caps.kitty_graphics = true;
             caps.kitty_keyboard = true;  /* Kitty keyboard protocol (CSI u) */
@@ -142,7 +142,7 @@ terminal_caps_t detect_terminal_capabilities(void) {
             caps.focus_events = true;
             caps.alt_screen = true;
             caps.max_colors = 16777216;
-        } else if (strstr(term, "foot")) {
+        } else if (strstr(term_env, "foot")) {
             /* foot terminal - supports Kitty keyboard protocol */
             caps.truecolor = true;
             caps.kitty_keyboard = true;
@@ -150,18 +150,18 @@ terminal_caps_t detect_terminal_capabilities(void) {
             caps.focus_events = true;
             caps.alt_screen = true;
             caps.max_colors = 16777216;
-        } else if (strstr(term, "alacritty")) {
+        } else if (strstr(term_env, "alacritty")) {
             caps.truecolor = true;
             caps.bracketed_paste = true;
             caps.alt_screen = true;
             caps.max_colors = 16777216;
-        } else if (strstr(term, "xterm")) {
+        } else if (strstr(term_env, "xterm")) {
             caps.alt_screen = true;
             caps.max_colors = caps.truecolor ? 16777216 : 256;
         }
-        
+
         /* Common terminal features */
-        if (strstr(term, "256") || caps.truecolor) {
+        if (strstr(term_env, "256") || caps.truecolor) {
             caps.max_colors = SAFE_MAX(caps.max_colors, 256);
         }
     }
@@ -200,8 +200,8 @@ terminal_caps_t detect_terminal_capabilities(void) {
     }
 
     /* Sixel detection via TERM (safer than queries) */
-    if (term) {
-        if (strstr(term, "sixel") || strstr(term, "mlterm")) {
+    if (term_env) {
+        if (strstr(term_env, "sixel") || strstr(term_env, "mlterm")) {
             caps.sixel = true;
         }
     }
@@ -244,8 +244,8 @@ void optimize_for_terminal(const terminal_caps_t* caps) {
     if (!caps) return;
     
     /* Set global terminal variables */
-    term.t_ncol = caps->width;
-    term.t_nrow = caps->height - 1;  /* Reserve line for status */
+    term.t_ncol = (short)caps->width;
+    term.t_nrow = (short)(caps->height - 1);  /* Reserve line for status */
     
     /* Configure color support (purely informational here) */
     if (caps->truecolor) {
@@ -387,7 +387,7 @@ void compute_theme_highlight_bg(int kind, uint8_t *r, uint8_t *g, uint8_t *b, bo
         if (pct > 50) {
             pct = 50;
         }
-        float a = pct / 100.0f;
+        float a = (float)pct / 100.0f;
 
         uint8_t rr = caps.bg_r, gg = caps.bg_g, bb = caps.bg_b;
         if (highlight_strategy == 0) {

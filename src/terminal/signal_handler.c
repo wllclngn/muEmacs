@@ -134,12 +134,12 @@ void signal_handlers_init(void) {
 void signal_handlers_cleanup(void) {
     if (!handlers_installed) return;
 
-    sigaction(SIGWINCH, &orig_winch, NULL);
-    sigaction(SIGINT, &orig_int, NULL);
-    sigaction(SIGPIPE, &orig_pipe, NULL);
-    sigaction(SIGHUP, &orig_hup, NULL);
-    sigaction(SIGTERM, &orig_term, NULL);
-    sigaction(SIGCONT, &orig_cont, NULL);
+    sigaction(SIGWINCH, &orig_winch, nullptr);
+    sigaction(SIGINT, &orig_int, nullptr);
+    sigaction(SIGPIPE, &orig_pipe, nullptr);
+    sigaction(SIGHUP, &orig_hup, nullptr);
+    sigaction(SIGTERM, &orig_term, nullptr);
+    sigaction(SIGCONT, &orig_cont, nullptr);
 
     handlers_installed = false;
 }
@@ -230,7 +230,7 @@ sigset_t signal_block_all(void) {
 }
 
 void signal_unblock(sigset_t old_mask) {
-    sigprocmask(SIG_SETMASK, &old_mask, NULL);
+    sigprocmask(SIG_SETMASK, &old_mask, nullptr);
 }
 
 bool signal_get_terminal_size(terminal_size_t *size) {

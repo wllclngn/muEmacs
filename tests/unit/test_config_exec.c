@@ -284,8 +284,8 @@ static int test_freewhile(void) {
     int ok = 1;
     PHASE_START("EXEC: FREEWHILE", "While block cleanup");
 
-    // Test with NULL - should not crash
-    freewhile(NULL);
+    // Test with nullptr - should not crash
+    freewhile(nullptr);
 
     // Create a simple while block chain and free it
     struct while_block *w1 = (struct while_block *)malloc(sizeof(struct while_block));
@@ -304,13 +304,13 @@ static int test_freewhile(void) {
 
     w1->w_next = w2;
     w2->w_next = w3;
-    w3->w_next = NULL;
-    w1->w_begin = NULL;
-    w1->w_end = NULL;
-    w2->w_begin = NULL;
-    w2->w_end = NULL;
-    w3->w_begin = NULL;
-    w3->w_end = NULL;
+    w3->w_next = nullptr;
+    w1->w_begin = nullptr;
+    w1->w_end = nullptr;
+    w2->w_begin = nullptr;
+    w2->w_end = nullptr;
+    w3->w_begin = nullptr;
+    w3->w_end = nullptr;
 
     // This should free all three blocks without crashing
     freewhile(w1);
@@ -425,9 +425,9 @@ static int test_while_block_types(void) {
     // Test while block structure
     struct while_block wb;
     wb.w_type = BTWHILE;
-    wb.w_next = NULL;
-    wb.w_begin = NULL;
-    wb.w_end = NULL;
+    wb.w_next = nullptr;
+    wb.w_begin = nullptr;
+    wb.w_end = nullptr;
 
     if (wb.w_type != BTWHILE) {
         LOG_ERROR("[FAIL] while block type assignment failed");

@@ -90,7 +90,7 @@ static int test_window_hash_add_find(void) {
     struct window **windows = window_hash_find_by_line(lp, &count);
 
     if (!windows) {
-        LOG_ERROR("[FAIL] window_hash_find_by_line returned NULL");
+        LOG_ERROR("[FAIL] window_hash_find_by_line returned nullptr");
         ok = 0;
     } else {
         if (count != 1) {
@@ -106,7 +106,7 @@ static int test_window_hash_add_find(void) {
 
     // Verify stats updated
     uint64_t lookups = 0;
-    window_hash_get_stats(&lookups, NULL, NULL);
+    window_hash_get_stats(&lookups, nullptr, nullptr);
     if (lookups != 1) {
         LOG_ERRORF("[FAIL] Lookup count should be 1, got %lu", (unsigned long)lookups);
         ok = 0;
@@ -115,20 +115,20 @@ static int test_window_hash_add_find(void) {
     // Cleanup
     window_hash_remove(&test_window, lp);
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WHASH: ADDFIND", ok);
     return ok;
 }
 
-// Test allocation failure handling (simulated by adding to NULL)
+// Test allocation failure handling (simulated by adding to nullptr)
 static int test_window_hash_alloc_failure(void) {
     int ok = 1;
     PHASE_START("WHASH: ALLOCFAIL", "Allocation failure handling");
 
     window_hash_init();
 
-    // Try to add NULL window - should fail gracefully
+    // Try to add nullptr window - should fail gracefully
     struct buffer *bp = bfind("test-whash-fail", true, 0);
     if (!bp) {
         LOG_ERROR("[FAIL] Failed to create test buffer");
@@ -139,23 +139,23 @@ static int test_window_hash_alloc_failure(void) {
 
     struct line *lp = lforw(bp->b_linep);
 
-    // NULL window should return error
-    if (window_hash_add(NULL, lp) != -1) {
-        LOG_ERROR("[FAIL] NULL window should return -1");
+    // nullptr window should return error
+    if (window_hash_add(nullptr, lp) != -1) {
+        LOG_ERROR("[FAIL] nullptr window should return -1");
         ok = 0;
     }
 
-    // NULL line should return error
+    // nullptr line should return error
     struct window test_window;
     memset(&test_window, 0, sizeof(test_window));
-    if (window_hash_add(&test_window, NULL) != -1) {
-        LOG_ERROR("[FAIL] NULL line should return -1");
+    if (window_hash_add(&test_window, nullptr) != -1) {
+        LOG_ERROR("[FAIL] nullptr line should return -1");
         ok = 0;
     }
 
     // Cleanup
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WHASH: ALLOCFAIL", ok);
     return ok;
@@ -232,9 +232,9 @@ static int test_window_hash_collisions(void) {
     bp1->b_flag &= ~BFCHG;
     bp2->b_flag &= ~BFCHG;
     bp3->b_flag &= ~BFCHG;
-    zotbuf(bp1);
-    zotbuf(bp2);
-    zotbuf(bp3);
+    (void)zotbuf(bp1);
+    (void)zotbuf(bp2);
+    (void)zotbuf(bp3);
 
     PHASE_END("WHASH: COLLISION", ok);
     return ok;
@@ -303,15 +303,15 @@ static int test_window_hash_remove_chains(void) {
 
     // Verify no windows remain
     windows = window_hash_find_by_line(lp, &count);
-    if (windows != NULL) {
-        LOG_ERRORF("[FAIL] After removing all, expected NULL, got %d windows", count);
+    if (windows != nullptr) {
+        LOG_ERRORF("[FAIL] After removing all, expected nullptr, got %d windows", count);
         ok = 0;
         SAFE_FREE(windows);
     }
 
     // Cleanup
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WHASH: REMCHAIN", ok);
     return ok;
@@ -350,7 +350,7 @@ static int test_window_hash_cleanup(void) {
 
     // Stats should be reset
     uint64_t lookups = 0;
-    window_hash_get_stats(&lookups, NULL, NULL);
+    window_hash_get_stats(&lookups, nullptr, nullptr);
     if (lookups != 0) {
         LOG_ERRORF("[FAIL] Lookups not reset after cleanup (got %lu)", (unsigned long)lookups);
         ok = 0;
@@ -358,7 +358,7 @@ static int test_window_hash_cleanup(void) {
 
     // Cleanup
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WHASH: CLEANUP", ok);
     return ok;

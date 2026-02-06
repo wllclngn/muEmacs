@@ -55,7 +55,7 @@ static const repl_config_t repl_commands[] = {
     {"bash",   "bash"},
     {"zsh",    "zsh"},
     {"fish",   "fish"},
-    {NULL,     NULL}
+    {nullptr,     nullptr}
 };
 
 /*
@@ -63,12 +63,12 @@ static const repl_config_t repl_commands[] = {
  */
 static const char *detect_filetype(void) {
     if (!curbp || !curbp->b_fname[0]) {
-        return NULL;
+        return nullptr;
     }
 
     const char *ext = strrchr(curbp->b_fname, '.');
     if (!ext || !ext[1]) {
-        return NULL;
+        return nullptr;
     }
 
     return ext + 1;  /* Skip the dot */
@@ -78,15 +78,15 @@ static const char *detect_filetype(void) {
  * Find REPL command for given filetype
  */
 static const char *find_repl_command(const char *filetype) {
-    if (!filetype) return NULL;
+    if (!filetype) return nullptr;
 
-    for (int i = 0; repl_commands[i].filetype != NULL; i++) {
+    for (int i = 0; repl_commands[i].filetype != nullptr; i++) {
         if (strcasecmp(repl_commands[i].filetype, filetype) == 0) {
             return repl_commands[i].command;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 /*

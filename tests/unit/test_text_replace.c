@@ -14,7 +14,7 @@ static int setup_buffer_with_text(const char *text) {
     struct buffer *bp = bfind("test-replace", true, 0);
     if (!bp) return 0;
 
-    bclear(bp);
+    (void)bclear(bp);
     curbp = bp;
     curwp->w_bufp = bp;
     curwp->w_dotp = bp->b_linep;
@@ -72,7 +72,7 @@ static void cleanup_buffer(void) {
         struct buffer *bp = curbp;
         curbp = bfind("main", false, 0);
         if (curbp) curwp->w_bufp = curbp;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 

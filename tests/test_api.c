@@ -25,7 +25,7 @@ int test_api_insert_delete() {
 
     init_editor_minimal("api-edit");
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW; // ensure not read-only
 
     // Ensure a real line exists, then insert a word there
@@ -69,7 +69,7 @@ int test_api_magic_basic() {
 #if defined(ENABLE_SEARCH_NFA)
     init_editor_minimal("api-magic");
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     curbp->b_mode |= MDMAGIC; // enable MAGIC (for completeness)
 
@@ -84,7 +84,7 @@ int test_api_magic_basic() {
         LOG_ERROR("[FAIL] NFA compile failed for h.*o");
         ok = 0;
     } else {
-        struct line* mlp = NULL; int moff = 0;
+        struct line* mlp = nullptr; int moff = 0;
         if (!nfa_search_forward(&prog, curwp->w_dotp, curwp->w_doto, POS_END, &mlp, &moff)) {
             LOG_ERROR("[FAIL] NFA did not match h.*o");
             ok = 0;
@@ -103,7 +103,7 @@ int test_api_search_crossline() {
 
     init_editor_minimal("api-xline");
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     setenv("MUEMACS_TWO_WAY", "0", 1); // disable Two-Way temporarily for legacy cross-line
 
@@ -134,7 +134,7 @@ int test_api_literal_selector() {
     PHASE_START("API: LSEL", "Literal selector threshold checks");
 
     init_editor_minimal("api-lsel");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW; // literal mode
 
     // Create one line with test content
@@ -207,7 +207,7 @@ int test_api_crossline_literal_extended() {
 
     init_editor_minimal("api-xline2");
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW; // literal mode
 
     // Create buffer: "ab\ncdab\ncd"
@@ -270,7 +270,7 @@ int test_api_search_degenerate_case() {
 
     init_editor_minimal("api-scase");
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Create degenerate text: many 'a's
@@ -288,7 +288,7 @@ int test_api_search_degenerate_case() {
 
     // Case-insensitive search: insert 'AbCdE' and find 'abcde' with MDEXACT off
     unmark(0,0);
-    bclear(curbp);
+    (void)bclear(curbp);
     curwp->w_dotp = curbp->b_linep; curwp->w_doto = 0; lnewline();
     curwp->w_dotp = lforw(curbp->b_linep); curwp->w_doto = 0;
     const char* mixed = "AbCdE";
@@ -310,7 +310,7 @@ int test_api_search_nomatch_and_long() {
     PHASE_START("API: S-NOMATCH", "No-match and long literal sanity");
 
     init_editor_minimal("api-snomatch");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Insert simple text

@@ -21,27 +21,27 @@ static int test_spawn_functions_exist(void) {
     PHASE_START("SPAWN: FUNCTIONS", "Spawn function symbols exist");
 
     // Verify function pointers exist (will fail at link time if missing)
-    if (spawncli == NULL) {
+    if (spawncli == nullptr) {
         LOG_ERROR("[FAIL] spawncli function not found");
         ok = 0;
     }
 
-    if (spawn == NULL) {
+    if (spawn == nullptr) {
         LOG_ERROR("[FAIL] spawn function not found");
         ok = 0;
     }
 
-    if (execprg == NULL) {
+    if (execprg == nullptr) {
         LOG_ERROR("[FAIL] execprg function not found");
         ok = 0;
     }
 
-    if (pipecmd == NULL) {
+    if (pipecmd == nullptr) {
         LOG_ERROR("[FAIL] pipecmd function not found");
         ok = 0;
     }
 
-    if (filter_buffer == NULL) {
+    if (filter_buffer == nullptr) {
         LOG_ERROR("[FAIL] filter_buffer function not found");
         ok = 0;
     }
@@ -61,7 +61,7 @@ static int test_bktoshell_exists(void) {
     // Actual suspend/SIGTSTP can't be tested in unit tests
 
     // Function pointer check
-    if (bktoshell == NULL) {
+    if (bktoshell == nullptr) {
         LOG_ERROR("[FAIL] bktoshell function not found");
         ok = 0;
     }
@@ -82,7 +82,7 @@ static int test_rtfrmshell_exists(void) {
     // Just verify the function symbol exists (it compiles and links)
 
     // Function pointer check
-    if (rtfrmshell == NULL) {
+    if (rtfrmshell == nullptr) {
         LOG_ERROR("[FAIL] rtfrmshell function not found");
         ok = 0;
     }

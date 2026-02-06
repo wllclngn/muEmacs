@@ -15,7 +15,7 @@ static int setup_buffer_with_text(const char *text) {
     struct buffer *bp = bfind("test-word", true, 0);
     if (!bp) return 0;
 
-    bclear(bp);
+    (void)bclear(bp);
     curbp = bp;
     curwp->w_bufp = bp;
     curwp->w_dotp = bp->b_linep;
@@ -57,7 +57,7 @@ static void cleanup_buffer(void) {
         struct buffer *bp = curbp;
         curbp = bfind("main", false, 0);
         if (curbp) curwp->w_bufp = curbp;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -351,7 +351,7 @@ static int test_delfword(void) {
 
     const char *content = get_buffer_content();
     // Should have deleted "hello" (and possibly space)
-    if (strstr(content, "hello") != NULL) {
+    if (strstr(content, "hello") != nullptr) {
         LOG_ERRORF("[FAIL] Word not deleted: '%s'", content);
         ok = 0;
     }
@@ -384,7 +384,7 @@ static int test_delbword(void) {
 
     const char *content = get_buffer_content();
     // Should have deleted "test"
-    if (strstr(content, "test") != NULL) {
+    if (strstr(content, "test") != nullptr) {
         LOG_ERRORF("[FAIL] Word not deleted: '%s'", content);
         ok = 0;
     }

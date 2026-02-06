@@ -116,8 +116,8 @@ extern void sizesignal(int);
  * run_shell - Execute a shell command using posix_spawn()
  *
  * This is a modern replacement for fork()/exec() patterns.
- * If shell is NULL, uses $SHELL or falls back to /bin/sh.
- * If cmd is NULL, spawns an interactive shell.
+ * If shell is nullptr, uses $SHELL or falls back to /bin/sh.
+ * If cmd is nullptr, spawns an interactive shell.
  *
  * Sets $UE_* environment variables so shell scripts can access editor state.
  */
@@ -141,17 +141,17 @@ static int run_shell(const char *shell, const char *cmd)
         argv[0] = (char *)sh;
         argv[1] = "-c";
         argv[2] = (char *)cmd;
-        argv[3] = NULL;
+        argv[3] = nullptr;
     } else {
         /* Interactive shell */
         argv[0] = (char *)sh;
-        argv[1] = NULL;
+        argv[1] = nullptr;
     }
 
     /* Set editor environment variables for child process */
     set_editor_env();
 
-    if (posix_spawn(&pid, sh, NULL, NULL, argv, environ) != 0) {
+    if (posix_spawn(&pid, sh, nullptr, nullptr, argv, environ) != 0) {
         return -1;
     }
 
@@ -179,7 +179,7 @@ int spawncli([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTkclose();		/* Close "keyboard" */
 
 	/* Spawn interactive shell using posix_spawn */
-	run_shell(NULL, NULL);
+	run_shell(nullptr, nullptr);
 
 	sgarbf = true;
 	sleep(2);
@@ -234,7 +234,7 @@ int spawn([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTkclose();
 
 	/* Execute command using posix_spawn */
-	run_shell(NULL, line);
+	run_shell(nullptr, line);
 
 	fflush(stdout);		/* to be sure P.K.      */
 	TTopen();
@@ -272,7 +272,7 @@ int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
 	TTkclose();
 
 	/* Execute command using posix_spawn */
-	run_shell(NULL, line);
+	run_shell(nullptr, line);
 
 	fflush(stdout);		/* to be sure P.K.      */
 	TTopen();
@@ -331,7 +331,7 @@ int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 	safe_strcat(line, filnam, NLINE);
 
 	/* Execute command with output redirection using posix_spawn */
-	run_shell(NULL, line);
+	run_shell(nullptr, line);
 
 	TTopen();
 	TTkopen();
@@ -384,7 +384,7 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
     pid_t pid;
     int status = -1;
 
-    *output = NULL;
+    *output = nullptr;
     *output_len = 0;
 
     /* Create pipes */
@@ -421,7 +421,7 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
         if (!shell || !*shell) shell = "/bin/sh";
 
         /* Execute command */
-        execlp(shell, shell, "-c", cmd, (char *)NULL);
+        execlp(shell, shell, "-c", cmd, (char *)nullptr);
         _exit(127);
     }
 
@@ -441,7 +441,7 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
             if (errno == EINTR) continue;
             break;  /* Write error - child may have closed stdin */
         }
-        written += n;
+        written += (size_t)n;
     }
     close(stdin_pipe[1]);
     stdin_pipe[1] = -1;
@@ -473,7 +473,7 @@ static int filter_direct(const char *cmd, const char *input, size_t input_len,
             break;
         }
         if (n == 0) break;  /* EOF */
-        out_len += n;
+        out_len += (size_t)n;
     }
 
     close(stdout_pipe[0]);
@@ -533,7 +533,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 
     /* First pass: calculate total size */
     for (lp = lforw(bp->b_linep); lp != bp->b_linep; lp = lforw(lp)) {
-        total_len += llength(lp) + 1;  /* +1 for newline */
+        total_len += (size_t)llength(lp) + 1;  /* +1 for newline */
     }
 
     /* Allocate buffer for content */
@@ -548,7 +548,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
     for (lp = lforw(bp->b_linep); lp != bp->b_linep; lp = lforw(lp)) {
         int len = llength(lp);
         if (len > 0) {
-            TS_GET_TEXT(lp->storage, 0, len, p, len);
+            TS_GET_TEXT(lp->storage, 0, (size_t)len, p, (size_t)len);
             p += len;
         }
         *p++ = '\n';
@@ -559,7 +559,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
     set_editor_env();
 
     /* Run filter with direct pipe I/O */
-    char *output = NULL;
+    char *output = nullptr;
     size_t output_len = 0;
     int result = filter_direct(line, content, total_len, &output, &output_len);
     free(content);
@@ -594,7 +594,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
         if (newlp) {
             /* Insert text into the line's gap buffer */
             if (line_len > 0) {
-                TS_INSERT(newlp->storage, 0, line_start, line_len);
+                TS_INSERT(newlp->storage, 0, line_start, (size_t)line_len);
             }
             /* Insert before header line */
             struct line *last = lback(bp->b_linep);

@@ -354,7 +354,7 @@ int test_advanced_search_replace(void) {
     char* pos = replace_text;
     int replacements = 0;
     
-    while ((pos = strstr(pos, find_str)) != NULL) {
+    while ((pos = strstr(pos, find_str)) != nullptr) {
         // Create new string with replacement
         char temp[256];
         size_t prefix_len = pos - replace_text;

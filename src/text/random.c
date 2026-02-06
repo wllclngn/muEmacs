@@ -85,7 +85,7 @@ int showcpos(int f, int n)
 
 	ratio = 0;		/* Ratio before dot. */
 	if (numchars != 0)
-		ratio = (100L * predchars) / numchars;
+		ratio = (int)((100L * predchars) / numchars);
 
 	/* summarize and report the info */
 	mlwrite("LINE %d/%d COL %d/%d CHAR %D/%D [%d%%] CHAR = 0X%x",
@@ -134,9 +134,9 @@ int getccol(int bflg)
 		int remaining = len - i;
 		int extract_len = (remaining > 6) ? 6 : remaining;
 		for (int j = 0; j < extract_len; j++) {
-			utf8_buf[j] = lgetc(dlp, i + j);
+			utf8_buf[j] = (char)lgetc(dlp, i + j);
 		}
-		i += utf8_to_unicode(utf8_buf, 0, extract_len, &c);
+		i += (int)utf8_to_unicode(utf8_buf, 0, (unsigned int)extract_len, &c);
 		if (c != ' ' && c != '\t' && bflg)
 			break;
 		if (c == '\t')
@@ -309,7 +309,7 @@ int detab(int f, int n)
 		n -= inc;
 	}
 	curwp->w_doto = 0;	/* to the begining of the line */
-	thisflag &= ~CFCPCN;	/* flag that this resets the goal column */
+	thisflag &= (int)~CFCPCN;	/* flag that this resets the goal column */
 	lchange(WFEDIT);	/* yes, we have made at least an edit */
 	return true;
 }
@@ -356,7 +356,7 @@ int entab(int f, int n)
 			}
 
 			/* get the current character */
-			cchar = lgetc(curwp->w_dotp, curwp->w_doto);
+			cchar = (char)lgetc(curwp->w_dotp, curwp->w_doto);
 
 			switch (cchar) {
 			case '\t':	/* a tab...count em up */
@@ -382,7 +382,7 @@ int entab(int f, int n)
 		n -= inc;
 	}
 	curwp->w_doto = 0;	/* to the begining of the line */
-	thisflag &= ~CFCPCN;	/* flag that this resets the goal column */
+	thisflag &= (int)~CFCPCN;	/* flag that this resets the goal column */
 	lchange(WFEDIT);	/* yes, we have made at least an edit */
 	return true;
 }
@@ -436,7 +436,7 @@ int trim(int f, int n)
 		n -= inc;
 	}
 	lchange(WFEDIT);
-	thisflag &= ~CFCPCN;	/* flag that this resets the goal column */
+	thisflag &= (int)~CFCPCN;	/* flag that this resets the goal column */
 	return true;
 }
 
@@ -514,9 +514,9 @@ int cinsert(void)
 	// Extract current line text - handles both regular and view mode lines
 	struct line *lp = curwp->w_dotp;
 	int line_len = llength(lp);
-	char *line_text = safe_alloc(line_len + 1, "temp line", __FILE__, __LINE__);
+	char *line_text = safe_alloc((size_t)line_len + 1, "temp line", __FILE__, __LINE__);
 	if (!line_text) return false;
-	lget_text(lp, 0, (size_t)line_len, line_text, line_len + 1);
+	lget_text(lp, 0, (size_t)line_len, line_text, (size_t)line_len + 1);
 	cptr = &line_text[0];
 
 	/* check for a brace */
@@ -748,9 +748,9 @@ int delete_char_forward(int f, int n)
 	if (n < 0)
 		return delete_char_backward(f, -n);
 	if (f != false) {	/* Really a kill.       */
-		if ((lastflag & CFKILL) == 0)
+		if (((unsigned int)lastflag & CFKILL) == 0)
 			kdelete();
-		thisflag |= CFKILL;
+		thisflag |= (int)CFKILL;
 	}
 
 	/* Delete n UTF-8 characters forward */
@@ -759,7 +759,7 @@ int delete_char_forward(int f, int n)
 		int byte_len = 1;
 		int remaining = llength(curwp->w_dotp) - curwp->w_doto;
 		if (remaining > 0) {
-			unsigned char first = lgetc(curwp->w_dotp, curwp->w_doto);
+			unsigned char first = (unsigned char)lgetc(curwp->w_dotp, curwp->w_doto);
 			if ((first & 0x80) == 0) {
 				byte_len = 1;       /* ASCII */
 			} else if ((first & 0xE0) == 0xC0) {
@@ -798,9 +798,9 @@ int delete_char_backward(int f, int n)
 	if (n < 0)
 		return delete_char_forward(f, -n);
 	if (f != false) {	/* Really a kill.       */
-		if ((lastflag & CFKILL) == 0)
+		if (((unsigned int)lastflag & CFKILL) == 0)
 			kdelete();
-		thisflag |= CFKILL;
+		thisflag |= (int)CFKILL;
 	}
 
 	/* Delete n UTF-8 characters backwards */
@@ -812,7 +812,7 @@ int delete_char_backward(int f, int n)
 		int byte_len = 1;
 		int remaining = llength(curwp->w_dotp) - curwp->w_doto;
 		if (remaining > 0) {
-			unsigned char first = lgetc(curwp->w_dotp, curwp->w_doto);
+			unsigned char first = (unsigned char)lgetc(curwp->w_dotp, curwp->w_doto);
 			if ((first & 0x80) == 0) {
 				byte_len = 1;       /* ASCII */
 			} else if ((first & 0xE0) == 0xC0) {
@@ -848,9 +848,9 @@ int kill_to_eol(int f, int n)
 
 	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
 		return rdonly();	/* we are in read only mode     */
-	if ((lastflag & CFKILL) == 0)	/* Clear kill buffer if */
+	if (((unsigned int)lastflag & CFKILL) == 0)	/* Clear kill buffer if */
 		kdelete();	/* last wasn't a kill.  */
-	thisflag |= CFKILL;
+	thisflag |= (int)CFKILL;
 	if (f == false) {
 		chunk = llength(curwp->w_dotp) - curwp->w_doto;
 		if (chunk == 0)
@@ -982,11 +982,11 @@ int adjustmode(int kind, int global)
 				if (global)
 					gmode |= (1 << i);
 				else
-					curbp->b_mode |= (1 << i);
+					curbp->b_mode |= (1U << i);
 			else if (global)
 				gmode &= ~(1 << i);
 			else
-				curbp->b_mode &= ~(1 << i);
+				curbp->b_mode &= ~(1U << i);
 			/* display new mode line */
 			if (global == 0)
 				upmode();
@@ -1067,7 +1067,7 @@ int getfence(int f, int n)
 	if (oldoff == llength(oldlp))
 		ch = '\n';
 	else
-		ch = lgetc(oldlp, oldoff);
+		ch = (char)lgetc(oldlp, oldoff);
 
 	/* setup proper matching fence */
 	switch (ch) {
@@ -1112,7 +1112,7 @@ int getfence(int f, int n)
 		if (curwp->w_doto == llength(curwp->w_dotp))
 			c = '\n';
 		else
-			c = lgetc(curwp->w_dotp, curwp->w_doto);
+			c = (char)lgetc(curwp->w_dotp, curwp->w_doto);
 		if (c == ch)
 			++count;
 		if (c == ofence)
@@ -1183,7 +1183,7 @@ int fence_match(int ch)
 		if (curwp->w_doto == llength(curwp->w_dotp))
 			c = '\n';
 		else
-			c = lgetc(curwp->w_dotp, curwp->w_doto);
+			c = (char)lgetc(curwp->w_dotp, curwp->w_doto);
 		if (c == ch)
 			++count;
 		if (c == opench)

@@ -91,7 +91,7 @@ static int test_sigwinch_size_update(void) {
 
 static int test_sigwinch_no_size_params(void) {
     int ok = 1;
-    PHASE_START("SIGNAL: WINCH-NULL", "SIGWINCH with NULL size params");
+    PHASE_START("SIGNAL: WINCH-nullptr", "SIGWINCH with nullptr size params");
 
     signal_handlers_init();
 
@@ -99,7 +99,7 @@ static int test_sigwinch_no_size_params(void) {
     sig_winch_pending = 1;
 
     // Call without size params (should not crash)
-    bool handled = signal_handle_pending(NULL, NULL);
+    bool handled = signal_handle_pending(nullptr, nullptr);
 
     if (!handled) {
         LOG_ERROR("[FAIL] signal_handle_pending did not handle SIGWINCH");
@@ -107,7 +107,7 @@ static int test_sigwinch_no_size_params(void) {
     }
 
     signal_handlers_cleanup();
-    PHASE_END("SIGNAL: WINCH-NULL", ok);
+    PHASE_END("SIGNAL: WINCH-nullptr", ok);
     return ok;
 }
 
@@ -222,10 +222,10 @@ static int test_signal_get_terminal_size(void) {
         }
     }
 
-    // Test NULL parameter (should return false)
-    result = signal_get_terminal_size(NULL);
+    // Test nullptr parameter (should return false)
+    result = signal_get_terminal_size(nullptr);
     if (result) {
-        LOG_ERROR("[FAIL] signal_get_terminal_size returned true for NULL");
+        LOG_ERROR("[FAIL] signal_get_terminal_size returned true for nullptr");
         ok = 0;
     }
 
@@ -251,8 +251,8 @@ static int test_signal_save_termios(void) {
     // Saving again should not crash
     signal_save_termios(&t);
 
-    // Save NULL (should not crash)
-    signal_save_termios(NULL);
+    // Save nullptr (should not crash)
+    signal_save_termios(nullptr);
 
     PHASE_END("SIGNAL: TERMIOS", ok);
     return ok;
@@ -311,7 +311,7 @@ static int test_signal_cont(void) {
     sig_cont_pending = 1;
 
     // Should be handled
-    bool handled = signal_handle_pending(NULL, NULL);
+    bool handled = signal_handle_pending(nullptr, nullptr);
     if (!handled) {
         LOG_ERROR("[FAIL] SIGCONT not handled");
         ok = 0;

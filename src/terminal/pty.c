@@ -32,7 +32,7 @@
 /*
  * pty_spawn - Allocate PTY and fork shell process
  *
- * shell: Path to shell (NULL or empty uses $SHELL or /bin/sh)
+ * shell: Path to shell (nullptr or empty uses $SHELL or /bin/sh)
  * child_pid: Output parameter for child process PID
  * rows: Initial terminal rows
  * cols: Initial terminal columns
@@ -54,7 +54,7 @@ int pty_spawn(const char *shell, pid_t *child_pid, int rows, int cols) {
     LOG_DEBUGF("PTY: Requested shell='%s'", shell ? shell : "(null)");
 
     /* Use forkpty() for simple PTY allocation and fork */
-    pid = forkpty(&master_fd, NULL, NULL, &ws);
+    pid = forkpty(&master_fd, nullptr, nullptr, &ws);
     if (pid < 0) {
         LOG_ERROR("PTY: forkpty() failed");
         return -1;  /* forkpty failed */
@@ -85,13 +85,13 @@ int pty_spawn(const char *shell, pid_t *child_pid, int rows, int cols) {
         sa.sa_handler = SIG_DFL;
         sigemptyset(&sa.sa_mask);
         sa.sa_flags = 0;
-        sigaction(SIGINT, &sa, NULL);
-        sigaction(SIGQUIT, &sa, NULL);
-        sigaction(SIGTERM, &sa, NULL);
-        sigaction(SIGCHLD, &sa, NULL);
+        sigaction(SIGINT, &sa, nullptr);
+        sigaction(SIGQUIT, &sa, nullptr);
+        sigaction(SIGTERM, &sa, nullptr);
+        sigaction(SIGCHLD, &sa, nullptr);
 
         /* Execute shell with interactive flag */
-        execlp(sh, sh, "-i", (char *)NULL);
+        execlp(sh, sh, "-i", (char *)nullptr);
 
         /* If exec fails, exit with error */
         _exit(127);
@@ -233,7 +233,7 @@ void pty_close(int master_fd, pid_t child_pid) {
             /* Still running, wait a bit then force kill */
             LOG_DEBUG("PTY: Child still running, waiting 100ms");
             struct timespec ts = { .tv_sec = 0, .tv_nsec = 100000000 };  /* 100ms */
-            nanosleep(&ts, NULL);
+            nanosleep(&ts, nullptr);
             result = waitpid(child_pid, &status, WNOHANG);
 
             if (result == 0) {

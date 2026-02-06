@@ -61,7 +61,7 @@ static char *get_buffer_contents(size_t *len);
 static void show_output(const char *output, size_t len, const char *script_name);
 
 /* Currently executing script (for the generic handler) */
-static const char *current_script_path = NULL;
+static const char *current_script_path = nullptr;
 
 /*
  * Expand ~ to home directory
@@ -85,7 +85,7 @@ static void expand_path(const char *src, char *dst, size_t dst_size) {
  */
 static char *extract_command_name(const char *filename) {
     char *name = SAFE_STRDUP(filename, "script command name");
-    if (!name) return NULL;
+    if (!name) return nullptr;
 
     /* Remove extension if present */
     char *dot = strrchr(name, '.');
@@ -151,8 +151,8 @@ static void unregister_script(int slot) {
 
     free(scripts[slot].name);
     free(scripts[slot].path);
-    scripts[slot].name = NULL;
-    scripts[slot].path = NULL;
+    scripts[slot].name = nullptr;
+    scripts[slot].path = nullptr;
     scripts[slot].active = false;
     script_count--;
 }
@@ -207,7 +207,7 @@ int uep_scripts_load(void) {
     int loaded = 0;
     struct dirent *entry;
 
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != nullptr) {
         /* Skip hidden files and . / .. */
         if (entry->d_name[0] == '.') continue;
 
@@ -216,9 +216,9 @@ int uep_scripts_load(void) {
         snprintf(path, sizeof(path), "%s/%s", scripts_dir, entry->d_name);
 
         /* Check if it's a regular file and executable */
-        struct stat st;
-        if (stat(path, &st) != 0) continue;
-        if (!S_ISREG(st.st_mode)) continue;
+        struct stat fst;
+        if (stat(path, &fst) != 0) continue;
+        if (!S_ISREG(fst.st_mode)) continue;
         if (!is_executable(path)) continue;
 
         /* Extract command name */
@@ -269,7 +269,8 @@ int uep_scripts_list(void) {
     }
 
     /* Clear and switch to it */
-    swbuffer(bp);
+    if (swbuffer(bp) != true)
+        return 0;
 
     /* Delete existing content */
     struct line *lp = lforw(bp->b_linep);
@@ -324,14 +325,14 @@ void uep_scripts_cleanup(void) {
 }
 
 const char *uep_scripts_find(const char *name) {
-    if (!name) return NULL;
+    if (!name) return nullptr;
 
     for (int i = 0; i < MAX_SCRIPTS; i++) {
         if (scripts[i].active && strcmp(scripts[i].name, name) == 0) {
             return scripts[i].path;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /*
@@ -340,14 +341,14 @@ const char *uep_scripts_find(const char *name) {
 static char *get_buffer_contents(size_t *len) {
     if (!curbp) {
         if (len) *len = 0;
-        return NULL;
+        return nullptr;
     }
 
     /* Calculate total size */
     size_t total = 0;
     struct line *lp = lforw(curbp->b_linep);
     while (lp != curbp->b_linep) {
-        total += llength(lp) + 1;  /* +1 for newline */
+        total += (size_t)llength(lp) + 1;  /* +1 for newline */
         lp = lforw(lp);
     }
 
@@ -360,7 +361,7 @@ static char *get_buffer_contents(size_t *len) {
     char *buf = SAFE_ALLOC_SIZED(char, total + 1, "script buffer contents");
     if (!buf) {
         if (len) *len = 0;
-        return NULL;
+        return nullptr;
     }
 
     /* Copy lines */
@@ -369,7 +370,7 @@ static char *get_buffer_contents(size_t *len) {
     while (lp != curbp->b_linep) {
         int line_len = llength(lp);
         for (int i = 0; i < line_len; i++) {
-            buf[pos++] = lgetc(lp, i);
+            buf[pos++] = (char)lgetc(lp, i);
         }
         buf[pos++] = '\n';
         lp = lforw(lp);
@@ -417,7 +418,7 @@ static void show_output(const char *output, size_t len, const char *script_name)
         return;
     }
 
-    swbuffer(bp);
+    (void)swbuffer(bp);  // display buffer; failure non-fatal
 
     /* Clear buffer */
     struct line *lp = lforw(bp->b_linep);
@@ -508,7 +509,7 @@ int uep_scripts_exec(const char *name) {
         close(stdin_pipe[0]);
         close(stdout_pipe[1]);
 
-        execl(path, path, (char *)NULL);
+        execl(path, path, (char *)nullptr);
         _exit(127);
     }
 
@@ -544,7 +545,7 @@ int uep_scripts_exec(const char *name) {
 
             ssize_t n = read(stdout_pipe[0], output + pos, 4096);
             if (n <= 0) break;
-            pos += n;
+            pos += (size_t)n;
         }
 
         output[pos] = '\0';

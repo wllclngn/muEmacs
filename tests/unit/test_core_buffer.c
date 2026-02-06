@@ -16,7 +16,7 @@ static int test_buffer_create(void) {
     // Create a new buffer
     struct buffer *bp = bfind("test-buffer-1", true, 0);
     if (!bp) {
-        LOG_ERROR("[FAIL] bfind returned NULL for new buffer");
+        LOG_ERROR("[FAIL] bfind returned nullptr for new buffer");
         ok = 0;
         PHASE_END("BUFFER: CREATE", ok);
         return ok;
@@ -45,8 +45,8 @@ static int test_buffer_create(void) {
     // Cleanup - clear BFCHG to prevent "Discard changes?" prompt
     bp->b_flag &= ~BFCHG;
     bp2->b_flag &= ~BFCHG;
-    zotbuf(bp);
-    zotbuf(bp2);
+    (void)zotbuf(bp);
+    (void)zotbuf(bp2);
 
     PHASE_END("BUFFER: CREATE", ok);
     return ok;
@@ -109,7 +109,7 @@ static int test_buffer_clear(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("BUFFER: CLEAR", ok);
     return ok;
@@ -163,7 +163,7 @@ static int test_buffer_stats(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("BUFFER: STATS", ok);
     return ok;
@@ -208,7 +208,7 @@ static int test_buffer_modified(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("BUFFER: MODIFIED", ok);
     return ok;
@@ -245,7 +245,7 @@ static int test_buffer_anycb(void) {
 
     // Cleanup
     bp->b_flag &= ~BFCHG;  // Clear so zotbuf doesn't complain
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("BUFFER: ANYCB", ok);
     return ok;
@@ -286,9 +286,9 @@ static int test_buffer_hash(void) {
         ok = 0;
     }
 
-    // Non-existent buffer should return NULL
+    // Non-existent buffer should return nullptr
     struct buffer *notfound = bfind("nonexistent-buffer-xyz", false, 0);
-    if (notfound != NULL) {
+    if (notfound != nullptr) {
         LOG_ERROR("[FAIL] found non-existent buffer");
         ok = 0;
     }
@@ -297,9 +297,9 @@ static int test_buffer_hash(void) {
     bp1->b_flag &= ~BFCHG;
     bp2->b_flag &= ~BFCHG;
     bp3->b_flag &= ~BFCHG;
-    zotbuf(bp1);
-    zotbuf(bp2);
-    zotbuf(bp3);
+    (void)zotbuf(bp1);
+    (void)zotbuf(bp2);
+    (void)zotbuf(bp3);
 
     PHASE_END("BUFFER: HASH", ok);
     return ok;
@@ -360,16 +360,16 @@ static int test_buffer_index(void) {
         ok = 0;
     }
 
-    // Test invalid index (should return NULL)
+    // Test invalid index (should return nullptr)
     struct line *lp_invalid = buffer_index_get(bp, 999);
-    if (lp_invalid != NULL) {
+    if (lp_invalid != nullptr) {
         LOG_ERROR("[FAIL] got invalid line at index 999");
         ok = 0;
     }
 
     // Test negative index
     struct line *lp_neg = buffer_index_get(bp, -1);
-    if (lp_neg != NULL) {
+    if (lp_neg != nullptr) {
         LOG_ERROR("[FAIL] got line at negative index");
         ok = 0;
     }
@@ -378,7 +378,7 @@ static int test_buffer_index(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("BUFFER: INDEX", ok);
     return ok;
@@ -421,7 +421,7 @@ static int test_killbuffer(void) {
 
     // Verify buffer is gone
     struct buffer *found = bfind("test-killbuf", false, 0);
-    if (found != NULL) {
+    if (found != nullptr) {
         LOG_ERROR("[FAIL] buffer still exists after kill");
         ok = 0;
     }

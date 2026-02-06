@@ -91,7 +91,7 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
         new_capacity = UNDO_MAX_CAPACITY;
     }
 
-    struct undo_operation *new_operations = safe_alloc(new_capacity * sizeof(struct undo_operation), "resized undo operations array", __FILE__, __LINE__);
+    struct undo_operation *new_operations = safe_alloc((size_t)new_capacity * sizeof(struct undo_operation), "resized undo operations array", __FILE__, __LINE__);
     if (!new_operations) {
         LOG_ERRORF("Undo: Stack resize failed (%d -> %d)", old_capacity, new_capacity);
         atomic_store(&stack->resize_failed, true);
@@ -182,7 +182,7 @@ void undo_stack_clear(struct atomic_undo_stack *stack) {
     }
 
     // Zero out all operations to prevent garbage pointers
-    memset(stack->operations, 0, capacity * sizeof(struct undo_operation));
+    memset(stack->operations, 0, (size_t)capacity * sizeof(struct undo_operation));
 
     // Reset stack pointers to empty state
     atomic_store(&stack->head, 0);
@@ -233,9 +233,9 @@ void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int 
     op->text_length = len;
     op->version_id = atomic_fetch_add(&stack->version, 1);
     clock_gettime(CLOCK_MONOTONIC, &op->timestamp);
-    op->text_data = safe_alloc(len + 1, "undo text", __FILE__, __LINE__);
+    op->text_data = safe_alloc((size_t)len + 1, "undo text", __FILE__, __LINE__);
     if (op->text_data) {
-        memcpy(op->text_data, text, len);
+        memcpy(op->text_data, text, (size_t)len);
         op->text_data[len] = '\0';
     } else {
         LOG_WARN("Undo: Text data allocation failed, operation may not undo correctly");
@@ -331,9 +331,9 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
     op->text_length = len;
     op->version_id = atomic_fetch_add(&stack->version, 1);
     clock_gettime(CLOCK_MONOTONIC, &op->timestamp);
-    op->text_data = safe_alloc(len + 1, "undo text", __FILE__, __LINE__);
+    op->text_data = safe_alloc((size_t)len + 1, "undo text", __FILE__, __LINE__);
     if (op->text_data) {
-        memcpy(op->text_data, text, len);
+        memcpy(op->text_data, text, (size_t)len);
         op->text_data[len] = '\0';
     } else {
         LOG_WARN("Undo: Text data allocation failed, operation may not undo correctly");
@@ -403,7 +403,7 @@ int undo_operation(struct buffer *bp) {
 
     /* Position cursor - gotoline sets WFHARD, but we clear it and let
      * the actual edit operation (ldelete/linsert) set appropriate flags */
-    gotoline(true, op->dot_l);
+    gotoline(true, (int)op->dot_l);
     curwp->w_doto = op->dot_o;
     curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
 
@@ -425,7 +425,7 @@ int undo_operation(struct buffer *bp) {
             struct undo_operation *pop = &stack->operations[prev];
             if (pop->group_id != gid) break;
             // apply previous op in group
-            gotoline(true, pop->dot_l);
+            gotoline(true, (int)pop->dot_l);
             curwp->w_doto = pop->dot_o;
             curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
             if (pop->type == EDIT_INSERT) {
@@ -493,7 +493,7 @@ int redo_operation(struct buffer *bp) {
 
     /* Position cursor - gotoline sets WFHARD, but we clear it and let
      * the actual edit operation (ldelete/linsert) set appropriate flags */
-    gotoline(true, op->dot_l);
+    gotoline(true, (int)op->dot_l);
     curwp->w_doto = op->dot_o;
     curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
 
@@ -514,7 +514,7 @@ int redo_operation(struct buffer *bp) {
             if (next == atomic_load(&stack->head)) break;
             struct undo_operation *nop = &stack->operations[next];
             if (nop->group_id != gid) break;
-            gotoline(true, nop->dot_l);
+            gotoline(true, (int)nop->dot_l);
             curwp->w_doto = nop->dot_o;
             curwp->w_flag &= ~WFHARD;  /* Let edit operation determine refresh level */
             if (nop->type == EDIT_INSERT) {

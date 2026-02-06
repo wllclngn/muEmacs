@@ -6,8 +6,8 @@
  * Modern Raw ANSI Terminal Driver
  * =============================================================================
  *
- * This file uses the raw ANSI terminal driver (curses.c) for all output.
- * No ncurses dependency - pure POSIX with direct ANSI escape sequences.
+ * This file uses the raw ANSI terminal driver (ansi.c) for all output.
+ * Pure POSIX with direct ANSI escape sequences.
  *
  * Benefits:
  * - Zero external dependencies
@@ -169,12 +169,12 @@ void display_flush(void) {
 
 // Add string to display buffer
 static void buffer_append(const char* str) {
-    int len = strlen(str);
+    int len = (int)strlen(str);
     if (buffer_pos + len >= DISPLAY_BUFFER_SIZE - 1) {
         display_flush();
     }
     if (len < DISPLAY_BUFFER_SIZE - 1) {
-        memcpy(&display_buffer[buffer_pos], str, len);
+        memcpy(&display_buffer[buffer_pos], str, (size_t)len);
         buffer_pos += len;
     }
 }
@@ -207,7 +207,7 @@ void display_utf8_symbol(const char* symbol) {
 
 // Display aligned text with padding
 void display_aligned_text(const char* text, int width, char pad) {
-    int len = strlen(text);
+    int len = (int)strlen(text);
     buffer_append(text);
 
     while (len < width) {
@@ -286,13 +286,13 @@ void display_status_line(struct buffer* bp, struct window* wp, int row) {
     if (file_size < 1024) {
         snprintf(temp, sizeof(temp), "%ldB", file_size);
     } else if (file_size < 1048576) {
-        snprintf(temp, sizeof(temp), "%.2fKB", file_size / 1024.0);
+        snprintf(temp, sizeof(temp), "%.2fKB", (double)file_size / 1024.0);
     } else if (file_size < 1073741824) {
-        snprintf(temp, sizeof(temp), "%.2fMB", file_size / 1048576.0);
+        snprintf(temp, sizeof(temp), "%.2fMB", (double)file_size / 1048576.0);
     } else if (file_size < 1099511627776LL) {
-        snprintf(temp, sizeof(temp), "%.2fGB", file_size / 1073741824.0);
+        snprintf(temp, sizeof(temp), "%.2fGB", (double)file_size / 1073741824.0);
     } else {
-        snprintf(temp, sizeof(temp), "%.2fTB", file_size / 1099511627776.0);
+        snprintf(temp, sizeof(temp), "%.2fTB", (double)file_size / 1099511627776.0);
     }
     display_status_section(temp, UTF8_DOT);
 

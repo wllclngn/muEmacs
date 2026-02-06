@@ -213,7 +213,7 @@ static int test_soft_wrap_toggle(void) {
 
     /* Need a valid curwp for this test */
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping soft_wrap test");
+        LOG_WARN("[WARN] curwp is nullptr, skipping soft_wrap test");
         return 1;  /* Not a failure, just can't test */
     }
 
@@ -259,7 +259,7 @@ static int test_soft_wrap_column(void) {
     LOG_INFO("  Testing soft_wrap_column command...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping test");
+        LOG_WARN("[WARN] curwp is nullptr, skipping test");
         return 1;
     }
 

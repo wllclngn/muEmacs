@@ -139,7 +139,7 @@ static int test_vim_buffer(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("VIM: BUFFER", ok);
     return ok;

@@ -31,7 +31,7 @@ typedef enum syntax_face {
     FACE_FUNCTION,      /* foo(), bar() */
     FACE_OPERATOR,      /* +, -, &&, |> */
     FACE_PREPROCESSOR,  /* #include, #define */
-    FACE_CONSTANT,      /* NULL, true, false */
+    FACE_CONSTANT,      /* nullptr, true, false */
     FACE_VARIABLE,      /* (heuristic or semantic) */
     FACE_ATTRIBUTE,     /* @decorator, #[attr] */
     FACE_ESCAPE,        /* \n, \x00 */
@@ -39,6 +39,8 @@ typedef enum syntax_face {
     FACE_SPECIAL,       /* reserved for extensions */
     FACE_MAX
 } syntax_face_t;
+
+static_assert(FACE_MAX <= 16, "Face IDs must fit in 4 bits (SYNTAX_FACE_SHIFT packing)");
 
 /* Font style flags (combine with face via OR) */
 #define STYLE_NONE      0x00
@@ -133,7 +135,7 @@ struct buffer;
  */
 typedef lexer_state_t (*syntax_lex_fn)(
     const struct syntax_language *lang,
-    struct buffer *buffer,      /* Buffer being lexed (may be NULL for tests) */
+    struct buffer *buffer,      /* Buffer being lexed (may be nullptr for tests) */
     int line_num,               /* 0-indexed line number */
     const char *line,
     int len,
@@ -143,10 +145,10 @@ typedef lexer_state_t (*syntax_lex_fn)(
 
 typedef struct syntax_language {
     const char *name;               /* "c", "python", "rust" */
-    const char **extensions;        /* {".c", ".h", NULL} */
-    const char **keywords;          /* {"if", "else", "while", NULL} */
-    const char **types;             /* {"int", "char", "void", NULL} */
-    const char **constants;         /* {"NULL", "true", "false", NULL} */
+    const char **extensions;        /* {".c", ".h", nullptr} */
+    const char **keywords;          /* {"if", "else", "while", nullptr} */
+    const char **types;             /* {"int", "char", "void", nullptr} */
+    const char **constants;         /* {"nullptr", "true", "false", nullptr} */
     const char **builtins;          /* built-in functions */
 
     /* Comment styles */
@@ -164,12 +166,12 @@ typedef struct syntax_language {
     char raw_string_prefix;         /* 'r' or 'R' or '\0' */
 
     /* Preprocessor */
-    const char *preprocessor;       /* "#" for C, NULL for most */
+    const char *preprocessor;       /* "#" for C, nullptr for most */
 
     /* Flags */
     bool case_sensitive;            /* keyword matching */
 
-    /* Optional custom lexer (NULL = use generic) */
+    /* Optional custom lexer (nullptr = use generic) */
     syntax_lex_fn custom_lexer;
 } syntax_language_t;
 
@@ -246,7 +248,7 @@ int line_tokens_get_face(const line_tokens_t *lt, int col);
 /* Register a custom language lexer from extension */
 int syntax_register_language(
     const char *name,
-    const char **patterns,      /* {"*.adb", "*.ads", NULL} */
+    const char **patterns,      /* {"*.adb", "*.ads", nullptr} */
     syntax_lex_fn lex_fn,
     void *user_data
 );

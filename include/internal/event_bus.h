@@ -118,7 +118,7 @@ int event_bus_off(const char *event, event_handler_fn handler);
  * Emit an event to all registered handlers.
  *
  * event:     Event name
- * data:      Event-specific data (can be NULL)
+ * data:      Event-specific data (can be nullptr)
  * data_size: Size of data (0 if not applicable)
  *
  * Returns: true if any handler consumed the event, false otherwise
@@ -146,7 +146,7 @@ int event_bus_handler_count(const char *event);
  *
  * count: Output parameter for number of events
  *
- * Returns: Array of event name strings, or NULL if none
+ * Returns: Array of event name strings, or nullptr if none
  */
 const char **event_bus_list_events(int *count);
 

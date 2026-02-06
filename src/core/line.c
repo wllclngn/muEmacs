@@ -36,13 +36,13 @@ static void kill_ring_add(const char *text, size_t len);
 // Returns true if the codepoint is a Unicode word character
 static inline bool is_unicode_word(wchar_t wc) {
 	// Use POSIX wctype for word characters (alnum or mark or connector)
-	return iswalnum(wc) || iswalpha(wc) || iswpunct(wc) || wc == L'_';
+	return iswalnum((wint_t)wc) || iswalpha((wint_t)wc) || iswpunct((wint_t)wc) || wc == L'_';
 }
 
 // Convert a UTF-8 sequence to a wide character (wchar_t)
 static inline int utf8_to_wchar(const char *s, wchar_t *wc) {
 	mbstate_t state = {0};
-	return mbrtowc(wc, s, MB_CUR_MAX, &state);
+	return (int)mbrtowc(wc, s, MB_CUR_MAX, &state);
 }
 
 // Returns true if the byte sequence at s is a word character (Unicode-aware)
@@ -94,7 +94,7 @@ struct line *lalloc(int used)
 	lp->l_fp = lp;
 	lp->l_bp = lp;
 
-	/* Initialize view mode fields (not used when storage is non-NULL) */
+	/* Initialize view mode fields (not used when storage is non-nullptr) */
 	lp->l_view_offset = 0;
 	lp->l_view_length = 0;
 	lp->l_bp_owner = nullptr;
@@ -139,7 +139,7 @@ struct line *lalloc_view(struct buffer *bp, size_t offset, size_t length)
 
 /*
  * Get character from a view-mode line.
- * Called by lgetc() when storage is NULL.
+ * Called by lgetc() when storage is nullptr.
  */
 int lgetc_view(struct line *lp, int n)
 {
@@ -158,7 +158,7 @@ bool line_view_accessible(struct line *lp)
 {
 	if (!lp) return false;
 	if (lp->storage) return true;  /* Has own storage, always accessible */
-	return (lp->l_bp_owner != NULL && lp->l_bp_owner->b_text != NULL);
+	return (lp->l_bp_owner != nullptr && lp->l_bp_owner->b_text != nullptr);
 }
 
 /*
@@ -335,7 +335,7 @@ void lchange(int flag)
 	wp = wheadp;
 	while (wp != nullptr) {
 		if (wp->w_bufp == curbp)
-			wp->w_flag |= flag;
+			wp->w_flag |= (short)flag;
 		wp = wp->w_wndp;
 	}
 }
@@ -491,9 +491,9 @@ int lgetchar(unicode_t *restrict uc) {
     int len = llength(lp) - doto;
     if (len > 6) len = 6;
     for (int i = 0; i < len; i++) {
-        utf8_buf[i] = lgetc(lp, doto + i);
+        utf8_buf[i] = (char)lgetc(lp, doto + i);
     }
-    int char_len = utf8_to_unicode(utf8_buf, 0, len, uc);
+    int char_len = (int)utf8_to_unicode(utf8_buf, 0, (unsigned int)len, uc);
 
     if (char_len == 0) { // Error or end of string
         return doto;
@@ -511,7 +511,7 @@ int insspace(int f, int n) {
 }
 
 int lover(char *restrict ostr) {
-    int len = strlen(ostr);
+    int len = (int)strlen(ostr);
     if (len == 0) return true;
 
     if (curwp->w_doto + len <= llength(curwp->w_dotp)) {
@@ -663,7 +663,7 @@ int linsert(int n, int c)
 		perf_end_timing("linsert");
 		return false;
 	}
-	for (int i = 0; i < n; ++i) inserted_text[i] = c;
+	for (int i = 0; i < n; ++i) inserted_text[i] = (char)c;
 	inserted_text[n] = '\0';
 
 	if (lp1 == curbp->b_linep) {
@@ -774,7 +774,7 @@ int ldelete(long n, int kflag)
             scan_p = lforw(scan_p);
             scan_o = 0;
         } else {
-            deleted_text[collected_len++] = lgetc(scan_p, scan_o++);
+            deleted_text[collected_len++] = (char)lgetc(scan_p, scan_o++);
         }
     }
     deleted_text[collected_len] = '\0';
@@ -792,7 +792,7 @@ int ldelete(long n, int kflag)
 		}
 
 		chunk = llength(dotp) - doto;
-		if (chunk > n) chunk = n;
+		if (chunk > n) chunk = (int)n;
 		if (chunk == 0) { /* End of line, merge.  */
 			lchange(WFHARD);  /* Line merge requires full refresh */
 			if (ldelnewline() == false || (kflag != false && kinsert('\n') == false))
@@ -835,11 +835,11 @@ int ldelete(long n, int kflag)
 		int left_is_word = 0;
 		int right_is_word = 0;
 		if (doto > 0) {
-			char left_ch = lgetc(dotp, doto - 1);
+			char left_ch = (char)lgetc(dotp, doto - 1);
 			left_is_word = is_word_byte_utf8((const char *)&left_ch);
 		}
 		if (doto + 1 < llength(dotp)) {
-			char right_ch = lgetc(dotp, doto + 1);
+			char right_ch = (char)lgetc(dotp, doto + 1);
 			right_is_word = is_word_byte_utf8((const char *)&right_ch);
 		}
 		if (!is_word_byte_utf8((const char *)&deleted_text[0])) {
@@ -851,7 +851,7 @@ int ldelete(long n, int kflag)
 	buffer_update_stats_incremental(curbp, 0, -collected_len, word_delta);
     if (word_delta == 0) buffer_mark_stats_dirty(curbp);
 
-	undo_record_delete(curbp, lnum, doto, deleted_text, collected_len);
+	undo_record_delete(curbp, lnum, doto, deleted_text, (int)collected_len);
 	if (kflag != false && collected_len > 0) {
 		clipboard_set(deleted_text, (size_t)collected_len);
 	}
@@ -967,7 +967,7 @@ void kdelete(void)
 int kinsert(int c)
 {
 	if (temp_kill_len >= 8191) return false;
-	temp_kill_buf[temp_kill_len++] = c;
+	temp_kill_buf[temp_kill_len++] = (char)c;
 	return true;
 }
 
@@ -993,7 +993,7 @@ int yank(int f, int n)
 		}
 	}
 
-	thisflag |= CFYANK;
+	thisflag |= (int)CFYANK;
 	yanked_size = (int)temp_kill_len;
 	return true;
 }
@@ -1018,7 +1018,7 @@ int yank_clipboard(int f, int n)
 		}
 		++p;
 	}
-	thisflag |= CFYANK;
+	thisflag |= (int)CFYANK;
 	yanked_size = (int)strlen(buf);
 	return true;
 }
@@ -1071,7 +1071,7 @@ int yankpop(int f, int n) {
 	if (curbp->b_mode & MDVIEW) return rdonly();
 	if (n < 0) return false;
 	
-	if (!(lastflag & CFYANK)) {
+	if (!((unsigned int)lastflag & CFYANK)) {
 		mlwrite("PREVIOUS COMMAND WAS NOT A YANK");
 		return false;
 	}
@@ -1106,7 +1106,7 @@ int yankpop(int f, int n) {
 	
 	atomic_store_explicit(&g_kill_ring.yank_index, prev_yank, memory_order_release);
 	yanked_size = (int)text_len;
-	thisflag |= CFYANK;
+	thisflag |= (int)CFYANK;
 	return true;
 }
 

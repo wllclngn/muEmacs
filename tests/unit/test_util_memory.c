@@ -15,8 +15,8 @@ static int test_memory_safe_alloc(void) {
 
     // Test basic allocation
     void *ptr = safe_alloc(128, "test allocation", __FILE__, __LINE__);
-    if (ptr == NULL) {
-        LOG_ERROR("[FAIL] safe_alloc returned NULL for valid size");
+    if (ptr == nullptr) {
+        LOG_ERROR("[FAIL] safe_alloc returned nullptr for valid size");
         ok = 0;
     } else {
         // Verify memory is zero-initialized (calloc behavior)
@@ -37,8 +37,8 @@ static int test_memory_safe_alloc(void) {
 
     // Test zero-size allocation (should allocate minimum 1 byte)
     ptr = safe_alloc(0, "zero size", __FILE__, __LINE__);
-    if (ptr == NULL) {
-        LOG_ERROR("[FAIL] safe_alloc returned NULL for zero size");
+    if (ptr == nullptr) {
+        LOG_ERROR("[FAIL] safe_alloc returned nullptr for zero size");
         ok = 0;
     } else {
         safe_free(&ptr);
@@ -46,8 +46,8 @@ static int test_memory_safe_alloc(void) {
 
     // Test large allocation (within reason)
     ptr = safe_alloc(1024 * 1024, "large allocation", __FILE__, __LINE__);
-    if (ptr == NULL) {
-        LOG_ERROR("[FAIL] safe_alloc returned NULL for 1MB allocation");
+    if (ptr == nullptr) {
+        LOG_ERROR("[FAIL] safe_alloc returned nullptr for 1MB allocation");
         ok = 0;
     } else {
         safe_free(&ptr);
@@ -64,20 +64,20 @@ static int test_memory_safe_free(void) {
 
     // Test basic free
     void *ptr = safe_alloc(64, "test free", __FILE__, __LINE__);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         LOG_ERROR("[FAIL] couldn't allocate for free test");
         ok = 0;
     } else {
         safe_free(&ptr);
-        if (ptr != NULL) {
+        if (ptr != nullptr) {
             LOG_ERROR("[FAIL] safe_free didn't nullify pointer");
             ok = 0;
         }
     }
 
     // Test double-free safety (should not crash)
-    ptr = NULL;
-    safe_free(&ptr);  // Should be safe to free NULL
+    ptr = nullptr;
+    safe_free(&ptr);  // Should be safe to free nullptr
 
     // Test freeing already-freed pointer (should be safe)
     ptr = safe_alloc(32, "double free test", __FILE__, __LINE__);
@@ -95,7 +95,7 @@ static int test_memory_safe_realloc(void) {
 
     // Test growing allocation
     void *ptr = safe_alloc(64, "realloc test", __FILE__, __LINE__);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         LOG_ERROR("[FAIL] couldn't allocate for realloc test");
         ok = 0;
     } else {
@@ -104,7 +104,7 @@ static int test_memory_safe_realloc(void) {
 
         // Grow it
         void *new_ptr = safe_realloc(ptr, 128, "realloc grow");
-        if (new_ptr == NULL) {
+        if (new_ptr == nullptr) {
             LOG_ERROR("[FAIL] safe_realloc failed to grow allocation");
             ok = 0;
             safe_free(&ptr);
@@ -128,9 +128,9 @@ static int test_memory_safe_realloc(void) {
 
     // Test shrinking allocation
     ptr = safe_alloc(128, "realloc shrink", __FILE__, __LINE__);
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         void *new_ptr = safe_realloc(ptr, 64, "realloc shrink");
-        if (new_ptr == NULL) {
+        if (new_ptr == nullptr) {
             LOG_ERROR("[FAIL] safe_realloc failed to shrink allocation");
             ok = 0;
         } else {
@@ -140,9 +140,9 @@ static int test_memory_safe_realloc(void) {
 
     // Test realloc to zero (should free)
     ptr = safe_alloc(64, "realloc to zero", __FILE__, __LINE__);
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         void *new_ptr = safe_realloc(ptr, 0, "realloc zero");
-        if (new_ptr != NULL) {
+        if (new_ptr != nullptr) {
             LOG_ERROR("[FAIL] safe_realloc to zero didn't free memory");
             ok = 0;
             safe_free(&new_ptr);
@@ -161,8 +161,8 @@ static int test_memory_safe_strdup(void) {
     // Test basic string duplication
     const char *original = "Hello, World!";
     char *dup = safe_strdup(original, "strdup test");
-    if (dup == NULL) {
-        LOG_ERROR("[FAIL] safe_strdup returned NULL");
+    if (dup == nullptr) {
+        LOG_ERROR("[FAIL] safe_strdup returned nullptr");
         ok = 0;
     } else {
         if (strcmp(dup, original) != 0) {
@@ -175,8 +175,8 @@ static int test_memory_safe_strdup(void) {
     // Test empty string
     original = "";
     dup = safe_strdup(original, "empty string");
-    if (dup == NULL) {
-        LOG_ERROR("[FAIL] safe_strdup returned NULL for empty string");
+    if (dup == nullptr) {
+        LOG_ERROR("[FAIL] safe_strdup returned nullptr for empty string");
         ok = 0;
     } else {
         if (strcmp(dup, "") != 0) {
@@ -186,10 +186,10 @@ static int test_memory_safe_strdup(void) {
         safe_free((void **)&dup);
     }
 
-    // Test NULL input
-    dup = safe_strdup(NULL, "NULL input");
-    if (dup != NULL) {
-        LOG_ERROR("[FAIL] safe_strdup didn't return NULL for NULL input");
+    // Test nullptr input
+    dup = safe_strdup(nullptr, "nullptr input");
+    if (dup != nullptr) {
+        LOG_ERROR("[FAIL] safe_strdup didn't return nullptr for nullptr input");
         ok = 0;
         safe_free((void **)&dup);
     }
@@ -257,7 +257,7 @@ static int test_memory_edge_cases(void) {
 
     // Test very small allocation
     void *ptr = safe_alloc(1, "tiny allocation", __FILE__, __LINE__);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         LOG_ERROR("[FAIL] couldn't allocate 1 byte");
         ok = 0;
     } else {
@@ -266,7 +266,7 @@ static int test_memory_edge_cases(void) {
 
     // Test page-sized allocation
     ptr = safe_alloc(4096, "page size", __FILE__, __LINE__);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         LOG_ERROR("[FAIL] couldn't allocate page-sized block");
         ok = 0;
     } else {
@@ -282,11 +282,11 @@ static int test_memory_size_max_boundary(void) {
     int ok = 1;
     PHASE_START("MEMORY: SIZE_MAX BOUNDARY", "Test allocation size limit protection");
 
-    // Test SIZE_MAX/2 + 1 (should fail and return NULL)
+    // Test SIZE_MAX/2 + 1 (should fail and return nullptr)
     size_t huge_size = (SIZE_MAX / 2) + 1;
     void *ptr = safe_alloc(huge_size, "size_max boundary", __FILE__, __LINE__);
 
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         LOG_ERRORF("[FAIL] safe_alloc should reject SIZE_MAX/2 + 1, but returned %p", ptr);
         safe_free(&ptr);
         ok = 0;
@@ -296,7 +296,7 @@ static int test_memory_size_max_boundary(void) {
 
     // Test SIZE_MAX (should also fail)
     ptr = safe_alloc(SIZE_MAX, "size_max", __FILE__, __LINE__);
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         LOG_ERRORF("[FAIL] safe_alloc should reject SIZE_MAX, but returned %p", ptr);
         safe_free(&ptr);
         ok = 0;
@@ -312,46 +312,46 @@ static int test_memory_size_max_boundary(void) {
     return ok;
 }
 
-// Test safe_realloc with NULL old pointer (as requested in task)
+// Test safe_realloc with nullptr old pointer (as requested in task)
 static int test_memory_realloc_null_ptr(void) {
     int ok = 1;
-    PHASE_START("MEMORY: REALLOC NULL PTR", "Test realloc with NULL old pointer");
+    PHASE_START("MEMORY: REALLOC nullptr PTR", "Test realloc with nullptr old pointer");
 
-    // Realloc with NULL pointer should behave like malloc
-    void *ptr = safe_realloc(NULL, 128, "realloc from null");
+    // Realloc with nullptr pointer should behave like malloc
+    void *ptr = safe_realloc(nullptr, 128, "realloc from null");
 
-    if (ptr == NULL) {
-        LOG_ERROR("[FAIL] safe_realloc(NULL, 128) should allocate, returned NULL");
+    if (ptr == nullptr) {
+        LOG_ERROR("[FAIL] safe_realloc(nullptr, 128) should allocate, returned nullptr");
         ok = 0;
     } else {
-        LOG_INFOF("[%sOK%s] safe_realloc(NULL, 128) allocated successfully", GREEN, RESET);
+        LOG_INFOF("[%sOK%s] safe_realloc(nullptr, 128) allocated successfully", GREEN, RESET);
 
         // Verify it's usable
         memset(ptr, 0xFF, 128);
         safe_free(&ptr);
     }
 
-    // Realloc NULL to zero size (should return NULL)
-    ptr = safe_realloc(NULL, 0, "realloc null to zero");
-    if (ptr != NULL) {
-        LOG_ERRORF("[FAIL] safe_realloc(NULL, 0) should return NULL, got %p", ptr);
+    // Realloc nullptr to zero size (should return nullptr)
+    ptr = safe_realloc(nullptr, 0, "realloc null to zero");
+    if (ptr != nullptr) {
+        LOG_ERRORF("[FAIL] safe_realloc(nullptr, 0) should return nullptr, got %p", ptr);
         safe_free(&ptr);
         ok = 0;
     } else {
-        LOG_INFOF("[%sOK%s] safe_realloc(NULL, 0) returned NULL", GREEN, RESET);
+        LOG_INFOF("[%sOK%s] safe_realloc(nullptr, 0) returned nullptr", GREEN, RESET);
     }
 
-    // Realloc NULL with SIZE_MAX boundary
-    ptr = safe_realloc(NULL, (SIZE_MAX / 2) + 1, "realloc null oversized");
-    if (ptr != NULL) {
-        LOG_ERRORF("[FAIL] safe_realloc(NULL, SIZE_MAX/2+1) should fail, got %p", ptr);
+    // Realloc nullptr with SIZE_MAX boundary
+    ptr = safe_realloc(nullptr, (SIZE_MAX / 2) + 1, "realloc null oversized");
+    if (ptr != nullptr) {
+        LOG_ERRORF("[FAIL] safe_realloc(nullptr, SIZE_MAX/2+1) should fail, got %p", ptr);
         safe_free(&ptr);
         ok = 0;
     } else {
-        LOG_INFOF("[%sOK%s] safe_realloc(NULL, SIZE_MAX/2+1) correctly rejected", GREEN, RESET);
+        LOG_INFOF("[%sOK%s] safe_realloc(nullptr, SIZE_MAX/2+1) correctly rejected", GREEN, RESET);
     }
 
-    PHASE_END("MEMORY: REALLOC NULL PTR", ok);
+    PHASE_END("MEMORY: REALLOC nullptr PTR", ok);
     return ok;
 }
 
@@ -372,7 +372,7 @@ static int test_memory_allocation_cascade(void) {
         size_t size = (i + 1) * 1024 * 1024;  // 1MB, 2MB, 3MB, etc.
         ptrs[i] = safe_alloc(size, "cascade test", __FILE__, __LINE__);
 
-        if (ptrs[i] == NULL) {
+        if (ptrs[i] == nullptr) {
             LOG_INFOF("[%sOK%s] Allocation failed at iteration %d (size=%zu MB) - expected behavior", GREEN, RESET, i, size / (1024*1024));
             break;
         }

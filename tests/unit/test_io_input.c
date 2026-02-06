@@ -28,8 +28,8 @@ static int test_input_parser_basic(void) {
     input_reset_parser_state();
 
     // Basic validation that input system is initialized
-    if (term.t_getchar == NULL) {
-        LOG_ERROR("[FAIL] term.t_getchar is NULL");
+    if (term.t_getchar == nullptr) {
+        LOG_ERROR("[FAIL] term.t_getchar is nullptr");
         ok = 0;
     }
 

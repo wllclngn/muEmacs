@@ -28,7 +28,7 @@ int test_deliberate_fail(void) {
 
 /* Example test that crashes (SIGSEGV) */
 int test_crash_segfault(void) {
-    int *ptr = NULL;
+    int *ptr = nullptr;
     *ptr = 42;  /* BOOM */
     return 1;
 }

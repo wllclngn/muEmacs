@@ -11,7 +11,7 @@
 // Helper: setup a test buffer with content
 static struct buffer *setup_search_buffer(const char *name, const char *content[]) {
     struct buffer *bp = bfind((char *)name, true, 0);
-    if (!bp) return NULL;
+    if (!bp) return nullptr;
 
     curbp = bp;
     curwp->w_bufp = bp;
@@ -39,7 +39,7 @@ static void cleanup_buffer(struct buffer *bp, struct buffer *oldbp) {
     }
     if (bp) {
         bp->b_flag &= ~BFCHG;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -52,7 +52,7 @@ static int test_isearch_scanner(void) {
         "Hello World",
         "This is a test",
         "Hello again",
-        NULL
+        nullptr
     };
 
     struct buffer *oldbp = curbp;
@@ -94,7 +94,7 @@ static int test_isearch_case(void) {
         "Hello World",
         "hello world",
         "HELLO WORLD",
-        NULL
+        nullptr
     };
 
     struct buffer *oldbp = curbp;
@@ -138,7 +138,7 @@ static int test_isearch_backward(void) {
         "First line",
         "Second line",
         "Third line",
-        NULL
+        nullptr
     };
 
     struct buffer *oldbp = curbp;
@@ -173,7 +173,7 @@ static int test_isearch_empty(void) {
 
     const char *content[] = {
         "Some text",
-        NULL
+        nullptr
     };
 
     struct buffer *oldbp = curbp;

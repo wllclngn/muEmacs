@@ -12,12 +12,12 @@ static int test_names_table_exists(void) {
     int ok = 1;
     PHASE_START("NAMES: TABLE", "Name binding table exists");
 
-    if (names[0].n_name == NULL) {
+    if (names[0].n_name == nullptr) {
         LOG_ERROR("[FAIL] names table is empty");
         ok = 0;
     }
 
-    if (names[0].n_func == NULL) {
+    if (names[0].n_func == nullptr) {
         LOG_ERROR("[FAIL] first entry has no function");
         ok = 0;
     }
@@ -32,9 +32,9 @@ static int test_names_table_sorted(void) {
     PHASE_START("NAMES: SORTED", "Name table alphabetical order");
 
     int count = 0;
-    for (int i = 0; names[i].n_name != NULL; i++) {
+    for (int i = 0; names[i].n_name != nullptr; i++) {
         count++;
-        if (names[i+1].n_name != NULL) {
+        if (names[i+1].n_name != nullptr) {
             int cmp = strcmp(names[i].n_name, names[i+1].n_name);
             if (cmp >= 0) {
                 LOG_ERRORF("[FAIL] names not sorted at index %d: '%s' >= '%s'", i, names[i].n_name, names[i+1].n_name);
@@ -67,12 +67,12 @@ static int test_names_table_entries(void) {
         "previous-line",
         "save-file",
         "exit-emacs",
-        NULL
+        nullptr
     };
 
-    for (int i = 0; required[i] != NULL; i++) {
+    for (int i = 0; required[i] != nullptr; i++) {
         int found = 0;
-        for (int j = 0; names[j].n_name != NULL; j++) {
+        for (int j = 0; names[j].n_name != nullptr; j++) {
             if (strcmp(names[j].n_name, required[i]) == 0) {
                 found = 1;
                 break;
@@ -93,9 +93,9 @@ static int test_names_valid_functions(void) {
     int ok = 1;
     PHASE_START("NAMES: FUNCTIONS", "Valid function pointers");
 
-    for (int i = 0; names[i].n_name != NULL; i++) {
-        if (names[i].n_func == NULL) {
-            LOG_ERRORF("[FAIL] name '%s' has NULL function pointer", names[i].n_name);
+    for (int i = 0; names[i].n_name != nullptr; i++) {
+        if (names[i].n_func == nullptr) {
+            LOG_ERRORF("[FAIL] name '%s' has nullptr function pointer", names[i].n_name);
             ok = 0;
         }
     }
@@ -109,7 +109,7 @@ static int test_names_valid_strings(void) {
     int ok = 1;
     PHASE_START("NAMES: STRINGS", "Valid name strings");
 
-    for (int i = 0; names[i].n_name != NULL; i++) {
+    for (int i = 0; names[i].n_name != nullptr; i++) {
         const char *name = names[i].n_name;
 
         // Check non-empty
@@ -139,8 +139,8 @@ static int test_names_no_duplicates(void) {
     int ok = 1;
     PHASE_START("NAMES: DUPLICATES", "No duplicate names");
 
-    for (int i = 0; names[i].n_name != NULL; i++) {
-        for (int j = i + 1; names[j].n_name != NULL; j++) {
+    for (int i = 0; names[i].n_name != nullptr; i++) {
+        for (int j = i + 1; names[j].n_name != nullptr; j++) {
             if (strcmp(names[i].n_name, names[j].n_name) == 0) {
                 LOG_ERRORF("[FAIL] duplicate name '%s' at indices %d and %d", names[i].n_name, i, j);
                 ok = 0;
@@ -152,23 +152,23 @@ static int test_names_no_duplicates(void) {
     return ok;
 }
 
-// Test that table terminates properly with NULL sentinel
+// Test that table terminates properly with nullptr sentinel
 static int test_names_sentinel(void) {
     int ok = 1;
     PHASE_START("NAMES: SENTINEL", "Proper table termination");
 
     int count = 0;
-    while (names[count].n_name != NULL) {
+    while (names[count].n_name != nullptr) {
         count++;
         if (count > 10000) {  // Safety limit
-            LOG_ERROR("[FAIL] names table doesn't terminate (no NULL sentinel)");
+            LOG_ERROR("[FAIL] names table doesn't terminate (no nullptr sentinel)");
             ok = 0;
             break;
         }
     }
 
-    // Check that the sentinel has both fields as NULL
-    if (ok && (names[count].n_name != NULL || names[count].n_func != NULL)) {
+    // Check that the sentinel has both fields as nullptr
+    if (ok && (names[count].n_name != nullptr || names[count].n_func != nullptr)) {
         LOG_ERROR("[FAIL] sentinel entry not properly initialized");
         ok = 0;
     }
@@ -184,7 +184,7 @@ static int test_names_binary_search(void) {
 
     // Count total entries
     int count = 0;
-    while (names[count].n_name != NULL) count++;
+    while (names[count].n_name != nullptr) count++;
 
     // Test that we can find first, middle, and last entries
     if (count > 0) {

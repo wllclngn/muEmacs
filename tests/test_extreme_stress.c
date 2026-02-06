@@ -32,11 +32,11 @@ int test_extreme_text_operations(void) {
     int ok = 1;
     
     init_editor_minimal("extreme-stress");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     int F = stress_factor();
     long insert_target = 1000000L * F;
@@ -85,7 +85,7 @@ int test_extreme_text_operations(void) {
         }
     }
     
-    gettimeofday(&end, NULL);
+    gettimeofday(&end, nullptr);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
     LOG_INFOF("[%s%s%s] EXTREME text operations completed in %.2f seconds", ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET, elapsed);
@@ -116,7 +116,7 @@ int test_extreme_memory_stress(void) {
         
         // Switch to buffer and fill with data
         curbp = stress_buffers[i];
-        bclear(curbp);
+        (void)bclear(curbp);
         curbp->b_mode &= ~MDVIEW;
         
         curwp->w_dotp = curbp->b_linep;
@@ -154,11 +154,11 @@ int test_extreme_concurrent_stress(void) {
     int ok = 1;
     
     init_editor_minimal("concurrent-stress");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     // Simulate rapid concurrent-like operations
     for (int cycle = 0; cycle < 1000; cycle++) {
@@ -186,7 +186,7 @@ int test_extreme_concurrent_stress(void) {
         }
     }
     
-    gettimeofday(&end, NULL);
+    gettimeofday(&end, nullptr);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
     LOG_INFOF("[SUCCESS] EXTREME concurrent stress completed in %.2f seconds", elapsed);
@@ -201,11 +201,11 @@ int test_extreme_file_size_stress(void) {
     int F = stress_factor();
     
     init_editor_minimal("giant-file");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     
     struct timeval start, end;
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     
     curwp->w_dotp = curbp->b_linep;
     curwp->w_doto = 0;
@@ -254,7 +254,7 @@ int test_extreme_file_size_stress(void) {
     }
     
 cleanup:
-    gettimeofday(&end, NULL);
+    gettimeofday(&end, nullptr);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
     
     LOG_INFOF("[%s%s%s] EXTREME file size stress completed in %.2f seconds", ok ? GREEN : RED, ok ? "SUCCESS" : "FAIL", RESET, elapsed);

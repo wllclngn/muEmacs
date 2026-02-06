@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "en_US.UTF-8");
 
     // Redirect stdin to prevent blocking
-    if (freopen("/dev/null", "r", stdin) == NULL) {
+    if (freopen("/dev/null", "r", stdin) == nullptr) {
         perror("freopen /dev/null");
     }
 

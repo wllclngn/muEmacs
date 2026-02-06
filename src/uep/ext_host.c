@@ -43,7 +43,7 @@ extern const char *extension_config_get_string(const char *ext_name, const char 
 static ext_host_entry_t g_extensions[EXT_HOST_MAX_EXTENSIONS];
 static int g_num_extensions = 0;
 static bool g_initialized = false;
-static char *g_runner_path = NULL;
+static char *g_runner_path = nullptr;
 
 /* SIGCHLD handling - flag set by signal handler, real work done in reap function */
 static volatile sig_atomic_t g_sigchld_pending = 0;
@@ -90,7 +90,7 @@ static ext_host_entry_t *find_entry(const char *name) {
             return &g_extensions[i];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 static void free_entry(ext_host_entry_t *entry) {
@@ -110,7 +110,7 @@ static ext_host_entry_t *alloc_entry(void) {
             return &g_extensions[i];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 static ext_host_command_t *find_command_slot(ext_host_entry_t *entry, const char *name) {
@@ -120,7 +120,7 @@ static ext_host_command_t *find_command_slot(ext_host_entry_t *entry, const char
             return &entry->commands[i];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 static ext_host_command_t *alloc_command_slot(ext_host_entry_t *entry) {
@@ -129,7 +129,7 @@ static ext_host_command_t *alloc_command_slot(ext_host_entry_t *entry) {
             return &entry->commands[i];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 static bool dir_has_extension(const char *dir, const char *ext) {
@@ -138,7 +138,7 @@ static bool dir_has_extension(const char *dir, const char *ext) {
     size_t ext_len = strlen(ext);
     struct dirent *e;
     bool found = false;
-    while ((e = readdir(d)) != NULL) {
+    while ((e = readdir(d)) != nullptr) {
         size_t len = strlen(e->d_name);
         if (len > ext_len && strcmp(e->d_name + len - ext_len, ext) == 0) {
             found = true;
@@ -155,7 +155,7 @@ static ext_host_entry_t *find_extension_by_pid(pid_t pid) {
             return &g_extensions[i];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* SIGCHLD handler - just set flag, do real work in ext_host_reap_children() */
@@ -180,7 +180,7 @@ void ext_host_init(void) {
         .sa_flags = SA_NOCLDSTOP | SA_RESTART,  /* Only on exit, auto-restart syscalls */
     };
     sigemptyset(&sa.sa_mask);
-    if (sigaction(SIGCHLD, &sa, NULL) < 0) {
+    if (sigaction(SIGCHLD, &sa, nullptr) < 0) {
         LOG_WARN("ext_host: Failed to register SIGCHLD handler");
     }
 
@@ -192,7 +192,7 @@ void ext_host_cleanup(void) {
     LOG_INFOF("ext_host: Cleanup (%d extensions)", g_num_extensions);
     ext_host_shutdown_all();
     free(g_runner_path);
-    g_runner_path = NULL;
+    g_runner_path = nullptr;
     g_initialized = false;
 }
 
@@ -232,19 +232,19 @@ const char *ext_host_runtime_name(ext_runtime_t rt) {
 
 /*
  * Internal: Fork extension process without waiting for READY.
- * Returns entry pointer on success, NULL on failure.
+ * Returns entry pointer on success, nullptr on failure.
  */
 static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
                                           ext_runtime_t runtime) {
     ext_host_entry_t *entry = alloc_entry();
-    if (!entry) return NULL;
+    if (!entry) return nullptr;
 
     /* Create IPC channel */
     ext_ipc_channel_t *ipc = ext_ipc_create();
     if (!ipc) {
         free_entry(entry);
         g_num_extensions--;
-        return NULL;
+        return nullptr;
     }
 
     /* Create death pipe - when parent dies, child gets POLLHUP on read end */
@@ -252,7 +252,7 @@ static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
         ext_ipc_destroy(ipc);
         free_entry(entry);
         g_num_extensions--;
-        return NULL;
+        return nullptr;
     }
 
     /* Get memfd for child */
@@ -272,7 +272,7 @@ static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
         ext_ipc_destroy(ipc);
         free_entry(entry);
         g_num_extensions--;
-        return NULL;
+        return nullptr;
     }
 
     if (pid == 0) {
@@ -290,7 +290,7 @@ static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
         snprintf(deathfd_str, sizeof(deathfd_str), "%d", ipc->death_pipe[0]);
 
         execl(runner, runner, "--memfd", memfd_str, "--ext", exe_path,
-              "--deathfd", deathfd_str, NULL);
+              "--deathfd", deathfd_str, nullptr);
         _exit(127);
     }
 
@@ -336,24 +336,24 @@ static bool process_init_messages(ext_host_entry_t *entry) {
         case EXT_MSG_REGISTER_CMD: {
             ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
             int result = ext_host_register_command(entry->name, req->name);
-            ext_ipc_slot_complete(slot, result, NULL, 0);
+            ext_ipc_slot_complete(slot, result, nullptr, 0);
             entry->num_commands++;
             break;
         }
         case EXT_MSG_EVENT_SUBSCRIBE:
         case EXT_MSG_MODELINE_REGISTER:
-            ext_ipc_slot_complete(slot, 0, NULL, 0);
+            ext_ipc_slot_complete(slot, 0, nullptr, 0);
             break;
         case EXT_MSG_LOG: {
             const char *msg = (const char *)slot->payload;
             if (msg && slot->payload_len > 0) {
                 LOG_INFOF("ext[%s]: %s", entry->name, msg);
             }
-            ext_ipc_slot_complete(slot, 0, NULL, 0);
+            ext_ipc_slot_complete(slot, 0, nullptr, 0);
             break;
         }
         default:
-            ext_ipc_slot_complete(slot, 0, NULL, 0);
+            ext_ipc_slot_complete(slot, 0, nullptr, 0);
             break;
         }
     }
@@ -465,7 +465,7 @@ void ext_host_shutdown_all(void) {
         int alive = 0;
         for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
             if (!g_extensions[i].active || g_extensions[i].pid <= 0) continue;
-            if (waitpid(g_extensions[i].pid, NULL, WNOHANG) > 0) {
+            if (waitpid(g_extensions[i].pid, nullptr, WNOHANG) > 0) {
                 g_extensions[i].pid = 0;  /* Reaped */
             } else if (kill(g_extensions[i].pid, 0) == 0) {
                 alive++;
@@ -481,7 +481,7 @@ void ext_host_shutdown_all(void) {
         if (g_extensions[i].pid > 0 && kill(g_extensions[i].pid, 0) == 0) {
             LOG_WARNF("ext_host: Force killing pid %d", g_extensions[i].pid);
             kill(g_extensions[i].pid, SIGKILL);
-            waitpid(g_extensions[i].pid, NULL, 0);
+            waitpid(g_extensions[i].pid, nullptr, 0);
         }
         free_entry(&g_extensions[i]);
     }
@@ -528,7 +528,7 @@ void ext_host_reap_children(void) {
         /* Clean up IPC channel but preserve registry entry for error reporting */
         if (entry->ipc) {
             ext_ipc_destroy(entry->ipc);
-            entry->ipc = NULL;
+            entry->ipc = nullptr;
         }
 
         g_num_extensions--;
@@ -574,7 +574,7 @@ void ext_host_poll_nonblocking(void) {
             case EXT_MSG_MESSAGE: {
                 ext_ipc_message_t *msg = (ext_ipc_message_t *)slot->payload;
                 mlwrite("%s", msg->text);
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                ext_ipc_slot_complete(slot, 0, nullptr, 0);
                 break;
             }
             case EXT_MSG_GET_POINT: {
@@ -587,13 +587,13 @@ void ext_host_poll_nonblocking(void) {
                 /* Move cursor to specified line/col */
                 gotoline(true, pt->line);
                 setccol(pt->col);
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                ext_ipc_slot_complete(slot, 0, nullptr, 0);
                 break;
             }
             case EXT_MSG_REGISTER_CMD: {
                 ext_ipc_cmd_register_t *req = (ext_ipc_cmd_register_t *)slot->payload;
                 int result = ext_host_register_command(e->name, req->name);
-                ext_ipc_slot_complete(slot, result, NULL, 0);
+                ext_ipc_slot_complete(slot, result, nullptr, 0);
                 break;
             }
             case EXT_MSG_CURRENT_BUFFER: {
@@ -613,27 +613,27 @@ void ext_host_poll_nonblocking(void) {
                 struct buffer *bp = (struct buffer *)handle;
                 int result = swbuffer(bp);
                 update(1);  /* Force display update */
-                ext_ipc_slot_complete(slot, result, NULL, 0);
+                ext_ipc_slot_complete(slot, result, nullptr, 0);
                 break;
             }
             case EXT_MSG_BUFFER_CLEAR: {
                 uintptr_t handle = *(uintptr_t *)slot->payload;
                 struct buffer *bp = (struct buffer *)handle;
                 int result = bclear(bp);
-                ext_ipc_slot_complete(slot, result, NULL, 0);
+                ext_ipc_slot_complete(slot, result, nullptr, 0);
                 break;
             }
             case EXT_MSG_BUFFER_SET_SCRATCH: {
                 uintptr_t handle = *(uintptr_t *)slot->payload;
                 struct buffer *bp = (struct buffer *)handle;
                 if (bp) bp->b_flag |= BFINVS;  /* Mark as scratch - no save prompt */
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                ext_ipc_slot_complete(slot, 0, nullptr, 0);
                 break;
             }
             case EXT_MSG_BUFFER_INSERT: {
                 const char *text = (const char *)slot->payload;
                 int result = linstr(text);
-                ext_ipc_slot_complete(slot, result, NULL, 0);
+                ext_ipc_slot_complete(slot, result, nullptr, 0);
                 break;
             }
             case EXT_MSG_PROMPT: {
@@ -645,7 +645,7 @@ void ext_host_poll_nonblocking(void) {
                     resp.cancelled = 1;
                 } else {
                     resp.cancelled = 0;
-                    strncpy(resp.response, buf, sizeof(resp.response) - 1);
+                    snprintf(resp.response, sizeof(resp.response), "%s", buf);
                 }
                 ext_ipc_slot_complete(slot, 0, &resp, sizeof(resp));
                 break;
@@ -661,7 +661,7 @@ void ext_host_poll_nonblocking(void) {
                 if (msg && slot->payload_len > 0) {
                     LOG_INFOF("ext[%s]: %s", e->name, msg);
                 }
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                ext_ipc_slot_complete(slot, 0, nullptr, 0);
                 break;
             }
             case EXT_MSG_CONFIG_INT: {
@@ -682,12 +682,12 @@ void ext_host_poll_nonblocking(void) {
                 struct { char ext_name[64]; char key[64]; char default_val[128]; } *req =
                     (void *)slot->payload;
                 const char *result = extension_config_get_string(req->ext_name, req->key, req->default_val);
-                ext_ipc_slot_complete(slot, 0, result, result ? strlen(result) + 1 : 0);
+                ext_ipc_slot_complete(slot, 0, result, result ? (uint32_t)(strlen(result) + 1) : 0);
                 break;
             }
             default:
                 LOG_DEBUGF("ext_host: Unhandled message type 0x%x", slot->msg_type);
-                ext_ipc_slot_complete(slot, 0, NULL, 0);
+                ext_ipc_slot_complete(slot, 0, nullptr, 0);
                 break;
             }
         }
@@ -781,11 +781,11 @@ int ext_host_unregister_command(const char *ext_name, const char *cmd_name) {
 }
 
 bool ext_host_has_command(const char *cmd_name) {
-    return ext_host_find_command_owner(cmd_name) != NULL;
+    return ext_host_find_command_owner(cmd_name) != nullptr;
 }
 
 const char *ext_host_find_command_owner(const char *cmd_name) {
-    if (!cmd_name) return NULL;
+    if (!cmd_name) return nullptr;
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
         if (!g_extensions[i].active) continue;
         for (int j = 0; j < EXT_HOST_MAX_COMMANDS_PER_EXT; j++) {
@@ -795,7 +795,7 @@ const char *ext_host_find_command_owner(const char *cmd_name) {
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* =========================================================================
@@ -807,7 +807,7 @@ int ext_host_count(void) {
 }
 
 bool ext_host_is_loaded(const char *name) {
-    return find_entry(name) != NULL;
+    return find_entry(name) != nullptr;
 }
 
 ext_state_t ext_host_get_state(const char *name) {
@@ -817,5 +817,5 @@ ext_state_t ext_host_get_state(const char *name) {
 
 void ext_host_set_runner_path(const char *path) {
     free(g_runner_path);
-    g_runner_path = path ? strdup(path) : NULL;
+    g_runner_path = path ? strdup(path) : nullptr;
 }

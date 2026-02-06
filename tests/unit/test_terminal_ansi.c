@@ -32,19 +32,19 @@ static int test_terminal_init(void) {
 
 static int test_terminal_process_output_null_buffer(void) {
     int ok = 1;
-    PHASE_START("TERMINAL: NULL-BUFFER", "Process output with NULL buffer");
+    PHASE_START("TERMINAL: nullptr-BUFFER", "Process output with nullptr buffer");
 
     // Should handle gracefully without crashing
-    terminal_process_output(NULL, "test", 4);
+    terminal_process_output(nullptr, "test", 4);
     ok = 1;
 
-    PHASE_END("TERMINAL: NULL-BUFFER", ok);
+    PHASE_END("TERMINAL: nullptr-BUFFER", ok);
     return ok;
 }
 
 static int test_terminal_process_output_null_data(void) {
     int ok = 1;
-    PHASE_START("TERMINAL: NULL-DATA", "Process output with NULL data");
+    PHASE_START("TERMINAL: nullptr-DATA", "Process output with nullptr data");
 
     // Create minimal buffer
     struct buffer *bp = malloc(sizeof(struct buffer));
@@ -52,8 +52,8 @@ static int test_terminal_process_output_null_data(void) {
         memset(bp, 0, sizeof(struct buffer));
         bp->b_linep = lalloc(0);
 
-        // Should handle NULL data gracefully
-        terminal_process_output(bp, NULL, 0);
+        // Should handle nullptr data gracefully
+        terminal_process_output(bp, nullptr, 0);
         terminal_process_output(bp, "test", 0);  // Zero length
 
         // Cleanup
@@ -62,7 +62,7 @@ static int test_terminal_process_output_null_data(void) {
         ok = 1;
     }
 
-    PHASE_END("TERMINAL: NULL-DATA", ok);
+    PHASE_END("TERMINAL: nullptr-DATA", ok);
     return ok;
 }
 
@@ -99,7 +99,7 @@ static int test_terminal_process_output_without_term_data(void) {
     if (bp) {
         memset(bp, 0, sizeof(struct buffer));
         bp->b_linep = lalloc(0);
-        // Leave b_term_data as NULL
+        // Leave b_term_data as nullptr
 
         // Should return early without crashing (per design)
         terminal_process_output(bp, "Hello", 5);

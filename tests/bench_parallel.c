@@ -11,7 +11,7 @@
 #include "parallel_search.h"
 
 static double now_sec(void) {
-    struct timeval tv; gettimeofday(&tv, NULL);
+    struct timeval tv; gettimeofday(&tv, nullptr);
     return tv.tv_sec + tv.tv_usec / 1e6;
 }
 
@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     init_editor_minimal("bench-parallel");
     
     // Clear buffer
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
     
     // Generate large buffer (10,000 lines) to trigger parallel search

@@ -83,7 +83,7 @@ extern int yanked_size;		/* Size of last yank for yankpop */
 extern char temp_kill_buf[];	/* Temporary kill buffer */
 extern size_t temp_kill_len;	/* Temporary kill buffer length */
 extern struct window *swindow;	/* saved window pointer         */
-extern struct window *terminal_window;	/* active terminal window (NULL if closed) */
+extern struct window *terminal_window;	/* active terminal window (nullptr if closed) */
 extern _Atomic int kbdmode;	/* current keyboard macro mode (atomic for thread safety) */
 extern _Atomic(struct keymap *) current_keymap;	/* current keymap - C23 atomic */
 extern int kbdrep;		/* number of repetitions        */

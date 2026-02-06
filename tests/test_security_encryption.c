@@ -128,7 +128,7 @@ int test_key_management_security(void) {
     strncpy(test_key.key, "secure_test_key_12345", sizeof(test_key.key) - 1);
     test_key.key_len = strlen(test_key.key);
     test_key.is_valid = 1;
-    test_key.created = time(NULL);
+    test_key.created = time(nullptr);
     
     if (test_key.is_valid && test_key.key_len > 0 && test_key.created > 0) {
         LOG_INFO("[SUCCESS] Key storage: secure key structure initialized");
@@ -285,7 +285,7 @@ int test_secure_memory_operations(void) {
     LOG_INFO("Testing secure memory allocation...");
     total++;
     size_t secure_size = 4096;
-    void* secure_ptr = mmap(NULL, secure_size, PROT_READ | PROT_WRITE, 
+    void* secure_ptr = mmap(nullptr, secure_size, PROT_READ | PROT_WRITE, 
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     
     if (secure_ptr != MAP_FAILED) {
@@ -419,9 +419,9 @@ int test_attack_resistance(void) {
 
         // Basic validation checks
         // Note: input[2] starts with \x00, so use memchr for binary detection
-        int has_traversal = strstr(input, "..") != NULL;
-        int has_injection = strstr(input, ";") != NULL;
-        int has_format = strstr(input, "%s") != NULL;
+        int has_traversal = strstr(input, "..") != nullptr;
+        int has_injection = strstr(input, ";") != nullptr;
+        int has_format = strstr(input, "%s") != nullptr;
         int has_binary = (i == 2); // Binary data input - detected by position since strlen fails
         int too_long = strlen(input) > 255;
 
@@ -443,12 +443,12 @@ int test_attack_resistance(void) {
     size_t max_allowed_alloc = 100 * 1024 * 1024; // 100MB limit
     size_t requested_size = 200 * 1024 * 1024;    // 200MB request
     
-    void* test_ptr = NULL;
+    void* test_ptr = nullptr;
     if (requested_size <= max_allowed_alloc) {
         test_ptr = malloc(requested_size);
     }
     
-    if (test_ptr == NULL) { // Allocation was properly rejected
+    if (test_ptr == nullptr) { // Allocation was properly rejected
         LOG_INFO("[SUCCESS] Resource protection: excessive allocation rejected");
         passed++;
     } else {
@@ -500,7 +500,7 @@ int test_crypto_robustness(void) {
     } crypto_key_t;
     
     crypto_key_t keys[3];
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
     
     // Initialize keys with different versions
     for (int i = 0; i < 3; i++) {
@@ -533,7 +533,7 @@ int test_crypto_robustness(void) {
     unsigned char random_bytes[256];
     
     // Generate pseudo-random bytes (in real implementation, use /dev/urandom)
-    srand(time(NULL));
+    srand(time(nullptr));
     for (int i = 0; i < 256; i++) {
         random_bytes[i] = rand() & 0xFF;
     }

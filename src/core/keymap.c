@@ -269,7 +269,7 @@ void keymap_dump_stats(void) {
 	double hit_rate = 0.0;
 	size_t lookups = atomic_load(&keymap_global_stats.lookups);
 	if (lookups > 0) {
-		hit_rate = (double)atomic_load(&keymap_global_stats.hits) / lookups * 100.0;
+		hit_rate = (double)atomic_load(&keymap_global_stats.hits) / (double)lookups * 100.0;
 	}
 	mlwrite("  HIT RATE: %.2f%%", hit_rate);
 }

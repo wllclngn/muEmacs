@@ -12,7 +12,7 @@ static int test_gapbuffer_create_destroy(void) {
     // Test basic creation
     struct gap_buffer *gb = gap_buffer_create(64);
     if (!gb) {
-        LOG_ERROR("[FAIL] gap_buffer_create returned NULL");
+        LOG_ERROR("[FAIL] gap_buffer_create returned nullptr");
         ok = 0;
     } else {
         // Verify initial state
@@ -37,8 +37,8 @@ static int test_gapbuffer_create_destroy(void) {
         gap_buffer_destroy(gb);
     }
 
-    // Test destroy with NULL (should not crash)
-    gap_buffer_destroy(NULL);
+    // Test destroy with nullptr (should not crash)
+    gap_buffer_destroy(nullptr);
 
     PHASE_END("GAPBUF: CREATE", ok);
     return ok;
@@ -102,8 +102,8 @@ static int test_gapbuffer_insert(void) {
         LOG_ERROR("[FAIL] insert at invalid pos should fail");
         ok = 0;
     }
-    if (gap_buffer_insert(NULL, 0, "X", 1) != GAP_BUFFER_INVALID) {
-        LOG_ERROR("[FAIL] insert with NULL buffer should fail");
+    if (gap_buffer_insert(nullptr, 0, "X", 1) != GAP_BUFFER_INVALID) {
+        LOG_ERROR("[FAIL] insert with nullptr buffer should fail");
         ok = 0;
     }
 
@@ -125,7 +125,7 @@ static int test_gapbuffer_delete(void) {
         return 0;
     }
 
-    gap_buffer_insert(gb, 0, "Hello World", 11);
+    (void)gap_buffer_insert(gb, 0, "Hello World", 11);
 
     // Delete from middle
     if (gap_buffer_delete(gb, 5, 1) != GAP_BUFFER_SUCCESS) { // Delete space
@@ -146,7 +146,7 @@ static int test_gapbuffer_delete(void) {
     }
 
     // Delete from beginning
-    gap_buffer_delete(gb, 0, 5); // Delete "Hello"
+    (void)gap_buffer_delete(gb, 0, 5); // Delete "Hello"
     gap_buffer_get_text(gb, 0, 5, buf, sizeof(buf));
     buf[5] = '\0';
     if (strcmp(buf, "World") != 0) {
@@ -155,7 +155,7 @@ static int test_gapbuffer_delete(void) {
     }
 
     // Delete from end
-    gap_buffer_delete(gb, 3, 2); // Delete "ld"
+    (void)gap_buffer_delete(gb, 3, 2); // Delete "ld"
     gap_buffer_get_text(gb, 0, 3, buf, sizeof(buf));
     buf[3] = '\0';
     if (strcmp(buf, "Wor") != 0) {
@@ -180,7 +180,7 @@ static int test_gapbuffer_cursor(void) {
     PHASE_START("GAPBUF: CURSOR", "Cursor positioning");
 
     struct gap_buffer *gb = gap_buffer_create(64);
-    gap_buffer_insert(gb, 0, "ABCDEFGHIJ", 10);
+    (void)gap_buffer_insert(gb, 0, "ABCDEFGHIJ", 10);
 
     // Initial cursor should be at end of insert
     size_t cursor = gap_buffer_get_cursor(gb);
@@ -240,7 +240,7 @@ static int test_gapbuffer_access(void) {
     PHASE_START("GAPBUF: ACCESS", "Text access operations");
 
     struct gap_buffer *gb = gap_buffer_create(64);
-    gap_buffer_insert(gb, 0, "Hello World", 11);
+    (void)gap_buffer_insert(gb, 0, "Hello World", 11);
 
     // Move gap to middle for thorough testing
     gap_buffer_set_cursor(gb, 6);
@@ -292,7 +292,7 @@ static int test_gapbuffer_lines(void) {
     PHASE_START("GAPBUF: LINES", "Line indexing and navigation");
 
     struct gap_buffer *gb = gap_buffer_create(256);
-    gap_buffer_insert(gb, 0, "Line 1\nLine 2\nLine 3\n", 21);
+    (void)gap_buffer_insert(gb, 0, "Line 1\nLine 2\nLine 3\n", 21);
 
     // Test line count
     size_t lines = gap_buffer_line_count(gb);
@@ -355,7 +355,7 @@ static int test_gapbuffer_expansion(void) {
 
     struct gap_buffer *gb = gap_buffer_create(64);
     if (!gb) {
-        LOG_ERROR("[FAIL] gap_buffer_create returned NULL");
+        LOG_ERROR("[FAIL] gap_buffer_create returned nullptr");
         ok = 0;
         PHASE_END("GAPBUF: EXPAND", ok);
         return 0;
@@ -415,7 +415,7 @@ static int test_gapbuffer_compact(void) {
 
     struct gap_buffer *gb = gap_buffer_create(64);
     if (!gb) {
-        LOG_ERROR("[FAIL] gap_buffer_create returned NULL");
+        LOG_ERROR("[FAIL] gap_buffer_create returned nullptr");
         ok = 0;
         PHASE_END("GAPBUF: COMPACT", ok);
         return 0;
@@ -424,10 +424,10 @@ static int test_gapbuffer_compact(void) {
     // Insert some data (staying within initial capacity)
     char data[500];
     memset(data, 'A', sizeof(data));
-    gap_buffer_insert(gb, 0, data, sizeof(data));
+    (void)gap_buffer_insert(gb, 0, data, sizeof(data));
 
     // Delete some to create gap
-    gap_buffer_delete(gb, 0, 400);
+    (void)gap_buffer_delete(gb, 0, 400);
 
     size_t before_cap = gap_buffer_capacity(gb);
     double before_frag = gap_buffer_fragmentation(gb);
@@ -467,7 +467,7 @@ static int test_gapbuffer_search(void) {
     PHASE_START("GAPBUF: SEARCH", "Boyer-Moore search");
 
     struct gap_buffer *gb = gap_buffer_create(256);
-    gap_buffer_insert(gb, 0, "The quick brown fox jumps over the lazy dog", 43);
+    (void)gap_buffer_insert(gb, 0, "The quick brown fox jumps over the lazy dog", 43);
 
     // Move gap to middle for thorough test
     gap_buffer_set_cursor(gb, 20);
@@ -508,8 +508,8 @@ static int test_gapbuffer_stress(void) {
 
     // Rapid insert/delete at cursor
     for (int i = 0; i < 1000; i++) {
-        gap_buffer_insert(gb, 0, "X", 1);
-        gap_buffer_delete(gb, 0, 1);
+        (void)gap_buffer_insert(gb, 0, "X", 1);
+        (void)gap_buffer_delete(gb, 0, 1);
     }
     if (gap_buffer_size(gb) != 0) {
         LOG_ERRORF("[FAIL] rapid insert/delete: size %zu != 0", gap_buffer_size(gb));
@@ -517,10 +517,10 @@ static int test_gapbuffer_stress(void) {
     }
 
     // Random position insert/delete
-    gap_buffer_insert(gb, 0, "ABCDEFGHIJ", 10);
+    (void)gap_buffer_insert(gb, 0, "ABCDEFGHIJ", 10);
     for (int i = 0; i < 500; i++) {
         size_t pos = (size_t)(rand() % (gap_buffer_size(gb) + 1));
-        gap_buffer_insert(gb, pos, ".", 1);
+        (void)gap_buffer_insert(gb, pos, ".", 1);
     }
     if (gap_buffer_size(gb) != 510) {
         LOG_ERRORF("[FAIL] random insert: size %zu != 510", gap_buffer_size(gb));
@@ -528,7 +528,7 @@ static int test_gapbuffer_stress(void) {
     }
 
     // Delete all
-    gap_buffer_delete(gb, 0, gap_buffer_size(gb));
+    (void)gap_buffer_delete(gb, 0, gap_buffer_size(gb));
     if (gap_buffer_size(gb) != 0) {
         LOG_ERRORF("[FAIL] delete all: size %zu != 0", gap_buffer_size(gb));
         ok = 0;
@@ -555,10 +555,10 @@ static int test_gapbuffer_poe_stress(void) {
         "tests/data/poe-collected-fictions.txt",
         "../tests/data/poe-collected-fictions.txt",
         "../../tests/data/poe-collected-fictions.txt",
-        NULL
+        nullptr
     };
 
-    FILE *fp = NULL;
+    FILE *fp = nullptr;
     for (int i = 0; paths[i]; i++) {
         fp = fopen(paths[i], "r");
         if (fp) break;
@@ -674,7 +674,7 @@ static int test_gapbuffer_reserve(void) {
     size_t cap_before = gap_buffer_capacity(gb);
     char *data = malloc(reserve_size / 2);
     memset(data, 'Z', reserve_size / 2);
-    gap_buffer_insert(gb, 0, data, reserve_size / 2);
+    (void)gap_buffer_insert(gb, 0, data, reserve_size / 2);
     size_t cap_after = gap_buffer_capacity(gb);
 
     if (cap_after != cap_before) {

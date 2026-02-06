@@ -17,7 +17,7 @@ static int test_window_wrap_col_field(void) {
     LOG_INFO("  Testing w_wrap_col field in window struct...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, cannot test w_wrap_col");
+        LOG_WARN("[WARN] curwp is nullptr, cannot test w_wrap_col");
         return 1;
     }
 
@@ -87,7 +87,7 @@ static int test_wrap_column_boundaries(void) {
     LOG_INFO("  Testing wrap column boundary conditions...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping");
+        LOG_WARN("[WARN] curwp is nullptr, skipping");
         return 1;
     }
 
@@ -126,7 +126,7 @@ static int test_wrap_col_window_persistence(void) {
     LOG_INFO("  Testing wrap column persistence...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping");
+        LOG_WARN("[WARN] curwp is nullptr, skipping");
         return 1;
     }
 
@@ -240,7 +240,7 @@ static int test_wrap_triggers_redraw(void) {
     LOG_INFO("  Testing wrap change triggers redraw...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping");
+        LOG_WARN("[WARN] curwp is nullptr, skipping");
         return 1;
     }
 
@@ -277,7 +277,7 @@ static int test_wrap_sets_window_flag(void) {
     LOG_INFO("  Testing wrap change sets window flag...");
 
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL, skipping");
+        LOG_WARN("[WARN] curwp is nullptr, skipping");
         return 1;
     }
 

@@ -188,7 +188,7 @@ void modern_modeline(struct window *wp)
 	int vim_active = atomic_load(&vim_mode_active);
 
 	if (vim_active) {
-		long current_time = (long)time(NULL);
+		long current_time = (long)time(nullptr);
 		if (evil_mode_start_time > 0 && (current_time - evil_mode_start_time) < 3) {
 			show_evil_splash = true;
 		}
@@ -234,8 +234,8 @@ void modern_modeline(struct window *wp)
 	}
 
 	/* --- EXTENSION MODELINE SEGMENTS --- */
-	char *ext_high = NULL;
-	char *ext_low = NULL;
+	char *ext_high = nullptr;
+	char *ext_low = nullptr;
 
 	if (modeline_ext_position == 0) {
 		ext_high = extension_get_modeline_segments(-1);
@@ -308,13 +308,13 @@ void modern_modeline(struct window *wp)
 	if (file_size < 1024) {
 		snprintf(size_str, sizeof(size_str), "%ldB", file_size);
 	} else if (file_size < 1048576) {
-		snprintf(size_str, sizeof(size_str), "%.2fKB", file_size / 1024.0);
+		snprintf(size_str, sizeof(size_str), "%.2fKB", (double)file_size / 1024.0);
 	} else if (file_size < 1073741824) {
-		snprintf(size_str, sizeof(size_str), "%.2fMB", file_size / 1048576.0);
+		snprintf(size_str, sizeof(size_str), "%.2fMB", (double)file_size / 1048576.0);
 	} else if (file_size < 1099511627776LL) {
-		snprintf(size_str, sizeof(size_str), "%.2fGB", file_size / 1073741824.0);
+		snprintf(size_str, sizeof(size_str), "%.2fGB", (double)file_size / 1073741824.0);
 	} else {
-		snprintf(size_str, sizeof(size_str), "%.2fTB", file_size / 1099511627776.0);
+		snprintf(size_str, sizeof(size_str), "%.2fTB", (double)file_size / 1099511627776.0);
 	}
 
 	/* Fast UTF-8 aware column calculation using atomic cache */
@@ -338,8 +338,8 @@ void modern_modeline(struct window *wp)
 	strncat(right_info, "   ", sizeof(right_info) - strlen(right_info) - 1);
 
 	/* Display left info with proper UTF-8 handling for delta symbol */
-	int right_len = strlen(right_info);
-	int left_len = strlen(left_info);
+	int right_len = (int)strlen(right_info);
+	int left_len = (int)strlen(left_info);
 
 	/* Render left_info with UTF-8 handling, passing ANSI escapes through */
 	int i = 0;
@@ -359,7 +359,7 @@ void modern_modeline(struct window *wp)
 			char seq_buf[64];
 			int seq_len = i - seq_start;
 			if (seq_len < (int)sizeof(seq_buf)) {
-				memcpy(seq_buf, &left_info[seq_start], seq_len);
+				memcpy(seq_buf, &left_info[seq_start], (size_t)seq_len);
 				seq_buf[seq_len] = '\0';
 				vtputs(seq_buf);
 			}
@@ -368,9 +368,9 @@ void modern_modeline(struct window *wp)
 
 		/* Normal character processing with UTF-8 */
 		unicode_t c;
-		int bytes = utf8_to_unicode(left_info, i, left_len, &c);
+		int bytes = (int)utf8_to_unicode(left_info, (unsigned)i, (unsigned)left_len, &c);
 		if (bytes > 0) {
-			vtputc(c);
+			vtputc((int)c);
 			i += bytes;
 			col_pos++;
 		} else {

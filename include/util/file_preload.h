@@ -29,7 +29,7 @@ int file_preload_ready(const char *fname);
  *
  * On success: returns 0, sets *data and *size
  *   Caller takes ownership of *data and must free() it
- * On error: returns -1, *data is NULL
+ * On error: returns -1, *data is nullptr
  */
 int file_preload_get(const char *fname, char **data, size_t *size);
 

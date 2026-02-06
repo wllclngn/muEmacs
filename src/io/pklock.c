@@ -41,9 +41,9 @@ char *dolock(char *fname)
     SAFE_STRCAT(lname, ".lock~");
 
 	/* Atomic create-or-fail with O_EXCL to prevent TOCTOU race */
-	mask = umask(0);
+	mask = (int)umask(0);
 	fd = open(lname, O_RDWR | O_CREAT | O_EXCL, 0666);
-	umask(mask);
+	umask((mode_t)mask);
 	
 	if (fd < 0) {
 		if (errno == EEXIST) {
@@ -71,7 +71,7 @@ char *dolock(char *fname)
 				}
 			}
 			
-			n = read(fd, locker, MAXNAME);
+			n = (int)read(fd, locker, MAXNAME);
 			close(fd);
 			locker[n > MAXNAME ? MAXNAME : n] = 0;
 			return locker;
@@ -98,7 +98,7 @@ char *dolock(char *fname)
 	safe_strcat(locker, "@", MAXNAME);
 	size_t off = strlen(locker);
 	if (off < MAXNAME - 1) {
-		gethostname(locker + off, (int)(MAXNAME - off - 1));
+		gethostname(locker + off, (size_t)(MAXNAME - off - 1));
 		locker[MAXNAME - 1] = '\0';
 	}
 	

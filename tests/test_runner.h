@@ -133,7 +133,7 @@ static inline test_result_t run_test_isolated(
     fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
 
     struct timeval test_start;
-    gettimeofday(&test_start, NULL);
+    gettimeofday(&test_start, nullptr);
 
     pid_t pid = fork();
     if (pid == -1) {
@@ -204,7 +204,7 @@ static inline test_result_t run_test_isolated(
 
         /* Check timeout */
         struct timeval now;
-        gettimeofday(&now, NULL);
+        gettimeofday(&now, nullptr);
         int elapsed = (int)(now.tv_sec - test_start.tv_sec);
 
         if (elapsed >= timeout_sec) {
@@ -241,7 +241,7 @@ static inline test_result_t run_test_isolated(
 
     /* Calculate elapsed time */
     struct timeval test_end;
-    gettimeofday(&test_end, NULL);
+    gettimeofday(&test_end, nullptr);
     double elapsed_ms = (test_end.tv_sec - test_start.tv_sec) * 1000.0 +
                         (test_end.tv_usec - test_start.tv_usec) / 1000.0;
 
@@ -287,7 +287,7 @@ static inline test_result_t run_test_isolated(
             printf("          Details:\n");
             char *line = stderr_buf;
             char *next;
-            while ((next = strchr(line, '\n')) != NULL) {
+            while ((next = strchr(line, '\n')) != nullptr) {
                 *next = '\0';
                 printf("            %s\n", line);
                 line = next + 1;
@@ -310,7 +310,7 @@ static inline test_result_t run_test_isolated(
 #define TEST_SUITE_BEGIN(suite_name) \
     do { \
         memset(&g_suite_stats, 0, sizeof(g_suite_stats)); \
-        gettimeofday(&g_suite_start_time, NULL); \
+        gettimeofday(&g_suite_start_time, nullptr); \
         printf("\n%s%s========================================%s\n", C_BOLD, C_BLUE, C_RESET); \
         printf("%s%s  %s%s\n", C_BOLD, C_BLUE, suite_name, C_RESET); \
         printf("%s%s========================================%s\n\n", C_BOLD, C_BLUE, C_RESET); \
@@ -338,7 +338,7 @@ static inline test_result_t run_test_isolated(
 #define TEST_SUITE_END() \
     do { \
         struct timeval _end; \
-        gettimeofday(&_end, NULL); \
+        gettimeofday(&_end, nullptr); \
         g_suite_stats.total_time_sec = (_end.tv_sec - g_suite_start_time.tv_sec) + \
                                        (_end.tv_usec - g_suite_start_time.tv_usec) / 1000000.0; \
         struct rusage _usage; \

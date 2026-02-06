@@ -275,7 +275,7 @@ int test_sigwinch_handling(void) {
     LOG_INFO("[SUCCESS] Signal handler async-safety verified");
 
     // Restore original signal handler
-    if (sigaction(SIGWINCH, &old_action, NULL) == 0) {
+    if (sigaction(SIGWINCH, &old_action, nullptr) == 0) {
         LOG_INFO("[SUCCESS] Original SIGWINCH handler restored");
     } else {
         LOG_WARN("[WARN] Failed to restore original SIGWINCH handler");

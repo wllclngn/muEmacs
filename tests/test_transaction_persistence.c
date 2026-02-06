@@ -183,8 +183,8 @@ int test_multi_step_operations(void) {
             fclose(orig);
             fclose(backup);
             free(copy_buffer);
-            orig = NULL;
-            backup = NULL;
+            orig = nullptr;
+            backup = nullptr;
             
             // Step 3: Modify original file
             FILE* mod = fopen(test_file, "w");
@@ -248,7 +248,7 @@ int test_multi_step_operations(void) {
     *buffer = *checkpoint;
     
     if (buffer->line_count == 2 && buffer->modified == 0 && 
-        strstr(buffer->data, "Line 3") == NULL) {
+        strstr(buffer->data, "Line 3") == nullptr) {
         LOG_INFO("[SUCCESS] Transaction rollback: buffer restored to checkpoint");
         passed++;
     }
@@ -283,7 +283,7 @@ int test_crash_recovery(void) {
         fprintf(journal, "TRANSACTION_BEGIN\n");
         fprintf(journal, "FILE_OPERATION: %s\n", data_file);
         fprintf(journal, "OPERATION: WRITE\n");
-        fprintf(journal, "TIMESTAMP: %ld\n", time(NULL));
+        fprintf(journal, "TIMESTAMP: %ld\n", time(nullptr));
         fprintf(journal, "TRANSACTION_END\n");
         fflush(journal);
         fsync(fileno(journal));
@@ -341,8 +341,8 @@ int test_crash_recovery(void) {
             fread(content, 1, sizeof(content) - 1, check);
             fclose(check);
             
-            int has_begin = strstr(content, "TRANSACTION_BEGIN") != NULL;
-            int has_end = strstr(content, "TRANSACTION_END") != NULL;
+            int has_begin = strstr(content, "TRANSACTION_BEGIN") != nullptr;
+            int has_end = strstr(content, "TRANSACTION_END") != nullptr;
             
             if (has_begin && !has_end) {
                 LOG_INFO("[SUCCESS] Incomplete detection: incomplete transaction identified");
@@ -380,7 +380,7 @@ int test_undo_persistence(void) {
     undo_entry_t entries[3];
     entries[0] = (undo_entry_t){1, "insert text", 11, &entries[1]};
     entries[1] = (undo_entry_t){2, "delete line", 11, &entries[2]};
-    entries[2] = (undo_entry_t){3, "replace word", 12, NULL};
+    entries[2] = (undo_entry_t){3, "replace word", 12, nullptr};
     
     const char* undo_file = "/tmp/uemacs_undo_test.dat";
     FILE* undo_f = fopen(undo_file, "wb");
@@ -490,7 +490,7 @@ int test_buffer_state_persistence(void) {
         .line_count = 100,
         .char_count = 2500,
         .modified = 1,
-        .last_modified = time(NULL),
+        .last_modified = time(nullptr),
         .cursor_line = 45,
         .cursor_col = 12
     };

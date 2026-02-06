@@ -44,7 +44,7 @@ static const build_config_t build_commands[] = {
     {"*.cabal",        "cabal build"},
     {"setup.py",       "python setup.py build"},
     {"pyproject.toml", "python -m build"},
-    {NULL,             NULL}
+    {nullptr,             nullptr}
 };
 
 /* Error location storage */
@@ -73,7 +73,7 @@ static const char *detect_build_command(void) {
     }
 
     /* Check for each build marker file */
-    for (int i = 0; build_commands[i].marker_file != NULL; i++) {
+    for (int i = 0; build_commands[i].marker_file != nullptr; i++) {
         char path[NFILEN * 2];  /* Extra space for dir + marker */
         snprintf(path, sizeof(path), "%s/%s", dir, build_commands[i].marker_file);
 
@@ -100,7 +100,7 @@ static int parse_error_line(const char *line, error_location_t *err) {
     if (!colon1 || colon1 == p) return 0;
 
     /* Copy filename */
-    size_t fname_len = colon1 - p;
+    size_t fname_len = (size_t)(colon1 - p);
     if (fname_len >= NFILEN) fname_len = NFILEN - 1;
     memcpy(err->filename, p, fname_len);
     err->filename[fname_len] = '\0';
@@ -146,10 +146,10 @@ static void scan_build_errors(void) {
         int len = llength(lp);
         if (len == 0) continue;
 
-        char *text = SAFE_ALLOC_SIZED(char, len + 1, "terminal error parse");
+        char *text = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "terminal error parse");
         if (!text) continue;
 
-        TS_GET_TEXT(lp->storage, 0, len, text, len);
+        TS_GET_TEXT(lp->storage, 0, (size_t)len, text, (size_t)len);
         text[len] = '\0';
 
         error_location_t err;

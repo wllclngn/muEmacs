@@ -1,4 +1,4 @@
-/* curses.c - Modern raw ANSI terminal driver for μEmacs
+/* ansi.c - Raw ANSI terminal driver for μEmacs
  *
  * Pure POSIX implementation - no ncurses dependency.
  * Uses raw termios for terminal mode and direct ANSI escape sequences.
@@ -194,7 +194,7 @@ static void obuf_write(const char *data, int len) {
             space = OBUF_SIZE;
         }
         int chunk = (len < space) ? len : space;
-        memcpy(&obuf[obuf_pos], data, chunk);
+        memcpy(&obuf[obuf_pos], data, (size_t)chunk);
         obuf_pos += chunk;
         data += chunk;
         len -= chunk;
@@ -203,7 +203,7 @@ static void obuf_write(const char *data, int len) {
 
 /* Write null-terminated string to output buffer */
 static void obuf_puts(const char *s) {
-    obuf_write(s, strlen(s));
+    obuf_write(s, (int)strlen(s));
 }
 
 /* Write formatted string to output buffer */
@@ -232,10 +232,10 @@ static void raw_open(void) {
 
     /* Set raw mode - modern approach like montauk */
     struct termios raw = orig_termios;
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    raw.c_oflag &= ~(OPOST);
+    raw.c_iflag &= (tcflag_t)~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    raw.c_oflag &= (tcflag_t)~(OPOST);
     raw.c_cflag |= (CS8);
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    raw.c_lflag &= (tcflag_t)~(ECHO | ICANON | IEXTEN | ISIG);
     raw.c_cc[VMIN] = 0;
     raw.c_cc[VTIME] = 0;  /* No timeout - use poll() for blocking */
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
@@ -263,10 +263,10 @@ static void raw_open(void) {
      * flags (eolexist, revexist) have been removed. */
 
     /* Set terminal size in struct */
-    term.t_mrow = rows;
-    term.t_nrow = rows - 1;
-    term.t_mcol = cols;
-    term.t_ncol = cols;
+    term.t_mrow = (short)rows;
+    term.t_nrow = (short)(rows - 1);
+    term.t_mcol = (short)cols;
+    term.t_ncol = (short)cols;
 
     /* Enter alternate screen buffer - track state for signal-safe restore */
     obuf_puts("\033[?1049h");  /* Alternate screen */
@@ -302,7 +302,7 @@ static void safe_write(int fd, const char *buf, size_t count) {
                except abort or ignore. Since this is stdout, we ignore. */
             break;
         }
-        written += n;
+        written += (size_t)n;
     }
 }
 
@@ -325,7 +325,7 @@ static void raw_close(void) {
 
     /* Final flush - single atomic write (montauk pattern) */
     if (frame_pos > 0) {
-        safe_write(STDOUT_FILENO, frame_buf, frame_pos);
+        safe_write(STDOUT_FILENO, frame_buf, (size_t)frame_pos);
         frame_pos = 0;
     }
 
@@ -483,10 +483,10 @@ static int raw_getchar(void) {
         signal_handle_pending(&size_changed, &new_size);
 
         if (size_changed && new_size.rows > 0 && new_size.cols > 0) {
-            term.t_mrow = new_size.rows;
-            term.t_nrow = new_size.rows - 1;
-            term.t_mcol = new_size.cols;
-            term.t_ncol = new_size.cols;
+            term.t_mrow = (short)new_size.rows;
+            term.t_nrow = (short)(new_size.rows - 1);
+            term.t_mcol = (short)new_size.cols;
+            term.t_ncol = (short)new_size.cols;
             sgarbf = true;  /* Force redraw */
             /* Don't return - keep waiting for real input */
         }
@@ -521,7 +521,7 @@ static int raw_getchar(void) {
             nfds = 2;
         }
 
-        poll(pfds, nfds, GET_FRAME_INTERVAL());
+        poll(pfds, (nfds_t)nfds, GET_FRAME_INTERVAL());
 
         /* Poll out-of-process extensions for async messages (e.g., from goroutines) */
         ext_host_poll_nonblocking();
@@ -531,7 +531,7 @@ static int raw_getchar(void) {
             extern long evil_mode_start_time;
             static bool evil_flash_was_active = false;
             bool evil_flash_active = (evil_mode_start_time > 0 &&
-                                      (time(NULL) - evil_mode_start_time) < 3);
+                                      (time(nullptr) - evil_mode_start_time) < 3);
             if (evil_flash_was_active && !evil_flash_active) {
                 /* Flash just expired - refresh modelines */
                 extern void upmode(void);
@@ -621,7 +621,7 @@ static int raw_putchar(int c) {
  */
 static void raw_flush(void) {
     if (frame_pos > 0) {
-        safe_write(STDOUT_FILENO, frame_buf, frame_pos);
+        safe_write(STDOUT_FILENO, frame_buf, (size_t)frame_pos);
         frame_pos = 0;
     }
 }
@@ -807,10 +807,10 @@ int terminal_read_byte(void) {
         signal_handle_pending(&size_changed, &new_size);
 
         if (size_changed && new_size.rows > 0 && new_size.cols > 0) {
-            term.t_mrow = new_size.rows;
-            term.t_nrow = new_size.rows - 1;
-            term.t_mcol = new_size.cols;
-            term.t_ncol = new_size.cols;
+            term.t_mrow = (short)new_size.rows;
+            term.t_nrow = (short)(new_size.rows - 1);
+            term.t_mcol = (short)new_size.cols;
+            term.t_ncol = (short)new_size.cols;
             sgarbf = true;
         }
     }

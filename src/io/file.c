@@ -144,7 +144,8 @@ int getfile(const char *fname, int lockfl)
 	for (bp = bheadp; bp != nullptr; bp = bp->b_bufp) {
 		if ((bp->b_flag & BFINVS) == 0
 		    && strcmp(bp->b_fname, fname) == 0) {
-			swbuffer(bp);
+			if (swbuffer(bp) != true)
+				return false;
 			lp = curwp->w_dotp;
 			i = curwp->w_ntrows / 2;
 			while (i-- && lback(lp) != curbp->b_linep)
@@ -302,7 +303,7 @@ static int readin_large(const char *fname, size_t file_size)
 				          syntax_get_language(lang_id)->name, bp->b_fname, line_count);
 			}
 		} else {
-			bp->b_syntax = NULL;
+			bp->b_syntax = nullptr;
 			bp->b_lang_id = -1;
 		}
 	}
@@ -359,7 +360,7 @@ int readin(const char *fname, int lockfl)
 	mlwrite("[READING FILE]");
 	nline = 0;
 	while ((s = ffgetline()) == FIOSUC) {
-		nbytes = strlen(fline);
+		nbytes = (int)strlen(fline);
 		if ((lp1 = lalloc(nbytes)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE MEMORY FOR FILE LINE");
 			s = FIOMEM;	/* Keep message on the  */
@@ -390,7 +391,7 @@ int readin(const char *fname, int lockfl)
 #endif
 		++nline;
 	}
-	ffclose();		/* Ignore errors.       */
+	(void)ffclose();	/* Ignore errors.       */
     safe_strcpy(mesg, "(", NSTRING);
 	if (s == FIOERR) {
         safe_strcat(mesg, "I/O ERROR, ", NSTRING);
@@ -447,7 +448,7 @@ int readin(const char *fname, int lockfl)
 		if (lang_id >= 0) {
 			/* Get line count for syntax state allocation */
 			int line_count = 0;
-			buffer_get_stats_fast(curbp, &line_count, NULL, NULL);
+			buffer_get_stats_fast(curbp, &line_count, nullptr, nullptr);
 			if (line_count < 1) line_count = 1;
 
 			/* Free any existing syntax state */
@@ -465,15 +466,15 @@ int readin(const char *fname, int lockfl)
 				char **line_bufs = SAFE_ARRAY(char *, line_count, "file lex line bufs");
 				if (lines && line_bufs) {
 					struct line *lp = lforw(curbp->b_linep);
-					for (int i = 0; i < line_count && lp != curbp->b_linep; i++) {
+					for (int li = 0; li < line_count && lp != curbp->b_linep; li++) {
 						int len = llength(lp);
-						line_bufs[i] = SAFE_ALLOC_SIZED(char, len + 1, "file lex line");
-						if (line_bufs[i]) {
-							TS_GET_TEXT(lp->storage, 0, len, line_bufs[i], len + 1);
-							line_bufs[i][len] = '\0';
-							lines[i] = line_bufs[i];
+						line_bufs[li] = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "file lex line");
+						if (line_bufs[li]) {
+							TS_GET_TEXT(lp->storage, 0, (size_t)len, line_bufs[li], (size_t)len + 1);
+							line_bufs[li][len] = '\0';
+							lines[li] = line_bufs[li];
 						} else {
-							lines[i] = "";
+							lines[li] = "";
 						}
 						lp = lforw(lp);
 					}
@@ -482,8 +483,8 @@ int readin(const char *fname, int lockfl)
 					syntax_lex_buffer(curbp->b_syntax, lang_id, curbp, lines, line_count);
 
 					/* Free line buffers */
-					for (int i = 0; i < line_count; i++) {
-						SAFE_FREE(line_bufs[i]);
+					for (int li = 0; li < line_count; li++) {
+						SAFE_FREE(line_bufs[li]);
 					}
 					SAFE_FREE(line_bufs);
 					SAFE_FREE(lines);
@@ -496,7 +497,7 @@ int readin(const char *fname, int lockfl)
 				}
 			}
 		} else {
-			curbp->b_syntax = NULL;
+			curbp->b_syntax = nullptr;
 			curbp->b_lang_id = -1;
 		}
 	}
@@ -764,7 +765,7 @@ int writeout(const char *fn)
 						line_materialize(tlp);
 					}
 					if (tlp->storage) {
-						TS_DELETE(tlp->storage, new_len, len - new_len);
+						TS_DELETE(tlp->storage, (size_t)new_len, (size_t)(len - new_len));
 					}
 				}
 			}
@@ -798,7 +799,7 @@ int writeout(const char *fn)
 				return false;
 			}
 			/* Use lget_text() to handle both regular and view mode lines */
-			size_t copied_len = lget_text(lp, 0, (size_t)len, text, len + 1);
+			size_t copied_len = lget_text(lp, 0, (size_t)len, text, (size_t)len + 1);
 			if (len > 0 && copied_len == 0) {
 				REPORT_ERROR(ERR_MEMORY, "FAILED TO READ LINE FROM GAP BUFFER");
 				SAFE_FREE(text);
@@ -873,7 +874,7 @@ int filename(int f, int n)
 			wp->w_flag |= WFMODE;
 		wp = wp->w_wndp;
 	}
-	curbp->b_mode &= ~MDVIEW;	/* no longer read only mode */
+	curbp->b_mode &= ~(uint32_t)MDVIEW;	/* no longer read only mode */
 	return true;
 }
 
@@ -914,7 +915,7 @@ int ifile(const char *fname)
 
 	nline = 0;
 	while ((s = ffgetline()) == FIOSUC) {
-		nbytes = strlen(fline);
+		nbytes = (int)strlen(fline);
 		if ((lp1 = lalloc(nbytes)) == nullptr) {
 			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE MEMORY FOR FILE LINE");
 			s = FIOMEM;	/* Keep message on the  */
@@ -936,7 +937,7 @@ int ifile(const char *fname)
 			TS_INSERT(lp1->storage, 0, fline, (size_t)nbytes);
 		++nline;
 	}
-	ffclose();		/* Ignore errors.       */
+	(void)ffclose();	/* Ignore errors.       */
 	curwp->w_markp = lforw(curwp->w_markp);
     safe_strcpy(mesg, "(", NSTRING);
 	if (s == FIOERR) {

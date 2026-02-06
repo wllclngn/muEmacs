@@ -1,3 +1,6 @@
+# Project metadata
+COMMIT_MESSAGE.txt
+
 # Build directories
 build/
 cmake-build-*/

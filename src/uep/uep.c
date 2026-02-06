@@ -176,7 +176,7 @@ static int uep_pipe_call(const char *cmd, const char *input, size_t input_len,
             LOG_WARNF("UEP: Write to provider failed at %zu/%zu bytes", written, input_len);
             break;  /* Write error - child may have closed stdin */
         }
-        written += n;
+        written += (size_t)n;
     }
     close(stdin_pipe[1]);
     stdin_pipe[1] = -1;
@@ -227,7 +227,7 @@ static int uep_pipe_call(const char *cmd, const char *input, size_t input_len,
             break;
         }
         if (n == 0) break;  /* EOF */
-        out_len += n;
+        out_len += (size_t)n;
     }
 
     close(stdout_pipe[0]);
@@ -336,7 +336,7 @@ char *uep_get_buffer_contents(struct buffer *bp, size_t *len) {
     size_t total = 0;
     struct line *lp = lforw(bp->b_linep);
     while (lp != bp->b_linep) {
-        total += llength(lp) + 1;  /* +1 for newline */
+        total += (size_t)llength(lp) + 1;  /* +1 for newline */
         lp = lforw(lp);
     }
 
@@ -355,7 +355,7 @@ char *uep_get_buffer_contents(struct buffer *bp, size_t *len) {
     while (lp != bp->b_linep) {
         int line_len = llength(lp);
         for (int i = 0; i < line_len; i++) {
-            buf[pos++] = lgetc(lp, i);
+            buf[pos++] = (char)lgetc(lp, i);
         }
         buf[pos++] = '\n';
         lp = lforw(lp);
@@ -404,7 +404,7 @@ bool uep_replace_buffer_contents(struct buffer *bp, const char *text, size_t len
 
     while (p < end) {
         /* Find end of line */
-        const char *eol = memchr(p, '\n', end - p);
+        const char *eol = memchr(p, '\n', (size_t)(end - p));
         if (!eol) eol = end;
 
         /* Allocate new line */

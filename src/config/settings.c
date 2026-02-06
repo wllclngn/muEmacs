@@ -138,7 +138,7 @@ static void apply_setting(const char *section, const char *key, const char *valu
                 int col = (fillcol > 0 ? fillcol : 80);
                 writing_mode_enable(true, col);
             } else {
-                if (curbp) curbp->b_mode &= ~MDWRAP;
+                if (curbp) curbp->b_mode &= ~(uint32_t)MDWRAP;
             }
         }
         if (strcmp(key, "evil_mode") == 0) {
@@ -740,9 +740,9 @@ int open_user_config_cmd(int f, int n) {
     struct buffer* bp = bfind("settings.toml", true, 0);
     if (!bp) return false;
     safe_strcpy(bp->b_fname, path, NFILEN);
-    swbuffer(bp);
-    bclear(bp);
-    readin(path, false);
+    if (swbuffer(bp) != true) return false;
+    if (bclear(bp) != true) return false;
+    if (readin(path, false) != true) return false;
     mlwrite("[OPENED %s]", path);
     return true;
 }

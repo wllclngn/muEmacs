@@ -150,7 +150,7 @@ typedef uemacs_lexer_state_t (*uemacs_syntax_lex_fn)(
 /* Command function signature (matches μEmacs fn_t) */
 typedef int (*uemacs_cmd_fn)(int f, int n);
 
-/* Modeline segment callback - returns malloc'd string (editor frees), or NULL to hide */
+/* Modeline segment callback - returns malloc'd string (editor frees), or nullptr to hide */
 typedef char *(*uemacs_modeline_fn)(void *user_data);
 
 /* Modeline urgency levels */
@@ -354,7 +354,7 @@ struct muemacs_api {
     size_t struct_size;  /* sizeof(struct muemacs_api) - for version detection */
 
     /*
-     * Look up API function by name. Returns NULL if not found.
+     * Look up API function by name. Returns nullptr if not found.
      * This is ABI-stable: adding/removing/reordering other functions won't
      * break extensions that use named lookup.
      *

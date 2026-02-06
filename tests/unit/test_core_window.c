@@ -26,7 +26,7 @@ static int test_window_initial(void) {
 
     // Should have at least one window
     if (!curwp) {
-        LOG_ERROR("[FAIL] curwp is NULL");
+        LOG_ERROR("[FAIL] curwp is nullptr");
         ok = 0;
         PHASE_END("WINDOW: INITIAL", ok);
         return ok;
@@ -40,7 +40,7 @@ static int test_window_initial(void) {
 
     // wheadp should be set
     if (!wheadp) {
-        LOG_ERROR("[FAIL] wheadp is NULL");
+        LOG_ERROR("[FAIL] wheadp is nullptr");
         ok = 0;
     }
 
@@ -62,8 +62,8 @@ static int test_window_split(void) {
 
     // Debug: Print window state before split
     LOG_INFOF("[DEBUG] curwp=%p, w_linep=%p, w_dotp=%p, w_ntrows=%d", (void*)curwp,
-           curwp ? (void*)curwp->w_linep : NULL,
-           curwp ? (void*)curwp->w_dotp : NULL,
+           curwp ? (void*)curwp->w_linep : nullptr,
+           curwp ? (void*)curwp->w_dotp : nullptr,
            curwp ? curwp->w_ntrows : -1);
     fflush(stdout);
 
@@ -246,11 +246,11 @@ static int test_window_buffer(void) {
     }
 
     // Switch back
-    swbuffer(oldbp);
+    (void)swbuffer(oldbp);
 
     // Cleanup
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WINDOW: BUFFER", ok);
     return ok;
@@ -339,7 +339,7 @@ static int test_window_mvup(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WINDOW: MVUP", ok);
     return ok;
@@ -406,7 +406,7 @@ static int test_window_mvdn(void) {
     curbp = oldbp;
     curwp->w_bufp = oldbp;
     bp->b_flag &= ~BFCHG;
-    zotbuf(bp);
+    (void)zotbuf(bp);
 
     PHASE_END("WINDOW: MVDN", ok);
     return ok;
@@ -486,7 +486,7 @@ int test_core_window(void) {
 
     // Defensive: ensure curwp is valid before window tests
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL - skipping window tests");
+        LOG_WARN("[WARN] curwp is nullptr - skipping window tests");
         ok = 0;
         PHASE_END("WINDOW", ok);
         return ok;

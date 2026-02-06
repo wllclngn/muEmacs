@@ -302,7 +302,7 @@ static const api_registry_entry_t api_registry[] = {
     {"kill_line", FN(api_kill_line)},
 
     /* Sentinel */
-    {NULL, NULL}
+    {nullptr, nullptr}
 };
 
 #undef FN
@@ -310,16 +310,16 @@ static const api_registry_entry_t api_registry[] = {
 /* Look up function by name - O(n) but only called at extension init.
  * Returns generic function pointer for ISO C compliance. */
 static generic_fn_t api_get_function(const char *name) {
-    if (!name) return NULL;
+    if (!name) return nullptr;
 
-    for (int i = 0; api_registry[i].name != NULL; i++) {
+    for (int i = 0; api_registry[i].name != nullptr; i++) {
         if (strcmp(api_registry[i].name, name) == 0) {
             return api_registry[i].func;
         }
     }
 
     LOG_WARNF("Extension API: Unknown function requested: %s", name);
-    return NULL;
+    return nullptr;
 }
 
 /* ============================================================================
@@ -371,7 +371,7 @@ static unsigned config_hash(const char *key) {
     unsigned hash = 5381;
     int c;
     while ((c = *key++)) {
-        hash = ((hash << 5) + hash) + c;
+        hash = ((hash << 5) + hash) + (unsigned)c;
     }
     return hash % EXT_CONFIG_HASH_SIZE;
 }
@@ -411,7 +411,7 @@ static ext_config_entry_t *get_or_create_config_entry(const char *full_key) {
     entry = SAFE_ALLOC(ext_config_entry_t, "ext config entry");
     if (!entry) return nullptr;
 
-    strncpy(entry->key, full_key, EXT_CONFIG_KEY_MAX - 1);
+    snprintf(entry->key, EXT_CONFIG_KEY_MAX, "%s", full_key);
 
     /* Insert at head of bucket */
     unsigned idx = config_hash(full_key);
@@ -671,7 +671,7 @@ static char *api_buffer_contents(struct buffer *bp, size_t *len) {
     size_t total = 0;
     struct line *lp = lforw(bp->b_linep);
     while (lp != bp->b_linep) {
-        total += llength(lp) + 1;
+        total += (size_t)llength(lp) + 1;
         lp = lforw(lp);
     }
 
@@ -691,7 +691,7 @@ static char *api_buffer_contents(struct buffer *bp, size_t *len) {
     while (lp != bp->b_linep) {
         int line_len = llength(lp);
         for (int i = 0; i < line_len; i++) {
-            buf[pos++] = lgetc(lp, i);
+            buf[pos++] = (char)lgetc(lp, i);
         }
         buf[pos++] = '\n';
         lp = lforw(lp);
@@ -883,7 +883,7 @@ static char *api_get_word_at_point(void) {
 
     if (offset >= len) return nullptr;
 
-    char c = lgetc(lp, offset);
+    char c = (char)lgetc(lp, offset);
     if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
           (c >= '0' && c <= '9') || c == '_')) {
         return nullptr;
@@ -891,7 +891,7 @@ static char *api_get_word_at_point(void) {
 
     int start = offset;
     while (start > 0) {
-        c = lgetc(lp, start - 1);
+        c = (char)lgetc(lp, start - 1);
         if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
               (c >= '0' && c <= '9') || c == '_')) break;
         start--;
@@ -899,7 +899,7 @@ static char *api_get_word_at_point(void) {
 
     int end = offset;
     while (end < len) {
-        c = lgetc(lp, end);
+        c = (char)lgetc(lp, end);
         if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
               (c >= '0' && c <= '9') || c == '_')) break;
         end++;
@@ -908,11 +908,11 @@ static char *api_get_word_at_point(void) {
     int word_len = end - start;
     if (word_len <= 0) return nullptr;
 
-    char *word = SAFE_ALLOC_SIZED(char, word_len + 1, "api word at point");
+    char *word = SAFE_ALLOC_SIZED(char, (size_t)word_len + 1, "api word at point");
     if (!word) return nullptr;
 
     for (int i = 0; i < word_len; i++) {
-        word[i] = lgetc(lp, start + i);
+        word[i] = (char)lgetc(lp, start + i);
     }
     word[word_len] = '\0';
 
@@ -925,11 +925,11 @@ static char *api_get_current_line(void) {
     struct line *lp = curwp->w_dotp;
     int len = llength(lp);
 
-    char *line = SAFE_ALLOC_SIZED(char, len + 1, "api current line");
+    char *line = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "api current line");
     if (!line) return nullptr;
 
     for (int i = 0; i < len; i++) {
-        line[i] = lgetc(lp, i);
+        line[i] = (char)lgetc(lp, i);
     }
     line[len] = '\0';
 
@@ -953,11 +953,11 @@ static char *api_get_line_at(struct buffer *bp, int line_num) {
     if (lp == bp->b_linep || current != line_num) return nullptr;
 
     int len = llength(lp);
-    char *line = SAFE_ALLOC_SIZED(char, len + 1, "api line at");
+    char *line = SAFE_ALLOC_SIZED(char, (size_t)len + 1, "api line at");
     if (!line) return nullptr;
 
     for (int i = 0; i < len; i++) {
-        line[i] = lgetc(lp, i);
+        line[i] = (char)lgetc(lp, i);
     }
     line[len] = '\0';
 
@@ -1060,7 +1060,7 @@ static int api_screen_to_buffer_pos(struct window *wp, int screen_row, int scree
         int len = llength(lp);
 
         while (offset < len && col < screen_col) {
-            char c = lgetc(lp, offset);
+            char c = (char)lgetc(lp, offset);
             if (c == '\t') {
                 col = ((col / 8) + 1) * 8;
             } else {
@@ -1204,7 +1204,7 @@ static int api_shell_command(const char *cmd, char **output, size_t *len) {
 
             ssize_t n = read(pipefd[0], buf + pos, 4096);
             if (n <= 0) break;
-            pos += n;
+            pos += (size_t)n;
         }
 
         buf[pos] = '\0';

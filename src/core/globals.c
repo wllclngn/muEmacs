@@ -86,7 +86,7 @@ int yanked_size = 0;		/* Size of last yank for yankpop */
 char temp_kill_buf[8192];
 size_t temp_kill_len = 0;
 struct window *swindow = nullptr;	/* saved window pointer                 */
-struct window *terminal_window = nullptr;	/* active terminal window (NULL if closed) */
+struct window *terminal_window = nullptr;	/* active terminal window (nullptr if closed) */
 _Atomic int kbdmode = MACRO_STOP;	/* current keyboard macro mode (atomic) */
 _Atomic(struct keymap *) current_keymap = nullptr;	/* current keymap - C23 atomic */
 int kbdrep = 0;			/* number of repetitions        */

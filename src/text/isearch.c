@@ -51,10 +51,10 @@ int risearch(int f, int n)
 		curwp->w_flag |= WFMOVE;	/* Say we've moved                    */
 		update(false);	/* And force an update                */
 		mlwrite("[SEARCH FAILED]");	/* Say we died                        */
-		matchlen = strlen(pat);
+		matchlen = (unsigned int)strlen(pat);
 	} else
 		mlerase();	/* If happy, just erase the cmd line  */
-	matchlen = strlen(pat);
+	matchlen = (unsigned int)strlen(pat);
 	return true;
 }
 
@@ -79,10 +79,10 @@ int fisearch(int f, int n)
 		curwp->w_flag |= WFMOVE;	/* Say we've moved                    */
 		update(false);	/* And force an update                */
 		mlwrite("[SEARCH FAILED]");	/* Say we died                        */
-		matchlen = strlen(pat);
+		matchlen = (unsigned int)strlen(pat);
 	} else
 		mlerase();	/* If happy, just erase the cmd line  */
-	matchlen = strlen(pat);
+	matchlen = (unsigned int)strlen(pat);
 	return true;
 }
 
@@ -180,7 +180,7 @@ start_over:
 			n = -1;
 			/* If pattern matches immediately behind cursor, skip past it first */
 			if (pat[0] != '\0' && match_pat_behind(pat)) {
-				move_char_backward(true, strlen(pat));
+				move_char_backward(true, (int)strlen(pat));
 			}
 			status = scanmore(pat, n);
 			if (!isearch_read_event(&evt))
@@ -290,7 +290,7 @@ int checknext(char chr, const char *patrn, int dir)	/* Check next character in s
 			buffchar = '\n';			/* And say the next char is NL        */
 		} else
 			buffchar = lgetc(curline, curoff++);	/* Get the next char         */
-		if ((status = eq(buffchar, chr)) != 0) {	/* Is it what we're looking for?      */
+		if ((status = eq((unsigned char)buffchar, (unsigned char)chr)) != 0) {	/* Is it what we're looking for?      */
 			curwp->w_dotp = curline;		/* Yes, set the buffer's point        */
 			curwp->w_doto = curoff;			/*  to the matched character          */
 			curwp->w_flag |= WFMOVE;		/* Say that we've moved               */
@@ -337,7 +337,7 @@ int scanmore(char *patrn, int dir)	/* search forward or back for a pattern      
  */
 static int match_pat_behind(const char *patrn)
 {
-	int patlen = strlen(patrn);
+	int patlen = (int)strlen(patrn);
 	if (patlen == 0) return false;
 
 	/* Calculate start position: patlen chars before cursor */
@@ -357,7 +357,7 @@ static int match_pat_behind(const char *patrn)
 		} else {
 			off--;
 			if (lgetc(lp, off) != patrn[patlen - 1 - i] &&
-			    !eq(lgetc(lp, off), patrn[patlen - 1 - i]))
+			    !eq((unsigned char)lgetc(lp, off), (unsigned char)patrn[patlen - 1 - i]))
 				return false;
 		}
 	}
@@ -398,7 +398,7 @@ int match_pat(const char *patrn)	/* See if the pattern string matches string at 
 			buffchar = '\n';	/* And say the next char is NL        */
 		} else
 			buffchar = lgetc(curline, curoff++);	/* Get the next char         */
-		if (!eq(buffchar, patrn[i]))	/* Is it what we're looking for?      */
+		if (!eq((unsigned char)buffchar, (unsigned char)patrn[i]))	/* Is it what we're looking for?      */
 			return false;	/* Nope, just punt it then            */
 	}
 	return true;		/* Everything matched? Let's celebrate */
@@ -420,7 +420,7 @@ int promptpattern(char *prompt)
 	if (!clexec) {
 		mlwrite(tpat);
 	}
-	return strlen(tpat);
+	return (int)strlen(tpat);
 }
 
 /*

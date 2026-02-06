@@ -36,7 +36,7 @@ static void *currowcol_increment_thread(void *arg) {
         atomic_fetch_add(&curcol, 1);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 // Test 1: Verify vtrow/vtcol are accessible (single-threaded)
@@ -106,7 +106,7 @@ static int test_currowcol_atomic(void) {
     // Create threads
     for (int i = 0; i < NUM_THREADS; i++) {
         thread_ids[i] = i;
-        if (pthread_create(&threads[i], NULL, currowcol_increment_thread, &thread_ids[i]) != 0) {
+        if (pthread_create(&threads[i], nullptr, currowcol_increment_thread, &thread_ids[i]) != 0) {
             LOG_ERRORF("[FAIL] Failed to create thread %d", i);
             ok = 0;
             PHASE_END("CURSOR: ATOMIC", ok);
@@ -124,7 +124,7 @@ static int test_currowcol_atomic(void) {
 
     // Wait for all threads to complete
     for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
+        pthread_join(threads[i], nullptr);
     }
 
     // Verify results - should be exact with atomic operations

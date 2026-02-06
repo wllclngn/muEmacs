@@ -14,7 +14,7 @@ static int setup_buffer_with_text(const char *text) {
     struct buffer *bp = bfind("test-random", true, 0);
     if (!bp) return 0;
 
-    bclear(bp);
+    (void)bclear(bp);
     curbp = bp;
     curwp->w_bufp = bp;
     curwp->w_dotp = bp->b_linep;
@@ -67,7 +67,7 @@ static void cleanup_buffer(void) {
         struct buffer *bp = curbp;
         curbp = bfind("main", false, 0);
         if (curbp) curwp->w_bufp = curbp;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -115,7 +115,7 @@ static int test_detab(void) {
     }
 
     // Verify content still readable
-    if (strstr(after, "hello") == NULL || strstr(after, "world") == NULL) {
+    if (strstr(after, "hello") == nullptr || strstr(after, "world") == nullptr) {
         LOG_ERROR("[FAIL] Content corrupted after detab");
         ok = 0;
     }

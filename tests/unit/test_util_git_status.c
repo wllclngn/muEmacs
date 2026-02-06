@@ -59,13 +59,13 @@ static int test_buffer_overflow_protection(void) {
         LOG_INFOF("[%sOK%s] Small buffer safely truncated and null-terminated", GREEN, RESET);
     }
 
-    // Test 4: NULL buffer
-    len = git_status_get_cached(NULL, 100);
+    // Test 4: nullptr buffer
+    len = git_status_get_cached(nullptr, 100);
     if (len != 0) {
-        LOG_ERRORF("[FAIL] NULL buffer should return 0, got %d", len);
+        LOG_ERRORF("[FAIL] nullptr buffer should return 0, got %d", len);
         ok = 0;
     } else {
-        LOG_INFOF("[%sOK%s] NULL buffer handled safely", GREEN, RESET);
+        LOG_INFOF("[%sOK%s] nullptr buffer handled safely", GREEN, RESET);
     }
 
     git_status_set_enabled(0);

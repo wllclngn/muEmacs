@@ -32,7 +32,7 @@ static void cleanup_display_test_buffer(struct buffer *bp, struct buffer *oldbp)
     }
     if (bp) {
         bp->b_flag &= ~BFCHG;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -66,7 +66,7 @@ static int test_vtputc_basic(void) {
 
     // Check vscreen row exists
     if (!vscreen[0]) {
-        LOG_ERROR("[FAIL] vscreen[0] is NULL");
+        LOG_ERROR("[FAIL] vscreen[0] is nullptr");
         ok = 0;
         PHASE_END("DISPLAY: VTPUTC_BASIC", ok);
         return ok;
@@ -601,7 +601,7 @@ int test_core_display(void) {
 
     // Defensive: ensure curwp is valid after init
     if (!curwp) {
-        LOG_WARN("[WARN] curwp is NULL after init - skipping display tests");
+        LOG_WARN("[WARN] curwp is nullptr after init - skipping display tests");
         ok = 0;
         PHASE_END("DISPLAY", ok);
         return ok;

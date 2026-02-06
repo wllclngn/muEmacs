@@ -49,7 +49,7 @@ void uep_scripts_cleanup(void);
 
 /*
  * Check if a command name is a script command.
- * Returns the script path if found, NULL otherwise.
+ * Returns the script path if found, nullptr otherwise.
  */
 const char *uep_scripts_find(const char *name);
 

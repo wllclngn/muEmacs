@@ -42,7 +42,7 @@ static int memfd_create_wrapper(const char *name, unsigned int flags) {
 
 ext_ipc_channel_t *ext_ipc_create(void) {
     ext_ipc_channel_t *ch = calloc(1, sizeof(*ch));
-    if (!ch) return NULL;
+    if (!ch) return nullptr;
 
     /* Initialize death pipe to invalid */
     ch->death_pipe[0] = -1;
@@ -53,26 +53,26 @@ ext_ipc_channel_t *ext_ipc_create(void) {
     if (ch->memfd < 0) {
         LOG_ERRORF("ext_ipc: memfd_create failed: %s", strerror(errno));
         free(ch);
-        return NULL;
+        return nullptr;
     }
 
     /* Size the shared memory */
     ch->shm_size = sizeof(ext_ipc_shm_t);
-    if (ftruncate(ch->memfd, ch->shm_size) < 0) {
+    if (ftruncate(ch->memfd, (off_t)ch->shm_size) < 0) {
         LOG_ERRORF("ext_ipc: ftruncate failed: %s", strerror(errno));
         close(ch->memfd);
         free(ch);
-        return NULL;
+        return nullptr;
     }
 
     /* Map shared memory */
-    ch->shm = mmap(NULL, ch->shm_size, PROT_READ | PROT_WRITE,
+    ch->shm = mmap(nullptr, ch->shm_size, PROT_READ | PROT_WRITE,
                    MAP_SHARED, ch->memfd, 0);
     if (ch->shm == MAP_FAILED) {
         LOG_ERRORF("ext_ipc: mmap failed: %s", strerror(errno));
         close(ch->memfd);
         free(ch);
-        return NULL;
+        return nullptr;
     }
 
     /* Initialize header */
@@ -93,24 +93,24 @@ ext_ipc_channel_t *ext_ipc_create(void) {
 
 ext_ipc_channel_t *ext_ipc_attach(int memfd) {
     ext_ipc_channel_t *ch = calloc(1, sizeof(*ch));
-    if (!ch) return NULL;
+    if (!ch) return nullptr;
 
     ch->memfd = memfd;
     ch->shm_size = sizeof(ext_ipc_shm_t);
 
     /* Map shared memory */
-    ch->shm = mmap(NULL, ch->shm_size, PROT_READ | PROT_WRITE,
+    ch->shm = mmap(nullptr, ch->shm_size, PROT_READ | PROT_WRITE,
                    MAP_SHARED, ch->memfd, 0);
     if (ch->shm == MAP_FAILED) {
         free(ch);
-        return NULL;
+        return nullptr;
     }
 
     /* Validate */
     if (ch->shm->magic != EXT_IPC_MAGIC) {
         munmap(ch->shm, ch->shm_size);
         free(ch);
-        return NULL;
+        return nullptr;
     }
 
     return ch;

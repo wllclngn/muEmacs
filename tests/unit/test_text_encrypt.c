@@ -47,7 +47,7 @@ int test_encrypt_buffer_validation() {
     PHASE_START("ENCRYPT: VALIDATION", "Testing encryption buffer validation");
 
     init_editor_minimal("encrypt-validate");
-    bclear(curbp);
+    (void)bclear(curbp);
 
     // Test 1: Attempt encryption on read-only buffer
     curbp->b_mode |= MDVIEW;
@@ -94,7 +94,7 @@ int test_encrypt_filename_handling() {
     PHASE_START("ENCRYPT: FILENAME", "Testing encryption filename handling");
 
     init_editor_minimal("encrypt-filename");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Test 1: Normal length filename
@@ -140,7 +140,7 @@ int test_gpg_function_availability() {
     PHASE_START("ENCRYPT: GPG-AVAILABILITY", "Testing GPG function availability");
 
     init_editor_minimal("encrypt-gpg");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Set a valid filename
@@ -162,7 +162,7 @@ int test_age_function_availability() {
     PHASE_START("ENCRYPT: AGE-AVAILABILITY", "Testing age function availability");
 
     init_editor_minimal("encrypt-age");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Set a valid filename

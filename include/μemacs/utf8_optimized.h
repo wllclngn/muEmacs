@@ -108,8 +108,8 @@ static inline int utf8_display_width_cached(const unsigned char *utf8_str, int b
     
     /* Update cache atomically */
     entry->codepoint = cache_key;
-    entry->display_width = width;
-    entry->byte_length = byte_len;
+    entry->display_width = (uint8_t)width;
+    entry->byte_length = (uint8_t)byte_len;
     atomic_store_explicit(&entry->valid, true, memory_order_release);
     
     return width;

@@ -11,7 +11,7 @@
 // Helper: setup a test buffer with content
 static struct buffer *setup_test_buffer_with_lines(const char *name, int num_lines) {
     struct buffer *bp = bfind((char *)name, true, 0);
-    if (!bp) return NULL;
+    if (!bp) return nullptr;
 
     struct buffer *oldbp = curbp;
     curbp = bp;
@@ -46,7 +46,7 @@ static void cleanup_test_buffer(struct buffer *bp, struct buffer *oldbp) {
     }
     if (bp) {
         bp->b_flag &= ~BFCHG;
-        zotbuf(bp);
+        (void)zotbuf(bp);
     }
 }
 
@@ -581,7 +581,7 @@ static int test_mark_operations(void) {
     curwp->w_doto = 5;
 
     // Initially no mark
-    curwp->w_markp = NULL;
+    curwp->w_markp = nullptr;
 
     // Set mark
     if (setmark(false, 1) != true) {
@@ -626,7 +626,7 @@ static int test_mark_operations(void) {
     }
 
     // Test swapmark with no mark set
-    curwp->w_markp = NULL;
+    curwp->w_markp = nullptr;
     if (swapmark(false, 1) == true) {
         LOG_ERROR("[FAIL] swapmark should fail with no mark");
         ok = 0;

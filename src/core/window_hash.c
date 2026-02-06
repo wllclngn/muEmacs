@@ -127,7 +127,7 @@ struct window **window_hash_find_by_line(struct line *lp, int *count)
     if (window_count == 0) return nullptr;
     
     /* Allocate result array */
-    struct window **windows = safe_alloc(window_count * sizeof(struct window*),
+    struct window **windows = safe_alloc((size_t)window_count * sizeof(struct window*),
                                         "window lookup result", __FILE__, __LINE__);
     if (!windows) return nullptr;
     

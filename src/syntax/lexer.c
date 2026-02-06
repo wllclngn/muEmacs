@@ -16,12 +16,8 @@
 #include <ctype.h>
 
 /* ============================================================================
- * Keyword Lookup (binary search on sorted arrays)
+ * Keyword Lookup
  * ============================================================================ */
-
-static int keyword_cmp(const void *a, const void *b) {
-    return strcmp(*(const char **)a, *(const char **)b);
-}
 
 static bool is_keyword(const char **keywords, const char *word, int len, bool case_sensitive) {
     if (!keywords || !word || len <= 0) return false;
@@ -29,7 +25,7 @@ static bool is_keyword(const char **keywords, const char *word, int len, bool ca
     /* Make null-terminated copy */
     char buf[64];
     if (len >= (int)sizeof(buf)) return false;
-    memcpy(buf, word, len);
+    memcpy(buf, word, (size_t)len);
     buf[len] = '\0';
 
     /* Linear search (keywords arrays are small) */
@@ -68,8 +64,8 @@ static inline bool is_oct_digit(int c) {
 
 static inline bool starts_with(const char *s, int len, const char *prefix) {
     if (!prefix) return false;
-    int plen = strlen(prefix);
-    return len >= plen && memcmp(s, prefix, plen) == 0;
+    int plen = (int)strlen(prefix);
+    return len >= plen && memcmp(s, prefix, (size_t)plen) == 0;
 }
 
 /* ============================================================================
@@ -100,7 +96,7 @@ lexer_state_t syntax_lex_line(
     /* Helper to emit token */
     #define EMIT_TOKEN(end_col, face) do { \
         if ((end_col) > token_start) { \
-            line_tokens_add(out, (end_col), (face)); \
+            line_tokens_add(out, (uint16_t)(end_col), (uint16_t)(face)); \
         } \
         token_start = (end_col); \
     } while (0)
@@ -133,7 +129,7 @@ lexer_state_t syntax_lex_line(
                 current_face = FACE_COMMENT;
                 state.mode = LEX_BLOCK_COMMENT;
                 state.nest_depth = 1;
-                i += strlen(lang->block_start);
+                i += (int)strlen(lang->block_start);
                 continue;
             }
 
@@ -155,7 +151,7 @@ lexer_state_t syntax_lex_line(
                 EMIT_TOKEN(i, current_face);
                 current_face = FACE_STRING;
                 state.mode = LEX_TRIPLE_STRING;
-                state.string_delim = c;
+                state.string_delim = (char)c;
                 i += 3;
                 continue;
             }
@@ -375,13 +371,13 @@ lexer_state_t syntax_lex_line(
             if (lang->nested_comments && lang->block_start &&
                 starts_with(line + i, len - i, lang->block_start)) {
                 state.nest_depth++;
-                i += strlen(lang->block_start);
+                i += (int)strlen(lang->block_start);
                 continue;
             }
             /* Check for block comment end */
             if (lang->block_end && starts_with(line + i, len - i, lang->block_end)) {
                 state.nest_depth--;
-                i += strlen(lang->block_end);
+                i += (int)strlen(lang->block_end);
                 if (state.nest_depth <= 0) {
                     EMIT_TOKEN(i, FACE_COMMENT);
                     state.mode = LEX_NORMAL;
@@ -447,7 +443,7 @@ int syntax_lex_buffer(
 
     for (int i = 0; i < line_count; i++) {
         const char *line = lines[i];
-        int len = line ? strlen(line) : 0;
+        int len = line ? (int)strlen(line) : 0;
 
         /* Allocate line tokens if needed */
         if (!syn->lines[i].data) {
@@ -496,7 +492,7 @@ int syntax_relex_from(
 
     for (int i = start_line; i < line_count; i++) {
         const char *line = lines[i];
-        int len = line ? strlen(line) : 0;
+        int len = line ? (int)strlen(line) : 0;
 
         /* Store previous state for comparison */
         lexer_state_t old_state = syn->states[i];

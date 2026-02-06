@@ -109,7 +109,7 @@ static int vim_find_char_operator(char op, bool inclusive) {
 int vim_find_char_forward(int f, int n) {
     (void)f; (void)n;
     int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
+    char pending = (char)g_vim_state.pending_op;
 
     LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: entering, count=%d pending=%d", count, pending);
     mlwrite("[f-]");
@@ -119,7 +119,7 @@ int vim_find_char_forward(int f, int n) {
     if (pending) {
         /* Operator pending - set mark at start, find char, execute op */
         setmark(false, 0);
-        int result = vim_find_char_impl('f', ch, count);
+        int result = vim_find_char_impl('f', (char)ch, count);
         vim_clear_pending_state();
         if (result) {
             return vim_find_char_operator(pending, true);  /* inclusive */
@@ -127,7 +127,7 @@ int vim_find_char_forward(int f, int n) {
         return false;
     }
 
-    int result = vim_find_char_impl('f', ch, count);
+    int result = vim_find_char_impl('f', (char)ch, count);
     LOG_DEBUGF("VIM_FIND_CHAR_FORWARD: impl returned %d, cursor now at doto=%d", result, curwp->w_doto);
     vim_clear_pending_state();
     return result;
@@ -139,14 +139,14 @@ int vim_find_char_forward(int f, int n) {
 int vim_find_char_backward(int f, int n) {
     (void)f; (void)n;
     int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
+    char pending = (char)g_vim_state.pending_op;
 
     mlwrite("[F-]");
     int ch = vim_getkey();
 
     if (pending) {
         setmark(false, 0);
-        int result = vim_find_char_impl('F', ch, count);
+        int result = vim_find_char_impl('F', (char)ch, count);
         vim_clear_pending_state();
         if (result) {
             /* Backward motion: swap mark and point so region is correct */
@@ -156,7 +156,7 @@ int vim_find_char_backward(int f, int n) {
         return false;
     }
 
-    int result = vim_find_char_impl('F', ch, count);
+    int result = vim_find_char_impl('F', (char)ch, count);
     vim_clear_pending_state();
     return result;
 }
@@ -167,14 +167,14 @@ int vim_find_char_backward(int f, int n) {
 int vim_till_char_forward(int f, int n) {
     (void)f; (void)n;
     int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
+    char pending = (char)g_vim_state.pending_op;
 
     mlwrite("[t-]");
     int ch = vim_getkey();
 
     if (pending) {
         setmark(false, 0);
-        int result = vim_find_char_impl('t', ch, count);
+        int result = vim_find_char_impl('t', (char)ch, count);
         vim_clear_pending_state();
         if (result) {
             /* Till motion: include up to but not including target */
@@ -184,7 +184,7 @@ int vim_till_char_forward(int f, int n) {
         return false;
     }
 
-    int result = vim_find_char_impl('t', ch, count);
+    int result = vim_find_char_impl('t', (char)ch, count);
     vim_clear_pending_state();
     return result;
 }
@@ -195,14 +195,14 @@ int vim_till_char_forward(int f, int n) {
 int vim_till_char_backward(int f, int n) {
     (void)f; (void)n;
     int count = vim_get_effective_count();
-    char pending = g_vim_state.pending_op;
+    char pending = (char)g_vim_state.pending_op;
 
     mlwrite("[T-]");
     int ch = vim_getkey();
 
     if (pending) {
         setmark(false, 0);
-        int result = vim_find_char_impl('T', ch, count);
+        int result = vim_find_char_impl('T', (char)ch, count);
         vim_clear_pending_state();
         if (result) {
             swapmark(false, 0);
@@ -211,7 +211,7 @@ int vim_till_char_backward(int f, int n) {
         return false;
     }
 
-    int result = vim_find_char_impl('T', ch, count);
+    int result = vim_find_char_impl('T', (char)ch, count);
     vim_clear_pending_state();
     return result;
 }

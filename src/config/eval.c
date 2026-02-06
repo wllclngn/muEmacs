@@ -147,7 +147,7 @@ const char *eval_get_function(char *fname)
 	case UFOR:
 		return bool_to_string(string_to_bool(arg1) || string_to_bool(arg2));
 	case UFLENGTH:
-		return int_to_string(strlen(arg1));
+		return int_to_string((int)strlen(arg1));
 	case UFUPPER:
 		safe_strcpy(result, string_to_upper(arg1), sizeof(result));
 		return result;
@@ -159,11 +159,11 @@ const char *eval_get_function(char *fname)
 	case UFASCII:
 		return int_to_string((int) arg1[0]);
 	case UFCHR:
-		result[0] = safe_atoi(arg1, 0);
+		result[0] = (char)safe_atoi(arg1, 0);
 		result[1] = 0;
 		return result;
 	case UFGTKEY:
-		result[0] = input_read_byte();
+		result[0] = (char)input_read_byte();
 		result[1] = 0;
 		return result;
 	case UFRND:
@@ -307,7 +307,7 @@ char *eval_get_env_var(const char *vname)
 	case EVKILL:
 		return getkill();
 	case EVCMODE:
-		return int_to_string(curbp->b_mode);
+		return int_to_string((int)curbp->b_mode);
 	case EVGMODE:
 		return int_to_string(gmode);
 	case EVTPAUSE:
@@ -473,7 +473,7 @@ void findvar(char *var, struct variable_description *vd, int size)
 	size_t vnum;	/* subscript in variable arrays */
 	int vtype;	/* type to return */
 
-	vnum = -1;
+	vnum = (size_t)-1;
 fvar:
 	vtype = -1;
 	switch (var[0]) {
@@ -515,7 +515,7 @@ fvar:
 	}
 
 	/* return the results */
-	vd->v_num = vnum;
+	vd->v_num = (int)vnum;
 	vd->v_type = vtype;
 	return;
 }
@@ -646,7 +646,7 @@ int svar(struct variable_description *var, const char *value)
 		case EVKILL:
 			break;
 		case EVCMODE:
-			curbp->b_mode = safe_atoi(value, 0);
+			curbp->b_mode = (uint32_t)safe_atoi(value, 0);
 			curwp->w_flag |= WFMODE;
 			break;
 		case EVGMODE:
@@ -750,7 +750,7 @@ char *int_to_string(int i)
 	*sp = 0;
 	do {
 		digit = i % 10;
-		*(--sp) = '0' + digit;	/* and install the new digit */
+		*(--sp) = (char)('0' + digit);	/* and install the new digit */
 		i = i / 10;
 	} while (i);
 
@@ -862,7 +862,7 @@ static const char *internal_getval(char *token)
             if (cpy > maxlen) cpy = maxlen;
             /* Extract from gap buffer */
             for (size_t i = 0; i < cpy; i++) {
-                buf[i] = lgetc(bp->b_dotp, bp->b_doto + i);
+                buf[i] = (char)lgetc(bp->b_dotp, bp->b_doto + (int)i);
             }
             buf[cpy] = '\0';
         } else {
@@ -1014,7 +1014,7 @@ int string_find_index(const char *source, const char *pattern)
 		cp = pattern;
 		csp = sp;
 		while (*cp) {
-			if (!eq(*cp, *csp))
+			if (!eq((unsigned char)*cp, (unsigned char)*csp))
 				break;
 			++cp;
 			++csp;

@@ -22,7 +22,7 @@ int test_atomic_stats_o1_operations() {
     PHASE_START("ATOMIC-STATS: O(1)", "Testing O(1) atomic statistics operations");
 
     init_editor_minimal("atomic-stats");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     curwp->w_dotp = curbp->b_linep;
@@ -78,7 +78,7 @@ int test_atomic_stats_incremental() {
     PHASE_START("ATOMIC-STATS: INCREMENTAL", "Testing incremental atomic updates");
 
     init_editor_minimal("atomic-incremental");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     curwp->w_dotp = curbp->b_linep;
@@ -151,7 +151,7 @@ int test_atomic_stats_concurrency() {
     PHASE_START("ATOMIC-STATS: CONCURRENCY", "Testing concurrent access safety");
 
     init_editor_minimal("atomic-concurrent");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // This test simulates concurrent access by rapidly accessing stats
@@ -214,7 +214,7 @@ int test_atomic_stats_bulk_accuracy() {
     PHASE_START("ATOMIC-STATS: BULK-ACCURACY", "Testing accuracy under bulk operations");
 
     init_editor_minimal("atomic-bulk");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     curwp->w_dotp = curbp->b_linep;

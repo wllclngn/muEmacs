@@ -46,7 +46,7 @@ void terminal_buffer_close(struct buffer *bp);
 
 /* Create a named terminal (M-x: terminal-create)
  * Name is appended to buffer: "*Terminal:name*"
- * If name is NULL or empty, uses default "*Terminal*"
+ * If name is nullptr or empty, uses default "*Terminal*"
  */
 int terminal_create(int f, int n);
 

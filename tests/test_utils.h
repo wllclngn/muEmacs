@@ -130,8 +130,8 @@ void test_init_editor(const char *name);
 } while (0)
 
 #define TEST_ASSERT_NOT_NULL(ptr) do { \
-    if ((ptr) == NULL) { \
-        LOG_ERRORF("[FAIL] Expected non-NULL pointer (at %s:%d)", \
+    if ((ptr) == nullptr) { \
+        LOG_ERRORF("[FAIL] Expected non-nullptr pointer (at %s:%d)", \
                    __FILE__, __LINE__); \
         return 0; \
     } \

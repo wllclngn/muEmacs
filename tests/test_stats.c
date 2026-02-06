@@ -20,7 +20,7 @@ int test_atomic_stats_updates() {
     PHASE_START("STATS: ATOMIC", "Incremental line/byte/word updates");
 
     init_editor_minimal("stats");
-    bclear(curbp);
+    (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
 
     // Ensure a real first line exists
@@ -50,9 +50,9 @@ int test_atomic_stats_updates() {
 
     // Delete a char and check bytes change (words heuristic may not change)
     curwp->w_dotp = lforw(curbp->b_linep); curwp->w_doto = 0; // line 1
-    long before_bytes = 0; buffer_get_stats_fast(curbp, NULL, &before_bytes, NULL);
+    long before_bytes = 0; buffer_get_stats_fast(curbp, nullptr, &before_bytes, nullptr);
     ldelete(1, false);
-    long after_bytes = 0; buffer_get_stats_fast(curbp, NULL, &after_bytes, NULL);
+    long after_bytes = 0; buffer_get_stats_fast(curbp, nullptr, &after_bytes, nullptr);
     if (!(after_bytes == before_bytes - 1)) {
         ok = 0; LOG_ERROR("[FAIL] byte count did not decrement");
     }

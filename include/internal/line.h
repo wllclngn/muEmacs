@@ -24,9 +24,9 @@ struct buffer;
 struct line {
 	struct line *l_fp;	      /* Link to the next line        */
 	struct line *l_bp;	      /* Link to the previous line    */
-	struct text_storage *storage; /* Abstract storage backend (NULL = view mode) */
+	struct text_storage *storage; /* Abstract storage backend (nullptr = view mode) */
 
-	/* View mode: when storage is NULL, line is a view into buffer's b_text.
+	/* View mode: when storage is nullptr, line is a view into buffer's b_text.
 	 * This enables O(1) loading of large files via mmap.
 	 */
 	size_t l_view_offset;         /* Start offset in buffer's b_text */

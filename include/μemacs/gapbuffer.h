@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdatomic.h>
+#include "internal/c23_compat.h"
 
 // Forward declarations
 struct buffer;
@@ -40,22 +41,22 @@ struct gap_buffer {
 };
 
 // Gap buffer configuration
-#define GAP_BUFFER_MIN_SIZE        1024           // Minimum buffer size
-#define GAP_BUFFER_GROW_FACTOR     1.5            // Growth factor for expansion
-#define GAP_BUFFER_MAX_GAP         4096           // Maximum gap size before compaction
-#define LINE_INDEX_CHUNK           128            // Line index growth chunk size
-#define GAP_BUFFER_LARGE_THRESHOLD (1024 * 1024)  // 1MB - use linear allocation above this
-#define GAP_BUFFER_MAX_SIZE        (SIZE_MAX / 2) // Safety limit to prevent overflow
+static constexpr size_t GAP_BUFFER_MIN_SIZE        = 1024;           // Minimum buffer size
+static constexpr double GAP_BUFFER_GROW_FACTOR     = 1.5;            // Growth factor for expansion
+static constexpr size_t GAP_BUFFER_MAX_GAP         = 4096;           // Maximum gap size before compaction
+static constexpr size_t LINE_INDEX_CHUNK            = 128;            // Line index growth chunk size
+static constexpr size_t GAP_BUFFER_LARGE_THRESHOLD = 1024 * 1024;    // 1MB - use linear allocation above this
+static constexpr size_t GAP_BUFFER_MAX_SIZE        = SIZE_MAX / 2;   // Safety limit to prevent overflow
 
 // Gap buffer management
-struct gap_buffer *gap_buffer_create(size_t initial_capacity);
+NODISCARD struct gap_buffer *gap_buffer_create(size_t initial_capacity);
 void gap_buffer_destroy(struct gap_buffer *gb);
 
 // Core text operations - O(1) at cursor, O(n) elsewhere
-int gap_buffer_insert(struct gap_buffer *gb, size_t pos, const char *text, size_t len);
-int gap_buffer_delete(struct gap_buffer *gb, size_t pos, size_t len);
-int gap_buffer_replace(struct gap_buffer *gb, size_t pos, size_t old_len, 
-                       const char *new_text, size_t new_len);
+NODISCARD int gap_buffer_insert(struct gap_buffer *restrict gb, size_t pos, const char *restrict text, size_t len);
+NODISCARD int gap_buffer_delete(struct gap_buffer *restrict gb, size_t pos, size_t len);
+NODISCARD int gap_buffer_replace(struct gap_buffer *restrict gb, size_t pos, size_t old_len,
+                       const char *restrict new_text, size_t new_len);
 
 // Cursor positioning - O(1) when moving cursor, O(log n) for random access
 int gap_buffer_set_cursor(struct gap_buffer *gb, size_t pos);
@@ -63,8 +64,8 @@ size_t gap_buffer_get_cursor(struct gap_buffer *gb);
 
 // Text access - O(1) for sequential, O(n) for scattered access
 char gap_buffer_get_char(struct gap_buffer *gb, size_t pos);
-size_t gap_buffer_get_text(struct gap_buffer *gb, size_t pos, size_t len, 
-                           char *buffer, size_t buffer_size);
+size_t gap_buffer_get_text(struct gap_buffer *restrict gb, size_t pos, size_t len,
+                           char *restrict buffer, size_t buffer_size);
 const char *gap_buffer_get_line(struct gap_buffer *gb, size_t line_num, size_t *length);
 
 // Line navigation - O(log n) with cached line index
@@ -137,10 +138,12 @@ extern struct gap_buffer_stats gap_buffer_global_stats;
     (GAP_BUFFER_BEFORE_GAP(gb, pos) ? (pos) : (pos) + ((gb)->gap_end - (gb)->gap_start))
 
 // Error codes
-#define GAP_BUFFER_SUCCESS     0
-#define GAP_BUFFER_ERROR      -1
-#define GAP_BUFFER_OUT_OF_MEM -2
-#define GAP_BUFFER_INVALID    -3
-#define GAP_BUFFER_RANGE      -4
+enum {
+    GAP_BUFFER_SUCCESS     =  0,
+    GAP_BUFFER_ERROR       = -1,
+    GAP_BUFFER_OUT_OF_MEM  = -2,
+    GAP_BUFFER_INVALID     = -3,
+    GAP_BUFFER_RANGE       = -4,
+};
 
 #endif // UEMACS_GAPBUFFER_H

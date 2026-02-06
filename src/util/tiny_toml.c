@@ -38,7 +38,7 @@ void toml_parse(const char *src, toml_callback cb, void *user_data) {
                 p++;
                 const char *end = strchr(p, ']');
                 if (end && end < line_end) {
-                    size_t len = end - p;
+                    size_t len = (size_t)(end - p);
                     if (len >= sizeof(section)) len = sizeof(section) - 1;
                     memcpy(section, p, len);
                     section[len] = '\0';
@@ -49,8 +49,8 @@ void toml_parse(const char *src, toml_callback cb, void *user_data) {
                 const char *eq;
                 if (*p == '"' || *p == '\'') {
                     char quote = *p;
-                    const char *closing = memchr(p + 1, quote, line_end - p - 1);
-                    eq = closing ? strchr(closing + 1, '=') : NULL;
+                    const char *closing = memchr(p + 1, quote, (size_t)(line_end - p - 1));
+                    eq = closing ? strchr(closing + 1, '=') : nullptr;
                 } else {
                     eq = strchr(p, '=');
                 }
@@ -61,7 +61,7 @@ void toml_parse(const char *src, toml_callback cb, void *user_data) {
                     key_end++; // Points to char after last key char
                     
                     char key[128];
-                    size_t klen = key_end - p;
+                    size_t klen = (size_t)(key_end - p);
                     if (klen >= sizeof(key)) klen = sizeof(key) - 1;
                     memcpy(key, p, klen);
                     key[klen] = '\0';
@@ -74,19 +74,19 @@ void toml_parse(const char *src, toml_callback cb, void *user_data) {
                     // This prevents '#' inside hex colors like "#1C1C1C" from being treated as comments
                     if (*val_start == '"' || *val_start == '\'') {
                         char quote_char = *val_start;
-                        const char *closing_quote = memchr(val_start + 1, quote_char, val_end - val_start - 1);
+                        const char *closing_quote = memchr(val_start + 1, quote_char, (size_t)(val_end - val_start - 1));
                         if (closing_quote) {
                             // Look for comments only AFTER the closing quote
-                            const char *comment = memchr(closing_quote + 1, '#', val_end - closing_quote - 1);
+                            const char *comment = memchr(closing_quote + 1, '#', (size_t)(val_end - closing_quote - 1));
                             if (comment) val_end = comment;
                         }
                     } else {
                         // For non-quoted values, trim comments normally
-                        const char *comment = memchr(val_start, '#', val_end - val_start);
+                        const char *comment = memchr(val_start, '#', (size_t)(val_end - val_start));
                         if (comment) val_end = comment;
                     }
 
-                    size_t vlen = trim_end(val_start, val_end - val_start);
+                    size_t vlen = trim_end(val_start, (size_t)(val_end - val_start));
                     
                     if (vlen > 0) {
                         char val_str[256];

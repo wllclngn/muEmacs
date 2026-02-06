@@ -38,9 +38,9 @@ static int run_cmd_capture(const char *cmd, char *out, size_t out_sz)
     posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", 1, 0);
 
     pid_t pid;
-    char *argv[] = {"/bin/sh", "-c", (char *)cmd, NULL};
+    char *argv[] = {"/bin/sh", "-c", (char *)cmd, nullptr};
 
-    int err = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, environ);
+    int err = posix_spawn(&pid, "/bin/sh", &actions, nullptr, argv, environ);
     posix_spawn_file_actions_destroy(&actions);
 
     if (err != 0) {

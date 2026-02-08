@@ -341,11 +341,18 @@ int readin(const char *fname, int lockfl)
 	bp->b_flag &= ~(BFINVS | BFCHG);
 	mystrscpy(bp->b_fname, fname, NFILEN);
 
-	/* Check file size for piece table optimization */
+	/* Check file type and size */
 	struct stat st;
-	if (stat(fname, &st) == 0 && st.st_size >= (off_t)STORAGE_THRESHOLD_DEFAULT) {
-		/* Large file: use piece table with mmap for O(1) loading */
-		return readin_large(fname, (size_t)st.st_size);
+	if (stat(fname, &st) == 0) {
+		if (S_ISDIR(st.st_mode)) {
+			mlwrite("[%s is a directory]", fname);
+			s = FIOERR;
+			goto out;
+		}
+		if (st.st_size >= (off_t)STORAGE_THRESHOLD_DEFAULT) {
+			/* Large file: use piece table with mmap for O(1) loading */
+			return readin_large(fname, (size_t)st.st_size);
+		}
 	}
 
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
@@ -898,6 +905,13 @@ int ifile(const char *fname)
 	bp = curbp;		/* Cheap.               */
 	bp->b_flag |= BFCHG;	/* we have changed      */
 	bp->b_flag &= ~BFINVS;	/* and are not temporary */
+	{
+		struct stat ist;
+		if (stat(fname, &ist) == 0 && S_ISDIR(ist.st_mode)) {
+			mlwrite("[%s is a directory]", fname);
+			return false;
+		}
+	}
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
 		goto out;
 	if (s == FIOFNF) {	/* File not found.      */

@@ -126,7 +126,11 @@ int ffgetline(void)
 			size_t read_len = safe_fread_line(fline, NSTRING, ffp);
 			if (read_len == 0 && feof(ffp)) {
 				// True EOF
-				i = 0; 
+				i = 0;
+				c = EOF;
+			} else if (read_len == 0 && ferror(ffp)) {
+				// Read error (e.g. EISDIR from reading a directory)
+				i = 0;
 				c = EOF;
 			} else {
 				// Valid line (could be empty)

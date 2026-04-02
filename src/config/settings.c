@@ -3,8 +3,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <sys/stat.h>
+#include <sys/inotify.h>
+#include <unistd.h>
 #include <errno.h>
 #include <stdatomic.h>
+#include <fcntl.h>
+#include <limits.h>
 
 #include "config.h"
 
@@ -832,4 +836,78 @@ int soft_wrap_column_cmd(int f, int n) {
         mlwrite("[SOFT WRAP DISABLED]");
     }
     return true;
+}
+
+/* ============================================================================
+ * Config Hot-Reload via inotify
+ *
+ * Watches settings.toml for changes. When the file is written (IN_CLOSE_WRITE),
+ * a flag is set. The main loop calls settings_check_reload() to apply changes.
+ *
+ * Pattern from DEMIURGE + cherrypie: IN_CLOSE_WRITE avoids spurious triggers
+ * from partial writes (editors write atomically via rename or close-after-write).
+ * ============================================================================ */
+
+static int inotify_fd = -1;
+static int inotify_wd = -1;
+static _Atomic bool config_reload_pending = false;
+
+void settings_watch_init(void) {
+    const char *path = get_user_config_file();
+    if (path[0] == '\0') return;
+
+    inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (inotify_fd < 0) {
+        LOG_WARNF("Settings: inotify_init failed: %s", strerror(errno));
+        return;
+    }
+
+    inotify_wd = inotify_add_watch(inotify_fd, path, IN_CLOSE_WRITE);
+    if (inotify_wd < 0) {
+        /* Watch the directory instead — file might not exist yet */
+        const char *dir = get_user_config_dir();
+        if (dir[0] != '\0') {
+            inotify_wd = inotify_add_watch(inotify_fd, dir, IN_CLOSE_WRITE);
+        }
+        if (inotify_wd < 0) {
+            LOG_WARNF("Settings: inotify watch failed: %s", strerror(errno));
+            close(inotify_fd);
+            inotify_fd = -1;
+            return;
+        }
+    }
+
+    LOG_INFOF("Settings: Watching %s for changes", path);
+}
+
+void settings_check_reload(void) {
+    if (inotify_fd < 0) return;
+
+    /* Drain inotify events (non-blocking) */
+    char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
+    bool changed = false;
+
+    for (;;) {
+        ssize_t n = read(inotify_fd, buf, sizeof(buf));
+        if (n <= 0) break;
+        changed = true;
+    }
+
+    if (changed) {
+        LOG_INFO("Settings: Config file changed, reloading...");
+        settings_load(false, 0);
+        sgarbf = true;  /* Force full screen redraw */
+        if (curwp) curwp->w_flag |= WFHARD | WFMODE;
+        mlwrite("[SETTINGS RELOADED]");
+    }
+}
+
+void settings_watch_cleanup(void) {
+    if (inotify_fd >= 0) {
+        if (inotify_wd >= 0)
+            inotify_rm_watch(inotify_fd, inotify_wd);
+        close(inotify_fd);
+        inotify_fd = -1;
+        inotify_wd = -1;
+    }
 }

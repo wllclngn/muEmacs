@@ -26,6 +26,7 @@
 #include "utf8.h"
 #include "μemacs/utf8_optimized.h"
 #include "util/logger.h"
+#include "../text/boyer_moore.h"
 
 /* ============================================================================
  * Constants
@@ -180,7 +181,7 @@ static int add_buffer_ensure(piece_table_t *pt, size_t additional) {
     size_t new_cap = pt->add_capacity ? pt->add_capacity : ADD_BUFFER_INITIAL;
     while (new_cap < needed) new_cap *= ADD_BUFFER_GROW_FACTOR;
 
-    char *new_buf = realloc(pt->add_buffer, new_cap);
+    char *new_buf = SAFE_REALLOC(pt->add_buffer, new_cap, "pt add buffer");
     if (!new_buf) return TS_OUT_OF_MEM;
 
     pt->add_buffer = new_buf;
@@ -281,7 +282,7 @@ struct text_storage *piece_table_create_empty(size_t initial_capacity) {
 
     /* Pre-allocate add buffer */
     if (initial_capacity > 0) {
-        pt->add_buffer = malloc(initial_capacity);
+        pt->add_buffer = safe_alloc(initial_capacity, "pt add buffer", __FILE__, __LINE__);
         if (!pt->add_buffer) {
             SAFE_FREE(pt);
             return nullptr;
@@ -334,10 +335,10 @@ static void pt_destroy(struct text_storage *ts) {
     }
 
     /* Free add buffer */
-    free(pt->add_buffer);
+    SAFE_FREE(pt->add_buffer);
 
     /* Free line index */
-    free(pt->line_idx.offsets);
+    SAFE_FREE(pt->line_idx.offsets);
 
     SAFE_FREE(pt);
 }
@@ -631,7 +632,7 @@ void piece_table_rebuild_line_index(piece_table_t *pt) {
     /* Allocate/grow index */
     if (line_count > pt->line_idx.capacity) {
         size_t new_cap = line_count + LINE_INDEX_INITIAL;
-        size_t *new_offsets = realloc(pt->line_idx.offsets, new_cap * sizeof(size_t));
+        size_t *new_offsets = SAFE_REALLOC(pt->line_idx.offsets, new_cap * sizeof(size_t), "pt line index");
         if (!new_offsets) return;  /* Leave dirty */
         pt->line_idx.offsets = new_offsets;
         pt->line_idx.capacity = new_cap;
@@ -805,47 +806,60 @@ static size_t pt_search_forward(struct text_storage *ts, size_t start,
                                 const char *pattern, size_t pattern_len) {
     piece_table_t *pt = TO_PT(ts);
 
-    if (!pattern || pattern_len == 0 || start >= pt->logical_size) {
+    if (!pattern || pattern_len == 0 || start >= pt->logical_size)
+        return TS_NOT_FOUND;
+
+    size_t remaining = pt->logical_size - start;
+    if (remaining < pattern_len)
+        return TS_NOT_FOUND;
+
+    // Materialize contiguous text for Boyer-Moore-Horspool
+    unsigned char *text = SAFE_ARRAY(unsigned char, remaining, "pt search fwd");
+    if (!text) return TS_NOT_FOUND;
+
+    pt_get_text(ts, start, remaining, (char *)text, remaining);
+
+    struct boyer_moore_context ctx;
+    if (bm_init(&ctx, (const unsigned char *)pattern, (int)pattern_len, true) != 0) {
+        SAFE_FREE(text);
         return TS_NOT_FOUND;
     }
 
-    /* Simple linear search - could optimize with Boyer-Moore */
-    for (size_t i = start; i + pattern_len <= pt->logical_size; i++) {
-        bool match = true;
-        for (size_t j = 0; j < pattern_len && match; j++) {
-            if (pt_get_char(ts, i + j) != pattern[j]) {
-                match = false;
-            }
-        }
-        if (match) return i;
-    }
+    int pos = bm_search(&ctx, text, (int)remaining, 0);
+    bm_free(&ctx);
+    SAFE_FREE(text);
 
-    return TS_NOT_FOUND;
+    return (pos >= 0) ? start + (size_t)pos : TS_NOT_FOUND;
 }
 
 static size_t pt_search_backward(struct text_storage *ts, size_t start,
                                  const char *pattern, size_t pattern_len) {
     piece_table_t *pt = TO_PT(ts);
 
-    if (!pattern || pattern_len == 0 || start == 0) {
+    if (!pattern || pattern_len == 0 || start == 0)
+        return TS_NOT_FOUND;
+
+    if (start > pt->logical_size) start = pt->logical_size;
+    if (start < pattern_len)
+        return TS_NOT_FOUND;
+
+    // Materialize text from 0..start for reverse search
+    unsigned char *text = SAFE_ARRAY(unsigned char, start, "pt search bwd");
+    if (!text) return TS_NOT_FOUND;
+
+    pt_get_text(ts, 0, start, (char *)text, start);
+
+    struct boyer_moore_context ctx;
+    if (bm_init(&ctx, (const unsigned char *)pattern, (int)pattern_len, true) != 0) {
+        SAFE_FREE(text);
         return TS_NOT_FOUND;
     }
 
-    if (start > pt->logical_size) start = pt->logical_size;
+    int pos = bm_search_reverse(&ctx, text, (int)start, (int)(start - 1));
+    bm_free(&ctx);
+    SAFE_FREE(text);
 
-    size_t pos = start;
-    while (pos >= pattern_len) {
-        pos--;
-        bool match = true;
-        for (size_t j = 0; j < pattern_len && match; j++) {
-            if (pt_get_char(ts, pos + j) != pattern[j]) {
-                match = false;
-            }
-        }
-        if (match) return pos;
-    }
-
-    return TS_NOT_FOUND;
+    return (pos >= 0) ? (size_t)pos : TS_NOT_FOUND;
 }
 
 /* ============================================================================

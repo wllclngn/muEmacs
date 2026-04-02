@@ -1,11 +1,12 @@
 // tests/integration/full_integration_test.c - Main test orchestrator
 #include "../test_utils.h"
 #include "../test_registry.h"
-#include "../test_phase1_core_ops.h"
-#include "../test_phase2_navigation.h"
-#include "../test_phase3_selection.h"
-#include "../test_phase4_command_validation.h"
-#include "../test_phase5_advanced_undo_redo.h"
+/* Phase test declarations (inlined from deleted single-decl headers) */
+extern int test_phase1_core_text_operations(void);
+extern int test_phase2_navigation_cursor(void);
+extern int test_phase3_selection_region(void);
+extern int test_phase4_command_validation(void);
+extern int test_phase5_advanced_undo_redo(void);
 #include "../test_api.h"
 #include "../test_stats.h"
 #include "../unit/test_core_gapbuffer.h"
@@ -27,10 +28,11 @@
 #include "../test_config_engine.h"
 // Phase 1B: Security & Encryption Testing
 #include "../test_security_encryption.h"
-// Phase 2C: Process & Shell Integration Tests
-// #include "../test_process_shell.h" // DISABLED: causes double-free
-// Phase 2D: Transaction & Persistence System Tests
-// #include "../test_transaction_persistence.h" // DISABLED: causes double-free
+/* KNOWN BUG: test_process_shell and test_transaction_persistence disabled.
+ * Both trigger double-free in test teardown (buffer/window cleanup ordering).
+ * The tests themselves are valid (~1,500 lines); the bug is in shared test
+ * state management, not the editor code being tested.
+ * Re-enable after fixing test harness cleanup sequence. */
 // Phase 3E: Advanced Text Operations Tests
 #include "../test_advanced_text_ops.h"
 // Phase 4H: Platform-Specific Testing

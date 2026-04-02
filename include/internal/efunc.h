@@ -27,94 +27,12 @@ struct variable_description;
 
 typedef int (*fn_t)(int f, int n);
 
-/* vim_bindings.c */
+/* vim_core.c - vim mode infrastructure (c_evil extension provides commands) */
 extern int evil_mode(int f, int n);
 extern void vim_init_keymaps(void);
+extern int vim_enter_normal_mode_external(int f, int n);
 extern int cmd_focus_cycle(int f, int n);
 extern void focus_reset_to_editor(void);
-
-/* Vim motion and command functions - bindable from TOML */
-extern int vim_move_left(int f, int n);
-extern int vim_move_down(int f, int n);
-extern int vim_move_up(int f, int n);
-extern int vim_move_right(int f, int n);
-extern int vim_word_forward(int f, int n);
-extern int vim_word_backward(int f, int n);
-extern int vim_word_end(int f, int n);
-extern int vim_line_start(int f, int n);
-extern int vim_line_end(int f, int n);
-extern int vim_first_nonblank(int f, int n);
-extern int vim_first_nonblank_wrapped(int f, int n);
-extern int vim_end_of_word(int f, int n);
-extern int vim_enter_insert_mode(int f, int n);
-extern int vim_enter_normal_mode(int f, int n);
-extern int vim_enter_normal_mode_external(int f, int n);
-extern int vim_append(int f, int n);
-extern int vim_append_eol(int f, int n);
-extern int vim_insert_bol(int f, int n);
-extern int vim_open_line_below(int f, int n);
-extern int vim_open_line_above(int f, int n);
-extern int vim_delete_char(int f, int n);
-extern int vim_delete_operator(int f, int n);
-extern int vim_change_operator(int f, int n);
-extern int vim_yank_operator(int f, int n);
-extern int vim_enter_visual_mode(int f, int n);
-extern int vim_enter_visual_line_mode(int f, int n);
-extern int vim_enter_visual_block_mode(int f, int n);
-extern int vim_exit_visual_mode(int f, int n);
-extern int vim_visual_delete(int f, int n);
-extern int vim_visual_yank(int f, int n);
-extern int vim_visual_change(int f, int n);
-extern int vim_find_char_forward(int f, int n);
-extern int vim_find_char_backward(int f, int n);
-extern int vim_till_char_forward(int f, int n);
-extern int vim_till_char_backward(int f, int n);
-extern int vim_repeat_find(int f, int n);
-extern int vim_repeat_find_reverse(int f, int n);
-
-/* vim_bindings.c - helpers shared with vim modules */
-extern int vim_getkey(void);
-extern int vim_get_effective_count(void);
-extern void vim_clear_pending_state(void);
-extern void vim_store_to_register(int is_delete, int linewise);
-extern void vim_record_text_object_change(char op, char prefix, char object, int count);
-
-/* vim_text_objects.c - text object selection helpers */
-extern int vim_select_word_object(bool inner);
-extern int vim_select_quote_object(char quote, bool inner);
-extern int vim_select_bracket_object(char open, char close, bool inner);
-
-extern int vim_replace_char(int f, int n);
-extern int vim_enter_replace_mode(int f, int n);
-extern int vim_toggle_case(int f, int n);
-extern int vim_set_mark(int f, int n);
-extern int vim_goto_mark_line(int f, int n);
-extern int vim_goto_mark_exact(int f, int n);
-extern int vim_search_forward(int f, int n);
-extern int vim_search_backward(int f, int n);
-extern int vim_search_next(int f, int n);
-extern int vim_search_prev(int f, int n);
-extern int vim_search_word_forward(int f, int n);
-extern int vim_search_word_backward(int f, int n);
-extern int vim_text_object_inner(int f, int n);
-extern int vim_text_object_around(int f, int n);
-extern int vim_register_prefix(int f, int n);
-extern int vim_put_after(int f, int n);
-extern int vim_put_before(int f, int n);
-extern int vim_dot_repeat(int f, int n);
-extern int vim_goto_line_or_end(int f, int n);
-extern int vim_goto_top(int f, int n);
-extern int vim_goto_prefix(int f, int n);
-extern int vim_digit_0(int f, int n);
-extern int vim_digit_1(int f, int n);
-extern int vim_digit_2(int f, int n);
-extern int vim_digit_3(int f, int n);
-extern int vim_digit_4(int f, int n);
-extern int vim_digit_5(int f, int n);
-extern int vim_digit_6(int f, int n);
-extern int vim_digit_7(int f, int n);
-extern int vim_digit_8(int f, int n);
-extern int vim_digit_9(int f, int n);
 
 /* word.c */
 extern int wrapword(int f, int n);
@@ -242,6 +160,7 @@ extern void vtfree(void);
 extern void vttidy(void);
 extern void vtmove(int row, int col);
 extern void vtputc(int c);  /* Write character to virtual screen */
+extern void vteeol(void);  /* Erase to end of virtual line */
 extern int upscreen(int f, int n);
 extern int update(int force);
 extern void updpos(void);
@@ -301,6 +220,9 @@ extern int writing_mode_disable(int f, int n);
 
 /* User settings (JSON) and friendly commands */
 extern int settings_load(int f, int n);
+extern void settings_watch_init(void);
+extern void settings_check_reload(void);
+extern void settings_watch_cleanup(void);
 extern int save_settings_cmd(int f, int n);
 extern int open_user_config_cmd(int f, int n);
 extern int list_settings_cmd(int f, int n);
@@ -488,9 +410,6 @@ extern int editor_random(void);
 extern int string_find_index(const char *source, const char *pattern);
 extern char *string_translate(char *source, char *lookup, char *trans);
 
-/* crypt.c - REMOVED, CRYPT disabled */
-/* extern int set_encryption_key(int f, int n); */
-/* extern void myencrypt(char *bptr, unsigned len); */
 
 /* lock.c */
 extern int lockchk(char *fname);

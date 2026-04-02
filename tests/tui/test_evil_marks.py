@@ -11,12 +11,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def test_set_and_goto_mark_line():
     """ma sets mark, 'a returns to that line."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         for i in range(20):
             f.write(f"Line {i+1}\n")
@@ -74,7 +74,7 @@ def test_set_and_goto_mark_line():
 
 def test_set_and_goto_mark_exact():
     """`a returns to exact position (line and column)."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         for i in range(20):
             f.write(f"Line {i+1} - some extra text here\n")
@@ -137,7 +137,7 @@ def test_set_and_goto_mark_exact():
 
 def test_multiple_marks():
     """Can use multiple marks (a, b, c)."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         for i in range(20):
             f.write(f"Line {i+1}\n")
@@ -216,7 +216,7 @@ def test_multiple_marks():
 
 def test_unset_mark():
     """Going to unset mark should not crash or move."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         for i in range(20):
             f.write(f"Line {i+1}\n")

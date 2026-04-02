@@ -11,12 +11,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def test_repeat_dd():
     """dd then . should delete another line."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("line one\n")
         f.write("line two\n")
@@ -62,7 +62,7 @@ def test_repeat_dd():
 
 def test_repeat_x():
     """x then . should delete another character."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("abcdefgh\n")
         for i in range(10):
@@ -108,7 +108,7 @@ def test_repeat_x():
 
 def test_repeat_diw():
     """diw then . should delete another word."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("apple banana cherry date\n")
         for i in range(10):
@@ -156,7 +156,7 @@ def test_repeat_diw():
 
 def test_repeat_with_count():
     """2. should repeat with new count."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         for i in range(15):
             f.write(f"Line {i+1}\n")

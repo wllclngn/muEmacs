@@ -33,8 +33,12 @@ static_assert(sizeof(size_t) >= sizeof(void*), "size_t must be able to represent
 #define SAFE_ALLOC_SIZED(type, size, ctx) \
     (type*)safe_alloc((size), ctx, __FILE__, __LINE__)
 
+/* safe_array_alloc uses ckd_mul to prevent overflow in count * elem_size */
+NODISCARD_MSG("allocated array must be stored and freed")
+void* safe_array_alloc(size_t count, size_t elem_size, const char* context, const char* file, int line);
+
 #define SAFE_ARRAY(type, count, ctx) \
-    (type*)safe_alloc(sizeof(type) * (size_t)(count), ctx, __FILE__, __LINE__)
+    (type*)safe_array_alloc((size_t)(count), sizeof(type), ctx, __FILE__, __LINE__)
 
 #define SAFE_REALLOC(ptr, new_size, ctx) \
     safe_realloc(ptr, new_size, ctx)

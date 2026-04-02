@@ -15,7 +15,7 @@ import time
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 class CalcTest(UEmacsTest):
@@ -24,8 +24,8 @@ class CalcTest(UEmacsTest):
     def start_calc(self):
         """Start μEmacs with an empty file and open the calc buffer."""
         # Create empty temp file
-        self.create_test_file(content="", filename="/tmp/calc_test.txt")
-        self.start(filename="/tmp/calc_test.txt", evil_mode=False)
+        self.create_test_file(content="", filename=test_tmp("calc_test.txt"))
+        self.start(filename=test_tmp("calc_test.txt"), evil_mode=False)
 
         # Open calc buffer via M-x calc
         self.send('\x1bx')  # M-x
@@ -445,8 +445,8 @@ def test_calc_eval_command():
     emu = CalcTest()
     try:
         # Start with empty file (not calc buffer)
-        emu.create_test_file(content="", filename="/tmp/calc_test.txt")
-        emu.start(filename="/tmp/calc_test.txt", evil_mode=False)
+        emu.create_test_file(content="", filename=test_tmp("calc_test.txt"))
+        emu.start(filename=test_tmp("calc_test.txt"), evil_mode=False)
 
         # Run calc-eval via M-x
         emu.send('\x1bx')  # M-x

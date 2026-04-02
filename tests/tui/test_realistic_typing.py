@@ -22,7 +22,7 @@ import time
 import random
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 # Control keys
 CTRL_A = '\x01'  # Beginning of line
@@ -322,7 +322,7 @@ def test_realistic_poe_typing():
     print(f"Loaded {len(poe_lines)} lines of Poe text", flush=True)
 
     # Create temp file for test
-    test_file = '/tmp/muemacs_poe_test.txt'
+    test_file = test_tmp('muemacs_poe_test.txt')
     with open(test_file, 'w') as f:
         f.write('')  # Empty file
 

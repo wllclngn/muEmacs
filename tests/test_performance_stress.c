@@ -530,7 +530,7 @@ int test_search_performance_stress(void) {
         for (int i = 0; test_strings[i] != nullptr; i++) {
             const char *str = test_strings[i];
             // Simple email validation: contains @ and . after @
-            char *at_pos = strchr(str, '@');
+            const char *at_pos = strchr(str, '@');
             if (at_pos && strchr(at_pos, '.')) {
                 email_matches++;
             }

@@ -1,5 +1,4 @@
 #include "test_utils.h"
-#include "test_phase4_command_validation.h"
 
 // Phase 4: Linus Torvalds Keybinding Stress Test & O(1) Hash Table Validation
 int test_phase4_command_validation() {

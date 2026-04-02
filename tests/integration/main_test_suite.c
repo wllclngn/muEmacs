@@ -260,6 +260,7 @@ int main(int argc, char *argv[]) {
     TEST_RUN(test_terminal_pty, "PTY operations", 60);
     TEST_RUN(test_core_display, "Display system", 60);
     TEST_RUN(test_soft_wrap_display, "Soft wrap", 60);
+    TEST_RUN(test_wrap_segments, "Wrap segment cache", 30);
     TEST_RUN(test_truecolor_display, "TrueColor RGB", 30);
 
     TEST_SUITE_END();

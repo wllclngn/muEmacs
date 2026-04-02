@@ -119,6 +119,7 @@ SKIP_AI_VS_AI = RESOURCES['skip_ai_vs_ai']
 
 import pexpect
 import pyte
+from base import test_tmp
 
 # Unicode chess pieces to ASCII translation
 CHESS_UNICODE_TO_ASCII = {
@@ -157,7 +158,7 @@ class ChessTest:
         """Start μEmacs."""
         # Use a pre-existing file to avoid "new file" prompts
         if filename is None:
-            filename = '/tmp/chess_test_dummy.txt'
+            filename = test_tmp('chess_test_dummy.txt')
             with open(filename, 'w') as f:
                 f.write("Chess test file\n")
 

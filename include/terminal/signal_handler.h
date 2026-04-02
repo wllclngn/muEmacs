@@ -127,4 +127,26 @@ bool signal_check_interrupt(void);
  */
 void signal_clear_interrupt(void);
 
+/*
+ * Install crash signal handlers (SIGSEGV, SIGABRT, SIGFPE, SIGILL, SIGBUS)
+ *
+ * Prints stack trace to stderr and restores terminal before dying.
+ * Uses SA_RESETHAND (one-shot) to prevent recursive crashes.
+ * Call early in main() before entering raw mode.
+ * Compile with -rdynamic for symbol names in backtraces.
+ */
+void signal_install_crash_handlers(void);
+
+/*
+ * signalfd integration (Linux 2.6.22+)
+ *
+ * Creates a signalfd for SIGWINCH, SIGINT, SIGTERM, SIGHUP, SIGPIPE, SIGCONT.
+ * Blocks these signals via sigprocmask so they go to the fd instead of handlers.
+ * Crash signals (SIGSEGV etc.) remain as traditional SA_RESETHAND handlers.
+ */
+int  signal_create_signalfd(void);
+int  signal_get_signalfd(void);
+void signal_process_signalfd(void);
+void signal_close_signalfd(void);
+
 #endif /* SIGNAL_HANDLER_H */

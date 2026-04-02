@@ -1,5 +1,5 @@
-// test_config_vim.c - Unit tests for vim mode
-// Tests src/config/vim_bindings.c
+// test_config_vim.c - Unit tests for vim mode infrastructure
+// Tests src/config/vim_core.c (c_evil extension provides commands)
 
 #include "../test_utils.h"
 #include "../test_registry.h"

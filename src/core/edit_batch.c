@@ -3,7 +3,7 @@
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
-#include "transactions.h"
+#include "edit_batch.h"
 
 void edit_begin(void) {
     atomic_fetch_add(&edit_transaction_depth, 1);

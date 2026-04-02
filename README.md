@@ -31,12 +31,12 @@ A modern, extensible C23 text editor for Linux terminals, descended from Linus T
 
 ### Display System
 - **Synchronized Updates**: Batching eliminates flicker on modern terminals
+- **Pretext-Inspired Wrap Cache**: Two-phase architecture separates text analysis from layout. Per-line segment cache computed once on edit, layout via pure arithmetic on resize. Pending-break pattern (no backtracking). No 4KB buffer limit.
 - **Cursor Line Highlight**: Configurable styles (underline, background, intensity)
 - **Atomic Cursor Tracking**: Lock-free `_Atomic` cursor position for thread-safe updates
 - **Palette System**: Theme-aware 256-color and truecolor with terminal palette integration
-- **Legacy Optimization Removed**: Deleted buggy 1980s scroll optimization (~150 lines of complexity)
 
-### Vim/Evil Mode
+### Vim/Evil Mode (c_evil extension)
 - **Full Modal Editing**: Normal, Insert, Visual, Visual-Line, Visual-Block, Replace modes
 - **Motion Commands**: h/j/k/l, w/b/e/W/B/E, 0/$, ^/g_, gg/G, f/F/t/T, %
 - **Operators**: d (delete), c (change), y (yank) - composable with motions
@@ -45,6 +45,7 @@ A modern, extensible C23 text editor for Linux terminals, descended from Linus T
 - **Registers & Marks**: Named registers (a-z), mark setting/jumping, `` and ''
 - **Repeat & Undo**: `.` repeats last change, u/C-r for undo/redo
 - **Visual Mode**: Character and line selection with operator application
+- **Extension-based**: Loaded via UEP like any other extension, not compiled into core
 
 ### Search & Replace
 - **Boyer-Moore-Horspool**: Sublinear O(n/m) average case with bad-character skip table
@@ -59,7 +60,10 @@ A modern, extensible C23 text editor for Linux terminals, descended from Linus T
 - **Version Tracking**: 64-bit timestamps for precise undo tree navigation
 
 ### Text Infrastructure
-- **Gap Buffer**: O(1) insert/delete at cursor with dynamic resizing
+- **Dual Storage Backends**: Vtable-based abstraction with heuristic selection
+  - **Gap Buffer**: O(1) insert/delete at cursor, optimal for small files with high edit locality
+  - **Piece Table**: O(1) load via mmap, optimal for large files (>2MB) with sparse edits
+- **Automatic Selection**: Files <2MB use gap buffer, >=2MB use piece table with mmap. Edit density >20% triggers conversion back to gap buffer.
 - **UTF-8 Native**: Proper character counting, cursor movement, display width
 - **Kill Ring**: 32-entry circular buffer (8KB per entry) with clipboard sync
 - **System Clipboard**: Automatic xclip/xsel integration for copy/paste
@@ -88,7 +92,9 @@ Extensions run either in-process or out-of-process depending on their runtime:
 Out-of-process extensions communicate via modern Linux primitives:
 - **memfd**: Anonymous shared memory for zero-copy data transfer
 - **eventfd**: Low-latency signaling between editor and extension
-- **pidfd**: Clean process lifecycle management
+- **pidfd**: Race-free process lifecycle management
+- **seccomp-bpf**: Syscall whitelist per runtime (C: ~30, Go: ~50, Haskell: ~55)
+- **landlock**: Filesystem restriction (extension dir read, /tmp read/write, deny ~/.ssh)
 
 Extensions load in parallel at startup with thread-safe command registration.
 
@@ -119,24 +125,16 @@ input:key, input:mouse
 lsp:diagnostics, treesitter:parsed
 ```
 
-**Extension API (v3):**
+**Extension API (v4 - ABI-Stable Named Lookup):**
 ```c
-struct uemacs_api {
-    // Buffer operations
-    int (*get_buffer_content)(char **out, size_t *len);
-    int (*set_buffer_content)(const char *text, size_t len);
-    int (*get_cursor_pos)(int *line, int *col);
+// Extensions use api->get_function("name") for forward-compatible lookups
+fn_t my_fn = api->get_function("register_command");
 
-    // Commands & events
-    int (*register_command)(const char *name, uemacs_cmd_fn func);
-    int (*on)(const char *event, uemacs_event_fn handler, void *data, int priority);
-    int (*emit)(const char *event, void *data);
-
-    // UI
-    int (*message)(const char *fmt, ...);
-    int (*create_buffer)(const char *name);
-    // ... 40+ functions
-};
+// Direct struct members also available for backward compatibility
+api->register_command("my-cmd", my_handler);
+api->on("buffer:save", on_save, nullptr, 0);
+api->message("Hello from extension!");
+// ... 40+ functions
 ```
 
 **Naming Convention:** `language_tool/` directories containing `language_tool.so`
@@ -169,6 +167,16 @@ Multiple providers with automatic detection:
 - **Memory Safety**: Centralized allocation with leak tracking and overflow protection
 - **Thread Safety**: Atomic operations throughout (cursor, display, undo, kill ring)
 - **Zero Legacy**: All MSDOS, VMS, Amiga, termcap code removed - Linux only
+
+### Kernel Integration
+- **Event Loop**: Backend-agnostic abstraction with three-tier fallback (io_uring > epoll > poll)
+- **io_uring**: Raw syscalls (no liburing), multi-shot poll, batch file I/O, adaptive timeout
+- **timerfd**: Precision timers for auto-save, cursor blink, resize debounce, extension timeout
+- **signalfd**: Signal-to-fd conversion for SIGWINCH/SIGINT/SIGTERM/SIGHUP (crash handlers remain SA_RESETHAND)
+- **pidfd**: Race-free extension process monitoring
+- **seccomp-bpf**: Per-runtime syscall whitelist for extension sandboxing
+- **landlock**: Filesystem restriction for extension processes
+- **madvise**: MADV_SEQUENTIAL/MADV_RANDOM/MADV_WILLNEED for piece table mmap access patterns
 
 ### Main Interface: evil-mode Enabled
 ![Editor](2025-12-31_14-03.png)
@@ -212,18 +220,19 @@ sudo cmake --install build
 
 ### Dependencies
 
-- **Compiler**: GCC 12+ or Clang 15+ with C23 support
-- **Libraries**: ncursesw
+- **Compiler**: GCC 13+ or Clang 16+ with C23 support
+- **Build**: CMake 3.20+
+- **Libraries**: None (pure ANSI terminal driver, no ncurses)
 - **Optional**: xclip or xsel for system clipboard, gpg or age for encryption
 
 **Arch Linux:**
 ```bash
-sudo pacman -S gcc cmake ncurses
+sudo pacman -S gcc cmake
 ```
 
 **Debian/Ubuntu:**
 ```bash
-sudo apt install gcc cmake libncursesw5-dev
+sudo apt install gcc cmake
 ```
 
 ## Configuration
@@ -234,7 +243,7 @@ sudo apt install gcc cmake libncursesw5-dev
 [editor]
 column_width = 80
 wrap = false
-evil_mode = false           # Enable vim emulation
+evil_mode = false           # Enable vim emulation (requires c_evil extension)
 tab_width = 8
 
 [visual]
@@ -331,12 +340,13 @@ auto_status = true
 
 **Meta Key**: Use `ESC` or `Alt` as Meta prefix.
 
-## Vim Mode
+## Vim Mode (c_evil Extension)
 
+Vim modal editing is provided by the `c_evil` extension in `muEmacs-extensions`.
 Enable with `evil_mode = true` in settings.toml or `M-x evil-mode`.
 
 ### Modes
-- **Normal**: Navigation and commands (default)
+- **Normal**: Navigation and commands (default when enabled)
 - **Insert**: Text entry (`i`, `a`, `o`, `A`, `O`)
 - **Visual**: Selection (`v`, `V`, `C-v`)
 - **Replace**: Overwrite (`R`)
@@ -382,6 +392,33 @@ Press `C-x t` to open a shell in a split window:
 
 Use in shell scripts for editor-aware tooling.
 
+## Performance
+
+| Metric | Result | Notes |
+|--------|--------|-------|
+| **Startup** | **435 us** | 100-run average. ~35x faster than Vim (~15ms) |
+| **49,592-line file load** | **1 ms** | Poe collected works. mmap piece table path |
+| **Full clean rebuild** | **2.3 s** | 90 .c files, 6 targets, all tests. `-j$(nproc)` |
+| **Binary size** | **1.7 MB** | Debug build, unstripped |
+| **Test suite** | **88/88 pass** | 12 suites, fork-isolated, ASAN/UBSAN compatible |
+
+### Test Results
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| Keymap & Input | 6 | PASS |
+| Core Text & Buffer | 15 | PASS |
+| Navigation & Editing | 7 | PASS |
+| Text Processing | 9 | PASS |
+| Configuration | 6 | PASS |
+| I/O & File Operations | 4 | PASS |
+| Terminal & Display | 8 | PASS |
+| Vim Mode (Evil) | 2 | PASS |
+| Utilities & Platform | 7 | PASS |
+| Atomic Stats & Concurrency | 4 | PASS |
+| Commands & Integration | 3 | PASS |
+| Security | 5 | PASS |
+
 ## Testing
 
 ```bash
@@ -396,27 +433,35 @@ cd tests/tui && python -m pytest
 
 ```
 ~50,000 lines C23
-├── src/core/       # Buffer, window, display, undo, keymap
+├── src/core/       # Buffer, window, display, undo, keymap, piece table, gap buffer
 ├── src/terminal/   # PTY, VT100 emulation, input state machine
 ├── src/text/       # Search, NFA regex, word operations
-├── src/config/     # TOML parser, settings, vim bindings
-├── src/io/         # File I/O, encryption
-├── src/platform/   # Clipboard, spawn
+├── src/config/     # TOML parser, settings, vim core infrastructure
+├── src/io/         # File I/O, encryption, io_uring batch read
+├── src/platform/   # Event loop (io_uring/epoll/poll), timers, sandbox, clipboard, spawn
 ├── src/syntax/     # Lexer, syntax highlighting
-├── src/uep/        # Extension system, polyglot bridge
+├── src/uep/        # Extension system, polyglot bridge, ext runner
 └── src/util/       # UTF-8, memory, logging
 ```
 
 ## Technical Highlights
 
-- **50,000 lines** of C23 (src/ + include/)
+- **50,000 lines** of C23 (src/ + include/), 180K lines of tests
+- **Sub-millisecond startup** (435us average, ~35x faster than Vim)
 - **O(1) keymap** with hash-based lookup
 - **Zero legacy code** - all MSDOS/VMS/termcap removed
+- **Zero external dependencies** - pure ANSI terminal driver, no ncurses
+- **Dual text storage**: Gap buffer + piece table with mmap, heuristic selection
+- **Boyer-Moore-Horspool** search on both storage backends
+- **Pretext-inspired wrap cache**: Segment-based line layout with pending-break pattern
+- **Event loop**: Three-tier backend (io_uring > epoll > poll) with timerfd and signalfd
+- **Extension sandboxing**: seccomp-bpf syscall filtering + landlock filesystem restriction
 - **Thread-safe** extension loading with mutex-protected command registry
 - **Atomic operations** throughout (cursor, display, undo)
 - **Polyglot extensions** - 11 languages via hybrid in-process/IPC architecture
-- **Gap buffer** with dynamic resizing
 - **Thompson NFA** regex with zero-heap runtime
+- **io_uring batch file I/O**: Single-syscall file loading via IORING_OP_READ
+- **88 tests** across 12 suites with fork isolation and signal-based crash detection
 
 ## History
 
@@ -427,7 +472,7 @@ uEmacs/PK (Petri Kutvonen)
     ↓
 μEmacs (Linus Torvalds' personal fork)
     ↓
-μEmacs v1.0 (C23 modernization)
+μEmacs v3.0.0 (C23 modernization)
 ```
 
 μEmacs traces from MicroEMACS (1985) through Petri Kutvonen's uEmacs/PK to Linus Torvalds' personal fork. This project modernizes for 2026 while preserving the small, fast, keyboard-driven editor philosophy.
@@ -439,6 +484,12 @@ uEmacs/PK (Petri Kutvonen)
 - **uEmacs/PK**: Petri H. Kutvonen
 - **C23 Modernization**: Will Clingan
 - v1.0: Terminal emulator, Vim mode, polyglot extensions, CI/CD, modern keymap system
+- v2.1.0: Linus baseline defaults, Vim extracted to c_evil extension, piece table
+  with mmap, text storage abstraction, event bus, kernel integration (io_uring,
+  epoll, timerfd, signalfd, pidfd, seccomp-bpf, landlock), codebase audit
+- v3.0.0: Pretext-inspired wrap segment cache (two-phase prepare/layout, pending-break
+  pattern, no 4KB limit), Boyer-Moore on both storage backends, piece table memory
+  safety cleanup, parallel search thread hardening, compilation warning sweep
 
 ## License
 

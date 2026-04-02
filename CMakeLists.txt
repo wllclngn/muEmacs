@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 2.0.0
+    VERSION 2.1.0
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -52,13 +52,15 @@ check_include_file(sys/inotify.h HAVE_SYS_INOTIFY_H)
 check_include_file(sys/signalfd.h HAVE_SYS_SIGNALFD_H)
 check_include_file(sys/eventfd.h HAVE_SYS_EVENTFD_H)
 check_include_file(sys/timerfd.h HAVE_SYS_TIMERFD_H)
+check_include_file(linux/io_uring.h HAVE_LINUX_IO_URING_H)
+check_include_file(linux/seccomp.h HAVE_LINUX_SECCOMP_H)
+check_include_file(linux/landlock.h HAVE_LINUX_LANDLOCK_H)
 
 # Include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/μemacs/util
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
@@ -71,7 +73,7 @@ set(CORE_SOURCES
     src/core/display.c
     src/core/message_line.c
     src/core/modeline.c
-    src/core/transactions.c
+    src/core/edit_batch.c
     src/core/line.c
     src/core/undo.c
     src/core/keymap.c
@@ -82,6 +84,7 @@ set(CORE_SOURCES
     src/core/piece_table.c
     src/core/window_hash.c
     src/core/event_bus.c
+    src/core/wrap_segments.c
 )
 
 # Text processing
@@ -108,6 +111,7 @@ set(IO_SOURCES
     src/io/lock.c
     src/io/pklock.c
     src/io/encrypt.c
+    src/io/file_uring.c
 )
 
 # Configuration and commands
@@ -118,9 +122,11 @@ set(CONFIG_SOURCES
     src/config/eval.c
     src/config/writing.c
     src/config/settings.c
-    src/config/vim_bindings.c
-    src/config/vim_find_char.c
-    src/config/vim_text_objects.c
+)
+
+# Vim/Evil mode infrastructure (c_evil extension provides the commands)
+list(APPEND CONFIG_SOURCES
+    src/config/vim_core.c
 )
 
 # Linux platform specific
@@ -128,7 +134,16 @@ set(PLATFORM_SOURCES
     src/platform/spawn.c
     src/platform/linux-modern.c
     src/platform/clipboard.c
+    src/platform/event_loop.c
+    src/platform/event_loop_epoll.c
+    src/platform/timers.c
+    src/platform/sandbox.c
 )
+
+# io_uring backend (optional, requires kernel headers)
+if(HAVE_LINUX_IO_URING_H AND ENABLE_IO_URING)
+    list(APPEND PLATFORM_SOURCES src/platform/event_loop_uring.c)
+endif()
 
 # Terminal handling - Linux only (pure raw ANSI, no ncurses dependency)
 set(TERMINAL_SOURCES
@@ -136,7 +151,6 @@ set(TERMINAL_SOURCES
     src/terminal/modern-term.c
     src/terminal/capability.c
     src/terminal/cleanup.c
-    src/terminal/display_ops.c
     src/terminal/winsize.c
     src/terminal/atomic_terminal.c
     src/terminal/palette.c
@@ -237,9 +251,12 @@ else()
     target_compile_definitions(muemacs_core PRIVATE MUEMACS_DEBUG_LOG=0)
 endif()
 
+message(STATUS "Vim/Evil mode: EXTENSION (use c_evil extension)")
+
 # Main executable
 add_executable(muEmacs main.c)
 target_link_libraries(muEmacs muemacs_core m Threads::Threads) # Link against the static library
+target_link_options(muEmacs PRIVATE -rdynamic) # Export symbols for backtrace_symbols_fd
 set_target_properties(muEmacs PROPERTIES OUTPUT_NAME "μEmacs")
 
 # Extension runner executable (out-of-process extension host)
@@ -249,6 +266,7 @@ add_executable(muemacs-ext-runner
     src/uep/ext_runner.c
     src/uep/ext_ipc.c
     src/util/logger.c
+    src/platform/sandbox.c
 )
 target_include_directories(muemacs-ext-runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -379,6 +397,7 @@ set(TEST_SOURCES
     tests/unit/test_core_display.c
     tests/unit/test_terminal_ansi.c
     tests/unit/test_util_string.c
+    tests/unit/test_wrap_segments.c
 )
 
 add_executable(full_integration_test
@@ -457,7 +476,7 @@ add_custom_target(bench
   COMMAND $<TARGET_FILE:bench_utf8>
   COMMAND $<TARGET_FILE:bench_editor>
   COMMAND $<TARGET_FILE:bench_parallel>
-  DEPENDS bench_search bench_keymap bench_utf8 bench_parallel
+  DEPENDS bench_search bench_keymap bench_utf8 bench_editor bench_parallel
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running microbenchmarks (search)"
 )
@@ -505,31 +524,16 @@ target_compile_definitions(muemacs_core PRIVATE
     _DEFAULT_SOURCE
 )
 
-target_compile_definitions(full_integration_test PRIVATE
-    LINUX=1
-    UNIX=1
-    POSIX=1
-    UTF8=1
-    COLOR=1
-    CRYPT=1
-    FILOCK=1
-    MODERN=1
-    AUTOCONF=1
-    HAVE_CONFIG_H=1
-    _GNU_SOURCE
-    _DEFAULT_SOURCE
-)
-
-# Modern compiler flags for safety and optimization  
+# Modern compiler flags for safety and optimization
 target_compile_options(muemacs_core PRIVATE
     # Production warnings - const correctness fixes completed
     -Wall -Wextra -Wpedantic
     -Wformat=2 -Wformat-security
     -Wnull-dereference
     -Warray-bounds=2
-    -Wno-unused-parameter
-    -Wno-unused-variable
-    -Wno-unused-function
+    -Wno-unused-parameter  # Legacy fn_t signature requires (int f, int n) everywhere
+    -Wno-unused-variable   # Cleanup pass needed to remove these
+    -Wno-unused-function   # Static helpers in headers included conditionally
 
     # C23 safety sweep - type and conversion warnings
     -Wconversion
@@ -577,6 +581,11 @@ if(ENABLE_IO_URING AND URING_FOUND)
     target_link_libraries(muemacs_core ${URING_LIBRARIES})
     target_include_directories(muemacs_core PRIVATE ${URING_INCLUDE_DIRS})
     target_compile_definitions(muemacs_core PRIVATE HAVE_LIBURING=1)
+endif()
+
+# Raw io_uring support (no liburing, just kernel headers)
+if(HAVE_LINUX_IO_URING_H AND ENABLE_IO_URING)
+    target_compile_definitions(muemacs_core PRIVATE HAVE_IO_URING=1)
 endif()
 
 # Link libraries for integration tests  
@@ -738,9 +747,10 @@ install(FILES packaging/muEmacs.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 
-# Install application icon
-install(FILES packaging/muemacs.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
+# Install application icon (SVG — scalable, no rasterization needed)
+install(FILES packaging/muemacs-icon.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME muemacs.svg
 )
 
 # Install man page

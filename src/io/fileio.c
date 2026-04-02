@@ -207,7 +207,6 @@ int ffgetline(void)
 	}
 #endif
 
-	/* Old CRYPT removed - use encrypt.c */
 	return FIOSUC;
 }
 

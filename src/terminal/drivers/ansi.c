@@ -35,6 +35,8 @@
 #include "terminal_ops.h"
 #include "terminal/palette.h"
 #include "terminal/signal_handler.h"
+#include "platform/event_loop.h"
+#include "platform/timers.h"
 #include "util/logger.h"
 #include "input_ring.h"
 
@@ -254,6 +256,10 @@ static void raw_open(void) {
     signal_save_termios(&orig_termios);
     signal_handlers_init();
 
+    /* Initialize event loop (selects best backend: io_uring > epoll > poll) */
+    evt_loop_init();
+    timers_init();
+
     /* Get terminal size */
     get_terminal_size(&rows, &cols);
     LOG_DEBUGF("TUI: Terminal size %dx%d", cols, rows);
@@ -309,7 +315,9 @@ static void safe_write(int fd, const char *buf, size_t count) {
 static void raw_close(void) {
     LOG_DEBUG("TUI: Closing raw terminal mode");
 
-    /* Cleanup unified signal handlers first */
+    /* Cleanup event loop, timers, and signal handlers */
+    timers_cleanup();
+    evt_loop_destroy();
     signal_handlers_cleanup();
 
     /* Disable bracketed paste mode */
@@ -459,10 +467,45 @@ static void unget_byte(int c) {
 }
 
 /*
- * Frame interval for idle polling - configurable via [performance] TOML section.
- * Default 100ms = 10fps when idle. Input is still immediate (poll returns on any input).
- * Uses perf_frame_interval global from settings.
+ * Adaptive frame interval using EWMA (exponentially weighted moving average).
+ * Fast typing → 16ms (60fps). Idle → 200ms (5fps, saves CPU).
+ * Pattern from PANDEMONIUM scheduler's adaptive control loop.
  */
+static int adaptive_frame_interval(void) {
+    static struct timespec last_input = {0, 0};
+    static double ewma_rate = 0.0;  /* Events per second (smoothed) */
+
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+
+    double elapsed = (double)(now.tv_sec - last_input.tv_sec)
+                   + (double)(now.tv_nsec - last_input.tv_nsec) / 1e9;
+
+    if (elapsed < 0.001) elapsed = 0.001;  /* Clamp to avoid division by zero */
+
+    /* EWMA update: alpha=0.3 for smooth transitions */
+    double current_rate = 1.0 / elapsed;
+    ewma_rate = 0.3 * current_rate + 0.7 * ewma_rate;
+
+    last_input = now;
+
+    /* Map rate to interval: high rate → low interval, low rate → high interval
+     * 10+ events/sec → 16ms (60fps), <2 events/sec → 200ms (idle) */
+    int base = perf_frame_interval > 0 ? perf_frame_interval : 100;
+    if (ewma_rate > 10.0) return 16;
+    if (ewma_rate > 5.0) return base / 3;
+    if (ewma_rate > 2.0) return base / 2;
+    return base;
+}
+
+/* Call adaptive_frame_interval() on input, use base interval when idle (no recent input) */
+static int get_frame_interval(bool had_input) {
+    if (had_input) return adaptive_frame_interval();
+    int base = perf_frame_interval > 0 ? perf_frame_interval : 100;
+    return base < 200 ? base : 200;
+}
+
+/* Legacy macro for callers that don't track input state */
 #define GET_FRAME_INTERVAL() (perf_frame_interval > 0 ? perf_frame_interval : 100)
 
 static int raw_getchar(void) {
@@ -499,7 +542,7 @@ static int raw_getchar(void) {
 
         c = get_input_byte();
         if (c >= 0) {
-            /* Got actual input - return it */
+            adaptive_frame_interval();  /* Update EWMA on input */
             return c;
         }
 
@@ -521,19 +564,18 @@ static int raw_getchar(void) {
             nfds = 2;
         }
 
-        poll(pfds, (nfds_t)nfds, GET_FRAME_INTERVAL());
+        poll(pfds, (nfds_t)nfds, get_frame_interval(false));
 
-        /* Poll out-of-process extensions for async messages (e.g., from goroutines) */
+        /* Poll out-of-process extensions for async messages */
         ext_host_poll_nonblocking();
 
-        /* Check EVIL flash timer - refresh modeline when 3-second splash expires */
+        /* Check EVIL flash timer */
         {
             extern long evil_mode_start_time;
             static bool evil_flash_was_active = false;
             bool evil_flash_active = (evil_mode_start_time > 0 &&
                                       (time(nullptr) - evil_mode_start_time) < 3);
             if (evil_flash_was_active && !evil_flash_active) {
-                /* Flash just expired - refresh modelines */
                 extern void upmode(void);
                 upmode();
                 update(false);
@@ -541,27 +583,22 @@ static int raw_getchar(void) {
             evil_flash_was_active = evil_flash_active;
         }
 
-        /* Check for EOF/HUP on stdin (e.g., closed pipe, disconnected terminal) */
+        /* Check for EOF/HUP on stdin */
         if (pfds[0].revents & (POLLHUP | POLLERR | POLLNVAL)) {
-            return -1;  /* stdin closed or error - exit gracefully */
+            return -1;
         }
 
-        /* Proactively batch-fill ring buffer when input becomes available.
-         * This is the key optimization: one syscall fills up to 8KB instead
-         * of reading one byte at a time. */
+        /* Batch-fill ring buffer when input becomes available */
         if (pfds[0].revents & POLLIN) {
             size_t before = input_ring_available(&g_input_ring);
             refill_ring_if_needed();
             size_t after = input_ring_available(&g_input_ring);
 
             if (after > before) {
-                no_data_count = 0;  /* Reset - we actually got data */
+                no_data_count = 0;
             } else {
-                /* poll said POLLIN but no data arrived - likely EOF condition
-                 * (e.g., stdin redirected to /dev/null) */
-                if (++no_data_count > 5) {
-                    return -1;  /* Persistent EOF - give up */
-                }
+                if (++no_data_count > 5)
+                    return -1;  /* Persistent EOF */
             }
         }
 
@@ -797,9 +834,8 @@ int terminal_read_byte(void) {
     /* Block until we get a character */
     int c;
     while ((c = raw_getchar()) == 0) {
-        /* Wait for input with poll - uses GET_FRAME_INTERVAL() from above */
         struct pollfd pfd = {STDIN_FILENO, POLLIN, 0};
-        poll(&pfd, 1, GET_FRAME_INTERVAL());
+        poll(&pfd, 1, get_frame_interval(false));
 
         /* Signal-based resize detection via unified handler */
         bool size_changed = false;

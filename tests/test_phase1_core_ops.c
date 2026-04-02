@@ -1,5 +1,4 @@
 #include "test_utils.h"
-#include "test_phase1_core_ops.h"
 
 // Phase 1: Core Text Operations
 int test_phase1_core_text_operations() {

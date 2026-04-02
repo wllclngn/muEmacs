@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "c23_compat.h"
 
 /* ============================================================================
  * Face IDs (4 bits = 16 faces)
@@ -99,7 +100,7 @@ typedef struct lexer_state {
 #define LEXER_STATE_INIT ((lexer_state_t){LEX_NORMAL, 0, 0, 0})
 
 /* Compare two states for equality (used in incremental re-lex) */
-static inline bool lexer_state_eq(lexer_state_t a, lexer_state_t b) {
+UNSEQUENCED static inline bool lexer_state_eq(lexer_state_t a, lexer_state_t b) {
     return a.mode == b.mode &&
            a.nest_depth == b.nest_depth &&
            a.string_delim == b.string_delim;

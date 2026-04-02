@@ -33,6 +33,9 @@
 #cmakedefine HAVE_SYS_SIGNALFD_H 1
 #cmakedefine HAVE_SYS_EVENTFD_H 1
 #cmakedefine HAVE_SYS_TIMERFD_H 1
+#cmakedefine HAVE_LINUX_IO_URING_H 1
+#cmakedefine HAVE_LINUX_SECCOMP_H 1
+#cmakedefine HAVE_LINUX_LANDLOCK_H 1
 #cmakedefine HAVE_UNISTD_H 1
 #cmakedefine HAVE_SIGNAL_H 1
 #cmakedefine HAVE_LOCALE_H 1

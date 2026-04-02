@@ -330,9 +330,6 @@ extern int editor_random(void);
 extern int string_find_index(const char *source, const char *pattern);
 extern char *string_translate(char *source, char *lookup, char *trans);
 
-/* crypt.c - REMOVED, CRYPT disabled */
-/* extern int set_encryption_key(int f, int n); */
-/* extern void myencrypt(char *bptr, unsigned len); */
 
 /* lock.c */
 extern int lockchk(char *fname);

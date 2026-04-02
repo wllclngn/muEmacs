@@ -74,6 +74,7 @@ typedef struct {
     ext_runtime_t runtime;          /* Detected runtime type */
     ext_state_t state;              /* Current state */
     pid_t pid;                      /* Process ID (0 if not running) */
+    int pidfd;                      /* pidfd for race-free monitoring (-1 if unavailable) */
     ext_ipc_channel_t *ipc;         /* IPC channel */
     ext_host_command_t commands[EXT_HOST_MAX_COMMANDS_PER_EXT];
     int num_commands;               /* Number of registered commands */

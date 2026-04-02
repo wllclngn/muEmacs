@@ -476,8 +476,8 @@ const char *clipboard_provider_name(void) {
         case CLIP_CUSTOM:  return "custom";
         case CLIP_NONE:    return "none";
         case CLIP_AUTO:    return "auto";
-        default:           return "unknown";
     }
+    unreachable();
 }
 
 /* Check if clipboard is available */

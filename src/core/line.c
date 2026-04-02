@@ -27,6 +27,7 @@
 #include "clipboard.h"
 #include "internal/syntax.h"
 #include "internal/text_storage.h"
+#include "wrap_segments.h"
 
 /* Forward declarations for kill ring functions */
 static void kill_ring_add(const char *text, size_t len);
@@ -102,6 +103,7 @@ struct line *lalloc(int used)
 	atomic_store(&lp->l_column_cache_offset, 0);
 	atomic_store(&lp->l_column_cache_column, 0);
 	atomic_store(&lp->l_column_cache_dirty, true);  /* Force recalc on first use */
+	lp->l_wrap_cache = nullptr;
 
 	return lp;
 }
@@ -133,6 +135,7 @@ struct line *lalloc_view(struct buffer *bp, size_t offset, size_t length)
 	atomic_store(&lp->l_column_cache_offset, 0);
 	atomic_store(&lp->l_column_cache_column, 0);
 	atomic_store(&lp->l_column_cache_dirty, true);
+	lp->l_wrap_cache = nullptr;
 
 	return lp;
 }
@@ -295,6 +298,9 @@ void lfree(struct line *lp)
 	}
 	lp->l_bp->l_fp = lp->l_fp;
 	lp->l_fp->l_bp = lp->l_bp;
+
+	/* Free wrap segment cache */
+	wrap_invalidate(lp);
 
 	/* View mode lines don't own storage - only destroy if storage exists */
 	if (lp->storage) {
@@ -461,6 +467,7 @@ static int linsert_str_segment(const char *text, size_t len) {
     }
 
     atomic_store(&lp1->l_column_cache_dirty, true);
+    wrap_invalidate(lp1);
 
     // Update stats incrementally
     buffer_update_stats_incremental(curbp, 0, (int)len, 0);
@@ -726,6 +733,7 @@ lp1 = curwp->w_dotp = lp1->l_bp;  // Go to last actual line
 	}
 	
 	atomic_store(&lp1->l_column_cache_dirty, true);
+	wrap_invalidate(lp1);
 
 	// Update word/line/char stats incrementally
 	int word_delta = 0;
@@ -825,6 +833,7 @@ int ldelete(long n, int kflag)
 			}
 			
 			atomic_store(&dotp->l_column_cache_dirty, true);
+			wrap_invalidate(dotp);
 			n -= chunk;
 		}
 	}

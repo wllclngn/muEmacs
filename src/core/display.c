@@ -32,7 +32,6 @@
 #include "string_utils.h"
 #include "memory.h"
 #include "error.h"
-#include "display_ops.h"
 #include "terminal_ops.h"
 #include "util/logger.h"
 #include "terminal/palette.h"
@@ -40,6 +39,7 @@
 #include "display_internal.h"
 #include "internal/syntax.h"
 #include "μemacs/buffer_utils.h"
+#include "wrap_segments.h"
 
 #include "../util/git_status.h"
 #include "uep/extension_api.h"
@@ -225,9 +225,7 @@ static void updfrom(struct window *wp, int start_sline, struct line *start_lp, i
 static void updall(struct window *wp);
 static void updext(void);
 static int updateline(int row, struct video *vp1, struct video *vp2);
-static int calculate_wordwrap_line_rows(struct line *lp, int wrap_col, int tab_width);
-static int calculate_wordwrap_cursor_pos(struct line *lp, int byte_offset, int wrap_col,
-                                          int tab_width, int *out_col);
+/* wrap_line_rows() and wrap_cursor_pos() provided by wrap_segments.h */
 /* Note: modern_modeline() and helpers moved to modeline.c */
 static int newscreensize(int h, int w);
 
@@ -315,8 +313,6 @@ void vtinit(void)
     TTopen();		/* open the screen */
     TTkopen();		/* open the keyboard */
     TTrev(false);
-    /* Initialize terminal optimizations/capabilities (truecolor, paste) after TTopen */
-    display_init_optimization();
     /* Allocate screen buffers */
     allocate_screens();
 }
@@ -334,7 +330,6 @@ void vttidy(void)
 	 * Restore the primary screen buffer and other terminal modes first,
 	 * so any final clears/cursor moves happen on the real shell screen.
 	 */
-	display_cleanup_optimization();
 	TTflush();
 
 	/* Close terminal I/O – do not write or move the cursor after
@@ -600,7 +595,7 @@ static void vtputc_selected(int c)
  * Erase from the end of the software cursor to the end of the line on which
  * the software cursor is located.
  */
-static void vteeol(void)
+void vteeol(void)
 {
 	unicode_t *vcp = vscreen[vtrow]->v_text;
 
@@ -863,7 +858,7 @@ static int reframe(struct window *wp)
 		else {
 			/* With soft-wrap, the line above may occupy multiple rows */
 			if (soft_wrap && lp0 != wp->w_bufp->b_linep) {
-				i = -calculate_wordwrap_line_rows(lp0, wp->w_wrap_col, 8);
+				i = -wrap_line_rows(lp0, wp->w_wrap_col, 8);
 			} else {
 				i = -1;
 			}
@@ -890,7 +885,7 @@ static int reframe(struct window *wp)
 
 			/* on to the next line - account for soft-wrap row count */
 			if (soft_wrap && lp != wp->w_bufp->b_linep) {
-				rows_per_line = calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+				rows_per_line = wrap_line_rows(lp, wp->w_wrap_col, 8);
 			} else {
 				rows_per_line = 1;
 			}
@@ -937,7 +932,7 @@ static int reframe(struct window *wp)
 		lp = lback(lp);
 		/* With soft-wrap, backing up one buffer line may cover multiple screen rows */
 		if (soft_wrap && lp != wp->w_bufp->b_linep) {
-			i -= calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+			i -= wrap_line_rows(lp, wp->w_wrap_col, 8);
 		} else {
 			--i;
 		}
@@ -1152,187 +1147,32 @@ static int in_region(struct line *lp, int pos)
 	return (pos >= sel_start && pos < sel_end);
 }
 
-/* Show a line with optional soft-wrap. Returns number of screen rows consumed.
- * wp parameter is the window being rendered (NOT necessarily curwp!)
- * line_num is 0-indexed line number for syntax lookup (-1 = unknown) */
-static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, int line_num)
+// Render one segment's characters to vscreen.
+// Handles UTF-8 decode, syntax faces, selection, control chars.
+// Returns updated char_col.
+static int render_segment_chars(struct line *lp, int len,
+                                const wrap_segment_t *seg,
+                                buffer_syntax_t *syn, int line_num,
+                                int sel_start, int sel_end, int char_col)
 {
-	/* CRITICAL: Null check before dereferencing lp */
-	if (!lp) {
-		LOG_ERROR("Display: show_line_wrapped() FATAL - lp is nullptr!");
-		return 1;
-	}
-	/* Note: lp->storage can be nullptr for view mode lines (piece table backed) */
-
-	int i = 0, len = llength(lp);
-	int in_selection = false;
-	int rows_used = 1;
-	int char_col = 0;  /* Character column for syntax lookup */
-
-	/* Get syntax state for this buffer (may be nullptr if no highlighting) */
-	buffer_syntax_t *syn = nullptr;
-	if (wp && wp->w_bufp && wp->w_bufp->b_syntax && line_num >= 0) {
-		syn = wp->w_bufp->b_syntax;
-	}
-	/* Debug: log syntax state for first 3 lines */
-	if (vtrow < 3) {
-		LOG_DEBUGF("SYNTAX_LOOKUP: vtrow=%d line_num=%d syn=%p", vtrow, line_num, (void*)syn);
-	}
-
-	/* Get wrap column from the window being rendered (NOT curwp!)
-	 * CRITICAL FIX: When soft-wrap is disabled (w_wrap_col == 0), use INT_MAX
-	 * to completely disable wrapping. Using term.t_ncol as fallback was WRONG
-	 * because it still triggered wrapping at terminal edge, corrupting vtrow. */
-	int wrap_col;
-	bool soft_wrap_enabled = (wp && wp->w_wrap_col > 0);
-	if (soft_wrap_enabled) {
-		wrap_col = wp->w_wrap_col;
-	} else {
-		wrap_col = INT_MAX;  /* Disable wrapping entirely - truncate at terminal edge */
-	}
-
-	/* COMPREHENSIVE DEBUG: Always log for first 10 rows to trace display issues */
-	LOG_DEBUGF("DISPLAY: show_line_wrapped row=%d vtrow=%d vtcol=%d len=%d wrap_col=%d soft_wrap=%s t_ncol=%d t_nrow=%d",
-	           max_rows, vtrow, vtcol, len, wrap_col,
-	           soft_wrap_enabled ? "ON" : "OFF", term.t_ncol, term.t_nrow);
-
-	/* Only apply selection highlighting to content lines in the current window */
-	int apply_highlighting = (wp != nullptr && wp->w_markp != nullptr &&
-	                         lp != nullptr && lp != wp->w_bufp->b_linep);
-
-	/* Pre-compute selection bounds once per line (not per char!) */
-	int sel_start = -1, sel_end = -1;
-	if (apply_highlighting) {
-		get_line_selection_bounds(lp, &sel_start, &sel_end);
-		LOG_DEBUGF("Display: Selection bounds: sel_start=%d sel_end=%d",
-		           sel_start, sel_end);
-	}
-
-	/* Get the line text into a buffer - handles both regular and view mode lines */
-	char line_text[4096];
-	int actual_len = (len < (int)sizeof(line_text) - 1) ? len : (int)sizeof(line_text) - 1;
-	if (actual_len > 0) {
-		lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
-#if UEMACS_DEBUG_LOG
-		/* COMPREHENSIVE DEBUG: Log buffer content being read */
-		if (vtrow < 5) {  // First 5 rows only
-			char preview[61];
-			int plen = (len < 60) ? len : 60;
-			for (int pi = 0; pi < plen; pi++) {
-				unsigned char ch = (unsigned char)line_text[pi];
-				preview[pi] = (ch >= 0x20 && ch < 0x7f) ? (char)ch : '.';
-			}
-			preview[plen] = '\0';
-			LOG_DEBUGF("BUFFER_READ: row=%d len=%d text=[%s]", vtrow, len, preview);
-			/* Hex dump first 10 bytes to debug UTF-8 issues */
-			if (vtrow == 0 && len >= 3) {
-				LOG_DEBUGF("HEXDUMP: lp=%p storage=%p bytes[0..9] = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-				           (void*)lp, (void*)lp->storage,
-				           (unsigned char)line_text[0], (unsigned char)line_text[1],
-				           (unsigned char)line_text[2], len > 3 ? (unsigned char)line_text[3] : 0,
-				           len > 4 ? (unsigned char)line_text[4] : 0, len > 5 ? (unsigned char)line_text[5] : 0,
-				           len > 6 ? (unsigned char)line_text[6] : 0, len > 7 ? (unsigned char)line_text[7] : 0,
-				           len > 8 ? (unsigned char)line_text[8] : 0, len > 9 ? (unsigned char)line_text[9] : 0);
-			}
-		}
-#endif
-	}
-
-	/* Word-wrap state: track last space for intelligent line breaking */
-	int last_space_i = -1;        /* Buffer position after last space */
-	int last_space_vtcol = -1;    /* Display column after last space */
-
-	while (i < actual_len) {
-		/* Stop if we've used all available rows */
-		if (rows_used > max_rows || vtrow >= term.t_nrow) {
-			break;
-		}
-
+	int bi = seg->byte_offset;
+	int seg_end_byte = seg->byte_offset + seg->byte_len;
+	while (bi < seg_end_byte && bi < len) {
+		char buf[6];
+		int rem = len - bi;
+		int ext = (rem > 6) ? 6 : rem;
+		for (int j = 0; j < ext; j++)
+			buf[j] = (char)lgetc(lp, bi + j);
 		unicode_t c;
-		int bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
-
-		/* Debug: Log UTF-8 decode for first 5 chars of row 0 */
-		if (vtrow == 0 && i < 15) {
-			LOG_DEBUGF("UTF8_DECODE: i=%d bytes=%d codepoint=0x%04X raw=[%02X %02X %02X]",
-			           i, bytes, c,
-			           (unsigned char)line_text[i],
-			           i+1 < actual_len ? (unsigned char)line_text[i+1] : 0,
-			           i+2 < actual_len ? (unsigned char)line_text[i+2] : 0);
-		}
-
-		/* Check for soft-wrap BEFORE rendering this character */
-		if (vtcol >= wrap_col && rows_used < max_rows) {
-			/* Word wrap: if we have a space to break at, use it */
-			if (last_space_vtcol > 0 && c != ' ' && c != '\t') {
-				/* Backtrack: clear from last space to current position */
-				int clear_from = last_space_vtcol;
-				for (int col = clear_from; col < vtcol && col < term.t_ncol; col++) {
-					vscreen[vtrow]->v_text[col] = ' ';
-				}
-				vtcol = clear_from;
-				i = last_space_i;  /* Restart rendering from after the space */
-			}
-			/* If current char is space, just skip it (don't start new line with space) */
-			if (c == ' ' || c == '\t') {
-				i += bytes;
-				/* Reset wrap tracking for new line */
-				last_space_i = -1;
-				last_space_vtcol = -1;
-				/* Fall through to do the wrap */
-			}
-
-			LOG_DEBUGF("SOFTWRAP: WRAP AT vtcol=%d, wrap_col=%d, moving to row %d",
-			           vtcol, wrap_col, vtrow + 1);
-			vteeol();  /* Fill rest of current line */
-			vtrow++;
-			vtcol = 0;
-			rows_used++;
-			/* Mark continuation row */
-			if (vtrow < term.t_nrow) {
-				vscreen[vtrow]->v_flag |= VFCHG;
-				vscreen[vtrow]->v_linep = lp;  /* Same buffer line */
-			}
-			/* Reset wrap tracking for new line */
-			last_space_i = -1;
-			last_space_vtcol = -1;
-			continue;  /* Re-check with updated state */
-		}
-
-		/* Track spaces for word-wrap */
-		if (c == ' ' || c == '\t') {
-			last_space_i = i + bytes;  /* Position AFTER the space */
-			last_space_vtcol = vtcol + 1;  /* Column AFTER the space */
-		}
-
-		/* Use pre-computed bounds instead of O(n) in_region() call */
-		int char_in_selection = (sel_start >= 0 && i >= sel_start && i < sel_end);
-
-		/* Apply highlighting by modifying character representation */
-		if (char_in_selection != in_selection) {
-			in_selection = char_in_selection;
-		}
-
-		// Filter control characters that corrupt terminal display
-		if (c == '\r') {
-			// Skip carriage returns - they show as ^M and corrupt display
-			i += bytes;
-			continue;
-		}
-
-		/* Look up syntax face for this character column */
+		int nb = (int)utf8_to_unicode(buf, 0, (unsigned)ext, &c);
+		if (nb <= 0) nb = 1;
+		if (c == '\r') { bi += nb; continue; }
+		int in_sel = (sel_start >= 0 && bi >= sel_start && bi < sel_end);
 		int face = FACE_DEFAULT;
-		if (syn && line_num >= 0) {
+		if (syn && line_num >= 0)
 			face = syntax_get_face(syn, line_num, char_col);
-			/* Debug: log face for first 10 chars of first 3 lines */
-			if (vtrow < 3 && char_col < 10 && face != FACE_DEFAULT) {
-				LOG_DEBUGF("FACE: row=%d col=%d face=%d char='%c'",
-				           vtrow, char_col, face, c >= 32 && c < 127 ? c : '?');
-			}
-		}
-
 		if (c < 32 && c != '\t') {
-			// Display other control chars as printable to avoid corruption
-			if (in_selection) {
+			if (in_sel) {
 				vtputc_selected('^');
 				vtputc_selected((int)('@' + c));
 			} else {
@@ -1340,18 +1180,187 @@ static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, i
 				vtputc_syntax((int)('@' + c), face);
 			}
 		} else {
-			if (in_selection) {
-				vtputc_selected((int)c);
-			} else {
-				vtputc_syntax((int)c, face);
-			}
+			if (in_sel) vtputc_selected((int)c);
+			else vtputc_syntax((int)c, face);
 		}
-		i += bytes;
-		char_col++;  /* Advance character column for syntax lookup */
+		bi += nb;
+		char_col++;
+	}
+	return char_col;
+}
+
+/* Show a line with optional soft-wrap. Returns number of screen rows consumed.
+ * wp parameter is the window being rendered (NOT necessarily curwp!)
+ * line_num is 0-indexed line number for syntax lookup (-1 = unknown) */
+static int show_line_wrapped(struct window *wp, struct line *lp, int max_rows, int line_num)
+{
+	if (!lp) {
+		LOG_ERROR("Display: show_line_wrapped() FATAL - lp is nullptr!");
+		return 1;
 	}
 
-	/* Hot path - logging disabled for performance
-	LOG_DEBUGF("Display: show_line_wrapped() consumed %d rows", rows_used); */
+	int len = llength(lp);
+	int rows_used = 1;
+	int char_col = 0;
+
+	// Syntax state
+	buffer_syntax_t *syn = nullptr;
+	if (wp && wp->w_bufp && wp->w_bufp->b_syntax && line_num >= 0)
+		syn = wp->w_bufp->b_syntax;
+
+	// Wrap column (0 = disabled -> INT_MAX)
+	int wrap_col;
+	bool soft_wrap_enabled = (wp && wp->w_wrap_col > 0);
+	if (soft_wrap_enabled)
+		wrap_col = wp->w_wrap_col;
+	else
+		wrap_col = INT_MAX;
+
+	LOG_DEBUGF("DISPLAY: show_line_wrapped vtrow=%d vtcol=%d len=%d wrap_col=%d soft_wrap=%s",
+	           vtrow, vtcol, len, wrap_col, soft_wrap_enabled ? "ON" : "OFF");
+
+	// Selection bounds (pre-computed once)
+	int sel_start = -1, sel_end = -1;
+	if (wp && wp->w_markp && lp != wp->w_bufp->b_linep)
+		get_line_selection_bounds(lp, &sel_start, &sel_end);
+
+	// Empty line: nothing to render
+	if (len == 0)
+		return rows_used;
+
+	// If wrapping is enabled, use segment cache for break decisions.
+	// Otherwise, render character-by-character without wrap logic.
+	if (soft_wrap_enabled) {
+		wrap_cache_t *cache = wrap_prepare(lp, 8);
+		if (!cache || cache->count == 0)
+			return rows_used;
+
+		// Segment-based rendering with Pretext pending-break pattern.
+		// Phase 1: Walk segments to decide where each row ends.
+		// Phase 2: Render characters within each row's segment range.
+		//
+		// We combine both phases: walk segments, render as we go,
+		// but never write past a break point (no backtracking).
+
+		int running_col = 0;
+		int pending_break_seg = -1;
+		int seg_idx = 0;
+		int render_from_seg = 0;   // first segment of current row
+
+		while (seg_idx < cache->count) {
+			if (rows_used > max_rows || vtrow >= term.t_nrow)
+				break;
+
+			const wrap_segment_t *seg = &cache->segments[seg_idx];
+			int seg_w = seg->display_width;
+			// Recompute tab width at current column
+			if (seg->kind == SEG_TAB)
+				seg_w = ((running_col + 8) / 8) * 8 - running_col;
+
+			// Would this segment overflow?
+			if (running_col > 0 && running_col + seg_w > wrap_col) {
+				// Breakable segment: trailing whitespace, emit row
+				if (seg->kind == SEG_SPACE || seg->kind == SEG_TAB) {
+					// Render segments render_from_seg..seg_idx (inclusive)
+					// then wrap
+					goto do_render_and_wrap;
+				}
+
+				// Pending break available
+				if (pending_break_seg >= 0) {
+					// Render segments render_from_seg..pending_break_seg
+					// then wrap, restart from pending_break_seg+1
+					int end_seg = pending_break_seg;
+
+					// Render this row's segments
+					for (int rs = render_from_seg; rs <= end_seg; rs++)
+						char_col = render_segment_chars(lp, len, &cache->segments[rs],
+						                                syn, line_num, sel_start, sel_end, char_col);
+
+					vteeol();
+					vtrow++;
+					vtcol = 0;
+					rows_used++;
+					if (vtrow < term.t_nrow) {
+						vscreen[vtrow]->v_flag |= VFCHG;
+						vscreen[vtrow]->v_linep = lp;
+					}
+
+					// Restart from segment after break
+					seg_idx = pending_break_seg + 1;
+					render_from_seg = seg_idx;
+					running_col = 0;
+					pending_break_seg = -1;
+					continue;
+				}
+
+				// No break point: hard break, re-process this segment on new row
+				// First render what we have
+				for (int rs = render_from_seg; rs < seg_idx; rs++)
+					char_col = render_segment_chars(lp, len, &cache->segments[rs],
+					                                syn, line_num, sel_start, sel_end, char_col);
+
+				vteeol();
+				vtrow++;
+				vtcol = 0;
+				rows_used++;
+				if (vtrow < term.t_nrow) {
+					vscreen[vtrow]->v_flag |= VFCHG;
+					vscreen[vtrow]->v_linep = lp;
+				}
+				render_from_seg = seg_idx;
+				running_col = 0;
+				pending_break_seg = -1;
+				continue;
+			}
+
+			// Normal: add segment, track breaks
+			running_col += seg_w;
+			if (seg->kind == SEG_SPACE || seg->kind == SEG_TAB)
+				pending_break_seg = seg_idx;
+			seg_idx++;
+			continue;
+
+		do_render_and_wrap:
+			// Render segments render_from_seg..seg_idx (trailing space included)
+			for (int rs = render_from_seg; rs <= seg_idx; rs++)
+				char_col = render_segment_chars(lp, len, &cache->segments[rs],
+				                                syn, line_num, sel_start, sel_end, char_col);
+
+			vteeol();
+			vtrow++;
+			vtcol = 0;
+			rows_used++;
+			if (vtrow < term.t_nrow) {
+				vscreen[vtrow]->v_flag |= VFCHG;
+				vscreen[vtrow]->v_linep = lp;
+			}
+			seg_idx++;
+			render_from_seg = seg_idx;
+			running_col = 0;
+			pending_break_seg = -1;
+		}
+
+		// Render remaining segments on current row (no wrap needed)
+		if (render_from_seg < (int)cache->count && vtrow < term.t_nrow) {
+			for (int rs = render_from_seg; rs < (int)cache->count; rs++)
+				char_col = render_segment_chars(lp, len, &cache->segments[rs],
+				                                syn, line_num, sel_start, sel_end, char_col);
+		}
+	} else {
+		// No wrapping: render all characters directly (truncate at terminal edge)
+		// Build a temporary single-segment covering the whole line for the helper
+		wrap_segment_t whole = {
+			.byte_offset = 0,
+			.byte_len = (uint16_t)(len > UINT16_MAX ? UINT16_MAX : len),
+			.display_width = 0,
+			.char_count = 0,
+			.kind = SEG_TEXT
+		};
+		render_segment_chars(lp, len, &whole, syn, line_num,
+		                     sel_start, sel_end, char_col);
+	}
+
 	return rows_used;
 }
 
@@ -1399,7 +1408,7 @@ static void updone(struct window *wp)
 
 			while (walk_lp != wp->w_dotp && walk_lp != wp->w_bufp->b_linep) {
 				if (walk_lp != wp->w_bufp->b_linep) {
-					wrap_sline += calculate_wordwrap_line_rows(walk_lp, wp->w_wrap_col, 8);
+					wrap_sline += wrap_line_rows(walk_lp, wp->w_wrap_col, 8);
 				} else {
 					wrap_sline++;
 				}
@@ -1420,7 +1429,7 @@ static void updone(struct window *wp)
 		}
 
 		/* Calculate current row count for cursor line */
-		int cur_rows = calculate_wordwrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
+		int cur_rows = wrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
 
 		/* Use expensive updfrom() only when row count changes */
 		if (cur_rows != wp->w_sline_rows) {
@@ -1472,11 +1481,11 @@ static void updone(struct window *wp)
 	sline = wp->w_toprow;
 	while (lp != wp->w_dotp) {
 		/* With soft-wrap, each line may occupy multiple screen rows.
-		 * CRITICAL: Use calculate_wordwrap_line_rows() to match updpos()
+		 * CRITICAL: Use wrap_line_rows() to match updpos()
 		 * calculation exactly. Simple division is WRONG because word-wrap
 		 * breaks at spaces, not at exact column boundaries. */
 		if (wp->w_wrap_col > 0 && lp != wp->w_bufp->b_linep) {
-			sline += calculate_wordwrap_line_rows(lp, wp->w_wrap_col, 8);
+			sline += wrap_line_rows(lp, wp->w_wrap_col, 8);
 		} else {
 			++sline;
 		}
@@ -1494,12 +1503,12 @@ static void updone(struct window *wp)
 	}
 
 	/* With soft-wrap, cursor may be on a continuation row within the current line.
-	 * CRITICAL: Use calculate_wordwrap_cursor_pos() to match updpos() exactly.
+	 * CRITICAL: Use wrap_cursor_pos() to match updpos() exactly.
 	 * Simple division is WRONG because word-wrap breaks at spaces. */
 	if (wp->w_wrap_col > 0) {
 		int dummy_col;
-		int extra_rows = calculate_wordwrap_cursor_pos(wp->w_dotp, wp->w_doto,
-		                                                wp->w_wrap_col, 8, &dummy_col);
+		int extra_rows = wrap_cursor_pos(wp->w_dotp, wp->w_doto,
+		                                 wp->w_wrap_col, 8, &dummy_col);
 		sline += extra_rows;
 	}
 
@@ -1611,7 +1620,7 @@ static void updfrom(struct window *wp, int start_sline, struct line *start_lp, i
 
 	/* Update soft-wrap cache after updfrom() */
 	if (wp->w_wrap_col > 0 && wp->w_dotp) {
-		wp->w_sline_rows = calculate_wordwrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
+		wp->w_sline_rows = wrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
 	}
 }
 
@@ -1781,170 +1790,14 @@ static void updall(struct window *wp)
 		struct line *cache_lp = wp->w_linep;
 		int cursor_sline = wp->w_toprow;
 		while (cache_lp != wp->w_dotp && cache_lp != wp->w_bufp->b_linep) {
-			cursor_sline += calculate_wordwrap_line_rows(cache_lp, wp->w_wrap_col, 8);
+			cursor_sline += wrap_line_rows(cache_lp, wp->w_wrap_col, 8);
 			cache_lp = lforw(cache_lp);
 		}
 		wp->w_sline_dotp = wp->w_dotp;
 		wp->w_sline_linep = wp->w_linep;
 		wp->w_sline_cache = cursor_sline;
-		wp->w_sline_rows = calculate_wordwrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
+		wp->w_sline_rows = wrap_line_rows(wp->w_dotp, wp->w_wrap_col, 8);
 	}
-}
-
-/*
- * Calculate how many screen rows a line occupies with word-wrap.
- * This mirrors the wrap logic from show_line_wrapped().
- */
-static int calculate_wordwrap_line_rows(struct line *lp, int wrap_col, int tab_width)
-{
-	if (!lp || wrap_col <= 0) return 1;
-
-	int len = llength(lp);
-	if (len == 0) return 1;
-
-	/* Get line text - handles both regular and view mode lines */
-	char line_text[4096];
-	int actual_len = (len < (int)sizeof(line_text) - 1) ? len : (int)sizeof(line_text) - 1;
-	lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
-
-	int i = 0;
-	int vcol = 0;
-	int rows = 1;
-	int last_space_i = -1;
-	int last_space_vcol = -1;
-
-	while (i < actual_len) {
-		unicode_t c;
-		int bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
-		if (bytes <= 0) bytes = 1;
-
-		/* Check for wrap BEFORE processing */
-		if (vcol >= wrap_col) {
-			if (last_space_vcol > 0 && c != ' ' && c != '\t') {
-				vcol = last_space_vcol;
-				i = last_space_i;
-				bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
-				if (bytes <= 0) bytes = 1;
-			}
-			if (c == ' ' || c == '\t') {
-				i += bytes;
-				last_space_i = -1;
-				last_space_vcol = -1;
-			}
-			vcol = 0;
-			rows++;
-			last_space_i = -1;
-			last_space_vcol = -1;
-			continue;
-		}
-
-		if (c == ' ' || c == '\t') {
-			last_space_i = i + bytes;
-			last_space_vcol = vcol + 1;
-		}
-
-		if (c == '\t') {
-			vcol = ((vcol + tab_width) / tab_width) * tab_width;
-		} else if (c < 32 || c == 127) {
-			vcol += 2;
-		} else {
-			vcol++;
-		}
-		i += bytes;
-	}
-
-	return rows;
-}
-
-/*
- * Calculate cursor position within a line considering word-wrap.
- * This mirrors the word-wrap logic in show_line_wrapped() to ensure
- * cursor position matches what's displayed.
- *
- * Returns: extra_rows (number of wrap-induced row increments)
- * Sets: *out_col to the column within the final row
- */
-static int calculate_wordwrap_cursor_pos(struct line *lp, int byte_offset, int wrap_col, int tab_width,
-                                          int *out_col)
-{
-	if (!lp || byte_offset <= 0 || wrap_col <= 0) {
-		*out_col = calculate_display_column_cached(lp, byte_offset, tab_width);
-		return 0;
-	}
-
-	int len = llength(lp);
-	if (len == 0) {
-		*out_col = 0;
-		return 0;
-	}
-
-	/* Get line text - handles both regular and view mode lines */
-	char line_text[4096];
-	int actual_len = (len < (int)sizeof(line_text) - 1) ? len : (int)sizeof(line_text) - 1;
-	lget_text(lp, 0, (size_t)actual_len, line_text, sizeof(line_text));
-
-	int i = 0;
-	int vcol = 0;
-	int rows = 0;
-	int last_space_i = -1;
-	int last_space_vcol = -1;
-
-	while (i < actual_len && i < byte_offset) {
-		unicode_t c;
-		int bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
-		if (bytes <= 0) bytes = 1;
-
-		/* Check for wrap BEFORE processing this character */
-		if (vcol >= wrap_col) {
-			/* Word wrap: backtrack to last space if available */
-			if (last_space_vcol > 0 && c != ' ' && c != '\t') {
-				/* Backtrack to after the space */
-				vcol = last_space_vcol;
-				i = last_space_i;
-				bytes = (int)utf8_to_unicode(line_text, (unsigned)i, (unsigned)actual_len, &c);
-				if (bytes <= 0) bytes = 1;
-			}
-			/* Skip leading space on new line */
-			if (c == ' ' || c == '\t') {
-				i += bytes;
-				last_space_i = -1;
-				last_space_vcol = -1;
-			}
-			/* Wrap to next row */
-			vcol = 0;
-			rows++;
-			last_space_i = -1;
-			last_space_vcol = -1;
-			continue;
-		}
-
-		/* Track spaces for word-wrap */
-		if (c == ' ' || c == '\t') {
-			last_space_i = i + bytes;
-			last_space_vcol = vcol + 1;
-		}
-
-		/* Calculate display width */
-		if (c == '\t') {
-			vcol = ((vcol + tab_width) / tab_width) * tab_width;
-		} else if (c < 32 || c == 127) {
-			vcol += 2;  /* Control char like ^A */
-		} else {
-			vcol++;  /* Normal char */
-		}
-		i += bytes;
-	}
-
-	/* Post-loop check: if cursor is at/past wrap_col and there's more text,
-	 * the next character would wrap, so cursor should be on the next row.
-	 * If cursor is at end of buffer, it stays at end of current visual line. */
-	if (vcol >= wrap_col && byte_offset < actual_len) {
-		rows++;
-		vcol = 0;
-	}
-
-	*out_col = vcol;
-	return rows;
 }
 
 /*
@@ -1966,7 +1819,7 @@ void updpos(void)
 	while (lp != curwp->w_dotp) {
 		/* With word-wrap, each line may occupy multiple screen rows */
 		if (curwp->w_wrap_col > 0 && lp != curwp->w_bufp->b_linep) {
-			new_currow += calculate_wordwrap_line_rows(lp, curwp->w_wrap_col, 8);
+			new_currow += wrap_line_rows(lp, curwp->w_wrap_col, 8);
 		} else {
 			++new_currow;
 		}
@@ -1975,8 +1828,8 @@ void updpos(void)
 
 	/* find the current column - use word-wrap aware calculation if soft-wrap enabled */
 	if (curwp->w_wrap_col > 0) {
-		int extra_rows = calculate_wordwrap_cursor_pos(curwp->w_dotp, curwp->w_doto,
-		                                                curwp->w_wrap_col, 8, &new_curcol);
+		int extra_rows = wrap_cursor_pos(curwp->w_dotp, curwp->w_doto,
+		                                curwp->w_wrap_col, 8, &new_curcol);
 		new_currow += extra_rows;
 	} else {
 		new_curcol = calculate_display_column_cached(curwp->w_dotp, curwp->w_doto, 8);

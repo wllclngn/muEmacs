@@ -584,7 +584,7 @@ static char *proxy_get_current_line(void)
 static char *proxy_get_line_at(struct buffer *bp, int line_num)
 {
     (void)bp; (void)line_num;
-    return nullptr;  /* TODO: implement if needed */
+    return nullptr;  /* Not available for out-of-process extensions */
 }
 
 /* Window operations - not applicable for out-of-process */
@@ -1152,6 +1152,17 @@ int main(int argc, char **argv)
     /* Signal ready to editor */
     atomic_store_explicit(&g_ipc->shm->ext_ready, 1, memory_order_release);
     ipc_log("ext_runner[%d]: Signaled READY", getpid());
+
+    /* Apply seccomp + landlock sandbox now that init is complete.
+     * Must happen after init so the extension can load libraries and open files.
+     * Non-fatal: continues unsandboxed if kernel lacks support. */
+#ifdef ENABLE_SANDBOX
+    {
+        #include "platform/sandbox.h"
+        sandbox_apply_full(SANDBOX_PROFILE_EXTENSION_C, ".", nullptr);
+        ipc_log("ext_runner[%d]: Sandbox applied", getpid());
+    }
+#endif
 
     /* Start death watcher thread - ensures we exit even if main loop blocks */
     if (g_death_fd >= 0) {

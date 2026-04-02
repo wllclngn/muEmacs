@@ -3,7 +3,6 @@
 #include        <stdio.h>
 #include        <signal.h>
 #include        <sys/stat.h>
-#include        <sys/wait.h>
 
 #include "estruct.h"
 #include "edef.h"
@@ -28,14 +27,16 @@
  * Simple hash function for buffer names (FNV-1a variant)
  * Returns hash value for fast buffer lookup
  */
-static uint32_t buffer_name_hash(const char *name)
+/* FxHash (rustc-hash pattern) — faster than FNV-1a for short strings
+ * with power-of-2 table sizes. Rotate-XOR-multiply has better avalanche. */
+REPRODUCIBLE static uint32_t buffer_name_hash(const char *name)
 {
-	uint32_t hash = 2166136261U;
+	uint32_t hash = 0;
 	while (*name) {
-		hash ^= (unsigned char)*name++;
-		hash *= 16777619U;
+		hash = ((hash << 5) | (hash >> 27)) ^ (unsigned char)*name++;
+		hash *= 0x9e3779b9U;
 	}
-	return hash & (BUFFER_HASH_SIZE - 1); // Fast modulo using power of 2
+	return hash & (BUFFER_HASH_SIZE - 1);
 }
 
 /*

@@ -16,6 +16,7 @@
 #include "edef.h"
 #include "efunc.h"
 #include "memory.h"
+#include "c23_compat.h"
 
 /* Memory allocation tracking for debugging */
 typedef struct alloc_record {
@@ -85,13 +86,22 @@ static void untrack_allocation(void* ptr) {
     }
 }
 
+/* Safe array allocation with checked arithmetic (C23 ckd_mul) */
+void* safe_array_alloc(size_t count, size_t elem_size, const char* context, const char* file, int line) {
+    size_t total;
+    if (ckd_mul(&total, count, elem_size)) {
+        mlwrite("[ALLOCATION OVERFLOW: %s]", context ? context : "UNKNOWN");
+        return nullptr;
+    }
+    return safe_alloc(total, context, file, line);
+}
+
 /* Safe allocation with error reporting */
 void* safe_alloc(size_t size, const char* context, const char* file, int line) {
-    /* Check for overflow in allocation size */
     if (size == 0) {
         size = 1;  /* Minimum allocation */
     }
-    
+
     if (size > SIZE_MAX / 2) {
         mlwrite("[ALLOCATION TOO LARGE: %s]", context ? context : "UNKNOWN");
         return nullptr;

@@ -44,66 +44,28 @@ struct search_thread_ctx {
     int end_line_idx;
     int start_offset;      /* Offset within first line to start searching (skip earlier matches) */
     const char *pattern;
+    bool case_sensitive;   /* Snapshot of MDEXACT mode (avoids global read in worker) */
     struct search_result result;
 };
 
 /*
- * Thread worker function
+ * Thread-safe region scanner using Boyer-Moore-Horspool.
+ * Avoids global matchline/matchoff by writing to per-thread search_result.
  */
-static void *search_worker_safe(void *arg) {
-    struct search_thread_ctx *ctx = (struct search_thread_ctx *)arg;
-    struct line *start_lp;
-    struct line *end_lp;
-    
-    // Get start and end lines using O(1) index
-    // Note: index access is read-only and thread-safe as long as no one is deleting lines
-    // parallel search should only run when buffer is stable (no concurrent edits).
-    
-    start_lp = buffer_index_get(ctx->bp, ctx->start_line_idx);
-    int total_lines = atomic_load(&ctx->bp->b_line_count);
-    
-    if (ctx->end_line_idx >= total_lines) {
-        end_lp = ctx->bp->b_linep; // Header is end sentinel
-    } else {
-        end_lp = buffer_index_get(ctx->bp, ctx->end_line_idx);
-    }
-    
-    if (!start_lp || !end_lp) {
-        ctx->result.found = 0;
-        return nullptr;
-    }
-    
-    // Perform search in this region
-    // scan_region_forward is now thread-safe (uses stack buffer)
-    // It returns TRUE if found and writes to its own matchline/matchoff?
-    // Wait, scan_region_forward in search.c writes to GLOBAL matchline/matchoff.
-    // That is NOT thread safe.
-    // I removed `scan_region_forward` from `search.c` header previously because it wasn't there.
-    // But `parallel_search.c` needs a thread-safe scanner.
-    // I will re-implement a local thread-safe scanner here to avoid global state issues entirely.
-    
-    // ... (Implementation of parallel_scan_region below) ...
-    return nullptr;
-}
-
-/*
- * Thread-safe region scanner (Duplicates logic from search.c to avoid global state)
- */
-static int parallel_scan_region(struct line *start_lp, struct line *end_lp, const char *pattern, int start_offset, struct search_result *res) {
+static int parallel_scan_region(struct line *start_lp, struct line *end_lp,
+                                const char *pattern, int start_offset,
+                                bool case_sensitive, struct search_result *res) {
     struct line *curline = start_lp;
     int patlen = (int)strlen(pattern);
     char line_buf[NSTRING];
-    int first_line = 1;  /* Track if we're on the first line */
+    int first_line = 1;
 
     if (patlen <= 0) return 0;
 
-    // Check if pattern has newline (not supported in simple BMH)
-    if (strchr(pattern, '\n') || strchr(pattern, '\r')) {
+    if (strchr(pattern, '\n') || strchr(pattern, '\r'))
         return 0;
-    }
 
     struct boyer_moore_context bm = {0};
-    bool case_sensitive = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
 
     if (bm_init(&bm, (const unsigned char*)pattern, patlen, case_sensitive) != 0) {
         return 0;
@@ -154,7 +116,8 @@ static void *run_worker(void *arg) {
     }
     
     if (start_lp && end_lp) {
-        parallel_scan_region(start_lp, end_lp, ctx->pattern, ctx->start_offset, &ctx->result);
+        parallel_scan_region(start_lp, end_lp, ctx->pattern, ctx->start_offset,
+                             ctx->case_sensitive, &ctx->result);
     }
     return nullptr;
 }
@@ -198,9 +161,13 @@ int parallel_search(const char *pattern, int direction) {
     int active_threads = 0;
     int chunk_size = remaining_lines / num_threads;
     
+    // Snapshot mode flags before spawning (avoid global read from workers)
+    bool case_sensitive = ((curwp->w_bufp->b_mode & MDEXACT) != 0);
+
     for (int i = 0; i < num_threads; i++) {
         contexts[i].bp = curbp;
         contexts[i].pattern = pattern;
+        contexts[i].case_sensitive = case_sensitive;
         contexts[i].result.found = 0;
 
         contexts[i].start_line_idx = start_idx + (i * chunk_size);

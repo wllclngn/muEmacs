@@ -18,7 +18,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def run_mx_command(emu, cmd):
@@ -48,7 +48,7 @@ def count_status_lines(emu):
 
 def test_split_window():
     """split-current-window should create two windows."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Line 1\n")
         for i in range(20):
@@ -80,7 +80,7 @@ def test_split_window():
 
 def test_split_via_cx2():
     """C-x 2 should split window (standard Emacs binding)."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Test content\n")
         for i in range(20):
@@ -112,7 +112,7 @@ def test_split_via_cx2():
 
 def test_delete_window():
     """delete-window should close current window after split."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Test content\n")
         for i in range(20):
@@ -143,7 +143,7 @@ def test_delete_window():
 
 def test_delete_only_window_fails():
     """delete-window on only window should show error."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Test content\n")
         for i in range(20):
@@ -171,7 +171,7 @@ def test_delete_only_window_fails():
 
 def test_delete_other_windows():
     """delete-other-windows should leave only current window."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Test content\n")
         for i in range(20):
@@ -215,7 +215,7 @@ def find_highlighted_row(emu):
 
 def test_next_window():
     """next-window should cycle to next window."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Window test\n")
         for i in range(20):
@@ -254,7 +254,7 @@ def test_next_window():
 
 def test_previous_window():
     """previous-window should cycle to previous window."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Window test\n")
         for i in range(20):
@@ -287,7 +287,7 @@ def test_previous_window():
 
 def test_grow_window():
     """grow-window should increase window size."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Window test\n")
         for i in range(20):
@@ -328,7 +328,7 @@ def test_grow_window():
 
 def test_shrink_window():
     """shrink-window should decrease window size."""
-    filename = '/tmp/muemacs_window_test.txt'
+    filename = test_tmp('muemacs_window_test.txt')
     with open(filename, 'w') as f:
         f.write("Window test\n")
         for i in range(20):

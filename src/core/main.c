@@ -26,6 +26,7 @@
 #include "error.h"
 #include "../util/display_width.h"
 #include "util/logger.h"
+#include "terminal/signal_handler.h"
 #include "terminal/terminal.h"  /* Modern Terminal System */
 #include "terminal/input_state.h" /* Unified input parser */
 #include "editor_mode.h"        /* Vim mode state for replace mode */
@@ -36,7 +37,6 @@
 #define GOOD    0
 #endif
 
-#include <signal.h>
 #include <unistd.h>
 static void emergencyexit(int);
 void check_emergency_exit(void);
@@ -69,7 +69,6 @@ struct main_state {
 };
 
 // Function prototypes for refactored main()
-static void initialize_platform(void);
 static int handle_help_version(int argc, char **argv);
 static const char *extract_first_filename(int argc, char **argv);
 static void initialize_editor(void);
@@ -96,8 +95,8 @@ int muemacs_main_entry(int argc, char **argv)
 	struct main_state state = {0};
 	int result;
 
-	// Platform-specific initialization and signal setup
-	initialize_platform();
+	// Crash handlers first — catch SIGSEGV/SIGABRT even during init
+	signal_install_crash_handlers();
 
 	// Initialize debug logging (no-op if UEMACS_DEBUG_LOG=0)
 	logger_init();
@@ -139,14 +138,6 @@ int muemacs_main_entry(int argc, char **argv)
 	logger_close();
 
 	return result;
-}
-
-// Platform-specific initialization
-static void initialize_platform(void)
-{
-	// Signal handlers are now initialized via signal_handlers_init() in curses.c
-	// No platform-specific signal setup needed here
-	(void)0;
 }
 
 // Extract first filename from argv for early preloading
@@ -198,6 +189,9 @@ static void initialize_editor(void)
 
     // Load user settings from TOML - this is the single source of truth for keybindings
     settings_load(false, 0);
+
+    // Watch settings.toml for live reload (inotify IN_CLOSE_WRITE)
+    settings_watch_init();
 
     // Initialize palette (environment overrides after TOML)
     extern void palette_init(void);
@@ -301,7 +295,6 @@ static int parse_command_line(int argc, char **argv, struct main_args *args)
 			// Set the modes appropriately
 			if (args->viewflag)
 				bp->b_mode |= MDVIEW;
-			/* Old CRYPT removed - use encrypt.c */
 		}
 	}
 
@@ -360,11 +353,6 @@ static int main_editor_loop(struct main_args *args, struct main_state *state)
 	lastflag = 0;  // Fake last flags.
 
 loop:
-	/* NOTE: Pre-command hook removed - it was accidentally matching Meta-C (capword)
-	 * and executing it on every loop iteration, moving the cursor 4 positions forward.
-	 * The original intent was to handle "phantom key" 0xa0000043 in vim mode, but
-	 * getbind_event() didn't distinguish KEY_SPECIAL from KEY_CHAR with MOD_META. */
-
 	// Check for pending signals first
 	check_emergency_exit();
 #ifdef SIGWINCH
@@ -377,6 +365,9 @@ loop:
 	/* Initialize any extensions that finished loading in background */
 	extern int extension_poll_pending(void);
 	extension_poll_pending();
+
+	/* Check for config file changes (non-blocking inotify) */
+	settings_check_reload();
 
 	/* Check EVIL flash timer - refresh modeline when 3-second splash expires */
 	{
@@ -527,8 +518,6 @@ loop:
 	/* Execute the command using event-based dispatch */
 	execute_event(&state->evt, state->f, state->n);
 	goto loop;
-	
-	return true;
 }
 
 

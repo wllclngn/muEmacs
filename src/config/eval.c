@@ -193,8 +193,7 @@ const char *eval_get_function(char *fname)
 	case UFXLATE:
 		return string_translate(arg1, arg2, arg3);
 	}
-
-	exit(-11);		/* never should get here */
+	unreachable();
 }
 
 /*
@@ -331,7 +330,7 @@ char *eval_get_env_var(const char *vname)
 	case EVSCROLL:
 		return bool_to_string(term.t_scroll != nullptr);
 	}
-	exit(-12);		/* again, we should never get here */
+	unreachable();
 }
 
 /*

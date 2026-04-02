@@ -501,6 +501,146 @@ size_t gap_buffer_search_forward(struct gap_buffer *restrict gb, size_t start_po
     return gb->logical_size; // Not found
 }
 
+// Replace text at position: delete old_len bytes, insert new_text
+int gap_buffer_replace(struct gap_buffer *restrict gb, size_t pos, size_t old_len,
+                       const char *restrict new_text, size_t new_len) {
+    if (!gb || !new_text) return GAP_BUFFER_INVALID;
+
+    int rc = gap_buffer_delete(gb, pos, old_len);
+    if (rc != GAP_BUFFER_SUCCESS) return rc;
+    return gap_buffer_insert(gb, pos, new_text, new_len);
+}
+
+// Get line text -- returns pointer to thread-local static buffer
+const char *gap_buffer_get_line(struct gap_buffer *gb, size_t line_num, size_t *length) {
+    static _Thread_local char line_buf[4096];
+
+    if (!gb) {
+        if (length) *length = 0;
+        return "";
+    }
+
+    size_t lc = gap_buffer_line_count(gb);
+    if (line_num >= lc) {
+        if (length) *length = 0;
+        return "";
+    }
+
+    size_t start = gb->line_idx.offsets[line_num];
+    size_t end;
+    if (line_num + 1 < lc)
+        end = gb->line_idx.offsets[line_num + 1];
+    else
+        end = gb->logical_size;
+
+    size_t len = end - start;
+    if (len > sizeof(line_buf) - 1)
+        len = sizeof(line_buf) - 1;
+
+    gap_buffer_get_text(gb, start, len, line_buf, sizeof(line_buf));
+    line_buf[len] = '\0';
+
+    if (length) *length = len;
+    return line_buf;
+}
+
+// Get byte length of a line
+size_t gap_buffer_line_length(struct gap_buffer *gb, size_t line_num) {
+    if (!gb) return 0;
+
+    size_t lc = gap_buffer_line_count(gb);
+    if (line_num >= lc) return 0;
+
+    size_t start = gb->line_idx.offsets[line_num];
+    size_t end;
+    if (line_num + 1 < lc)
+        end = gb->line_idx.offsets[line_num + 1];
+    else
+        end = gb->logical_size;
+
+    return end - start;
+}
+
+// Convert UTF-8 character position to byte offset within a line
+size_t gap_buffer_char_to_byte(struct gap_buffer *gb, size_t line_num, size_t char_pos) {
+    if (!gb) return 0;
+
+    size_t len;
+    const char *line = gap_buffer_get_line(gb, line_num, &len);
+    size_t chars_seen = 0;
+    size_t byte = 0;
+
+    while (byte < len && chars_seen < char_pos) {
+        if (is_beginning_utf8((unsigned char)line[byte]))
+            chars_seen++;
+        byte++;
+    }
+    return byte;
+}
+
+// Convert byte offset to UTF-8 character position within a line
+size_t gap_buffer_byte_to_char(struct gap_buffer *gb, size_t line_num, size_t byte_pos) {
+    if (!gb) return 0;
+
+    size_t len;
+    const char *line = gap_buffer_get_line(gb, line_num, &len);
+    if (byte_pos > len) byte_pos = len;
+
+    size_t chars = 0;
+    for (size_t i = 0; i < byte_pos; i++) {
+        if (is_beginning_utf8((unsigned char)line[i]))
+            chars++;
+    }
+    return chars;
+}
+
+// Count UTF-8 characters in a line
+size_t gap_buffer_char_count(struct gap_buffer *gb, size_t line_num) {
+    if (!gb) return 0;
+
+    size_t len;
+    const char *line = gap_buffer_get_line(gb, line_num, &len);
+    size_t chars = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (is_beginning_utf8((unsigned char)line[i]))
+            chars++;
+    }
+    return chars;
+}
+
+// Boyer-Moore search backward
+size_t gap_buffer_search_backward(struct gap_buffer *restrict gb, size_t start_pos,
+                                  const char *restrict pattern, size_t pattern_len) {
+    if (!gb || !pattern || pattern_len == 0 || start_pos == 0)
+        return gb ? gb->logical_size : 0;
+
+    if (start_pos > gb->logical_size)
+        start_pos = gb->logical_size;
+
+    // Materialize text from 0..start_pos for scanning
+    size_t search_len = start_pos;
+    unsigned char *text = SAFE_ARRAY(unsigned char, search_len, "gap buffer backward search");
+    if (!text) return gb->logical_size;
+
+    for (size_t i = 0; i < search_len; i++)
+        text[i] = (unsigned char)gap_buffer_get_char(gb, i);
+
+    // Scan backward for pattern match
+    size_t result = gb->logical_size;
+    if (search_len >= pattern_len) {
+        for (size_t i = search_len - pattern_len; ; i--) {
+            if (memcmp(&text[i], pattern, pattern_len) == 0) {
+                result = i;
+                break;
+            }
+            if (i == 0) break;
+        }
+    }
+
+    SAFE_FREE(text);
+    return result;
+}
+
 // Invalidate all caches
 void gap_buffer_invalidate_caches(struct gap_buffer *gb) {
     if (!gb) return;

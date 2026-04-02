@@ -1,5 +1,4 @@
 #include "test_utils.h"
-#include "test_phase5_advanced_undo_redo.h"
 // Internal editor headers for unit testing undo/redo logic without TTY
 #include "internal/estruct.h"
 #include "internal/efunc.h"

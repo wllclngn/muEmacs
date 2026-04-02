@@ -29,7 +29,10 @@
 #include "internal/memory.h"
 #include "internal/line.h"
 #include "internal/syntax.h"
+#include "μemacs/keymap.h"
+#include "editor_mode.h"
 #include "terminal/input_state.h"
+#include "terminal/palette.h"
 #include "util/logger.h"
 
 /* ============================================================================
@@ -195,6 +198,27 @@ static void api_modeline_refresh(void);
 static int api_delete_chars(int n);
 static int api_kill_line(void);
 
+/* Keymap API (Phase 2: Extension keymap registration) */
+static struct keymap *api_keymap_create(const char *name);
+static void api_keymap_destroy(struct keymap *km);
+static int api_keymap_bind(struct keymap *km, uint32_t code, uint16_t mods, command_fn cmd);
+static int api_keymap_unbind(struct keymap *km, uint32_t code, uint16_t mods);
+
+/* Vim infrastructure accessors */
+static struct keymap *api_get_vim_normal_keymap(void);
+static struct keymap *api_get_vim_visual_keymap(void);
+static void api_set_vim_mode_active(int active);
+static int api_get_vim_mode_active(void);
+static void *api_get_vim_state(void);
+
+/* Display setting accessors (for c_linus and similar extensions) */
+static void api_set_highlight_line(int enabled);
+static void api_set_ruler(int enabled);
+static void api_set_syntax_enabled(int enabled);
+
+/* Command lookup */
+static fn_t api_find_command(const char *name);
+
 /* Generic function pointer type for ISO C compliant storage.
  * All function pointers can be converted to/from this type. */
 typedef void (*generic_fn_t)(void);
@@ -300,6 +324,27 @@ static const api_registry_entry_t api_registry[] = {
     /* Text manipulation */
     {"delete_chars", FN(api_delete_chars)},
     {"kill_line", FN(api_kill_line)},
+
+    /* Keymap API */
+    {"keymap_create", FN(api_keymap_create)},
+    {"keymap_destroy", FN(api_keymap_destroy)},
+    {"keymap_bind", FN(api_keymap_bind)},
+    {"keymap_unbind", FN(api_keymap_unbind)},
+
+    /* Vim infrastructure */
+    {"get_vim_normal_keymap", FN(api_get_vim_normal_keymap)},
+    {"get_vim_visual_keymap", FN(api_get_vim_visual_keymap)},
+    {"set_vim_mode_active", FN(api_set_vim_mode_active)},
+    {"get_vim_mode_active", FN(api_get_vim_mode_active)},
+    {"get_vim_state", FN(api_get_vim_state)},
+
+    /* Display settings */
+    {"set_highlight_line", FN(api_set_highlight_line)},
+    {"set_ruler", FN(api_set_ruler)},
+    {"set_syntax_enabled", FN(api_set_syntax_enabled)},
+
+    /* Command lookup */
+    {"find_command", FN(api_find_command)},
 
     /* Sentinel */
     {nullptr, nullptr}
@@ -1409,6 +1454,82 @@ static int api_delete_chars(int n) {
 
 static int api_kill_line(void) {
     return kill_to_eol(false, 1) == true ? 0 : -1;
+}
+
+/* ============================================================================
+ * Keymap API - Extension keymap registration
+ * ============================================================================ */
+
+static struct keymap *api_keymap_create(const char *name) {
+    if (!name) return nullptr;
+    return keymap_create(name);
+}
+
+static void api_keymap_destroy(struct keymap *km) {
+    if (km) keymap_destroy(km);
+}
+
+static int api_keymap_bind(struct keymap *km, uint32_t code, uint16_t mods, command_fn cmd) {
+    if (!km || !cmd) return -1;
+    return keymap_bind(km, keymap_key_make(code, mods), cmd);
+}
+
+static int api_keymap_unbind(struct keymap *km, uint32_t code, uint16_t mods) {
+    if (!km) return -1;
+    return keymap_unbind(km, keymap_key_make(code, mods));
+}
+
+/* ============================================================================
+ * Vim Infrastructure Accessors
+ * ============================================================================ */
+
+static struct keymap *api_get_vim_normal_keymap(void) {
+    return atomic_load(&vim_normal_keymap);
+}
+
+static struct keymap *api_get_vim_visual_keymap(void) {
+    return atomic_load(&vim_visual_keymap);
+}
+
+static void api_set_vim_mode_active(int active) {
+    atomic_store(&vim_mode_active, active);
+}
+
+static int api_get_vim_mode_active(void) {
+    return atomic_load(&vim_mode_active);
+}
+
+static void *api_get_vim_state(void) {
+    return &g_vim_state;
+}
+
+/* ============================================================================
+ * Display Setting Accessors
+ * ============================================================================ */
+
+static void api_set_highlight_line(int enabled) {
+    highlight_current_line = enabled;
+}
+
+static void api_set_ruler(int enabled) {
+    column_ruler_enabled = enabled;
+}
+
+static void api_set_syntax_enabled(int enabled) {
+    g_palette.syntax_enabled = (bool)enabled;
+}
+
+/* ============================================================================
+ * Command Lookup
+ * ============================================================================ */
+
+static fn_t api_find_command(const char *name) {
+    if (!name) return nullptr;
+    /* Check static command table first */
+    fn_t cmd = fncmatch(name);
+    if (cmd) return cmd;
+    /* Check dynamic (extension) commands */
+    return (fn_t)extension_find_command(name);
 }
 
 char *extension_get_modeline_segments(int urgency) {

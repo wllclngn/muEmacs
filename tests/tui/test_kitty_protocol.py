@@ -25,7 +25,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 # Kitty protocol helpers
@@ -98,7 +98,7 @@ MOD_SUPER = 8
 
 def test_kitty_basic_letter():
     """Test basic letter input via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Test file for Kitty protocol\n")
         for i in range(20):
@@ -135,7 +135,7 @@ def test_kitty_basic_letter():
 
 def test_kitty_arrow_keys():
     """Test arrow key navigation via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         for i in range(50):
             f.write(f"Line {i+1}: Test content for navigation\n")
@@ -175,7 +175,7 @@ def test_kitty_arrow_keys():
 
 def test_kitty_modifiers():
     """Test modifier key combinations via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Test line one\n")
         f.write("Test line two\n")
@@ -218,7 +218,7 @@ def test_kitty_modifiers():
 
 def test_kitty_function_keys():
     """Test function keys via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Function key test\n")
         for i in range(20):
@@ -247,7 +247,7 @@ def test_kitty_function_keys():
 
 def test_kitty_release_events_ignored():
     """Test that key release events (event_type=3) are ignored."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Release event test\n")
         for i in range(20):
@@ -300,7 +300,7 @@ def test_kitty_release_events_ignored():
 
 def test_kitty_repeat_events():
     """Test that key repeat events (event_type=2) are processed."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Repeat event test\n")
         for i in range(20):
@@ -341,7 +341,7 @@ def test_kitty_repeat_events():
 
 def test_kitty_home_end():
     """Test Home/End keys via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("0123456789 Line with content here\n")
         for i in range(20):
@@ -389,7 +389,7 @@ def test_kitty_home_end():
 
 def test_kitty_enter_tab_backspace():
     """Test Enter, Tab, and Backspace via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Test content\n")
 
@@ -434,7 +434,7 @@ def test_kitty_enter_tab_backspace():
 
 def test_kitty_escape_key():
     """Test Escape key via Kitty protocol (should exit insert mode)."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         f.write("Escape test\n")
         for i in range(10):
@@ -478,7 +478,7 @@ def test_kitty_escape_key():
 
 def test_kitty_mixed_with_traditional():
     """Test mixing Kitty protocol with traditional escape sequences."""
-    filename = '/tmp/muemacs_kitty_test.txt'
+    filename = test_tmp('muemacs_kitty_test.txt')
     with open(filename, 'w') as f:
         for i in range(50):
             f.write(f"Line {i+1}: Mixed protocol test\n")
@@ -524,7 +524,7 @@ def test_kitty_mixed_with_traditional():
 
 def test_kitty_rapid_input():
     """Test rapid Kitty protocol input."""
-    filename = '/tmp/muemacs_kitty_rapid.txt'
+    filename = test_tmp('muemacs_kitty_rapid.txt')
     with open(filename, 'w') as f:
         for i in range(100):
             f.write(f"Line {i+1}: Rapid Kitty input test content\n")
@@ -569,7 +569,7 @@ def test_kitty_rapid_input():
 
 def test_kitty_unicode_input():
     """Test Unicode character input via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_unicode.txt'
+    filename = test_tmp('muemacs_kitty_unicode.txt')
     with open(filename, 'w') as f:
         f.write("Unicode via Kitty\n")
         for i in range(10):
@@ -612,7 +612,7 @@ def test_kitty_unicode_input():
 
 def test_kitty_pageup_pagedown():
     """Test PageUp/PageDown via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_page.txt'
+    filename = test_tmp('muemacs_kitty_page.txt')
     with open(filename, 'w') as f:
         for i in range(200):
             f.write(f"Line {i+1}: Page navigation test\n")
@@ -650,7 +650,7 @@ def test_kitty_pageup_pagedown():
 
 def test_kitty_insert_delete():
     """Test Insert/Delete via Kitty protocol."""
-    filename = '/tmp/muemacs_kitty_ins_del.txt'
+    filename = test_tmp('muemacs_kitty_ins_del.txt')
     with open(filename, 'w') as f:
         f.write("Insert Delete test line\n")
         for i in range(10):

@@ -13,6 +13,18 @@ import os
 import re
 
 
+def test_tmp(filename):
+    """Return a test-isolated temp path.
+
+    When MUEMACS_TEST_TMPDIR is set (by run_parallel.py), files go into
+    a per-test subdirectory to prevent collisions. Otherwise falls back
+    to /tmp/.
+    """
+    d = os.environ.get('MUEMACS_TEST_TMPDIR', '/tmp')
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, filename)
+
+
 class CursorTracker:
     """Track cursor position history and detect unexpected jumps."""
 
@@ -92,7 +104,7 @@ class UEmacsTest:
             The filename that was created.
         """
         if filename is None:
-            filename = '/tmp/muemacs_tui_test.txt'
+            filename = test_tmp('muemacs_tui_test.txt')
         if content is None:
             content = "This is a test file.\n" + "".join(f"Line {i+2}\n" for i in range(20))
         with open(filename, 'w') as f:
@@ -142,7 +154,7 @@ class UEmacsTest:
 
     def wait_for_startup(self, timeout=2):
         """Wait for initial render."""
-        time.sleep(0.5)
+        time.sleep(0.3)
         self._read_output()
 
     def enable_evil_mode(self):

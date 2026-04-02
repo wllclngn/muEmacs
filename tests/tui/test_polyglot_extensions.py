@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pexpect
 import pyte
+from base import test_tmp
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "../.."))
@@ -186,7 +187,7 @@ def test_treesitter_commands():
     print("=" * 60)
 
     # Create a test C file
-    test_file = "/tmp/test_treesitter.c"
+    test_file = test_tmp("test_treesitter.c")
     with open(test_file, 'w') as f:
         f.write('#include <stdio.h>\nint main() {\n    printf("hello");\n    return 0;\n}\n')
 
@@ -322,7 +323,7 @@ def test_multicursor_pascal_commands():
     print("=" * 60)
 
     # Create test file
-    test_file = "/tmp/test_multicursor.txt"
+    test_file = test_tmp("test_multicursor.txt")
     with open(test_file, 'w') as f:
         f.write("foo\nfoo\nfoo\nbar\nfoo\n")
 

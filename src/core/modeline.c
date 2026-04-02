@@ -141,6 +141,115 @@ static int getlinecount_modern(struct buffer *bp)
 }
 
 /*
+ * Classic Linus Torvalds uEmacs/PK 4.0 modeline
+ * Format: --  uEmacs/PK 4.0: buffername (MODES) filename  Bot/Top/All/nn%
+ */
+void classic_modeline(struct window *wp)
+{
+	struct buffer *bp = wp->w_bufp;
+	int n = wp->w_toprow + wp->w_ntrows;
+
+	if (n < 0 || n >= term.t_mrow || !vscreen || !vscreen[n])
+		return;
+
+	/* Check for extension full takeover FIRST */
+	if (extension_modeline_has_full_override()) {
+		char *full_ml = extension_get_modeline_full();
+		if (full_ml) {
+			vscreen[n]->v_flag |= VFCHG | VFREQ;
+			vtmove(n, 0);
+			for (char *fcp = full_ml; *fcp && vtcol < term.t_ncol; fcp++)
+				vtputc(*fcp);
+			while (vtcol < term.t_ncol)
+				vtputc(' ');
+			free(full_ml);
+			return;
+		}
+	}
+
+	vscreen[n]->v_flag |= VFCHG | VFREQ;
+	vtmove(n, 0);
+
+	/* Modified indicator: -- unmodified, ** modified */
+	char mod_ch = (bp->b_flag & BFCHG) ? '*' : '-';
+	vtputc(mod_ch);
+	vtputc(mod_ch);
+
+	/* View mode indicator */
+	vtputc((bp->b_mode & MDVIEW) ? '%' : ' ');
+	vtputc(' ');
+
+	/* Editor name */
+	const char *ename = "uEmacs/PK 4.0: ";
+	for (const char *p = ename; *p; p++)
+		vtputc(*p);
+
+	/* Buffer name */
+	for (const char *p = bp->b_bname; *p && vtcol < term.t_ncol - 20; p++)
+		vtputc(*p);
+	vtputc(' ');
+
+	/* Active modes in parens */
+	vtputc('(');
+	for (int i = 0; i < NUMMODES - 1; i++) {
+		if (bp->b_mode & (1 << i))
+			vtputc(modecode[i]);
+	}
+	vtputc(')');
+	vtputc(' ');
+
+	/* Filename if different from buffer name */
+	if (bp->b_fname[0] && strcmp(bp->b_fname, bp->b_bname) != 0) {
+		for (const char *p = bp->b_fname; *p && vtcol < term.t_ncol - 10; p++)
+			vtputc(*p);
+	}
+
+	/* Position indicator: All/Top/Bot/nn% */
+	int current_line = get_line_number_cached(wp);
+	int total_lines = 0;
+	long dummy_size = 0;
+	int dummy_words = 0;
+	buffer_get_stats_fast(bp, &total_lines, &dummy_size, &dummy_words);
+
+	char pos[16];
+	if (total_lines <= wp->w_ntrows)
+		safe_strcpy(pos, "All", sizeof(pos));
+	else if (current_line <= 1)
+		safe_strcpy(pos, "Top", sizeof(pos));
+	else if (current_line >= total_lines)
+		safe_strcpy(pos, "Bot", sizeof(pos));
+	else
+		snprintf(pos, sizeof(pos), "%d%%", (current_line * 100) / total_lines);
+
+	/* Pad to right-align position indicator */
+	int pos_len = (int)strlen(pos);
+	int target_col = term.t_ncol - pos_len - 1;
+	while (vtcol < target_col)
+		vtputc(' ');
+
+	for (const char *p = pos; *p && vtcol < term.t_ncol; p++)
+		vtputc(*p);
+
+	/* Fill remainder */
+	while (vtcol < term.t_ncol)
+		vtputc(' ');
+}
+
+static int modeline_style = 0;  // 0 = classic, 1 = modern
+
+/*
+ * Toggle modeline style between classic and modern (M-x modeline-style)
+ */
+int modeline_style_cmd(int f, int n)
+{
+	(void)f; (void)n;
+	modeline_style = modeline_style ? 0 : 1;
+	sgarbf = true;
+	mlwrite("[Modeline: %s]", modeline_style ? "modern" : "classic");
+	return true;
+}
+
+/*
  * Modern modeline matching user's preferred format
  */
 void modern_modeline(struct window *wp)

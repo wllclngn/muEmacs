@@ -12,10 +12,12 @@
  */
 
 #include "terminal/signal_handler.h"
+#include <stdio.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <string.h>
 #include <errno.h>
+#include <execinfo.h>
 #include "util/logger.h"
 
 /* Global signal flags */
@@ -257,3 +259,144 @@ bool signal_check_interrupt(void) {
 void signal_clear_interrupt(void) {
     sig_int_pending = 0;
 }
+
+/* ========== Crash Signal Handlers ========== */
+
+/* Async-signal-safe signal name lookup */
+static const char *crash_signal_name(int sig) {
+    switch (sig) {
+    case SIGSEGV: return "SIGSEGV (Segmentation fault)";
+    case SIGABRT: return "SIGABRT (Abort)";
+    case SIGFPE:  return "SIGFPE (Floating point exception)";
+    case SIGILL:  return "SIGILL (Illegal instruction)";
+    case SIGBUS:  return "SIGBUS (Bus error)";
+    default:      return "Unknown signal";
+    }
+}
+
+/*
+ * Crash handler — prints stack trace and restores terminal.
+ *
+ * Uses only async-signal-safe functions:
+ *   dprintf, write, backtrace, backtrace_symbols_fd, _exit, tcsetattr
+ *
+ * SA_RESETHAND ensures one-shot (prevents recursive crashes).
+ */
+static void handle_crash(int sig) {
+    /* Restore terminal first so the trace is readable */
+    signal_restore_terminal_safe();
+
+    /* Print crash banner */
+    dprintf(STDERR_FILENO, "\n\033[1;31m=== μEmacs CRASH ===\033[0m\n");
+    dprintf(STDERR_FILENO, "Signal: %d (%s)\n", sig, crash_signal_name(sig));
+
+    /* Stack trace via glibc backtrace (compile with -rdynamic for symbols) */
+    void *frames[64];
+    int n = backtrace(frames, 64);
+    if (n > 0) {
+        dprintf(STDERR_FILENO, "Stack trace (%d frames):\n", n);
+        backtrace_symbols_fd(frames, n, STDERR_FILENO);
+    }
+
+    dprintf(STDERR_FILENO, "\033[1;31m=== END CRASH ===\033[0m\n\n");
+
+    /* Die without running atexit handlers (unsafe in signal context) */
+    _exit(128 + sig);
+}
+
+void signal_install_crash_handlers(void) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = handle_crash;
+    sa.sa_flags = (int)SA_RESETHAND;  /* One-shot: prevents recursive crashes */
+
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGABRT, &sa, nullptr);
+    sigaction(SIGFPE,  &sa, nullptr);
+    sigaction(SIGILL,  &sa, nullptr);
+    sigaction(SIGBUS,  &sa, nullptr);
+}
+
+/* ========== signalfd Integration ========== */
+
+#ifdef HAVE_SYS_SIGNALFD_H
+#include <sys/signalfd.h>
+
+static int g_signalfd = -1;
+
+int signal_create_signalfd(void) {
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGWINCH);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGHUP);
+    sigaddset(&mask, SIGPIPE);
+    sigaddset(&mask, SIGCONT);
+
+    /* Block these signals so they go to signalfd */
+    sigprocmask(SIG_BLOCK, &mask, nullptr);
+
+    g_signalfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    return g_signalfd;
+}
+
+int signal_get_signalfd(void) {
+    return g_signalfd;
+}
+
+void signal_process_signalfd(void) {
+    if (g_signalfd < 0) return;
+
+    struct signalfd_siginfo si;
+    while (read(g_signalfd, &si, sizeof(si)) == (ssize_t)sizeof(si)) {
+        switch (si.ssi_signo) {
+        case SIGWINCH:
+            sig_winch_pending = 1;
+            sig_new_rows = (int)si.ssi_utime;  /* Not available via signalfd */
+            /* Fetch size via ioctl instead */
+            {
+                struct winsize ws;
+                if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+                    sig_new_rows = ws.ws_row;
+                    sig_new_cols = ws.ws_col;
+                }
+            }
+            break;
+        case SIGINT:
+            sig_int_pending = 1;
+            break;
+        case SIGTERM:
+            sig_term_pending = 1;
+            signal_restore_terminal_safe();
+            break;
+        case SIGHUP:
+            sig_hup_pending = 1;
+            signal_restore_terminal_safe();
+            break;
+        case SIGPIPE:
+            sig_pipe_pending = 1;
+            break;
+        case SIGCONT:
+            sig_cont_pending = 1;
+            break;
+        }
+    }
+}
+
+void signal_close_signalfd(void) {
+    if (g_signalfd >= 0) {
+        close(g_signalfd);
+        g_signalfd = -1;
+    }
+}
+
+#else /* !HAVE_SYS_SIGNALFD_H */
+
+int signal_create_signalfd(void) { return -1; }
+int signal_get_signalfd(void) { return -1; }
+void signal_process_signalfd(void) {}
+void signal_close_signalfd(void) {}
+
+#endif /* HAVE_SYS_SIGNALFD_H */

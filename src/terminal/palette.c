@@ -84,7 +84,7 @@ ui_palette_t g_palette = {
 
     /* Flags */
     .search_fg_set = false,
-    .syntax_enabled = true,
+    .syntax_enabled = false,
     .syntax_prefer_builtin = true  /* Built-in lexers first for immediate highlighting */
 };
 
@@ -311,9 +311,9 @@ int palette_clamp(int idx) {
 
         case COLOR_CAP_256:
         case COLOR_CAP_TRUECOLOR:
-        default:
             return idx;  /* Full palette available */
     }
+    unreachable();
 }
 
 /*

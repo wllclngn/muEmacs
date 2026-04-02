@@ -1,5 +1,4 @@
 #include "test_utils.h"
-#include "test_phase2_navigation.h"
 
 // Phase 2: Navigation & Cursor Operations  
 int test_phase2_navigation_cursor() {
@@ -18,12 +17,8 @@ int test_phase2_navigation_cursor() {
     if (access("tests/phase2_navigation.exp", F_OK) == 0) {
         result &= run_expect_script("phase2_navigation.exp", "/tmp/phase2_test.txt");
     } else {
-        LOG_INFOF("[%%sWARNING%%s] Phase 2 expect script not found, using basic validation", YELLOW, RESET);
-        result = 1;  // Assume success for now
+        LOG_INFOF("[%sSKIP%s] Phase 2 expect script not found", YELLOW, RESET);
     }
-    
-    stats.operations_completed += 75000;
-    log_memory_usage();
     
     PHASE_END("PHASE 2", result);
     return result;

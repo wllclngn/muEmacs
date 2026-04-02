@@ -11,12 +11,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def test_yank_to_named_register():
     """\"ayy should yank line to register a."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("first line\n")
         f.write("second line\n")
@@ -69,7 +69,7 @@ def test_yank_to_named_register():
 
 def test_delete_to_named_register():
     """\"add should delete line to register a."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("delete me\n")
         f.write("keep this\n")
@@ -124,7 +124,7 @@ def test_delete_to_named_register():
 
 def test_unnamed_register():
     """yy should work with unnamed register (default)."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("yank this\n")
         f.write("line two\n")
@@ -164,7 +164,7 @@ def test_unnamed_register():
 
 def test_register_prefix_display():
     """\" should show register selection prompt."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("test content\n")
         for i in range(10):

@@ -17,7 +17,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def run_mx_command(emu, cmd):
@@ -46,8 +46,8 @@ def get_status_buffer_name(emu):
 def test_select_buffer():
     """select-buffer should switch to named buffer."""
     # Create two files with short, distinct names (buffer names limited to 15 chars)
-    file1 = '/tmp/buf1.txt'
-    file2 = '/tmp/buf2.txt'
+    file1 = test_tmp('buf1.txt')
+    file2 = test_tmp('buf2.txt')
     with open(file1, 'w') as f:
         f.write("Content of file 1\n")
         for i in range(10):
@@ -103,8 +103,8 @@ def test_select_buffer():
 
 def test_next_buffer():
     """next-buffer should cycle through buffers."""
-    file1 = '/tmp/nbuf1.txt'
-    file2 = '/tmp/nbuf2.txt'
+    file1 = test_tmp('nbuf1.txt')
+    file2 = test_tmp('nbuf2.txt')
     with open(file1, 'w') as f:
         f.write("FIRST BUFFER\n")
         for i in range(10):
@@ -150,8 +150,8 @@ def test_next_buffer():
 
 def test_delete_buffer():
     """delete-buffer should close the specified buffer."""
-    file1 = '/tmp/dbuf1.txt'
-    file2 = '/tmp/dbuf2.txt'
+    file1 = test_tmp('dbuf1.txt')
+    file2 = test_tmp('dbuf2.txt')
     with open(file1, 'w') as f:
         f.write("File 1 content\n")
         for i in range(10):
@@ -199,7 +199,7 @@ def test_delete_buffer():
 
 def test_list_buffers():
     """list-buffers should display buffer list."""
-    file1 = '/tmp/lbuf1.txt'
+    file1 = test_tmp('lbuf1.txt')
     with open(file1, 'w') as f:
         f.write("Test content\n")
         for i in range(10):
@@ -232,7 +232,7 @@ def test_list_buffers():
 
 def test_buffer_modified_indicator():
     """Modified buffer should show indicator in status line."""
-    filename = '/tmp/mbuf1.txt'
+    filename = test_tmp('mbuf1.txt')
     with open(filename, 'w') as f:
         f.write("Original content\n")
         for i in range(10):

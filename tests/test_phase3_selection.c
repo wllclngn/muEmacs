@@ -1,5 +1,4 @@
 #include "test_utils.h"
-#include "test_phase3_selection.h"
 
 // Phase 3: Selection & Region Operations
 int test_phase3_selection_region() {
@@ -19,12 +18,8 @@ int test_phase3_selection_region() {
     if (access("tests/phase3_selection.exp", F_OK) == 0) {
         result &= run_expect_script("phase3_selection.exp", "/tmp/phase3_test.txt");
     } else {
-        LOG_INFOF("[%%sWARNING%%s] Phase 3 expect script not found, using basic validation", YELLOW, RESET);
-        result = 1;  // Assume success for now
+        LOG_INFOF("[%sSKIP%s] Phase 3 expect script not found", YELLOW, RESET);
     }
-    
-    stats.operations_completed += 130000;
-    log_memory_usage();
     
     PHASE_END("PHASE 3", result);
     return result;

@@ -11,9 +11,9 @@ trim_trailing_whitespace = false  # Strip trailing spaces/tabs on save
 insert_final_newline = true       # Ensure file ends with newline (POSIX)
 
 [visual]
-ruler = true
+ruler = false
 ruler_col = 80
-highlight_line = true
+highlight_line = false
 highlight_style = 4  # 4 = RGB Dark Grey
 ruler_style = 1      # 1 = Underline
 
@@ -31,14 +31,6 @@ search_bg = "#5F5F00"          # Search match background (olive)
 search_fg = ""                 # Search match foreground (inherit)
 message_bg = "#1C1C1C"         # Minibuffer/message line background
 
-# ─── Vim Mode Indicators ───────────────────────────────────
-# Minimal colors like Vim's modeline
-mode_normal = "#FFFFFF"        # White (like Vim NORMAL)
-mode_insert = "#87CEEB"        # Light blue
-mode_visual = "#FFA500"        # Orange
-mode_replace = "#FF6347"       # Tomato red
-mode_evil = "#EA1717"          # EVIL splash (Kitty red)
-
 # ─── Accents & Messages ────────────────────────────────────
 accent = "#87CEEB"             # Light blue (subtle)
 error = "#FF6347"              # Error messages (red)
@@ -48,7 +40,7 @@ success = "#90EE90"            # Success messages (light green)
 # ─── Syntax Highlighting ──────────────────────────────────
 # Kitty-inspired cyberpunk palette (teals, pinks, oranges)
 [theme.syntax]
-enabled = true                 # Enable syntax highlighting
+enabled = false                # Syntax highlighting (opt-in)
 prefer_builtin = true          # true = built-in lexers first (immediate colors)
                                # false = extension lexers first (LSP semantic tokens)
 keyword = "#FF3CE6"            # Keywords (if, while, return) - hot pink (color4)
@@ -290,177 +282,6 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 "_" = "redo"
 
 # =============================================================================
-# VIM NORMAL MODE KEYBINDINGS (Evil Mode)
-# =============================================================================
-# Active when evil_mode = true and in normal mode.
-
-[keybindings.normal]
-# Count digits (for repeat counts like 5j, 10dd)
-"0" = "vim-digit-0"
-"1" = "vim-digit-1"
-"2" = "vim-digit-2"
-"3" = "vim-digit-3"
-"4" = "vim-digit-4"
-"5" = "vim-digit-5"
-"6" = "vim-digit-6"
-"7" = "vim-digit-7"
-"8" = "vim-digit-8"
-"9" = "vim-digit-9"
-
-# Basic motion
-"h" = "vim-move-left"
-"j" = "vim-move-down"
-"k" = "vim-move-up"
-"l" = "vim-move-right"
-
-# Arrow keys (standard navigation)
-"UP" = "vim-move-up"
-"DOWN" = "vim-move-down"
-"LEFT" = "vim-move-left"
-"RIGHT" = "vim-move-right"
-
-# Backspace
-"BACKSPACE" = "vim-move-left"
-
-# Word motion
-"w" = "vim-word-forward"
-"b" = "vim-word-backward"
-"e" = "vim-word-end"
-
-# Line motion
-"$" = "vim-line-end"
-"^" = "vim-first-nonblank-wrapped"
-
-# Custom user bindings (from ~/.vimrc)
-"H" = "vim-line-start"
-"L" = "vim-line-end"
-"K" = "previous-page"
-"J" = "next-page"
-"w" = "next-window"
-"r" = "redo"
-"f" = "vim-word-end"
-
-# Mode switching
-"i" = "vim-enter-insert-mode"
-"a" = "vim-append"
-"A" = "vim-append-eol"
-"I" = "vim-insert-bol"
-"^[" = "vim-enter-normal-mode"
-
-# Operators
-"d" = "vim-delete-operator"
-"c" = "vim-change-operator"
-"y" = "vim-yank-operator"
-"x" = "vim-delete-char"
-
-# Open lines
-"o" = "vim-open-line-below"
-"O" = "vim-open-line-above"
-
-# Put (paste)
-"p" = "vim-put-after"
-"P" = "vim-put-before"
-
-# Registers
-"\"" = "vim-register-prefix"
-
-# Undo
-"u" = "undo"
-"^R" = "redo"
-
-# File operations (user preferences)
-"s" = "save-file"
-"S" = "quick-exit"
-"q" = "exit-emacs"
-
-# Visual mode
-"v" = "vim-enter-visual-mode"
-"V" = "vim-enter-visual-line-mode"
-"^V" = "vim-enter-visual-block-mode"
-
-# Goto
-"g" = "vim-goto-prefix"
-"G" = "vim-goto-line-or-end"
-
-# Find character (f remapped to vim-word-end in custom bindings above)
-"F" = "vim-find-char-backward"
-"t" = "vim-till-char-forward"
-"T" = "vim-till-char-backward"
-";" = "vim-repeat-find"
-"," = "vim-repeat-find-reverse"
-
-# Replace mode (r remapped to redo in custom bindings above)
-"R" = "vim-enter-replace-mode"
-
-# Misc
-"~" = "vim-toggle-case"
-"." = "vim-dot-repeat"
-
-# Marks
-"m" = "vim-set-mark"
-"'" = "vim-goto-mark-line"
-"`" = "vim-goto-mark-exact"
-
-# Search
-"/" = "vim-search-forward"
-"?" = "vim-search-backward"
-"n" = "vim-search-next"
-"N" = "vim-search-prev"
-"*" = "vim-search-word-forward"
-"#" = "vim-search-word-backward"
-
-# Command prompt
-":" = "execute-named-command"
-
-# =============================================================================
-# VIM VISUAL MODE KEYBINDINGS (Evil Mode)
-# =============================================================================
-# Active when in visual selection mode.
-
-[keybindings.visual]
-# Navigation
-"h" = "vim-move-left"
-"j" = "vim-move-down"
-"k" = "vim-move-up"
-"l" = "vim-move-right"
-"b" = "previous-word"
-"e" = "vim-end-of-word"
-"w" = "next-word"
-
-# Find character
-"f" = "vim-find-char-forward"
-"F" = "vim-find-char-backward"
-"t" = "vim-till-char-forward"
-"T" = "vim-till-char-backward"
-";" = "vim-repeat-find"
-"," = "vim-repeat-find-reverse"
-
-# Line positions
-"0" = "beginning-of-line"
-"$" = "end-of-line"
-"^" = "vim-first-nonblank"
-"H" = "beginning-of-line"
-"L" = "end-of-line"
-"K" = "previous-page"
-"J" = "next-page"
-
-# Text objects (like Vim: viw, vi", va(, etc.)
-"i" = "vim-text-object-inner"
-"a" = "vim-text-object-around"
-
-# Operations on selection
-"d" = "vim-visual-delete"
-"x" = "vim-visual-delete"
-"c" = "vim-visual-change"
-"y" = "vim-visual-yank"
-
-# Exit visual mode (pressing the mode key again or ESC)
-"^[" = "vim-exit-visual-mode"
-"v" = "vim-exit-visual-mode"
-"V" = "vim-exit-visual-mode"
-"^V" = "vim-exit-visual-mode"
-
-# =============================================================================
 # HELP PREFIX KEYBINDINGS (C-h prefix)
 # =============================================================================
 # These bindings are active after pressing C-h (when help prefix is enabled).
@@ -472,17 +293,6 @@ soft_wrap_column = 80   # Column for soft wrap (if enabled)
 "b" = "describe-bindings"
 "c" = "describe-key"
 "k" = "describe-key"
-
-# =============================================================================
-# INSERT MODE KEYBINDINGS
-# =============================================================================
-# These override global bindings when in insert mode (evil_mode enabled).
-# Most keys self-insert; only special bindings needed here.
-
-[keybindings.insert]
-"^S" = "save-file"
-"BACKSPACE" = "delete-previous-character"
-"^H" = "delete-previous-character"
 
 # =============================================================================
 # UEP EXTENSION PROTOCOL

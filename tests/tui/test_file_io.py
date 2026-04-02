@@ -19,7 +19,7 @@ import time
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def run_mx_command(emu, cmd):
@@ -44,7 +44,7 @@ def send_path_and_enter(emu, path):
 
 def test_find_file_existing():
     """find-file should open an existing file."""
-    filename = '/tmp/fio_ex.txt'
+    filename = test_tmp('fio_ex.txt')
     with open(filename, 'w') as f:
         f.write("Existing file content\n")
         for i in range(10):
@@ -53,7 +53,7 @@ def test_find_file_existing():
     emu = UEmacsTest()
     try:
         # Start with a different file
-        start_file = '/tmp/fio_st.txt'
+        start_file = test_tmp('fio_st.txt')
         with open(start_file, 'w') as f:
             f.write("Start file\n")
 
@@ -78,13 +78,13 @@ def test_find_file_existing():
 def test_find_file_new():
     """find-file should create new buffer for non-existent file."""
     # Use a definitely non-existent file
-    filename = f'/tmp/fio_new_{os.getpid()}.txt'
+    filename = test_tmp(f'fio_new_{os.getpid()}.txt')
     if os.path.exists(filename):
         os.remove(filename)
 
     emu = UEmacsTest()
     try:
-        start_file = '/tmp/fio_st2.txt'
+        start_file = test_tmp('fio_st2.txt')
         with open(start_file, 'w') as f:
             f.write("Start file\n")
 
@@ -116,7 +116,7 @@ def test_find_file_new():
 
 def test_save_file():
     """save-file should write buffer to disk."""
-    filename = '/tmp/fio_save.txt'
+    filename = test_tmp('fio_save.txt')
     with open(filename, 'w') as f:
         f.write("Original content\n")
 
@@ -152,7 +152,7 @@ def test_save_file():
 
 def test_save_file_ctrl_x_ctrl_s():
     """C-x C-s should save the file."""
-    filename = '/tmp/fio_cxcs.txt'
+    filename = test_tmp('fio_cxcs.txt')
     with open(filename, 'w') as f:
         f.write("Test line\n")
 
@@ -186,8 +186,8 @@ def test_save_file_ctrl_x_ctrl_s():
 
 def test_write_file():
     """write-file should save buffer to a different file."""
-    orig_file = '/tmp/fio_orig.txt'
-    new_file = '/tmp/fio_writ.txt'
+    orig_file = test_tmp('fio_orig.txt')
+    new_file = test_tmp('fio_writ.txt')
 
     with open(orig_file, 'w') as f:
         f.write("Content to write elsewhere\n")
@@ -226,8 +226,8 @@ def test_write_file():
 
 def test_insert_file():
     """insert-file should insert file contents at cursor."""
-    main_file = '/tmp/fio_main.txt'
-    insert_file = '/tmp/fio_ins.txt'
+    main_file = test_tmp('fio_main.txt')
+    insert_file = test_tmp('fio_ins.txt')
 
     with open(main_file, 'w') as f:
         f.write("Main content\n")
@@ -264,8 +264,8 @@ def test_insert_file():
 
 def test_read_file():
     """read-file should replace buffer contents with file."""
-    current_file = '/tmp/fio_curr.txt'
-    read_file = '/tmp/fio_read.txt'
+    current_file = test_tmp('fio_curr.txt')
+    read_file = test_tmp('fio_read.txt')
 
     with open(current_file, 'w') as f:
         f.write("Current content\n")
@@ -304,7 +304,7 @@ def test_read_file():
 
 def test_file_modified_prompt():
     """Quitting modified buffer should prompt to save."""
-    filename = '/tmp/fio_mod.txt'
+    filename = test_tmp('fio_mod.txt')
     with open(filename, 'w') as f:
         f.write("Original\n")
 

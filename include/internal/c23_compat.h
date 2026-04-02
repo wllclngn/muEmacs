@@ -22,6 +22,19 @@
 #endif
 
 /*
+ * C23 [[reproducible]] and [[unsequenced]] function attributes
+ * Use GCC/Clang builtins — [[reproducible]]/[[unsequenced]] are C23 but
+ * GCC/Clang don't support them yet (as of GCC 14, Clang 18).
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define REPRODUCIBLE __attribute__((pure))
+#define UNSEQUENCED __attribute__((const))
+#else
+#define REPRODUCIBLE
+#define UNSEQUENCED
+#endif
+
+/*
  * C23 constexpr support - compile-time evaluation
  * Like OUROBOROS/montauk C++23 constexpr usage
  */
@@ -117,18 +130,18 @@
 #endif
 
 /* Type-safe min/max functions using _Generic */
-static inline int safe_min_int(int a, int b) { return a < b ? a : b; }
-static inline long safe_min_long(long a, long b) { return a < b ? a : b; }
-static inline size_t safe_min_size_t(size_t a, size_t b) { return a < b ? a : b; }
+UNSEQUENCED static inline int safe_min_int(int a, int b) { return a < b ? a : b; }
+UNSEQUENCED static inline long safe_min_long(long a, long b) { return a < b ? a : b; }
+UNSEQUENCED static inline size_t safe_min_size_t(size_t a, size_t b) { return a < b ? a : b; }
 #define SAFE_MIN(a, b) _Generic((a), \
     int: safe_min_int, \
     long: safe_min_long, \
     size_t: safe_min_size_t \
 )(a, b)
 
-static inline int safe_max_int(int a, int b) { return a > b ? a : b; }
-static inline long safe_max_long(long a, long b) { return a > b ? a : b; }
-static inline size_t safe_max_size_t(size_t a, size_t b) { return a > b ? a : b; }
+UNSEQUENCED static inline int safe_max_int(int a, int b) { return a > b ? a : b; }
+UNSEQUENCED static inline long safe_max_long(long a, long b) { return a > b ? a : b; }
+UNSEQUENCED static inline size_t safe_max_size_t(size_t a, size_t b) { return a > b ? a : b; }
 #define SAFE_MAX(a, b) _Generic((a), \
     int: safe_max_int, \
     long: safe_max_long, \
@@ -345,23 +358,6 @@ static inline unsigned int stdc_trailing_zeros_ui_fallback(unsigned int x) {
 #define NORETURN __attribute__((noreturn))
 #else
 #define NORETURN
-#endif
-
-/*
- * =============================================================================
- * C23 [[reproducible]] and [[unsequenced]] function attributes
- * =============================================================================
- * For pure functions that don't access global state (compiler optimization hints)
- */
-#if HAVE_C23
-#define REPRODUCIBLE [[reproducible]]
-#define UNSEQUENCED [[unsequenced]]
-#elif defined(__GNUC__) || defined(__clang__)
-#define REPRODUCIBLE __attribute__((pure))
-#define UNSEQUENCED __attribute__((const))
-#else
-#define REPRODUCIBLE
-#define UNSEQUENCED
 #endif
 
 #endif /* C23_COMPAT_H */

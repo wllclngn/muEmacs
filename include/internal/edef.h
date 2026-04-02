@@ -77,9 +77,9 @@ extern int lbound;		/* leftmost column of current line
 				   being displayed */
 extern int taboff;		/* tab offset for display       */
 extern int tabmask;
+extern int yanked_size;		/* Size of last yank for yankpop */
 extern char *cname[];		/* names of colors              */
 extern struct kill_ring g_kill_ring;	/* C23 atomic kill ring */
-extern int yanked_size;		/* Size of last yank for yankpop */
 extern char temp_kill_buf[];	/* Temporary kill buffer */
 extern size_t temp_kill_len;	/* Temporary kill buffer length */
 extern struct window *swindow;	/* saved window pointer         */

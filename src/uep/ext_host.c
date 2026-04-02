@@ -20,6 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sched.h>
+#include <sys/syscall.h>
 
 /* Editor internals - same includes as extension_api.c */
 #include "estruct.h"
@@ -306,6 +307,15 @@ static ext_host_entry_t *spawn_fork_only(const char *name, const char *exe_path,
     entry->ipc = ipc;
     entry->state = EXT_STATE_PENDING;
     entry->pid = pid;
+
+    /* pidfd for race-free process monitoring (Linux 5.3+) */
+#ifdef __NR_pidfd_open
+    entry->pidfd = (int)syscall(__NR_pidfd_open, pid, 0);
+    if (entry->pidfd < 0)
+        entry->pidfd = -1;  /* Fallback to SIGCHLD + waitpid */
+#else
+    entry->pidfd = -1;
+#endif
 
     return entry;
 }

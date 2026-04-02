@@ -84,4 +84,7 @@ int test_terminal_input_state(void); // Input state machine tests
 // Atomic cursor tests (Phase D)
 int test_atomic_cursor(void);       // Concurrent cursor variable tests
 
+// Wrap segment cache tests (Pretext-inspired)
+int test_wrap_segments(void);
+
 #endif // MUEMACS_TEST_REGISTRY_H

@@ -37,6 +37,9 @@ struct line {
 	_Atomic int l_column_cache_offset;  /* Last cached byte offset */
 	_Atomic int l_column_cache_column;  /* Display column at offset */
 	_Atomic bool l_column_cache_dirty;  /* Cache needs invalidation */
+
+	// Pretext-inspired wrap segment cache (lazily computed, invalidated on edit)
+	struct wrap_cache *l_wrap_cache;
 };
 
 /* View mode support functions (defined in line.c) */
@@ -81,7 +84,7 @@ static inline int llength(struct line *lp) {
 }
 
 /* Shared word-byte classification for undo grouping and word operations */
-static inline bool is_word_byte(int ch) {
+UNSEQUENCED static inline bool is_word_byte(int ch) {
 	return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
 }
 

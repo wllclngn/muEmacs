@@ -13,12 +13,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def test_undo_single_change():
     """'u' should undo the last change."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -61,7 +61,7 @@ def test_redo_after_undo():
     Note: Uses 'r' for redo per user's custom settings.
     Standard vim uses Ctrl-R, but settings.toml has r=redo.
     """
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -104,7 +104,7 @@ def test_redo_after_undo():
 
 def test_multiple_undo():
     """Multiple 'u' should undo multiple changes."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("abcd\n")
         for i in range(5):
@@ -154,7 +154,7 @@ def test_multiple_undo():
 
 def test_undo_insert_mode_change():
     """'u' should undo text inserted in insert mode."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello\n")
         for i in range(5):
@@ -196,7 +196,7 @@ def test_undo_insert_mode_change():
 
 def test_undo_with_count():
     """'3u' should undo 3 changes at once."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("abcdef\n")
         for i in range(5):

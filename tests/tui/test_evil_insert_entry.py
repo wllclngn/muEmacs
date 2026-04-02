@@ -11,12 +11,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest
+from base import UEmacsTest, test_tmp
 
 
 def test_insert_before():
     """'i' should enter insert mode before cursor."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -51,7 +51,7 @@ def test_insert_before():
 
 def test_insert_at_bol():
     """'I' should enter insert mode at beginning of line."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -85,7 +85,7 @@ def test_insert_at_bol():
 
 def test_append_after():
     """'a' should enter insert mode after cursor."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):
@@ -118,7 +118,7 @@ def test_append_after():
 
 def test_append_at_eol():
     """'A' should enter insert mode at end of line."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello\n")
         for i in range(5):
@@ -150,7 +150,7 @@ def test_append_at_eol():
 
 def test_open_line_below():
     """'o' should open new line below and enter insert mode."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("line 1\n")
         f.write("line 2\n")
@@ -196,7 +196,7 @@ def test_open_line_below():
 
 def test_open_line_above():
     """'O' should open new line above and enter insert mode."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("line 1\n")
         f.write("line 2\n")
@@ -236,7 +236,7 @@ def test_open_line_above():
 
 def test_esc_exits_insert():
     """ESC should exit insert mode and return to normal mode."""
-    filename = '/tmp/muemacs_evil_test.txt'
+    filename = test_tmp('muemacs_evil_test.txt')
     with open(filename, 'w') as f:
         f.write("hello world\n")
         for i in range(5):

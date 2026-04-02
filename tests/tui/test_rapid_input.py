@@ -20,7 +20,7 @@ import time
 import random
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from base import UEmacsTest, CursorTracker
+from base import UEmacsTest, test_tmp, CursorTracker
 
 
 # Helpers for rapid input simulation
@@ -96,7 +96,7 @@ def create_wrapped_file(filename, lines=50, line_length=200):
 
 def test_rapid_arrow_down_50():
     """50 rapid arrow-down presses should not cause highlight bleed."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 100)
 
     emu = UEmacsTest()
@@ -127,7 +127,7 @@ def test_rapid_arrow_down_50():
 
 def test_rapid_arrow_up_50():
     """50 rapid arrow-up presses from bottom should not cause issues."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 100)
 
     emu = UEmacsTest()
@@ -155,7 +155,7 @@ def test_rapid_arrow_up_50():
 
 def test_rapid_hjkl_sequence():
     """Rapid alternating hjkl should not cause issues."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 100)
 
     emu = UEmacsTest()
@@ -195,7 +195,7 @@ def test_rapid_hjkl_sequence():
 
 def test_rapid_j_100():
     """100 rapid 'j' presses (evil-mode down)."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 200)
 
     emu = UEmacsTest()
@@ -217,7 +217,7 @@ def test_rapid_j_100():
 
 def test_rapid_movement_wrapped_lines():
     """Rapid movement through soft-wrapped content."""
-    filename = '/tmp/muemacs_wrapped_test.txt'
+    filename = test_tmp('muemacs_wrapped_test.txt')
     create_wrapped_file(filename, lines=30, line_length=200)
 
     emu = UEmacsTest()
@@ -247,7 +247,7 @@ def test_rapid_movement_wrapped_lines():
 
 def test_rapid_gg_G_alternating():
     """Rapid alternating gg/G (top/bottom jumps)."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 500)
 
     emu = UEmacsTest()
@@ -284,7 +284,7 @@ def test_rapid_gg_G_alternating():
 
 def test_stress_10_seconds():
     """Random rapid movement for 10 seconds."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 500)
 
     emu = UEmacsTest()
@@ -331,7 +331,7 @@ def test_stress_10_seconds():
 
 def test_no_freeze_rapid_input():
     """Verify editor doesn't freeze under rapid input."""
-    filename = '/tmp/muemacs_rapid_test.txt'
+    filename = test_tmp('muemacs_rapid_test.txt')
     create_large_file(filename, 100)
 
     emu = UEmacsTest()
@@ -372,7 +372,7 @@ def test_stress_60_seconds_exhaustive():
     This is the ULTIMATE test. If this passes, the editor is proven correct.
     Runs at 40 keys/sec with integrity checks every iteration.
     """
-    filename = '/tmp/muemacs_stress_test.txt'
+    filename = test_tmp('muemacs_stress_test.txt')
     create_large_file(filename, 1000)
 
     emu = UEmacsTest()
@@ -436,7 +436,7 @@ def test_stress_60_seconds_exhaustive():
 
 def test_extreme_50_keys_per_second():
     """30 seconds at 50 keys/sec - faster than typical keyboard repeat."""
-    filename = '/tmp/muemacs_extreme_test.txt'
+    filename = test_tmp('muemacs_extreme_test.txt')
     create_large_file(filename, 500)
 
     emu = UEmacsTest()
@@ -489,7 +489,7 @@ def test_extreme_100_keys_per_second():
     is 3.3x faster than `xset r rate 185 30` (30 keys/sec, 33ms between).
     The 50 keys/sec test is the practical limit that must pass.
     """
-    filename = '/tmp/muemacs_extreme_test.txt'
+    filename = test_tmp('muemacs_extreme_test.txt')
     create_large_file(filename, 500)
 
     emu = UEmacsTest()
@@ -542,7 +542,7 @@ def test_mixed_escape_sequences():
 
     Tests the escape sequence parser with diverse input.
     """
-    filename = '/tmp/muemacs_escape_test.txt'
+    filename = test_tmp('muemacs_escape_test.txt')
     create_large_file(filename, 500)
 
     emu = UEmacsTest()
@@ -606,7 +606,7 @@ def test_mixed_escape_sequences():
 
 def test_cursor_position_tracking():
     """Verify cursor moves correctly and doesn't teleport."""
-    filename = '/tmp/muemacs_cursor_test.txt'
+    filename = test_tmp('muemacs_cursor_test.txt')
     create_large_file(filename, 100)
 
     emu = UEmacsTest()
@@ -661,7 +661,7 @@ def test_cursor_position_tracking():
 
 def test_highlight_matches_cursor():
     """Verify highlight always matches cursor position."""
-    filename = '/tmp/muemacs_highlight_test.txt'
+    filename = test_tmp('muemacs_highlight_test.txt')
     create_large_file(filename, 100)
 
     emu = UEmacsTest()
@@ -710,7 +710,7 @@ def test_utf8_mixed_with_escapes():
 
     Can expose UTF-8 parsing issues interleaved with CSI sequences.
     """
-    filename = '/tmp/muemacs_utf8_test.txt'
+    filename = test_tmp('muemacs_utf8_test.txt')
 
     # Create file with UTF-8 content
     with open(filename, 'w', encoding='utf-8') as f:

@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include "terminal/input_state.h"
+#include "internal/c23_compat.h"
 
 /* MurmurHash constant - defined here to avoid include order issues */
 #define KEYMAP_MURMURHASH_M1  0x85ebca6bU
@@ -38,12 +39,12 @@ static inline keymap_key_t keymap_key_make(uint32_t code, uint16_t modifiers) {
 }
 
 // Compare two keymap keys
-static inline bool keymap_key_eq(keymap_key_t a, keymap_key_t b) {
+UNSEQUENCED static inline bool keymap_key_eq(keymap_key_t a, keymap_key_t b) {
 	return a.code == b.code && a.modifiers == b.modifiers;
 }
 
 // Hash a keymap key
-static inline uint32_t keymap_key_hash(keymap_key_t key) {
+UNSEQUENCED static inline uint32_t keymap_key_hash(keymap_key_t key) {
 	uint32_t h = key.code ^ ((uint32_t)key.modifiers << 16);
 	h ^= h >> 16;
 	h *= KEYMAP_MURMURHASH_M1;

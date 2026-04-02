@@ -3,6 +3,7 @@ COMMIT_MESSAGE.txt
 
 # Build directories
 build/
+build-debug/
 cmake-build-*/
 
 # Generated config (contains machine-specific paths)
@@ -23,8 +24,8 @@ include/config.h
 
 # Debug/test artifacts
 *.log
-core
-core.*
+/core
+/core.*
 vgcore.*
 *.dSYM/
 

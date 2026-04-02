@@ -125,8 +125,6 @@ int viewfile(int f, int n)
 	return s;
 }
 
-/* Old CRYPT encryption removed - use encrypt.c with gpg/age/openssl */
-
 /*
  * getfile()
  *
@@ -205,54 +203,59 @@ static int readin_large(const char *fname, size_t file_size)
 		return false;
 	}
 
-	/* Create piece table storage with mmap */
+	/* Create text storage from file (gap buffer for small, piece table via mmap for large) */
 	bp->b_text = text_storage_create_from_file(fd, file_size, STORAGE_HINT_DEFAULT);
 	close(fd);
 
 	if (!bp->b_text) {
-		mlwrite("[ERROR CREATING PIECE TABLE]");
+		mlwrite("[ERROR CREATING TEXT STORAGE]");
 		return false;
 	}
 
 	mlwrite("[READING LARGE FILE...]");
 
-	/* Get direct pointer to mmap'd buffer for SIMD-optimized memchr */
-	piece_table_t *pt = (piece_table_t *)bp->b_text;
-	const char *data = pt->original;
-	const char *data_end = data + file_size;
-
-	/* Scan for newlines using memchr - much faster than byte-by-byte */
+	/* Scan storage for newlines and create view lines.
+	 * Uses TS_GET_CHAR() through the text_storage API — works regardless
+	 * of whether the backend is a gap buffer or future piece table. */
 	size_t nline = 0;
-	const char *line_start = data;
+	size_t line_start = 0;
 
-	while (line_start < data_end) {
-		const char *newline = memchr(line_start, '\n', (size_t)(data_end - line_start));
-		const char *line_end = newline ? newline : data_end;
-		size_t line_len = (size_t)(line_end - line_start);
-		size_t line_offset = (size_t)(line_start - data);
-
-		struct line *lp = lalloc_view(bp, line_offset, line_len);
-		if (!lp) {
-			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE VIEW LINE");
-			TS_DESTROY(bp->b_text);
-			bp->b_text = nullptr;
-			return false;
+	for (size_t i = 0; i < file_size; i++) {
+		char c = (char)TS_GET_CHAR(bp->b_text, i);
+		if (c == '\n') {
+			size_t line_len = i - line_start;
+			struct line *lp = lalloc_view(bp, line_start, line_len);
+			if (!lp) {
+				REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE VIEW LINE");
+				TS_DESTROY(bp->b_text);
+				bp->b_text = nullptr;
+				return false;
+			}
+			struct line *lp2 = lback(bp->b_linep);
+			lp2->l_fp = lp;
+			lp->l_fp = bp->b_linep;
+			lp->l_bp = lp2;
+			bp->b_linep->l_bp = lp;
+			nline++;
+			line_start = i + 1;
 		}
-
-		/* Link into buffer's line list */
-		struct line *lp2 = lback(bp->b_linep);
-		lp2->l_fp = lp;
-		lp->l_fp = bp->b_linep;
-		lp->l_bp = lp2;
-		bp->b_linep->l_bp = lp;
-
-		nline++;
-		if (!newline) break;  /* Last line had no trailing newline */
-		line_start = line_end + 1;  /* Skip past newline */
+	}
+	/* Handle last line if no trailing newline */
+	if (line_start < file_size) {
+		size_t line_len = file_size - line_start;
+		struct line *lp = lalloc_view(bp, line_start, line_len);
+		if (lp) {
+			struct line *lp2 = lback(bp->b_linep);
+			lp2->l_fp = lp;
+			lp->l_fp = bp->b_linep;
+			lp->l_bp = lp2;
+			bp->b_linep->l_bp = lp;
+			nline++;
+		}
 	}
 
 	/* Build status message */
-	safe_snprintf(mesg, NSTRING, "(Read %zu lines via piece table)", nline);
+	safe_snprintf(mesg, NSTRING, "(Read %zu lines)", nline);
 	mlwrite(mesg);
 
 	/* Update buffer stats */
@@ -261,7 +264,7 @@ static int readin_large(const char *fname, size_t file_size)
 		int actual_lines = 0;
 		buffer_get_stats_fast(bp, &actual_lines, nullptr, nullptr);
 		buffer_rebuild_index(bp);
-		LOG_INFOF("File: Loaded %zu lines via piece table, b_line_count=%d", nline, actual_lines);
+		LOG_INFOF("File: Loaded %zu lines (large file path), b_line_count=%d", nline, actual_lines);
 	}
 
 	/* Reset horizontal scroll */
@@ -334,7 +337,6 @@ int readin(const char *fname, int lockfl)
 	int nline;
 	char mesg[NSTRING];
 
-	/* Old CRYPT removed */
 	bp = curbp;		/* Cheap.               */
 	if ((s = bclear(bp)) != true)	/* Might be old.        */
 		return s;
@@ -354,6 +356,44 @@ int readin(const char *fname, int lockfl)
 			return readin_large(fname, (size_t)st.st_size);
 		}
 	}
+
+	/* Try io_uring batch read for the whole file (single syscall) */
+#ifdef HAVE_IO_URING
+	if (stat(fname, &st) == 0 && st.st_size > 0) {
+		extern int file_read_uring(int, size_t, char **, size_t *);
+		int ufd = open(fname, O_RDONLY);
+		if (ufd >= 0) {
+			char *ubuf = nullptr;
+			size_t ulen = 0;
+			if (file_read_uring(ufd, (size_t)st.st_size, &ubuf, &ulen) == 0) {
+				close(ufd);
+				mlwrite("[READING FILE]");
+				nline = 0;
+				const char *p = ubuf;
+				const char *end = ubuf + ulen;
+				while (p < end) {
+					const char *nl = memchr(p, '\n', (size_t)(end - p));
+					size_t line_len = nl ? (size_t)(nl - p) : (size_t)(end - p);
+					lp1 = lalloc((int)line_len);
+					if (!lp1) { s = FIOMEM; break; }
+					lp2 = lback(curbp->b_linep);
+					lp2->l_fp = lp1;
+					lp1->l_fp = curbp->b_linep;
+					lp1->l_bp = lp2;
+					curbp->b_linep->l_bp = lp1;
+					if (line_len > 0)
+						TS_INSERT(lp1->storage, 0, p, line_len);
+					nline++;
+					p = nl ? nl + 1 : end;
+				}
+				SAFE_FREE(ubuf);
+				goto readin_done;
+			}
+			close(ufd);
+			/* Fall through to ffgetline path */
+		}
+	}
+#endif
 
 	if ((s = ffropen(fname)) == FIOERR)	/* Hard file open.      */
 		goto out;
@@ -399,6 +439,7 @@ int readin(const char *fname, int lockfl)
 		++nline;
 	}
 	(void)ffclose();	/* Ignore errors.       */
+readin_done: __attribute__((unused));
     safe_strcpy(mesg, "(", NSTRING);
 	if (s == FIOERR) {
         safe_strcat(mesg, "I/O ERROR, ", NSTRING);
@@ -920,7 +961,6 @@ int ifile(const char *fname)
 	}
 	mlwrite("[INSERTING FILE]");
 
-	/* Old CRYPT removed */
 	/* back up a line and save the mark here */
 	curwp->w_dotp = lback(curwp->w_dotp);
 	curwp->w_doto = 0;

@@ -77,7 +77,6 @@ static void raw_close(void);
 static void obuf_puts(const char *s);
 
 /* Forward declarations for all terminal functions */
-void configure_highlight_colors(uint8_t r, uint8_t g, uint8_t b);
 static void raw_kopen(void);
 static void raw_kclose(void);
 static int raw_getchar(void);
@@ -208,9 +207,12 @@ static void obuf_puts(const char *s) {
     obuf_write(s, (int)strlen(s));
 }
 
-/* Write formatted string to output buffer */
+/* Write formatted string to output buffer. Truncated sequences are
+ * dropped whole rather than emitted partially (a half escape sequence
+ * corrupts terminal state); the buffer is sized so that never happens
+ * for any sequence the editor emits. */
 static void obuf_printf(const char *fmt, ...) {
-    char buf[256];
+    char buf[1024];
     va_list args;
     va_start(args, fmt);
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
@@ -460,7 +462,15 @@ static void unget_byte(int c) {
         /* Note: This is slightly tricky with SPSC - we're modifying head
          * from the consumer side, which is allowed since consumer owns head */
         size_t head = atomic_load_explicit(&g_input_ring.head, memory_order_relaxed);
+        size_t tail = atomic_load_explicit(&g_input_ring.tail, memory_order_acquire);
         size_t new_head = (head - 1) & INPUT_RING_MASK;
+        /* Guard the full-ring collision: new_head == tail would make
+         * occupancy read as zero and silently discard every buffered
+         * byte. Dropping the one unget byte is the lesser harm.
+         * (Empty-ring unget — head == tail — is legal and common after
+         * the blocking-read fallback.) */
+        if (new_head == tail)
+            return;
         g_input_ring.buf[new_head] = (uint8_t)c;
         atomic_store_explicit(&g_input_ring.head, new_head, memory_order_release);
     }
@@ -568,6 +578,16 @@ static int raw_getchar(void) {
 
         /* Poll out-of-process extensions for async messages */
         ext_host_poll_nonblocking();
+
+        /* Initialize in-process extensions that finished background
+         * loading. Without this, pending inits starve until the next
+         * keystroke wakes the main loop — an idle editor never loaded
+         * its extensions. */
+        {
+            extern int extension_poll_pending(void);
+            if (extension_poll_pending() > 0)
+                update(false);
+        }
 
         /* Check EVIL flash timer */
         {
@@ -686,12 +706,6 @@ static void raw_beep(void) {
  * Uses 256-color palette indices by default, with optional truecolor hex overrides.
  * Respects user's terminal theme settings.
  */
-
-/* Legacy stub - no longer needed with palette system */
-void configure_highlight_colors(uint8_t r, uint8_t g, uint8_t b) {
-    (void)r; (void)g; (void)b;
-    /* Colors now configured via g_palette in palette.c */
-}
 
 /* Palette-based highlight: set/reset background */
 static int rev_state = 0;  /* Track current reverse/highlight state */

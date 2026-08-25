@@ -16,9 +16,7 @@
 #include <stdatomic.h>
 #include <sys/types.h>
 
-/* =========================================================================
- * Constants
- * ========================================================================= */
+/* Constants */
 
 #define EXT_IPC_RING_SLOTS   16
 #define EXT_IPC_SLOT_SIZE    65536
@@ -27,9 +25,7 @@
 #define EXT_IPC_MAGIC        0x55455049  /* "UEPI" */
 #define EXT_IPC_VERSION      2
 
-/* =========================================================================
- * Slot States
- * ========================================================================= */
+/* Slot States */
 
 typedef enum {
     EXT_SLOT_EMPTY    = 0,   /* Available for writing */
@@ -37,9 +33,7 @@ typedef enum {
     EXT_SLOT_COMPLETE = 2,   /* Response ready for reading */
 } ext_slot_state_t;
 
-/* =========================================================================
- * Message Types
- * ========================================================================= */
+/* Message Types */
 
 typedef enum {
     /* Lifecycle */
@@ -97,9 +91,7 @@ typedef enum {
     EXT_MSG_FIND_FILE       = 0x0091,
 } ext_msg_type_t;
 
-/* =========================================================================
- * Ring Buffer Structures
- * ========================================================================= */
+/* Ring Buffer Structures */
 
 /*
  * Single slot - 64KB message container
@@ -143,9 +135,7 @@ typedef struct {
     int death_pipe[2];  /* Parent holds [1], child holds [0]. When parent dies, [0] gets POLLHUP */
 } ext_ipc_channel_t;
 
-/* =========================================================================
- * Result Codes
- * ========================================================================= */
+/* Result Codes */
 
 typedef enum {
     EXT_IPC_OK          = 0,
@@ -156,9 +146,7 @@ typedef enum {
     EXT_IPC_ERR_INVALID = -5,
 } ext_ipc_result_t;
 
-/* =========================================================================
- * Channel Lifecycle
- * ========================================================================= */
+/* Channel Lifecycle */
 
 /* Create channel (editor side, before fork) */
 ext_ipc_channel_t *ext_ipc_create(void);
@@ -175,9 +163,7 @@ void ext_ipc_set_pid(ext_ipc_channel_t *ch, pid_t pid);
 /* Get memfd for passing to child */
 int ext_ipc_get_memfd(ext_ipc_channel_t *ch);
 
-/* =========================================================================
- * Ring Buffer Operations
- * ========================================================================= */
+/* Ring Buffer Operations */
 
 /* Find empty slot in ring, returns slot index or -1 */
 int ext_ipc_find_empty_slot(ext_ipc_ring_t *ring);
@@ -199,9 +185,7 @@ void ext_ipc_slot_release(ext_ipc_slot_t *slot);
 /* Spin-wait for slot to become COMPLETE, returns false on timeout */
 bool ext_ipc_slot_wait_complete(ext_ipc_slot_t *slot, int timeout_ms);
 
-/* =========================================================================
- * Payload Structures
- * ========================================================================= */
+/* Payload Structures */
 
 typedef struct {
     char name[64];

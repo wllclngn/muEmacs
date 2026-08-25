@@ -22,7 +22,7 @@ typedef int (*fn_t)([[maybe_unused]] int prefix_arg, [[maybe_unused]] int count)
 
 /* Window iteration macro - eliminates duplicate while loops */
 #define FOR_EACH_WINDOW(wp) \
-	for (struct window *wp = wheadp; wp != nullptr; wp = wp->w_wndp)
+    for (struct window *wp = wheadp; wp != nullptr; wp = wp->w_wndp)
 
 /* Initialized global external declarations. */
 
@@ -35,9 +35,9 @@ extern _Atomic(struct keymap *) vim_visual_keymap; /* Vim Visual Mode Keymap */
 extern _Atomic int fillcol;		/* Fill column - C23 atomic */
 /* Modern keyboard macro system - stores full input events */
 typedef struct keyboard_macro {
-	input_key_event_t events[NKBDM];  /* Event storage */
-	size_t count;                      /* Number of recorded events */
-	size_t playback_pos;               /* Current playback position */
+    input_key_event_t events[NKBDM];  /* Event storage */
+    size_t count;                      /* Number of recorded events */
+    size_t playback_pos;               /* Current playback position */
 } keyboard_macro_t;
 
 extern keyboard_macro_t g_macro;       /* Global macro storage */
@@ -74,7 +74,7 @@ extern int vtcol;		/* Column location of SW cursor */
 extern int ttrow;		/* Row location of HW cursor */
 extern int ttcol;		/* Column location of HW cursor */
 extern int lbound;		/* leftmost column of current line
-				   being displayed */
+                 being displayed */
 extern int taboff;		/* tab offset for display       */
 extern int tabmask;
 extern int yanked_size;		/* Size of last yank for yankpop */

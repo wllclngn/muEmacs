@@ -1025,7 +1025,7 @@ int terminal_send_region(int f, int n) {
     struct line *lp = reg.r_linep;
     int offset = reg.r_offset;
     long remaining = reg.r_size;
-    int lines_sent = 0;
+    [[maybe_unused]] int lines_sent = 0;
 
     while (remaining > 0 && lp != curbp->b_linep) {
         int line_len = llength(lp);
@@ -1393,7 +1393,7 @@ int terminal_send_buffer(int f, int n) {
     /* Send buffer content line by line */
     struct line *lp;
     int lines_sent = 0;
-    long bytes_sent = 0;
+    [[maybe_unused]] long bytes_sent = 0;
 
     for (lp = lforw(curbp->b_linep); lp != curbp->b_linep; lp = lforw(lp)) {
         int len = llength(lp);

@@ -11,9 +11,7 @@
 
 #include "internal/syntax.h"
 
-/* ============================================================================
- * C Language
- * ============================================================================ */
+/* C Language */
 
 static const char *c_extensions[] = {".c", ".h", nullptr};
 
@@ -64,9 +62,7 @@ const syntax_language_t lang_c = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * C++ Language
- * ============================================================================ */
+/* C++ Language */
 
 static const char *cpp_extensions[] = {".cpp", ".cc", ".cxx", ".hpp", ".hxx", ".h++", nullptr};
 
@@ -120,9 +116,7 @@ const syntax_language_t lang_cpp = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Zig Language
- * ============================================================================ */
+/* Zig Language */
 
 static const char *zig_extensions[] = {".zig", nullptr};
 
@@ -185,9 +179,7 @@ const syntax_language_t lang_zig = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Go Language
- * ============================================================================ */
+/* Go Language */
 
 static const char *go_extensions[] = {".go", nullptr};
 
@@ -238,9 +230,7 @@ const syntax_language_t lang_go = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Rust Language
- * ============================================================================ */
+/* Rust Language */
 
 static const char *rust_extensions[] = {".rs", nullptr};
 
@@ -295,9 +285,7 @@ const syntax_language_t lang_rust = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * JavaScript Language
- * ============================================================================ */
+/* JavaScript Language */
 
 static const char *js_extensions[] = {".js", ".mjs", ".cjs", ".jsx", nullptr};
 
@@ -353,9 +341,7 @@ const syntax_language_t lang_javascript = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * TypeScript Language
- * ============================================================================ */
+/* TypeScript Language */
 
 static const char *ts_extensions[] = {".ts", ".tsx", ".mts", ".cts", nullptr};
 
@@ -396,9 +382,7 @@ const syntax_language_t lang_typescript = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Java Language
- * ============================================================================ */
+/* Java Language */
 
 static const char *java_extensions[] = {".java", nullptr};
 
@@ -449,9 +433,7 @@ const syntax_language_t lang_java = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Python Language
- * ============================================================================ */
+/* Python Language */
 
 static const char *python_extensions[] = {".py", ".pyw", ".pyi", nullptr};
 
@@ -508,9 +490,7 @@ const syntax_language_t lang_python = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Bash Language
- * ============================================================================ */
+/* Bash Language */
 
 static const char *bash_extensions[] = {".sh", ".bash", ".zsh", ".fish", nullptr};
 
@@ -553,9 +533,7 @@ const syntax_language_t lang_bash = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Lua Language
- * ============================================================================ */
+/* Lua Language */
 
 static const char *lua_extensions[] = {".lua", nullptr};
 
@@ -600,9 +578,7 @@ const syntax_language_t lang_lua = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * SQL Language
- * ============================================================================ */
+/* SQL Language */
 
 static const char *sql_extensions[] = {".sql", nullptr};
 
@@ -654,9 +630,7 @@ const syntax_language_t lang_sql = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * Markdown (simplified - headings, code blocks)
- * ============================================================================ */
+/* Markdown (simplified - headings, code blocks) */
 
 static const char *md_extensions[] = {".md", ".markdown", nullptr};
 
@@ -681,9 +655,7 @@ const syntax_language_t lang_markdown = {
     .custom_lexer = nullptr,       /* TODO: custom lexer for MD */
 };
 
-/* ============================================================================
- * TOML Language
- * ============================================================================ */
+/* TOML Language */
 
 static const char *toml_extensions[] = {".toml", nullptr};
 
@@ -713,9 +685,7 @@ const syntax_language_t lang_toml = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * YAML Language
- * ============================================================================ */
+/* YAML Language */
 
 static const char *yaml_extensions[] = {".yaml", ".yml", nullptr};
 
@@ -745,9 +715,7 @@ const syntax_language_t lang_yaml = {
     .custom_lexer = nullptr,
 };
 
-/* ============================================================================
- * JSON Language
- * ============================================================================ */
+/* JSON Language */
 
 static const char *json_extensions[] = {".json", ".jsonc", nullptr};
 

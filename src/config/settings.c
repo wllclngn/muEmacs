@@ -146,10 +146,13 @@ static void apply_setting(const char *section, const char *key, const char *valu
             }
         }
         if (strcmp(key, "evil_mode") == 0) {
-            if (bool_val && !vim_mode_active) {
-                evil_mode(0, 1);
-            } else if (!bool_val && vim_mode_active) {
-                evil_mode(0, 1);
+            /* Pure state set: this runs before extensions load, so the
+             * c_evil-registered evil-mode command is not available yet.
+             * The post-autoload modeline refresh makes it visible. */
+            if (bool_val != (vim_mode_active != 0)) {
+                vim_mode_active = bool_val;
+                atomic_store(&g_vim_state.current_mode,
+                             bool_val ? MODE_NORMAL : MODE_INSERT);
             }
         }
         if (strcmp(key, "tab_width") == 0 && int_val >= 1 && int_val <= 16) {
@@ -400,10 +403,8 @@ static void apply_setting(const char *section, const char *key, const char *valu
         }
     }
 
-    /* [keys] section - legacy key configuration (removed, use [bindings]) */
+    /* [keys] section - accepted but ignored, key bindings live in [bindings] */
     else if (strcmp(section, "keys") == 0) {
-        /* Legacy meta/command_prefix/repeat/abort/quote settings removed */
-        /* Use [bindings] section for key binding configuration */
     }
 
     /* [behavior] section - display and behavior flags */
@@ -736,7 +737,6 @@ int open_user_config_cmd(int f, int n) {
     
     if (path[0] == '\0') path = settings_file();
     
-    // Create file if missing
     FILE* fp = fopen(path, "a");
     if (fp) fclose(fp);
 
@@ -838,15 +838,13 @@ int soft_wrap_column_cmd(int f, int n) {
     return true;
 }
 
-/* ============================================================================
- * Config Hot-Reload via inotify
+/* Config Hot-Reload via inotify
  *
  * Watches settings.toml for changes. When the file is written (IN_CLOSE_WRITE),
  * a flag is set. The main loop calls settings_check_reload() to apply changes.
  *
  * Pattern from DEMIURGE + cherrypie: IN_CLOSE_WRITE avoids spurious triggers
- * from partial writes (editors write atomically via rename or close-after-write).
- * ============================================================================ */
+ * from partial writes (editors write atomically via rename or close-after-write). */
 
 static int inotify_fd = -1;
 static int inotify_wd = -1;

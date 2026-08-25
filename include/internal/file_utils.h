@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <time.h>
 
+#include "c23_compat.h"
+
 /* File mode enumeration */
 typedef enum {
     FILE_READ,
@@ -29,10 +31,11 @@ time_t get_file_mtime(const char* filename);
 bool is_file_readable(const char* filename);
 bool is_file_writable(const char* filename);
 
-/* File I/O utilities */
-char* safe_read_file(const char* filename, size_t* file_size);
-bool safe_write_file(const char* filename, const char* data, size_t size);
-bool create_backup(const char* filename);
+/* File I/O utilities. safe_read_file returns an allocation the caller
+ * owns; ignoring any of these results is a leak or a silent IO error. */
+NODISCARD char* safe_read_file(const char* filename, size_t* file_size);
+NODISCARD bool safe_write_file(const char* filename, const char* data, size_t size);
+NODISCARD bool create_backup(const char* filename);
 
 /* Temporary files */
 FILE* safe_temp_file(char* temp_name, size_t name_size);

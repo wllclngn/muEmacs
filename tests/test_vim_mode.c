@@ -20,40 +20,25 @@ static inline struct keymap_entry *km_lookup_char(struct keymap *km, int ch) {
     return keymap_lookup(km, keymap_key_make((uint32_t)ch, 0));
 }
 
-/* Test vim mode toggle */
-static int test_vim_mode_toggle(void) {
+/* Test the core ESC fallback (the toggle itself is owned by the c_evil
+ * extension and covered by its TUI suite) */
+static int test_vim_normal_mode_fallback(void) {
     int result = 1;
 
-    LOG_INFO("  Testing evil-mode toggle...");
+    LOG_INFO("  Testing vim_enter_normal_mode_external fallback...");
 
-    /* Ensure vim mode starts disabled */
-    vim_mode_active = 0;
+    atomic_store(&g_vim_state.current_mode, MODE_INSERT);
+    vim_enter_normal_mode_external(0, 1);
+    if (atomic_load(&g_vim_state.current_mode) != MODE_NORMAL) {
+        LOG_ERROR("[FAIL] ESC fallback did not set MODE_NORMAL");
+        result = 0;
+    }
+
+    /* Reset */
     atomic_store(&g_vim_state.current_mode, MODE_INSERT);
 
-    /* Toggle on */
-    evil_mode(0, 1);
-    if (!vim_mode_active) {
-        LOG_ERROR("[FAIL] evil-mode did not enable vim_mode_active");
-        result = 0;
-    }
-    if (atomic_load(&g_vim_state.current_mode) != MODE_NORMAL) {
-        LOG_ERROR("[FAIL] evil-mode did not set MODE_NORMAL");
-        result = 0;
-    }
-
-    /* Toggle off */
-    evil_mode(0, 1);
-    if (vim_mode_active) {
-        LOG_ERROR("[FAIL] evil-mode did not disable vim_mode_active");
-        result = 0;
-    }
-    if (atomic_load(&g_vim_state.current_mode) != MODE_INSERT) {
-        LOG_ERROR("[FAIL] evil-mode did not reset to MODE_INSERT");
-        result = 0;
-    }
-
     if (result) {
-        LOG_INFO("[SUCCESS] evil-mode toggle works correctly");
+        LOG_INFO("[SUCCESS] ESC fallback works correctly");
     }
 
     return result;
@@ -146,8 +131,8 @@ int test_vim_mode(void) {
     sub_result = test_vim_state_init();
     if (!sub_result) result = 0;
 
-    /* Test 2: Evil mode toggle */
-    sub_result = test_vim_mode_toggle();
+    /* Test 2: Core ESC fallback */
+    sub_result = test_vim_normal_mode_fallback();
     if (!sub_result) result = 0;
 
     /* Test 3: Keymap initialization */

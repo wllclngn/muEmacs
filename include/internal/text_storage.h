@@ -18,9 +18,7 @@
 #include <stdint.h>
 #include <stdatomic.h>
 
-/* ============================================================================
- * Storage Backend Types
- * ============================================================================ */
+/* Storage Backend Types */
 
 typedef enum {
     STORAGE_GAP_BUFFER  = 0,    /* Traditional gap buffer (default) */
@@ -28,16 +26,14 @@ typedef enum {
     STORAGE_AUTO        = 2,    /* Heuristic selection based on file size */
 } text_storage_type_t;
 
-/* ============================================================================
- * Heuristic Thresholds
+/* Heuristic Thresholds
  *
  * Derived from crossover analysis:
  *   - Gap buffer: O(n) load, O(1) cursor edit, excellent cache locality
  *   - Piece table: O(1) load via mmap, O(log p) edit, minimal memory for viewing
  *
  * Crossover point ~10MB where mmap lazy loading advantage outweighs
- * gap buffer's locality benefits.
- * ============================================================================ */
+ * gap buffer's locality benefits. */
 
 #define STORAGE_THRESHOLD_DEFAULT     (2UL * 1024 * 1024)    /* 2 MB - lowered for faster mmap loading */
 #define STORAGE_THRESHOLD_READONLY    (1UL * 1024 * 1024)    /* 1 MB for viewing */
@@ -46,11 +42,9 @@ typedef enum {
 #define STORAGE_EDIT_DENSITY_CONVERT  0.20                   /* 20% triggers conversion */
 #define STORAGE_MAX_PIECE_COUNT       10000                  /* Fragmentation threshold */
 
-/* ============================================================================
- * Storage Hints
+/* Storage Hints
  *
- * Hints modify the default heuristic behavior.
- * ============================================================================ */
+ * Hints modify the default heuristic behavior. */
 
 typedef enum {
     STORAGE_HINT_DEFAULT     = 0,   /* Use size-based heuristics */
@@ -60,19 +54,15 @@ typedef enum {
     STORAGE_HINT_FORCE_PIECE = 4,   /* Always use piece table */
 } text_storage_hint_t;
 
-/* ============================================================================
- * Forward Declarations
- * ============================================================================ */
+/* Forward Declarations */
 
 struct text_storage;
 struct text_storage_ops;
 struct gap_buffer;
 
-/* ============================================================================
- * Storage Operations Interface (vtable)
+/* Storage Operations Interface (vtable)
  *
- * All operations return 0 on success, negative on error unless specified.
- * ============================================================================ */
+ * All operations return 0 on success, negative on error unless specified. */
 
 struct text_storage_ops {
     /* Lifecycle */
@@ -127,11 +117,9 @@ struct text_storage_ops {
     struct text_storage *(*convert_to)(struct text_storage *ts, text_storage_type_t target);
 };
 
-/* ============================================================================
- * Base Storage Structure
+/* Base Storage Structure
  *
- * All backends embed this as their first member for polymorphism via casting.
- * ============================================================================ */
+ * All backends embed this as their first member for polymorphism via casting. */
 
 struct text_storage {
     const struct text_storage_ops *ops;
@@ -145,11 +133,9 @@ struct text_storage {
     size_t original_size;                /* Size at creation (for density calc) */
 };
 
-/* ============================================================================
- * Convenience Macros
+/* Convenience Macros
  *
- * These provide a clean interface hiding the vtable indirection.
- * ============================================================================ */
+ * These provide a clean interface hiding the vtable indirection. */
 
 #define TS_DESTROY(ts)              ((ts)->ops->destroy((ts)))
 #define TS_INSERT(ts, pos, txt, ln) ((ts)->ops->insert((ts), (pos), (txt), (ln)))
@@ -177,9 +163,7 @@ struct text_storage {
 #define TS_TYPE(ts)                 ((ts)->ops->type((ts)))
 #define TS_CONVERT(ts, type)        ((ts)->ops->convert_to((ts), (type)))
 
-/* ============================================================================
- * Factory Functions
- * ============================================================================ */
+/* Factory Functions */
 
 /*
  * Create empty storage with given initial capacity.
@@ -204,9 +188,7 @@ struct text_storage *text_storage_create_from_file(int fd, size_t file_size,
  */
 struct text_storage *text_storage_from_gap_buffer(struct gap_buffer *gb);
 
-/* ============================================================================
- * Heuristic Functions
- * ============================================================================ */
+/* Heuristic Functions */
 
 /*
  * Determine optimal storage type for given file size and hint.
@@ -237,9 +219,7 @@ static inline void text_storage_record_edit(struct text_storage *ts, size_t char
     atomic_fetch_add_explicit(&ts->generation, 1, memory_order_release);
 }
 
-/* ============================================================================
- * Error Codes
- * ============================================================================ */
+/* Error Codes */
 
 #define TS_SUCCESS      0
 #define TS_ERROR       -1
@@ -248,9 +228,7 @@ static inline void text_storage_record_edit(struct text_storage *ts, size_t char
 #define TS_RANGE       -4
 #define TS_NOT_FOUND   SIZE_MAX  /* For search operations */
 
-/* ============================================================================
- * Debug Support
- * ============================================================================ */
+/* Debug Support */
 
 #ifdef UEMACS_DEBUG_LOG
 void text_storage_dump_stats(struct text_storage *ts);

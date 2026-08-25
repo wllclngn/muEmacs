@@ -18,12 +18,10 @@
 #include <stdatomic.h>
 #include "internal/text_storage.h"
 
-/* ============================================================================
- * Piece Structure
+/* Piece Structure
  *
  * Each piece references a span in either the original file (mmap'd) or
- * the append-only add buffer.
- * ============================================================================ */
+ * the append-only add buffer. */
 
 typedef struct piece {
     bool is_original;      /* true = original mmap, false = add buffer */
@@ -33,11 +31,9 @@ typedef struct piece {
     struct piece *prev;
 } piece_t;
 
-/* ============================================================================
- * Piece Table Structure
+/* Piece Table Structure
  *
- * Embeds text_storage as first member for polymorphic casting.
- * ============================================================================ */
+ * Embeds text_storage as first member for polymorphic casting. */
 
 typedef struct piece_table {
     struct text_storage base;   /* Must be first for casting */
@@ -73,9 +69,7 @@ typedef struct piece_table {
     _Atomic uint32_t generation;
 } piece_table_t;
 
-/* ============================================================================
- * Creation Functions
- * ============================================================================ */
+/* Creation Functions */
 
 /*
  * Create piece table from mmap'd file.
@@ -93,9 +87,7 @@ struct text_storage *piece_table_create_empty(size_t initial_capacity);
  */
 struct text_storage *piece_table_create_from_buffer(const char *data, size_t len);
 
-/* ============================================================================
- * Utility Functions
- * ============================================================================ */
+/* Utility Functions */
 
 /*
  * Get piece containing logical position.

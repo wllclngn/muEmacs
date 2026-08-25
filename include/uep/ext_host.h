@@ -82,9 +82,7 @@ typedef struct {
     bool active;                    /* Is this slot in use? */
 } ext_host_entry_t;
 
-/* =========================================================================
- * Initialization
- * ========================================================================= */
+/* Initialization */
 
 /*
  * Initialize the extension host subsystem
@@ -113,9 +111,7 @@ void ext_host_set_init_timeout(int timeout_ms);
  */
 int ext_host_get_init_timeout(void);
 
-/* =========================================================================
- * Runtime detection
- * ========================================================================= */
+/* Runtime detection */
 
 /*
  * Detect runtime type from extension directory
@@ -147,9 +143,7 @@ bool ext_host_needs_isolation(ext_runtime_t runtime);
  */
 const char *ext_host_runtime_name(ext_runtime_t runtime);
 
-/* =========================================================================
- * Extension lifecycle
- * ========================================================================= */
+/* Extension lifecycle */
 
 /*
  * Spawn an out-of-process extension (blocking)
@@ -220,9 +214,7 @@ bool ext_host_is_loaded(const char *name);
  */
 ext_state_t ext_host_get_state(const char *name);
 
-/* =========================================================================
- * Command routing
- * ========================================================================= */
+/* Command routing */
 
 /*
  * Register a command from a remote extension
@@ -267,9 +259,7 @@ int ext_host_invoke_command(const char *cmd_name, int f, int n);
  */
 const char *ext_host_find_command_owner(const char *cmd_name);
 
-/* =========================================================================
- * Event routing
- * ========================================================================= */
+/* Event routing */
 
 /*
  * Register event subscription from remote extension
@@ -292,9 +282,7 @@ int ext_host_unsubscribe_event(const char *ext_name, const char *event_name);
  */
 int ext_host_emit_event(const char *event_name, const void *data, size_t data_len);
 
-/* =========================================================================
- * Message handling (editor side)
- * ========================================================================= */
+/* Message handling (editor side) */
 
 /*
  * Handle incoming message from remote extension
@@ -326,9 +314,7 @@ void ext_host_poll_nonblocking(void);
  */
 void ext_host_reap_children(void);
 
-/* =========================================================================
- * Extension iteration
- * ========================================================================= */
+/* Extension iteration */
 
 /*
  * Get number of active remote extensions
@@ -346,9 +332,7 @@ const ext_host_entry_t *ext_host_get_entry(int index);
  */
 const ext_host_entry_t *ext_host_find(const char *name);
 
-/* =========================================================================
- * Path to extension runner executable
- * ========================================================================= */
+/* Path to extension runner executable */
 
 /*
  * Set path to the ext_runner executable

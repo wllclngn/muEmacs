@@ -37,9 +37,7 @@ extern int extension_config_get_int(const char *ext_name, const char *key, int d
 extern bool extension_config_get_bool(const char *ext_name, const char *key, bool default_val);
 extern const char *extension_config_get_string(const char *ext_name, const char *key, const char *default_val);
 
-/* =========================================================================
- * Global State
- * ========================================================================= */
+/* Global State */
 
 static ext_host_entry_t g_extensions[EXT_HOST_MAX_EXTENSIONS];
 static int g_num_extensions = 0;
@@ -65,9 +63,7 @@ static const char *runtime_names[] = {
     [EXT_RUNTIME_UNKNOWN] = "Unknown",
 };
 
-/* =========================================================================
- * Configuration
- * ========================================================================= */
+/* Configuration */
 
 void ext_host_set_init_timeout(int timeout_ms) {
     if (timeout_ms >= 1000) {  /* Minimum 1 second */
@@ -80,9 +76,7 @@ int ext_host_get_init_timeout(void) {
     return g_ext_init_timeout_ms;
 }
 
-/* =========================================================================
- * Internal Helpers
- * ========================================================================= */
+/* Internal Helpers */
 
 static ext_host_entry_t *find_entry(const char *name) {
     for (int i = 0; i < EXT_HOST_MAX_EXTENSIONS; i++) {
@@ -165,9 +159,7 @@ static void sigchld_handler(int sig) {
     g_sigchld_pending = 1;
 }
 
-/* =========================================================================
- * Initialization
- * ========================================================================= */
+/* Initialization */
 
 void ext_host_init(void) {
     if (g_initialized) return;
@@ -197,9 +189,7 @@ void ext_host_cleanup(void) {
     g_initialized = false;
 }
 
-/* =========================================================================
- * Runtime Detection
- * ========================================================================= */
+/* Runtime Detection */
 
 ext_runtime_t ext_host_detect_runtime(const char *dir) {
     if (!dir) return EXT_RUNTIME_UNKNOWN;
@@ -227,9 +217,7 @@ const char *ext_host_runtime_name(ext_runtime_t rt) {
     return "Invalid";
 }
 
-/* =========================================================================
- * Extension Spawning - Parallel Implementation
- * ========================================================================= */
+/* Extension Spawning - Parallel Implementation */
 
 /*
  * Internal: Fork extension process without waiting for READY.
@@ -500,9 +488,7 @@ void ext_host_shutdown_all(void) {
     LOG_INFO("ext_host: Shutdown complete");
 }
 
-/* =========================================================================
- * SIGCHLD Reaping (child crash detection)
- * ========================================================================= */
+/* SIGCHLD Reaping (child crash detection) */
 
 void ext_host_reap_children(void) {
     if (!g_sigchld_pending) return;
@@ -545,9 +531,7 @@ void ext_host_reap_children(void) {
     }
 }
 
-/* =========================================================================
- * Non-blocking Message Polling (called from main loop)
- * ========================================================================= */
+/* Non-blocking Message Polling (called from main loop) */
 
 void ext_host_poll_nonblocking(void) {
     /* Check for crashed/exited children first */
@@ -704,9 +688,7 @@ void ext_host_poll_nonblocking(void) {
     }
 }
 
-/* =========================================================================
- * Command Invocation (Non-blocking)
- * ========================================================================= */
+/* Command Invocation (Non-blocking) */
 
 int ext_host_invoke_command(const char *cmd_name, int f, int n) {
     const char *owner = ext_host_find_command_owner(cmd_name);
@@ -759,9 +741,7 @@ int ext_host_invoke_command(const char *cmd_name, int f, int n) {
     return 0;
 }
 
-/* =========================================================================
- * Command Registry
- * ========================================================================= */
+/* Command Registry */
 
 int ext_host_register_command(const char *ext_name, const char *cmd_name) {
     ext_host_entry_t *entry = find_entry(ext_name);
@@ -808,9 +788,7 @@ const char *ext_host_find_command_owner(const char *cmd_name) {
     return nullptr;
 }
 
-/* =========================================================================
- * Query Functions
- * ========================================================================= */
+/* Query Functions */
 
 int ext_host_count(void) {
     return g_num_extensions;

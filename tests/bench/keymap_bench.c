@@ -29,6 +29,6 @@ int main(void) {
     }
     uint64_t end = now_ns();
     double ms = (end - start)/1e6;
-    LOG_INFOF("[bench] keymap_lookup: %d lookups in %.2f ms (sum=%d)", iters, ms, sum);
+    printf("[bench] keymap_lookup: %d lookups in %.2f ms (sum=%d)\n", iters, ms, sum);
     return 0;
 }

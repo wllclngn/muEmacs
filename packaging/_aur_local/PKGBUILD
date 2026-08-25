@@ -1,12 +1,14 @@
 pkgname=muemacs
-pkgver=0.0.0
+pkgver=3.1.0
 pkgrel=1
-pkgdesc="Modern Linux terminal text editor (μEmacs)"
+pkgdesc="Modern C23 terminal text editor (μEmacs)"
 arch=('x86_64')
+# TODO(owner): confirm this is the canonical repository URL
 url="https://github.com/wllclngn/muEmacs"
-license=('MIT')
-depends=('ncurses')
-makedepends=('cmake' 'gcc')
+# License lineage vs the original MicroEMACS license is pending owner verification.
+license=('GPL2')
+depends=()
+makedepends=('cmake>=3.20' 'gcc>=13')
 source=("muemacs-${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
@@ -14,6 +16,11 @@ build() {
   cd "${srcdir}/muemacs-${pkgver}"
   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF
   cmake --build build --target muEmacs -j"${CI_CPUS:-$(nproc)}"
+}
+
+check() {
+  cd "${srcdir}/muemacs-${pkgver}/build"
+  ./bin/muEmacs --version
 }
 
 package() {

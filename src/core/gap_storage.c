@@ -22,20 +22,16 @@
 #include "μemacs/utf8_optimized.h"
 #include "util/logger.h"
 
-/* ============================================================================
- * Gap Storage Structure
+/* Gap Storage Structure
  *
- * Embeds text_storage as first member for polymorphic casting.
- * ============================================================================ */
+ * Embeds text_storage as first member for polymorphic casting. */
 
 typedef struct gap_storage {
     struct text_storage base;       /* Must be first for casting */
     struct gap_buffer *gb;          /* Underlying gap buffer */
 } gap_storage_t;
 
-/* ============================================================================
- * Forward Declarations
- * ============================================================================ */
+/* Forward Declarations */
 
 static void gap_storage_destroy(struct text_storage *ts);
 static int gap_storage_insert(struct text_storage *ts, size_t pos, const char *text, size_t len);
@@ -67,9 +63,7 @@ static size_t gap_storage_search_backward(struct text_storage *ts, size_t start,
 static text_storage_type_t gap_storage_type(struct text_storage *ts);
 static struct text_storage *gap_storage_convert_to(struct text_storage *ts, text_storage_type_t target);
 
-/* ============================================================================
- * Operations Table
- * ============================================================================ */
+/* Operations Table */
 
 static const struct text_storage_ops gap_storage_ops = {
     .destroy            = gap_storage_destroy,
@@ -99,16 +93,12 @@ static const struct text_storage_ops gap_storage_ops = {
     .convert_to         = gap_storage_convert_to,
 };
 
-/* ============================================================================
- * Helper Macros
- * ============================================================================ */
+/* Helper Macros */
 
 #define TO_GAP_STORAGE(ts) ((gap_storage_t *)(ts))
 #define GET_GB(ts)         (TO_GAP_STORAGE(ts)->gb)
 
-/* ============================================================================
- * Creation Functions
- * ============================================================================ */
+/* Creation Functions */
 
 /*
  * Create gap storage with given initial capacity.
@@ -164,9 +154,7 @@ struct gap_buffer *gap_storage_unwrap(struct text_storage *ts) {
     return gb;
 }
 
-/* ============================================================================
- * Lifecycle Operations
- * ============================================================================ */
+/* Lifecycle Operations */
 
 static void gap_storage_destroy(struct text_storage *ts) {
     if (!ts) return;
@@ -175,9 +163,7 @@ static void gap_storage_destroy(struct text_storage *ts) {
     SAFE_FREE(gs);
 }
 
-/* ============================================================================
- * Core Text Operations
- * ============================================================================ */
+/* Core Text Operations */
 
 static int gap_storage_insert(struct text_storage *ts, size_t pos, const char *text, size_t len) {
     int result = gap_buffer_insert(GET_GB(ts), pos, text, len);
@@ -214,9 +200,7 @@ static int gap_storage_replace(struct text_storage *ts, size_t pos, size_t old_l
     return TS_SUCCESS;
 }
 
-/* ============================================================================
- * Text Access Operations
- * ============================================================================ */
+/* Text Access Operations */
 
 static char gap_storage_get_char(struct text_storage *ts, size_t pos) {
     return gap_buffer_get_char(GET_GB(ts), pos);
@@ -268,9 +252,7 @@ static const char *gap_storage_get_line(struct text_storage *ts, size_t line_num
     return line_buf;
 }
 
-/* ============================================================================
- * Size and Position Operations
- * ============================================================================ */
+/* Size and Position Operations */
 
 static size_t gap_storage_size(struct text_storage *ts) {
     return gap_buffer_size(GET_GB(ts));
@@ -284,9 +266,7 @@ static size_t gap_storage_get_cursor(struct text_storage *ts) {
     return gap_buffer_get_cursor(GET_GB(ts));
 }
 
-/* ============================================================================
- * Line Navigation Operations
- * ============================================================================ */
+/* Line Navigation Operations */
 
 static size_t gap_storage_line_count(struct text_storage *ts) {
     return gap_buffer_line_count(GET_GB(ts));
@@ -317,9 +297,7 @@ static size_t gap_storage_line_length(struct text_storage *ts, size_t line_num) 
     return end - start;
 }
 
-/* ============================================================================
- * UTF-8 Aware Operations
- * ============================================================================ */
+/* UTF-8 Aware Operations */
 
 static size_t gap_storage_char_to_byte(struct text_storage *ts, size_t line_num, size_t char_pos) {
     struct gap_buffer *gb = GET_GB(ts);
@@ -377,9 +355,7 @@ static size_t gap_storage_char_count(struct text_storage *ts, size_t line_num) {
     return char_count;
 }
 
-/* ============================================================================
- * Change Tracking Operations
- * ============================================================================ */
+/* Change Tracking Operations */
 
 static uint32_t gap_storage_generation(struct text_storage *ts) {
     return atomic_load(&GET_GB(ts)->generation);
@@ -389,9 +365,7 @@ static void gap_storage_invalidate_caches(struct text_storage *ts) {
     gap_buffer_invalidate_caches(GET_GB(ts));
 }
 
-/* ============================================================================
- * Memory Management Operations
- * ============================================================================ */
+/* Memory Management Operations */
 
 static int gap_storage_compact(struct text_storage *ts) {
     return gap_buffer_compact(GET_GB(ts));
@@ -401,9 +375,7 @@ static int gap_storage_reserve(struct text_storage *ts, size_t additional) {
     return gap_buffer_reserve(GET_GB(ts), additional);
 }
 
-/* ============================================================================
- * Search Operations
- * ============================================================================ */
+/* Search Operations */
 
 static size_t gap_storage_search_forward(struct text_storage *ts, size_t start,
                                          const char *pattern, size_t pattern_len) {
@@ -434,18 +406,14 @@ static size_t gap_storage_search_backward(struct text_storage *ts, size_t start,
     return TS_NOT_FOUND;
 }
 
-/* ============================================================================
- * Type Information
- * ============================================================================ */
+/* Type Information */
 
 static text_storage_type_t gap_storage_type(struct text_storage *ts) {
     (void)ts;
     return STORAGE_GAP_BUFFER;
 }
 
-/* ============================================================================
- * Conversion
- * ============================================================================ */
+/* Conversion */
 
 static struct text_storage *gap_storage_convert_to(struct text_storage *ts, text_storage_type_t target) {
     if (target == STORAGE_GAP_BUFFER) {
@@ -462,13 +430,11 @@ static struct text_storage *gap_storage_convert_to(struct text_storage *ts, text
     return nullptr;
 }
 
-/* ============================================================================
- * Factory Functions (from text_storage.h)
+/* Factory Functions (from text_storage.h)
  *
  * These implement the public API. For now, all creation uses gap buffer
  * since piece table isn't implemented yet. When piece_table.c is added,
- * these will be moved to a separate text_storage.c with heuristic selection.
- * ============================================================================ */
+ * these will be moved to a separate text_storage.c with heuristic selection. */
 
 struct text_storage *text_storage_create(size_t initial_capacity,
                                          text_storage_hint_t hint) {
@@ -564,9 +530,7 @@ struct text_storage *text_storage_maybe_convert(struct text_storage *ts) {
     return TS_CONVERT(ts, target);
 }
 
-/* ============================================================================
- * Debug Support
- * ============================================================================ */
+/* Debug Support */
 
 #ifdef UEMACS_DEBUG_LOG
 void text_storage_dump_stats(struct text_storage *ts) {

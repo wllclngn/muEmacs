@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(μEmacs
-    VERSION 2.1.0
+    VERSION 3.1.0
     DESCRIPTION "Modern Linux terminal text editor"
     LANGUAGES C
 )
@@ -12,8 +12,7 @@ project(μEmacs
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Feature toggles (defined early so they affect source lists and targets)
-option(ENABLE_SEARCH_NFA "Enable Thompson NFA MAGIC search engine" ON)
-option(MUEMACS_DEBUG_LOG "Enable debug logging to /tmp/muemacs_debug.log" OFF)
+option(UEMACS_DEBUG_LOG "Enable debug logging to /tmp/muemacs_debug.log" OFF)
 option(ENABLE_IO_URING "Enable io_uring for async I/O (requires liburing)" OFF)
 
 # io_uring support (optional - for async batch syscalls)
@@ -28,8 +27,6 @@ if(ENABLE_IO_URING)
     endif()
 endif()
 
-# Tuning knob: minimum literal length for BMH fast path
-set(BMH_MIN_LEN 5 CACHE STRING "Minimum length for Boyer–Moore–Horspool literal path (default 5)")
 
 # Modern C standard
 set(CMAKE_C_STANDARD 23)
@@ -91,16 +88,11 @@ set(CORE_SOURCES
 set(TEXT_SOURCES
     src/text/region.c
     src/text/search.c
-    src/text/parallel_search.c
     src/text/isearch.c
     src/text/word.c
     src/text/random.c
-    src/text/boyer_moore.c
 )
 
-if(ENABLE_SEARCH_NFA)
-  list(APPEND TEXT_SOURCES src/text/nfa.c)
-endif()
 
 # I/O and file handling
 set(IO_SOURCES
@@ -168,8 +160,6 @@ set(TERMINAL_SOURCES
 # Utilities - Phase 1 modernized utilities
 set(UTIL_SOURCES
     src/util/util.c
-    src/util/wrapper.c
-    src/util/usage.c
     src/util/version.c
     src/util/utf8.c
     src/util/display_width.c
@@ -238,17 +228,13 @@ configure_file(
 
 # Main library
 add_library(muemacs_core STATIC ${ALL_SOURCES})
-if(ENABLE_SEARCH_NFA)
-  target_compile_definitions(muemacs_core PRIVATE ENABLE_SEARCH_NFA=1)
-endif()
-target_compile_definitions(muemacs_core PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
 # Debug logging (zero-cost when disabled)
-if(MUEMACS_DEBUG_LOG)
-    target_compile_definitions(muemacs_core PRIVATE MUEMACS_DEBUG_LOG=1)
+if(UEMACS_DEBUG_LOG)
+    target_compile_definitions(muemacs_core PRIVATE UEMACS_DEBUG_LOG=1)
     message(STATUS "Debug logging ENABLED -> /tmp/muemacs_debug.log")
 else()
-    target_compile_definitions(muemacs_core PRIVATE MUEMACS_DEBUG_LOG=0)
+    target_compile_definitions(muemacs_core PRIVATE UEMACS_DEBUG_LOG=0)
 endif()
 
 message(STATUS "Vim/Evil mode: EXTENSION (use c_evil extension)")
@@ -287,10 +273,10 @@ target_compile_definitions(muemacs-ext-runner PRIVATE
     HAVE_CONFIG_H=1
 )
 # Share debug logging setting with main editor
-if(MUEMACS_DEBUG_LOG)
-    target_compile_definitions(muemacs-ext-runner PRIVATE MUEMACS_DEBUG_LOG=1)
+if(UEMACS_DEBUG_LOG)
+    target_compile_definitions(muemacs-ext-runner PRIVATE UEMACS_DEBUG_LOG=1)
 else()
-    target_compile_definitions(muemacs-ext-runner PRIVATE MUEMACS_DEBUG_LOG=0)
+    target_compile_definitions(muemacs-ext-runner PRIVATE UEMACS_DEBUG_LOG=0)
 endif()
 
 # Apply same compile definitions as the library so main.c builds consistently
@@ -307,7 +293,7 @@ target_compile_definitions(muEmacs PRIVATE
     HAVE_CONFIG_H=1
     _GNU_SOURCE
     _DEFAULT_SOURCE
-    MUEMACS_DEBUG_LOG=$<BOOL:${MUEMACS_DEBUG_LOG}>
+    UEMACS_DEBUG_LOG=$<BOOL:${UEMACS_DEBUG_LOG}>
 )
 
 # Integration test executable (TTY-capable stress testing)
@@ -324,12 +310,10 @@ set(TEST_SOURCES
     tests/test_phase5_advanced_undo_redo.c
     tests/unit/test_core_keymap.c
     tests/test_api.c
-    tests/unit/test_text_boyer_moore.c
     tests/unit/test_core_undo.c
     tests/test_stats.c
     tests/unit/test_util_utf8.c
     tests/unit/test_core_gapbuffer.c
-    tests/unit/test_text_nfa.c
     tests/unit/test_text_search.c
     tests/test_atomic_stats.c
     tests/test_fileio_stub.c
@@ -404,10 +388,6 @@ add_executable(full_integration_test
     tests/integration/main_test_suite.c
     ${TEST_SOURCES}
 )
-if(ENABLE_SEARCH_NFA)
-  target_compile_definitions(full_integration_test PRIVATE ENABLE_SEARCH_NFA=1)
-endif()
-target_compile_definitions(full_integration_test PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
 # (E4: Standalone test runners deleted - all tests consolidated into full_integration_test)
 
@@ -458,25 +438,13 @@ target_include_directories(bench_search PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
-target_compile_definitions(bench_search PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
-
-# Parallel search benchmark
-add_executable(bench_parallel tests/bench_parallel.c)
-target_link_libraries(bench_parallel muemacs_core Threads::Threads m)
-target_include_directories(bench_parallel PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/μemacs
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-target_compile_definitions(bench_parallel PRIVATE BMH_MIN_LEN=${BMH_MIN_LEN})
 
 add_custom_target(bench
   COMMAND $<TARGET_FILE:bench_search>
   COMMAND $<TARGET_FILE:bench_keymap>
   COMMAND $<TARGET_FILE:bench_utf8>
   COMMAND $<TARGET_FILE:bench_editor>
-  COMMAND $<TARGET_FILE:bench_parallel>
-  DEPENDS bench_search bench_keymap bench_utf8 bench_editor bench_parallel
+  DEPENDS bench_search bench_keymap bench_utf8 bench_editor
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running microbenchmarks (search)"
 )
@@ -568,8 +536,27 @@ target_link_options(muemacs_core PRIVATE
 # Find required libraries (no ncurses - pure raw ANSI terminal driver)
 find_package(Threads REQUIRED)
 
+# sublimation: montauk's adaptive sort/search core (C23, pure C ABI).
+# One source of truth: linked from the montauk tree, never vendored.
+# Build order: montauk builds first (cmake --build <montauk>/build).
+set(MONTAUK_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../montauk/build"
+    CACHE PATH "montauk build directory containing libsublimation.a")
+set(SUBLIMATION_INCLUDE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../montauk/sublimation/src/include")
+if(NOT EXISTS "${MONTAUK_BUILD_DIR}/libsublimation.a")
+    message(FATAL_ERROR
+        "libsublimation.a not found in ${MONTAUK_BUILD_DIR}. "
+        "Build montauk first, or point -DMONTAUK_BUILD_DIR at a build "
+        "tree that has it.")
+endif()
+add_library(sublimation STATIC IMPORTED)
+set_target_properties(sublimation PROPERTIES
+    IMPORTED_LOCATION "${MONTAUK_BUILD_DIR}/libsublimation.a"
+    INTERFACE_INCLUDE_DIRECTORIES "${SUBLIMATION_INCLUDE_DIR}")
+
 # Link libraries - only what modern Linux needs (no external deps for terminal)
 target_link_libraries(muemacs_core
+    sublimation                 # Adaptive sort/search core (montauk)
     m                           # Math library
     Threads::Threads           # pthreads for mutex/signal masking
     util                        # PTY functions (forkpty, openpty)
@@ -595,7 +582,7 @@ target_link_libraries(full_integration_test
     Threads::Threads           # ensure pthreads available in tests too
 )
 
-# Help static linker resolve intra-archive deps (e.g., search.o -> nfa.o)
+# Help static linker resolve intra-archive deps (e.g., intra-archive references)
 if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   target_link_options(full_integration_test PRIVATE -Wl,--start-group)
   # end-group will be appended as well to close the group
@@ -672,7 +659,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT DISABLE_SANITIZERS)
     )
 
     # Sanitizers for benchmark targets
-    foreach(_bench bench_search bench_keymap bench_utf8 bench_editor bench_parallel)
+    foreach(_bench bench_search bench_keymap bench_utf8 bench_editor)
         target_compile_options(${_bench} PRIVATE
             -fsanitize=address
             -fsanitize=undefined

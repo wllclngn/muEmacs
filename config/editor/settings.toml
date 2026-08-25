@@ -1,7 +1,10 @@
 # μEmacs Configuration File (TOML)
 
 [editor]
-column_width = 80
+# Linus-first defaults — matches the numeric constants in Linus's uemacs/PK
+# globals.c (fillcol=72, tab_width=8, gasave=256). Override here if you want
+# modern defaults.
+column_width = 72
 wrap = false
 evil_mode = false
 tab_width = 8           # Tab stop width (1-16)
@@ -403,6 +406,11 @@ modified_indicator = "Δ"         # Symbol for modified buffers (matches modelin
 # When enabled:
 # - Classic modeline: "--* uEmacs/PK 4.0: buffer (modes) file  Bot/Top/All/%"
 # - VTIME-based terminal pause for bracket matching flash
+# - Disables modern visual features (highlight line, ruler)
+#
+# Shipped as the default first-launch experience. Set `enabled = false`
+# below for the modern μEmacs chrome.
+enabled = true
 #
 # Linus's defaults from globals.c (Jan 2026):
 fillcol = 72                     # Fill column for paragraph wrapping

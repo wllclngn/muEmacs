@@ -21,9 +21,9 @@ _Atomic int fillcol = 72;		/* Current fill column - C23 atomic */
 
 /* Modern keyboard macro system - stores full input events */
 keyboard_macro_t g_macro = {
-	.events = {{0}},
-	.count = 0,
-	.playback_pos = 0
+    .events = {{0}},
+    .count = 0,
+    .playback_pos = 0
 };
 _Atomic(const char *) execstr = nullptr;		/* pointer to string to execute - C23 atomic */
 char golabel[NPAT] = "";	/* current line to go to        */
@@ -34,12 +34,12 @@ int execlevel = 0;		/* execution IF level           */
  * - flickcode: No flicker suppression needed with modern buffered I/O
  */
 char *modename[] = {		/* name of modes                */
-	"WRAP", "CMODE", "SPELL", "EXACT", "VIEW", "OVER",
-	"MAGIC", "CRYPT", "ASAVE", "TERM"
+    "WRAP", "CMODE", "SPELL", "EXACT", "VIEW", "OVER",
+    "MAGIC", "CRYPT", "ASAVE", "TERM"
 };
 char *mode2name[] = {		/* name of modes                */
-	"Wrap", "Cmode", "Spell", "Exact", "View", "Over",
-	"Magic", "Crypt", "Asave", "Term"
+    "Wrap", "Cmode", "Spell", "Exact", "View", "Over",
+    "Magic", "Crypt", "Asave", "Term"
 };
 char modecode[] = "WCSEVOMCAT";	/* letters to represent modes   */
 int gmode = 0;			/* global editor mode           */
@@ -64,21 +64,21 @@ int vtcol = 0;			/* Column location of SW cursor */
 int ttrow = HUGE;		/* Row location of HW cursor */
 int ttcol = HUGE;		/* Column location of HW cursor */
 int lbound = 0;			/* leftmost column of current line
-				   being displayed */
+                 being displayed */
 int taboff = 0;			/* tab offset for display       */
 int tabmask = 0x07;		/* tabulator mask */
 char *cname[] = {		/* names of colors              */
-	"BLACK", "RED", "GREEN", "YELLOW", "BLUE",
-	"MAGENTA", "CYAN", "WHITE"
+    "BLACK", "RED", "GREEN", "YELLOW", "BLUE",
+    "MAGENTA", "CYAN", "WHITE"
 };
 
 /* C23 Modern Kill Ring - global instance */
 struct kill_ring g_kill_ring = {
-	.head = 0,
-	.tail = 0, 
-	.yank_index = 0,
-	.count = 0,
-	.entries = {{0}}  /* Zero-initialized entries */
+    .head = 0,
+    .tail = 0, 
+    .yank_index = 0,
+    .count = 0,
+    .entries = {{0}}  /* Zero-initialized entries */
 };
 int yanked_size = 0;		/* Size of last yank for yankpop */
 
@@ -187,13 +187,13 @@ struct line *matchline = nullptr;
 int matchoff = 0;
 
 /* directive name table:
-	This holds the names of all the directives....	*/
+    This holds the names of all the directives....	*/
 
 char *dname[] = {
-	"if", "else", "endif",
-	"goto", "return", "endm",
-	"while", "endwhile", "break",
-	"force"
+    "if", "else", "endif",
+    "goto", "return", "endm",
+    "while", "endwhile", "break",
+    "force"
 };
 
 #if	DEBUGM

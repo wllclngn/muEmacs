@@ -7,7 +7,6 @@
 #include "internal/edef.h"
 #include "internal/efunc.h"
 #include "internal/line.h"
-#include "internal/nfa.h"
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
@@ -111,78 +110,63 @@ int test_bmh_threshold_switching() {
     return ok;
 }
 
-// Test NFA regex edge cases
-int test_nfa_edge_cases() {
+// Test regex search edge cases through the engine (MDMAGIC face)
+int test_regex_edge_cases() {
     int ok = 1;
-    PHASE_START("SEARCH: NFA-EDGE", "Testing NFA regex engine edge cases");
+    PHASE_START("SEARCH: REGEX-EDGE", "Testing regex search via scanner");
 
-    // Test 1: Empty pattern - check if function exists first
-    nfa_program_info nfa;
-    #ifdef ENABLE_SEARCH_NFA
-    if (nfa_compile("", true, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Empty pattern should not compile");
-    }
-    #else
-    LOG_INFOF("[%sINFO%s] NFA compilation not available, skipping empty pattern test", YELLOW, RESET);
-    #endif
+    init_editor_minimal("search-regex");
+    (void)bclear(curbp);
+    curbp->b_mode &= ~MDVIEW;
+    curwp->w_dotp = curbp->b_linep;
+    curwp->w_doto = 0;
+    lnewline();
+    curwp->w_dotp = lforw(curbp->b_linep);
+    const char *text = "alpha axb Test bbb";
+    for (const char *p = text; *p; ++p) linsert(1, *p);
 
-    #ifdef ENABLE_SEARCH_NFA
-    // Test 2: Single character patterns
-    if (!nfa_compile("a", true, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Single char pattern failed to compile");
-    }
+    curbp->b_mode |= MDMAGIC;
 
-    // Test 3: Wildcard patterns
-    if (!nfa_compile("a.b", true, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Wildcard pattern failed to compile");
-    }
-    #else
-    LOG_INFOF("[%sINFO%s] NFA regex engine not compiled in, tests pass by default", YELLOW, RESET);
-    #endif
-
-    // Test 4: Character classes
-    if (!nfa_compile("[abc]", true, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Character class pattern failed to compile");
-    } else {
-        LOG_INFO("[SUCCESS] Character class pattern compiled successfully");
+    struct { const char *rx; int want; const char *what; } cases[] = {
+        { "a.b",   1, "wildcard a.b" },
+        { "[abc]", 1, "character class [abc]" },
+        { "Te*st", 1, "closure Te*st" },
+        { "zq*z",  0, "absent pattern zq*z" },
+        { "[abc",  0, "invalid class degrades to literal, no match" },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        curwp->w_dotp = lforw(curbp->b_linep);
+        curwp->w_doto = 0;
+        strncpy(pat, cases[i].rx, NPAT - 1);
+        pat[NPAT - 1] = '\0';
+        int found = scanner(pat, DIR_FORWARD, POS_BEGIN);
+        if (found != cases[i].want) {
+            ok = 0;
+            LOG_ERRORF("[FAIL] %s: got %d want %d",
+                       cases[i].what, found, cases[i].want);
+        }
     }
 
-    // Test 5: Quantifiers
-    if (!nfa_compile("a*", true, &nfa)) {
+    // Case sensitivity: MDEXACT on misses "test", off finds "Test".
+    curbp->b_mode |= MDEXACT;
+    curwp->w_dotp = lforw(curbp->b_linep);
+    curwp->w_doto = 0;
+    strncpy(pat, "test", NPAT - 1);
+    if (scanner(pat, DIR_FORWARD, POS_BEGIN)) {
         ok = 0;
-        LOG_ERROR("[FAIL] Quantifier pattern failed to compile");
-    } else {
-        LOG_INFO("[SUCCESS] Quantifier pattern compiled successfully");
+        LOG_ERROR("[FAIL] MDEXACT should miss lowercase pattern");
+    }
+    curbp->b_mode &= ~MDEXACT;
+    curwp->w_dotp = lforw(curbp->b_linep);
+    curwp->w_doto = 0;
+    if (!scanner(pat, DIR_FORWARD, POS_BEGIN)) {
+        ok = 0;
+        LOG_ERROR("[FAIL] case-folded regex search missed Test");
     }
 
-    // Test 6: Case sensitivity
-    if (!nfa_compile("Test", true, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Case-sensitive pattern failed to compile");
-    }
-    
-    if (!nfa_compile("Test", false, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Case-insensitive pattern failed to compile");
-    }
-    
-    if (ok) {
-        LOG_INFO("[SUCCESS] Case sensitivity options working");
-    }
+    curbp->b_mode &= ~MDMAGIC;
 
-    // Test 7: Complex nested patterns
-    if (!nfa_compile("(ab)+", true, &nfa)) {
-        ok = 0;
-        LOG_ERROR("[FAIL] Nested pattern failed to compile");
-    } else {
-        LOG_INFO("[SUCCESS] Nested pattern compiled successfully");
-    }
-
-    PHASE_END("SEARCH: NFA-EDGE", ok);
+    PHASE_END("SEARCH: REGEX-EDGE", ok);
     return ok;
 }
 
@@ -462,7 +446,7 @@ int test_text_search(void) {
     int all_passed = 1;
 
     all_passed &= test_bmh_threshold_switching();
-    all_passed &= test_nfa_edge_cases();
+    all_passed &= test_regex_edge_cases();
     all_passed &= test_cross_line_search();
     all_passed &= test_search_performance();
     all_passed &= test_case_insensitive_search();

@@ -20,9 +20,7 @@
 #include <string.h>
 #include <ctype.h>
 
-/* ============================================================================
- * Built-in Language Definitions (forward declarations)
- * ============================================================================ */
+/* Built-in Language Definitions (forward declarations) */
 
 /* Defined in languages.c */
 extern const syntax_language_t lang_c;
@@ -78,9 +76,7 @@ typedef struct ext_language_entry {
 static ext_language_entry_t ext_languages[MAX_EXT_LANGUAGES];
 static int ext_language_count = 0;
 
-/* ============================================================================
- * Initialization
- * ============================================================================ */
+/* Initialization */
 
 int syntax_init(void) {
     memset(ext_languages, 0, sizeof(ext_languages));
@@ -93,7 +89,7 @@ void syntax_shutdown(void) {
     for (int i = 0; i < MAX_EXT_LANGUAGES; i++) {
         if (ext_languages[i].in_use) {
             for (int j = 0; ext_languages[i].patterns[j]; j++) {
-                free(ext_languages[i].patterns[j]);
+                SAFE_FREE(ext_languages[i].patterns[j]);
             }
             ext_languages[i].in_use = false;
         }
@@ -101,9 +97,7 @@ void syntax_shutdown(void) {
     ext_language_count = 0;
 }
 
-/* ============================================================================
- * Line Token Management
- * ============================================================================ */
+/* Line Token Management */
 
 line_tokens_t *line_tokens_alloc(int capacity) {
     line_tokens_t *lt = SAFE_ALLOC(line_tokens_t, "line tokens");
@@ -181,9 +175,7 @@ int line_tokens_get_face(const line_tokens_t *lt, int col) {
     return FACE_DEFAULT;
 }
 
-/* ============================================================================
- * Buffer Syntax State
- * ============================================================================ */
+/* Buffer Syntax State */
 
 buffer_syntax_t *syntax_create(int initial_lines) {
     buffer_syntax_t *syn = SAFE_ALLOC(buffer_syntax_t, "buffer syntax");
@@ -261,9 +253,7 @@ int syntax_resize(buffer_syntax_t *syn, int new_count) {
     return 0;
 }
 
-/* ============================================================================
- * Language Detection
- * ============================================================================ */
+/* Language Detection */
 
 /* Check if filename matches pattern (glob: *.ext or .ext) */
 static bool pattern_match(const char *pattern, const char *filename) {
@@ -366,9 +356,7 @@ const syntax_language_t *syntax_get_language(int lang_id) {
     return nullptr;
 }
 
-/* ============================================================================
- * Face Lookup
- * ============================================================================ */
+/* Face Lookup */
 
 int syntax_get_face(const buffer_syntax_t *syn, int line, int col) {
     if (!syn || !syn->enabled || !syn->lines) return FACE_DEFAULT;
@@ -377,9 +365,7 @@ int syntax_get_face(const buffer_syntax_t *syn, int line, int col) {
     return line_tokens_get_face(&syn->lines[line], col);
 }
 
-/* ============================================================================
- * Extension Registration
- * ============================================================================ */
+/* Extension Registration */
 
 int syntax_register_language(
     const char *name,
@@ -433,8 +419,7 @@ int syntax_unregister_language(const char *name) {
             strcmp(ext_languages[i].lang.name, name) == 0) {
             /* Free patterns */
             for (int j = 0; ext_languages[i].patterns[j]; j++) {
-                free(ext_languages[i].patterns[j]);
-                ext_languages[i].patterns[j] = nullptr;
+                SAFE_FREE(ext_languages[i].patterns[j]);
             }
             ext_languages[i].in_use = false;
             ext_language_count--;
@@ -445,9 +430,7 @@ int syntax_unregister_language(const char *name) {
     return -1; /* Not found */
 }
 
-/* ============================================================================
- * Incremental Re-lexing
- * ============================================================================ */
+/* Incremental Re-lexing */
 
 void syntax_invalidate_from_line(buffer_syntax_t *syn, int line) {
     if (!syn) return;

@@ -26,19 +26,15 @@
 #include "utf8.h"
 #include "μemacs/utf8_optimized.h"
 #include "util/logger.h"
-#include "../text/boyer_moore.h"
+#include <sublimation_text.h>
 
-/* ============================================================================
- * Constants
- * ============================================================================ */
+/* Constants */
 
 #define ADD_BUFFER_INITIAL    4096
 #define ADD_BUFFER_GROW_FACTOR 2
 #define LINE_INDEX_INITIAL    256
 
-/* ============================================================================
- * Forward Declarations
- * ============================================================================ */
+/* Forward Declarations */
 
 static void pt_destroy(struct text_storage *ts);
 static int pt_insert(struct text_storage *ts, size_t pos, const char *text, size_t len);
@@ -70,9 +66,7 @@ static size_t pt_search_backward(struct text_storage *ts, size_t start,
 static text_storage_type_t pt_type(struct text_storage *ts);
 static struct text_storage *pt_convert_to(struct text_storage *ts, text_storage_type_t target);
 
-/* ============================================================================
- * Operations Table
- * ============================================================================ */
+/* Operations Table */
 
 static const struct text_storage_ops piece_table_ops = {
     .destroy            = pt_destroy,
@@ -102,15 +96,11 @@ static const struct text_storage_ops piece_table_ops = {
     .convert_to         = pt_convert_to,
 };
 
-/* ============================================================================
- * Helper Macros
- * ============================================================================ */
+/* Helper Macros */
 
 #define TO_PT(ts) ((piece_table_t *)(ts))
 
-/* ============================================================================
- * Internal Helpers
- * ============================================================================ */
+/* Internal Helpers */
 
 /*
  * Get source pointer for a piece.
@@ -218,9 +208,7 @@ piece_t *piece_table_find_piece(piece_table_t *pt, size_t logical_pos,
     return pt->tail;
 }
 
-/* ============================================================================
- * Creation Functions
- * ============================================================================ */
+/* Creation Functions */
 
 /*
  * Initialize base storage fields.
@@ -308,9 +296,7 @@ struct text_storage *piece_table_create_from_buffer(const char *data, size_t len
     return ts;
 }
 
-/* ============================================================================
- * Lifecycle Operations
- * ============================================================================ */
+/* Lifecycle Operations */
 
 static void pt_destroy(struct text_storage *ts) {
     if (!ts) return;
@@ -343,9 +329,7 @@ static void pt_destroy(struct text_storage *ts) {
     SAFE_FREE(pt);
 }
 
-/* ============================================================================
- * Core Text Operations
- * ============================================================================ */
+/* Core Text Operations */
 
 static int pt_insert(struct text_storage *ts, size_t pos, const char *text, size_t len) {
     if (!text || len == 0) return TS_SUCCESS;
@@ -488,9 +472,7 @@ static int pt_replace(struct text_storage *ts, size_t pos, size_t old_len,
     return TS_SUCCESS;
 }
 
-/* ============================================================================
- * Text Access Operations
- * ============================================================================ */
+/* Text Access Operations */
 
 static char pt_get_char(struct text_storage *ts, size_t pos) {
     piece_table_t *pt = TO_PT(ts);
@@ -588,9 +570,7 @@ static const char *pt_get_line(struct text_storage *ts, size_t line_num, size_t 
     return pt_line_buf;
 }
 
-/* ============================================================================
- * Size and Position Operations
- * ============================================================================ */
+/* Size and Position Operations */
 
 static size_t pt_size(struct text_storage *ts) {
     return TO_PT(ts)->logical_size;
@@ -607,9 +587,7 @@ static size_t pt_get_cursor(struct text_storage *ts) {
     return TO_PT(ts)->cursor_pos;
 }
 
-/* ============================================================================
- * Line Navigation Operations
- * ============================================================================ */
+/* Line Navigation Operations */
 
 /*
  * Rebuild line index by scanning for newlines.
@@ -717,9 +695,7 @@ static size_t pt_line_length(struct text_storage *ts, size_t line_num) {
     return end - start;
 }
 
-/* ============================================================================
- * UTF-8 Aware Operations
- * ============================================================================ */
+/* UTF-8 Aware Operations */
 
 static size_t pt_char_to_byte(struct text_storage *ts, size_t line_num, size_t char_pos) {
     size_t line_start = pt_line_to_offset(ts, line_num);
@@ -771,9 +747,7 @@ static size_t pt_char_count(struct text_storage *ts, size_t line_num) {
     return char_count;
 }
 
-/* ============================================================================
- * Change Tracking Operations
- * ============================================================================ */
+/* Change Tracking Operations */
 
 static uint32_t pt_generation(struct text_storage *ts) {
     return atomic_load(&TO_PT(ts)->generation);
@@ -784,9 +758,7 @@ static void pt_invalidate_caches(struct text_storage *ts) {
     atomic_fetch_add(&TO_PT(ts)->generation, 1);
 }
 
-/* ============================================================================
- * Memory Management Operations
- * ============================================================================ */
+/* Memory Management Operations */
 
 static int pt_compact(struct text_storage *ts) {
     /* Piece tables don't compact - consider converting to gap buffer */
@@ -798,9 +770,7 @@ static int pt_reserve(struct text_storage *ts, size_t additional) {
     return add_buffer_ensure(TO_PT(ts), additional);
 }
 
-/* ============================================================================
- * Search Operations
- * ============================================================================ */
+/* Search Operations */
 
 static size_t pt_search_forward(struct text_storage *ts, size_t start,
                                 const char *pattern, size_t pattern_len) {
@@ -813,20 +783,22 @@ static size_t pt_search_forward(struct text_storage *ts, size_t start,
     if (remaining < pattern_len)
         return TS_NOT_FOUND;
 
-    // Materialize contiguous text for Boyer-Moore-Horspool
+    // Materialize contiguous text for the matcher
     unsigned char *text = SAFE_ARRAY(unsigned char, remaining, "pt search fwd");
     if (!text) return TS_NOT_FOUND;
 
     pt_get_text(ts, start, remaining, (char *)text, remaining);
 
-    struct boyer_moore_context ctx;
-    if (bm_init(&ctx, (const unsigned char *)pattern, (int)pattern_len, true) != 0) {
+    sublimation_search prog;
+    sublimation_search_compile(&prog, pattern, pattern_len,
+                               SUBLIMATION_SEARCH_FIXED, 0);
+    if (!sublimation_search_valid(&prog)) {
         SAFE_FREE(text);
         return TS_NOT_FOUND;
     }
 
-    int pos = bm_search(&ctx, text, (int)remaining, 0);
-    bm_free(&ctx);
+    long pos = sublimation_search_find(&prog, (const char *)text,
+                                       remaining, nullptr);
     SAFE_FREE(text);
 
     return (pos >= 0) ? start + (size_t)pos : TS_NOT_FOUND;
@@ -849,31 +821,37 @@ static size_t pt_search_backward(struct text_storage *ts, size_t start,
 
     pt_get_text(ts, 0, start, (char *)text, start);
 
-    struct boyer_moore_context ctx;
-    if (bm_init(&ctx, (const unsigned char *)pattern, (int)pattern_len, true) != 0) {
+    sublimation_search prog;
+    sublimation_search_compile(&prog, pattern, pattern_len,
+                               SUBLIMATION_SEARCH_FIXED, 0);
+    if (!sublimation_search_valid(&prog)) {
         SAFE_FREE(text);
         return TS_NOT_FOUND;
     }
 
-    int pos = bm_search_reverse(&ctx, text, (int)start, (int)(start - 1));
-    bm_free(&ctx);
+    /* Last match at or before start: walk find_from keeping the final hit. */
+    long best = -1;
+    size_t from = 0;
+    for (;;) {
+        long idx = sublimation_search_find_from(&prog, (const char *)text,
+                                                start, from, nullptr);
+        if (idx < 0) break;
+        best = idx;
+        from = (size_t)idx + 1;
+    }
     SAFE_FREE(text);
 
-    return (pos >= 0) ? (size_t)pos : TS_NOT_FOUND;
+    return (best >= 0) ? (size_t)best : TS_NOT_FOUND;
 }
 
-/* ============================================================================
- * Type Information
- * ============================================================================ */
+/* Type Information */
 
 static text_storage_type_t pt_type(struct text_storage *ts) {
     (void)ts;
     return STORAGE_PIECE_TABLE;
 }
 
-/* ============================================================================
- * Conversion
- * ============================================================================ */
+/* Conversion */
 
 /* Forward declaration - defined in gap_storage.c */
 extern struct text_storage *gap_storage_create(size_t initial_capacity);
@@ -908,9 +886,7 @@ static struct text_storage *pt_convert_to(struct text_storage *ts, text_storage_
     return nullptr;
 }
 
-/* ============================================================================
- * Utility Functions
- * ============================================================================ */
+/* Utility Functions */
 
 const char *piece_table_get_ptr(piece_table_t *pt, size_t pos, size_t *max_len) {
     size_t offset;

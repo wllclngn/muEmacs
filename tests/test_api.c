@@ -7,7 +7,6 @@
 #include "internal/efunc.h"
 #include "internal/line.h"
 #include "internal/estruct.h"
-#include "internal/nfa.h"
 
 static void init_editor_minimal(const char* name) {
     // Provide sane terminal defaults to satisfy edinit expectations
@@ -58,41 +57,27 @@ int test_api_insert_delete() {
 
 int test_api_magic_basic() {
     int ok = 1;
-    PHASE_START("API: MAGIC", "Basic NFA regex checks");
-    const char* run_nfa = getenv("ENABLE_NFA_TESTS");
-    if (!run_nfa || strcmp(run_nfa, "1") != 0) {
-        LOG_INFO("[INFO] ENABLE_NFA_TESTS not set; skipping MAGIC tests.");
-        PHASE_END("API: MAGIC", ok);
-        return ok;
-    }
+    PHASE_START("API: MAGIC", "Regex search through the engine");
 
-#if defined(ENABLE_SEARCH_NFA)
     init_editor_minimal("api-magic");
     unmark(0,0);
     (void)bclear(curbp);
     curbp->b_mode &= ~MDVIEW;
-    curbp->b_mode |= MDMAGIC; // enable MAGIC (for completeness)
+    curbp->b_mode |= MDMAGIC;
 
     const char* s = "hello";
     for (const char* p = s; *p; ++p) linsert(1, *p);
-    // Move to start
     curwp->w_dotp = lforw(curbp->b_linep);
     curwp->w_doto = 0;
-    // Pattern h.*o should match using NFA directly
-    nfa_program_info prog = {0};
-    if (!nfa_compile("h.*o", true, &prog)) {
-        LOG_ERROR("[FAIL] NFA compile failed for h.*o");
+
+    strncpy(pat, "h.*o", NPAT - 1);
+    pat[NPAT - 1] = '\0';
+    if (!scanner(pat, DIR_FORWARD, POS_BEGIN)) {
+        LOG_ERROR("[FAIL] regex h.*o did not match hello");
         ok = 0;
-    } else {
-        struct line* mlp = nullptr; int moff = 0;
-        if (!nfa_search_forward(&prog, curwp->w_dotp, curwp->w_doto, POS_END, &mlp, &moff)) {
-            LOG_ERROR("[FAIL] NFA did not match h.*o");
-            ok = 0;
-        }
     }
-#else
-    LOG_INFO("[INFO] ENABLE_SEARCH_NFA off; skipping MAGIC tests.");
-#endif
+
+    curbp->b_mode &= ~MDMAGIC;
     PHASE_END("API: MAGIC", ok);
     return ok;
 }

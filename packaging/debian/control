@@ -1,36 +1,30 @@
-Source: uemacs
+Source: muemacs
 Section: editors
 Priority: optional
-Maintainer: μEmacs Team <maintainer@example.com>
+Maintainer: Will Clingan <wuz352@hotmail.com>
 Build-Depends: debhelper-compat (= 13),
                cmake (>= 3.20),
-               gcc (>= 12) | clang (>= 15),
-               libncursesw5-dev,
-               pkg-config
+               gcc (>= 13)
 Standards-Version: 4.6.2
-Homepage: https://github.com/your-username/uemacs
-Vcs-Git: https://github.com/your-username/uemacs.git
-Vcs-Browser: https://github.com/your-username/uemacs
+# TODO(owner): set the real project homepage before publishing
+Homepage: https://example.invalid/muemacs
 Rules-Requires-Root: no
 
-Package: uemacs
+Package: muemacs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libncursesw6
-Description: Modern minimalist text editor based on Linus Torvalds' μEmacs
- μEmacs is a comprehensive modernization of Linus Torvalds' original μEmacs
- text editor, transformed into a robust, memory-safe, and high-performance
- modern C23 implementation for Linux systems.
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Modern C23 terminal text editor descended from Linus Torvalds' uemacs
+ muEmacs is a modernization of Linus Torvalds' personal uemacs fork,
+ rebuilt as a C23 implementation for Linux terminals with no runtime
+ library dependencies (pure ANSI terminal driver, no ncurses).
  .
  Key features include:
-  * Complete upgrade from C89 to C23 standards
-  * Memory safety with unified allocation system achieving zero memory leaks
-  * Streamlined input/output pipeline eliminating all race conditions  
+  * C23 codebase with centralized, leak-tracked memory allocation
   * Full UTF-8 support with proper multi-byte character handling
-  * Support for large files with minimal memory footprint
+  * Large-file support via an mmap-backed piece table
+  * Batched display updates that greatly reduce write syscalls
   * Classic Emacs key bindings and workflow preservation
-  * 1000x syscall reduction through display batching optimization
+  * Extension system with sandboxed polyglot plugins
  .
- The editor maintains Linus Torvalds' minimalist design philosophy while
- achieving contemporary reliability and security standards. It supports
- instant loading of large files, handles UTF-8 encoding properly, and
- provides zero-latency character processing.
+ The editor keeps the original minimalist design philosophy while
+ targeting contemporary reliability and security standards.

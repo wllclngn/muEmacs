@@ -15,9 +15,7 @@
 #include <string.h>
 #include <ctype.h>
 
-/* ============================================================================
- * Keyword Lookup
- * ============================================================================ */
+/* Keyword Lookup */
 
 static bool is_keyword(const char **keywords, const char *word, int len, bool case_sensitive) {
     if (!keywords || !word || len <= 0) return false;
@@ -38,9 +36,7 @@ static bool is_keyword(const char **keywords, const char *word, int len, bool ca
     return false;
 }
 
-/* ============================================================================
- * Character Classification
- * ============================================================================ */
+/* Character Classification */
 
 static inline bool is_ident_start(int c) {
     return isalpha(c) || c == '_';
@@ -68,9 +64,7 @@ static inline bool starts_with(const char *s, int len, const char *prefix) {
     return len >= plen && memcmp(s, prefix, (size_t)plen) == 0;
 }
 
-/* ============================================================================
- * Generic Lexer
- * ============================================================================ */
+/* Generic Lexer */
 
 /*
  * Lex a single line using the language definition.
@@ -419,9 +413,7 @@ lexer_state_t syntax_lex_line(
     return state;
 }
 
-/* ============================================================================
- * Buffer Lexing
- * ============================================================================ */
+/* Buffer Lexing */
 
 int syntax_lex_buffer(
     buffer_syntax_t *syn,

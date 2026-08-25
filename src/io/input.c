@@ -17,7 +17,6 @@
 #include "estruct.h"
 #include "edef.h"
 #include "efunc.h"
-#include "wrapper.h"
 #include "file_utils.h"
 #include "string_utils.h"
 #include "keymap.h"
@@ -45,57 +44,57 @@ static void ensure_input_parser_initialized(void) {
  */
 int minibuf_confirm(const char *prompt)
 {
-	char buf[NPAT];
-	input_key_event_t evt;
-	int attempts = 0;
-	const int max_attempts = 3;
+    char buf[NPAT];
+    input_key_event_t evt;
+    int attempts = 0;
+    const int max_attempts = 3;
 
-	/* Auto-confirm in non-interactive modes */
-	if (!term.t_getchar) {
-		LOG_DEBUGF("minibuf_confirm: no terminal, auto-confirming '%s'", prompt);
-		return true;
-	}
-	if (!isatty(STDIN_FILENO)) {
-		LOG_DEBUGF("minibuf_confirm: stdin not a tty, auto-confirming '%s'", prompt);
-		return true;
-	}
+    /* Auto-confirm in non-interactive modes */
+    if (!term.t_getchar) {
+        LOG_DEBUGF("minibuf_confirm: no terminal, auto-confirming '%s'", prompt);
+        return true;
+    }
+    if (!isatty(STDIN_FILENO)) {
+        LOG_DEBUGF("minibuf_confirm: stdin not a tty, auto-confirming '%s'", prompt);
+        return true;
+    }
 
-	for (;;) {
-		safe_strcpy(buf, prompt, NPAT);
-		safe_strcat(buf, " [Y/N]? ", NPAT);
-		mlwrite(buf);
-		TTflush();
+    for (;;) {
+        safe_strcpy(buf, prompt, NPAT);
+        safe_strcat(buf, " [Y/N]? ", NPAT);
+        mlwrite(buf);
+        TTflush();
 
-		if (input_read_event(&evt) < 0) {
-			LOG_DEBUGF("minibuf_confirm: input error, auto-confirming");
-			return true;
-		}
+        if (input_read_event(&evt) < 0) {
+            LOG_DEBUGF("minibuf_confirm: input error, auto-confirming");
+            return true;
+        }
 
-		/* Ctrl-G aborts */
-		if (evt_is_ctrl(&evt, 'G'))
-			return ABORT;
+        /* Ctrl-G aborts */
+        if (evt_is_ctrl(&evt, 'G'))
+            return ABORT;
 
-		/* ESC aborts in evil-mode */
-		if (evt_is_esc(&evt) && vim_mode_active)
-			return ABORT;
+        /* ESC aborts in evil-mode */
+        if (evt_is_esc(&evt) && vim_mode_active)
+            return ABORT;
 
-		int c = evt_char(&evt);
-		if (c == 'y' || c == 'Y')
-			return true;
-		if (c == 'n' || c == 'N')
-			return false;
+        int c = evt_char(&evt);
+        if (c == 'y' || c == 'Y')
+            return true;
+        if (c == 'n' || c == 'N')
+            return false;
 
-		if (++attempts >= max_attempts) {
-			LOG_WARNF("minibuf_confirm: max attempts reached, auto-confirming '%s'", prompt);
-			return true;
-		}
-	}
+        if (++attempts >= max_attempts) {
+            LOG_WARNF("minibuf_confirm: max attempts reached, auto-confirming '%s'", prompt);
+            return true;
+        }
+    }
 }
 
 /* Legacy wrapper */
 int mlyesno(const char *prompt)
 {
-	return minibuf_confirm(prompt);
+    return minibuf_confirm(prompt);
 }
 
 
@@ -107,135 +106,135 @@ int mlyesno(const char *prompt)
  */
 fn_t minibuf_read_command(void)
 {
-	int cpos = 0;
-	input_key_event_t evt;
-	char *sp;
-	struct name_bind *ffp;
-	struct name_bind *cffp;
-	struct name_bind *lffp;
-	char buf[NSTRING];
+    int cpos = 0;
+    input_key_event_t evt;
+    char *sp;
+    struct name_bind *ffp;
+    struct name_bind *cffp;
+    struct name_bind *lffp;
+    char buf[NSTRING];
 
-	/* If executing a macro, get arg from command line */
-	if (clexec) {
-		if (macarg(buf) != true)
-			return nullptr;
-		return fncmatch(&buf[0]);
-	}
+    /* If executing a macro, get arg from command line */
+    if (clexec) {
+        if (macarg(buf) != true)
+            return nullptr;
+        return fncmatch(&buf[0]);
+    }
 
-	/* Interactive: build command name from keyboard */
-	while (true) {
-		if (input_read_event(&evt) < 0)
-			return nullptr;
+    /* Interactive: build command name from keyboard */
+    while (true) {
+        if (input_read_event(&evt) < 0)
+            return nullptr;
 
-		/* Enter: execute the command */
-		if (evt_is_enter(&evt)) {
-			buf[cpos] = '\0';
-			return fncmatch(&buf[0]);
-		}
+        /* Enter: execute the command */
+        if (evt_is_enter(&evt)) {
+            buf[cpos] = '\0';
+            return fncmatch(&buf[0]);
+        }
 
-		/* Ctrl-G aborts */
-		if (evt_is_ctrl(&evt, 'G')) {
-			ctrlg(false, 0);
-			TTflush();
-			return nullptr;
-		}
+        /* Ctrl-G aborts */
+        if (evt_is_ctrl(&evt, 'G')) {
+            ctrlg(false, 0);
+            TTflush();
+            return nullptr;
+        }
 
-		/* ESC aborts in evil-mode */
-		if (evt_is_esc(&evt) && vim_mode_active) {
-			ctrlg(false, 0);
-			TTflush();
-			return nullptr;
-		}
+        /* ESC aborts in evil-mode */
+        if (evt_is_esc(&evt) && vim_mode_active) {
+            ctrlg(false, 0);
+            TTflush();
+            return nullptr;
+        }
 
-		/* Backspace/Delete: erase character */
-		if (evt_is_backspace(&evt)) {
-			if (cpos != 0) {
-				TTputc('\b');
-				TTputc(' ');
-				TTputc('\b');
-				--ttcol;
-				--cpos;
-				TTflush();
-			}
-			continue;
-		}
+        /* Backspace/Delete: erase character */
+        if (evt_is_backspace(&evt)) {
+            if (cpos != 0) {
+                TTputc('\b');
+                TTputc(' ');
+                TTputc('\b');
+                --ttcol;
+                --cpos;
+                TTflush();
+            }
+            continue;
+        }
 
-		/* Ctrl-U: kill line */
-		if (evt_is_ctrl(&evt, 'U')) {
-			while (cpos != 0) {
-				TTputc('\b');
-				TTputc(' ');
-				TTputc('\b');
-				--cpos;
-				--ttcol;
-			}
-			TTflush();
-			continue;
-		}
+        /* Ctrl-U: kill line */
+        if (evt_is_ctrl(&evt, 'U')) {
+            while (cpos != 0) {
+                TTputc('\b');
+                TTputc(' ');
+                TTputc('\b');
+                --cpos;
+                --ttcol;
+            }
+            TTflush();
+            continue;
+        }
 
-		/* Space, Tab, or ESC (emacs mode): attempt completion */
-		if (evt_is_char(&evt, ' ') || evt_is_tab(&evt) ||
-		    (evt_is_esc(&evt) && !vim_mode_active)) {
-			buf[cpos] = '\0';
-			ffp = &names[0];
-			while (ffp->n_func != nullptr) {
-				if (strncmp(buf, ffp->n_name, strlen(buf)) == 0) {
-					/* Possible match - is it unique? */
-					if ((ffp + 1)->n_func == nullptr ||
-					    strncmp(buf, (ffp + 1)->n_name, strlen(buf)) != 0) {
-						/* Unique match - print and return */
-						sp = ffp->n_name + cpos;
-						while (*sp)
-							TTputc(*sp++);
-						TTflush();
-						return ffp->n_func;
-					} else {
-						/* Multiple matches - partial complete */
-						lffp = (ffp + 1);
-						while ((lffp + 1)->n_func != nullptr) {
-							if (strncmp(buf, (lffp + 1)->n_name, strlen(buf)) != 0)
-								break;
-							++lffp;
-						}
+        /* Space, Tab, or ESC (emacs mode): attempt completion */
+        if (evt_is_char(&evt, ' ') || evt_is_tab(&evt) ||
+          (evt_is_esc(&evt) && !vim_mode_active)) {
+            buf[cpos] = '\0';
+            ffp = &names[0];
+            while (ffp->n_func != nullptr) {
+                if (strncmp(buf, ffp->n_name, strlen(buf)) == 0) {
+                    /* Possible match - is it unique? */
+                    if ((ffp + 1)->n_func == nullptr ||
+                      strncmp(buf, (ffp + 1)->n_name, strlen(buf)) != 0) {
+                        /* Unique match - print and return */
+                        sp = ffp->n_name + cpos;
+                        while (*sp)
+                            TTputc(*sp++);
+                        TTflush();
+                        return ffp->n_func;
+                    } else {
+                        /* Multiple matches - partial complete */
+                        lffp = (ffp + 1);
+                        while ((lffp + 1)->n_func != nullptr) {
+                            if (strncmp(buf, (lffp + 1)->n_name, strlen(buf)) != 0)
+                                break;
+                            ++lffp;
+                        }
 
-						/* Complete as much as possible */
-						while (true) {
-							buf[cpos] = ffp->n_name[cpos];
-							cffp = ffp + 1;
-							while (cffp <= lffp) {
-								if (cffp->n_name[cpos] != buf[cpos])
-									goto onward;
-								++cffp;
-							}
-							TTputc(buf[cpos++]);
-						}
-					}
-				}
-				++ffp;
-			}
+                        /* Complete as much as possible */
+                        while (true) {
+                            buf[cpos] = ffp->n_name[cpos];
+                            cffp = ffp + 1;
+                            while (cffp <= lffp) {
+                                if (cffp->n_name[cpos] != buf[cpos])
+                                    goto onward;
+                                ++cffp;
+                            }
+                            TTputc(buf[cpos++]);
+                        }
+                    }
+                }
+                ++ffp;
+            }
 
-			/* No match - beep */
-			TTbeep();
-		      onward:;
-			TTflush();
-			continue;
-		}
+            /* No match - beep */
+            TTbeep();
+           onward:;
+            TTflush();
+            continue;
+        }
 
-		/* Regular character input */
-		int c = evt_char(&evt);
-		if (c > ' ' && cpos < NSTRING - 1) {
-			buf[cpos++] = (char)c;
-			TTputc(c);
-			++ttcol;
-			TTflush();
-		}
-	}
+        /* Regular character input */
+        int c = evt_char(&evt);
+        if (c > ' ' && cpos < NSTRING - 1) {
+            buf[cpos++] = (char)c;
+            TTputc(c);
+            ++ttcol;
+            TTflush();
+        }
+    }
 }
 
-/* Legacy wrapper - will be removed after full migration */
+/* Read a command name from the minibuffer */
 fn_t getname(void)
 {
-	return minibuf_read_command();
+    return minibuf_read_command();
 }
 
 /* Test helper: reset input parser state */
@@ -397,11 +396,11 @@ int input_read_event(input_key_event_t *out)
  */
 int input_read_byte(void)
 {
-	int c = TTgetc();
-	if (c >= 0) {
-		lastkey = c;  /* Record for $lastkey */
-	}
-	return c;
+    int c = TTgetc();
+    if (c >= 0) {
+        lastkey = c;  /* Record for $lastkey */
+    }
+    return c;
 }
 
 /*
@@ -412,108 +411,108 @@ int input_read_byte(void)
  */
 int minibuf_read(const char *prompt, char *buf, int nbuf)
 {
-	int cpos = 0;
-	bool quotef = false;
-	input_key_event_t evt;
+    int cpos = 0;
+    bool quotef = false;
+    input_key_event_t evt;
 
-	mlwrite(prompt);
+    mlwrite(prompt);
 
-	for (;;) {
-		if (input_read_event(&evt) < 0)
-			return ABORT;
+    for (;;) {
+        if (input_read_event(&evt) < 0)
+            return ABORT;
 
-		/* Enter terminates input */
-		if (evt_is_enter(&evt) && !quotef) {
-			buf[cpos] = '\0';
-			mlwrite("");
-			TTflush();
-			return (buf[0] == '\0') ? false : true;
-		}
+        /* Enter terminates input */
+        if (evt_is_enter(&evt) && !quotef) {
+            buf[cpos] = '\0';
+            mlwrite("");
+            TTflush();
+            return (buf[0] == '\0') ? false : true;
+        }
 
-		/* Ctrl-G aborts */
-		if (evt_is_ctrl(&evt, 'G') && !quotef) {
-			ctrlg(false, 0);
-			TTflush();
-			return ABORT;
-		}
+        /* Ctrl-G aborts */
+        if (evt_is_ctrl(&evt, 'G') && !quotef) {
+            ctrlg(false, 0);
+            TTflush();
+            return ABORT;
+        }
 
-		/* ESC aborts in evil-mode (vim behavior) */
-		if (evt_is_esc(&evt) && vim_mode_active && !quotef) {
-			ctrlg(false, 0);
-			TTflush();
-			return ABORT;
-		}
+        /* ESC aborts in evil-mode (vim behavior) */
+        if (evt_is_esc(&evt) && vim_mode_active && !quotef) {
+            ctrlg(false, 0);
+            TTflush();
+            return ABORT;
+        }
 
-		/* Backspace/Delete erases previous character */
-		if (evt_is_backspace(&evt) && !quotef) {
-			if (cpos != 0) {
-				outstring("\b \b");
-				--ttcol;
+        /* Backspace/Delete erases previous character */
+        if (evt_is_backspace(&evt) && !quotef) {
+            if (cpos != 0) {
+                outstring("\b \b");
+                --ttcol;
 
-				if (buf[--cpos] < 0x20) {
-					outstring("\b \b");
-					--ttcol;
-				}
-				if (buf[cpos] == '\n') {
-					outstring("\b\b  \b\b");
-					ttcol -= 2;
-				}
-				TTflush();
-			}
-			continue;
-		}
+                if (buf[--cpos] < 0x20) {
+                    outstring("\b \b");
+                    --ttcol;
+                }
+                if (buf[cpos] == '\n') {
+                    outstring("\b\b  \b\b");
+                    ttcol -= 2;
+                }
+                TTflush();
+            }
+            continue;
+        }
 
-		/* Ctrl-U: kill entire line */
-		if (evt_is_ctrl(&evt, 'U') && !quotef) {
-			while (cpos != 0) {
-				outstring("\b \b");
-				--ttcol;
+        /* Ctrl-U: kill entire line */
+        if (evt_is_ctrl(&evt, 'U') && !quotef) {
+            while (cpos != 0) {
+                outstring("\b \b");
+                --ttcol;
 
-				if (buf[--cpos] < 0x20) {
-					outstring("\b \b");
-					--ttcol;
-				}
-				if (buf[cpos] == '\n') {
-					outstring("\b\b  \b\b");
-					ttcol -= 2;
-				}
-			}
-			TTflush();
-			continue;
-		}
+                if (buf[--cpos] < 0x20) {
+                    outstring("\b \b");
+                    --ttcol;
+                }
+                if (buf[cpos] == '\n') {
+                    outstring("\b\b  \b\b");
+                    ttcol -= 2;
+                }
+            }
+            TTflush();
+            continue;
+        }
 
-		/* Ctrl-Q or Ctrl-V: quote next character literally */
-		if ((evt_is_ctrl(&evt, 'Q') || evt_is_ctrl(&evt, 'V')) && !quotef) {
-			quotef = true;
-			continue;
-		}
+        /* Ctrl-Q or Ctrl-V: quote next character literally */
+        if ((evt_is_ctrl(&evt, 'Q') || evt_is_ctrl(&evt, 'V')) && !quotef) {
+            quotef = true;
+            continue;
+        }
 
-		/* Regular character input */
-		quotef = false;
-		int c = evt_char(&evt);
-		if (c < 0) continue;  /* Skip non-character events */
+        /* Regular character input */
+        quotef = false;
+        int c = evt_char(&evt);
+        if (c < 0) continue;  /* Skip non-character events */
 
-		if (cpos < nbuf - 1) {
-			buf[cpos++] = (char)c;
+        if (cpos < nbuf - 1) {
+            buf[cpos++] = (char)c;
 
-			/* Display control characters as ^X */
-			if ((c < ' ') && (c != '\n')) {
-				outstring("^");
-				++ttcol;
-				c ^= 0x40;
-			}
+            /* Display control characters as ^X */
+            if ((c < ' ') && (c != '\n')) {
+                outstring("^");
+                ++ttcol;
+                c ^= 0x40;
+            }
 
-			if (c != '\n') {
-				if (disinp)
-					TTputc(c);
-			} else {
-				outstring("<NL>");
-				ttcol += 3;
-			}
-			++ttcol;
-			TTflush();
-		}
-	}
+            if (c != '\n') {
+                if (disinp)
+                    TTputc(c);
+            } else {
+                outstring("<NL>");
+                ttcol += 3;
+            }
+            ++ttcol;
+            TTflush();
+        }
+    }
 }
 
 /*
@@ -523,9 +522,9 @@ int minibuf_read(const char *prompt, char *buf, int nbuf)
  */
 void outstring(const char *s)
 {
-	if (disinp)
-		while (*s)
-			TTputc(*s++);
+    if (disinp)
+        while (*s)
+            TTputc(*s++);
 }
 
 /*
@@ -535,7 +534,7 @@ void outstring(const char *s)
  */
 void ostring(const char *s)
 {
-	if (discmd)
-		while (*s)
-			TTputc(*s++);
+    if (discmd)
+        while (*s)
+            TTputc(*s++);
 }

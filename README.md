@@ -1,318 +1,323 @@
 # μEmacs
 
-A modern, extensible C23 text editor for Linux terminals, descended from Linus Torvalds' personal uemacs project.
+μEmacs is a C23 text editor for Linux terminals in one small static binary, descended from MicroEMACS (1985) through Petri Kutvonen's uEmacs/PK to Linus Torvalds' personal fork. The modernization keeps what that lineage optimized for forty years — a fast, keyboard-driven editor that starts before your finger leaves the key — and rebuilds everything around it: C23 throughout with atomics and sanitizer-clean memory discipline, a raw-ANSI terminal driver with no ncurses, dual text storage (gap buffer and mmap piece table, selected by heuristic), a built-in terminal and REPL, and the μEmacs Extension Protocol, a polyglot extension system where even vim editing is an extension rather than a mode compiled into core. Search and matching ride sublimation, montauk's adaptive sort, search and learn core, linked as a static library from the montauk tree: One engine with literal, regex and fuzzy k-mismatch faces behind every search command.
 
-*ATTENTION: As of January 2026, Linus Torvalds has been modernizing and updating his uemacs project. With this in mind, μEmacs will continue development but in different aspects while respecting the origins of the project. The core of the edtior will remain, but several modern pieces will be moved to the Extension level, ie Evil Mode and others. If you would like to use Linus' setup in μEmacs, please see the "linus-mode" in muEmacs-extensions.*
-
----
-
-**Key Features:**
-
-### Keymap System
-- **O(1) Hash-Based Lookup**: Replaced legacy O(n) linear keytab search with hash table
-- **Hierarchical Prefix Keys**: Multi-level key sequences (C-x C-c, C-x 4 f, etc.) with recursive keymap nesting
-- **Buffer-Local Bindings**: Per-buffer key overrides with automatic fallback to global map
-- **Runtime Rebinding**: `M-x bind-to-key` for live customization without restart
-- **Modifier Encoding**: Clean 32-bit key representation (Ctrl, Meta, Shift, C-x prefix flags)
-
-### Terminal Emulator
-- **Built-in Shell**: `C-x t` spawns terminal in split window - edit code while running builds
-- **Full VT100/xterm Emulation**: CSI sequences, cursor addressing, scroll regions
-- **PTY Management**: Proper pseudo-terminal allocation with signal handling
-- **Seamless Integration**: `C-x o` switches focus, terminal output doesn't corrupt editor state
-- **Build Integration**: `build-run`, `build-next-error`, `build-prev-error` for compile-edit cycles
-- **REPL Integration**: `repl-start`, `repl-eval-line`, `repl-eval-region`, `repl-eval-buffer`
-
-### VT500 Input State Machine
-- **Modern Escape Parsing**: CSI, SS3, DCS sequence handling with timeout-based disambiguation
-- **UTF-8 Input**: Full Unicode support with combining character awareness
-- **Bracketed Paste**: Automatic detection of `\e[200~...\e[201~` paste boundaries
-- **Kitty Protocol Groundwork**: Foundation for extended keyboard protocol support
-
-### Display System
-- **Synchronized Updates**: Batching eliminates flicker on modern terminals
-- **Pretext-Inspired Wrap Cache**: Two-phase architecture separates text analysis from layout. Per-line segment cache computed once on edit, layout via pure arithmetic on resize. Pending-break pattern (no backtracking). No 4KB buffer limit.
-- **Cursor Line Highlight**: Configurable styles (underline, background, intensity)
-- **Atomic Cursor Tracking**: Lock-free `_Atomic` cursor position for thread-safe updates
-- **Palette System**: Theme-aware 256-color and truecolor with terminal palette integration
-
-### Vim/Evil Mode (c_evil extension)
-- **Full Modal Editing**: Normal, Insert, Visual, Visual-Line, Visual-Block, Replace modes
-- **Motion Commands**: h/j/k/l, w/b/e/W/B/E, 0/$, ^/g_, gg/G, f/F/t/T, %
-- **Operators**: d (delete), c (change), y (yank) - composable with motions
-- **Text Objects**: iw/aw (word), i"/a" (quotes), i'/a', i(/a), i{/a}, i[/a]
-- **Line Operations**: dd, yy, cc, D, C, Y with count prefixes
-- **Registers & Marks**: Named registers (a-z), mark setting/jumping, `` and ''
-- **Repeat & Undo**: `.` repeats last change, u/C-r for undo/redo
-- **Visual Mode**: Character and line selection with operator application
-- **Extension-based**: Loaded via UEP like any other extension, not compiled into core
-
-### Search & Replace
-- **Boyer-Moore-Horspool**: Sublinear O(n/m) average case with bad-character skip table
-- **Thompson NFA Regex**: Zero-heap regex engine with `.`, `[class]`, `^$`, `*`, `+`, `?`
-- **Parallel Search**: Multi-threaded for buffers exceeding configurable threshold
-- **Incremental Search**: Real-time highlighting as you type (C-s / C-r)
-
-### Undo/Redo System
-- **VSCode-Style Grouping**: Intelligent operation coalescing within 400ms windows
-- **Atomic Circular Buffer**: Lock-free with 10,000 operation capacity
-- **Word Boundary Detection**: Groups character insertions by word boundaries
-- **Version Tracking**: 64-bit timestamps for precise undo tree navigation
-
-### Text Infrastructure
-- **Dual Storage Backends**: Vtable-based abstraction with heuristic selection
-  - **Gap Buffer**: O(1) insert/delete at cursor, optimal for small files with high edit locality
-  - **Piece Table**: O(1) load via mmap, optimal for large files (>2MB) with sparse edits
-- **Automatic Selection**: Files <2MB use gap buffer, >=2MB use piece table with mmap. Edit density >20% triggers conversion back to gap buffer.
-- **UTF-8 Native**: Proper character counting, cursor movement, display width
-- **Kill Ring**: 32-entry circular buffer (8KB per entry) with clipboard sync
-- **System Clipboard**: Automatic xclip/xsel integration for copy/paste
-
-### Extension System (UEP)
-
-The μEmacs Extension Protocol is a **polyglot extension system supporting 11 programming languages** with hybrid process isolation. Write extensions in whatever language fits the task - from C for tight editor integration to Haskell for complex project analysis.
-
-**Three-Layer Architecture:**
-
-| Layer | Type | Location | Use Case |
-|-------|------|----------|----------|
-| 1 | Core API | Internal | Editor primitives exposed to Layers 2-3 |
-| 2 | Lua Scripts | `~/.config/muemacs/scripts/` | Lightweight automation, hot-reloadable |
-| 3 | Native Extensions | `~/.config/muemacs/extensions/` | Full-featured plugins via shared objects |
-
-**Hybrid Process Isolation:**
-
-Extensions run either in-process or out-of-process depending on their runtime:
-
-| Mode | Languages | Mechanism | Trade-off |
-|------|-----------|-----------|-----------|
-| **In-Process** | C, Rust, Zig | Direct `dlopen()` | Lowest latency, shared memory |
-| **Out-of-Process** | Go, Ada, Haskell, Crystal, Pascal | IPC bridge | Crash isolation, GC freedom |
-
-Out-of-process extensions communicate via modern Linux primitives:
-- **memfd**: Anonymous shared memory for zero-copy data transfer
-- **eventfd**: Low-latency signaling between editor and extension
-- **pidfd**: Race-free process lifecycle management
-- **seccomp-bpf**: Syscall whitelist per runtime (C: ~30, Go: ~50, Haskell: ~55)
-- **landlock**: Filesystem restriction (extension dir read, /tmp read/write, deny ~/.ssh)
-
-Extensions load in parallel at startup with thread-safe command registration.
-
-Write extensions in C for performance, Rust for safety, Go for concurrency, or Haskell for elegance - whatever fits your problem.
-
-**Bundled Extensions:**
-
-| Extension | Lang | Description |
-|-----------|------|-------------|
-| `c_git` | C | Git integration - status, stage, commit, diff, log, blame |
-| `c_lint` | C | Unified diagnostics aggregating pattern rules, tree-sitter, and LSP |
-| `c_mouse` | C | Full mouse support - click, double/triple-click, drag select, scroll |
-| `c_write_edit` | C | Prose editing - soft wrap, smart quotes, em-dashes |
-| `rust_search` | Rust | Ripgrep-powered project search with result navigation |
-| `zig_treesitter` | Zig | Tree-sitter syntax highlighting for C, Python, Rust, JS, Bash |
-| `go_lsp` | Go | Language Server Protocol - completion, go-to-def, hover, diagnostics |
-| `ada_fuzzy` | Ada | Fuzzy file finder with ranked matching |
-| `pascal_multicursor` | Pascal | Multiple cursor editing |
-| `haskell_project` | Haskell | Project detection and file navigation |
-| `crystal_ai` | Crystal | AI code assistance via Claude CLI agents |
-
-**Event Bus:**
-
-Extensions communicate through a publish-subscribe event system:
-```
-buffer:load, buffer:save, buffer:close
-input:key, input:mouse
-lsp:diagnostics, treesitter:parsed
-```
-
-**Extension API (v4 - ABI-Stable Named Lookup):**
-```c
-// Extensions use api->get_function("name") for forward-compatible lookups
-fn_t my_fn = api->get_function("register_command");
-
-// Direct struct members also available for backward compatibility
-api->register_command("my-cmd", my_handler);
-api->on("buffer:save", on_save, nullptr, 0);
-api->message("Hello from extension!");
-// ... 40+ functions
-```
-
-**Naming Convention:** `language_tool/` directories containing `language_tool.so`
-
-**Commands:** `extension-load`, `extension-unload`, `extension-list`, `scripts-reload`
-
-### Encryption
-Shell out to battle-tested system tools:
-- **GPG**: `encrypt-buffer`, `decrypt-file` (AES256 symmetric)
-- **age**: `encrypt-buffer-age`, `decrypt-file-age`
-- **Auto-detect**: `encrypt-buffer-auto` finds best available tool
-- **show-encryption-tools**: Display available encryption tools
-
-### Clipboard
-Multiple providers with automatic detection:
-- **OSC 52**: Terminal escape sequence - works over SSH/tmux (kitty, alacritty, foot, iTerm2)
-- **Wayland**: wl-copy/wl-paste native support
-- **X11**: xclip, xsel integration
-- **Commands**: `copy-to-clipboard`, `yank-clipboard`, `clipboard-provider`
-
-### Configuration
-- **TOML Format**: Clean, readable config replacing legacy JSON
-- **Embedded Parser**: Zero external dependencies for config parsing
-- **XDG Compliant**: `~/.config/muemacs/settings.toml` with proper fallback chain
-- **Runtime Settings**: `M-x set-variable` for live configuration changes
-- **Commands**: `open-user-config`, `list-settings`, `save-settings`
-
-### C23 Architecture
-- **Modern C23**: `nullptr`, `_Atomic`, `static_assert`, `alignas`
-- **Memory Safety**: Centralized allocation with leak tracking and overflow protection
-- **Thread Safety**: Atomic operations throughout (cursor, display, undo, kill ring)
-- **Zero Legacy**: All MSDOS, VMS, Amiga, termcap code removed - Linux only
-
-### Kernel Integration
-- **Event Loop**: Backend-agnostic abstraction with three-tier fallback (io_uring > epoll > poll)
-- **io_uring**: Raw syscalls (no liburing), multi-shot poll, batch file I/O, adaptive timeout
-- **timerfd**: Precision timers for auto-save, cursor blink, resize debounce, extension timeout
-- **signalfd**: Signal-to-fd conversion for SIGWINCH/SIGINT/SIGTERM/SIGHUP (crash handlers remain SA_RESETHAND)
-- **pidfd**: Race-free extension process monitoring
-- **seccomp-bpf**: Per-runtime syscall whitelist for extension sandboxing
-- **landlock**: Filesystem restriction for extension processes
-- **madvise**: MADV_SEQUENTIAL/MADV_RANDOM/MADV_WILLNEED for piece table mmap access patterns
-
-### Main Interface: evil-mode Enabled
 ![Editor](2025-12-31_14-03.png)
 
-### Large Display View: Default muEmacs
-![Dense](2026-01-30_23-45.png)
+## Components
+
+| Component | Where | Role |
+|---|---|---|
+| **editor core** | this repo, `src/` | Buffers, windows, display, undo, keymaps, terminal driver, TOML settings. One static binary (`μEmacs`, ASCII alias `muEmacs`) plus `muemacs-ext-runner`, the out-of-process extension host. |
+| **c_evil** | [μEmacs-extensions] | Vim modal editing as a UEP extension: Nine C sources against the public API, loaded like any other extension, covered by a 109-test PTY suite that drives the real binary. Not compiled into core; core keeps only the empty keymaps and an ESC fallback. |
+| **UEP** | `src/uep/` + [μEmacs-extensions] | The extension protocol: C, Rust and Zig in-process over `dlopen`; Go, Ada, Haskell, Crystal and Pascal out-of-process over memfd/eventfd IPC with seccomp-bpf and landlock sandboxing. The API headers (`include/uep/`) are the published contract; extensions live in their own repository. |
+| **terminal / REPL** | `src/terminal/` | `C-x t` opens a shell in a split window: VT100/xterm emulation over a managed PTY, build-error navigation (`build-next-error`), REPL evaluation (`repl-eval-line`, `-region`, `-buffer`). |
+| **sublimation** | linked from the [montauk] tree | The search core. μEmacs links `libsublimation.a` directly (C23, pure C ABI); the editor's scanners feed it per line and every search command — incremental, hunt, replace, fuzzy — runs through one cached compiled program. |
+
+[μEmacs-extensions]: ../μEmacs-extensions
+[montauk]: ../montauk
 
 ## Installation
 
-### Simple Install
+μEmacs links sublimation out of the montauk tree at build time — the one
+external requirement, stated first because configure fails without it:
+Build montauk once (`cmake -B build && cmake --build build` in its tree),
+or point `-DMONTAUK_BUILD_DIR` at any build tree containing
+`libsublimation.a`. Everything else is libc.
 
 ```bash
 ./install.py
 ```
 
-**Run**: `μEmacs [FILE]` or `muEmacs [FILE]` (ASCII alias)
+**Run**: `μEmacs [FILE]` or `muEmacs [FILE]` (ASCII alias).
 
-### Advanced Install (CMake)
+### Advanced install (CMake)
 
 ```bash
-# Configure
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-
-# Build
 cmake --build build -j$(nproc)
-
-# Install (optional)
-sudo cmake --install build
+sudo cmake --install build   # optional
 ```
 
-### Other Commands
+### Other commands
 
 ```bash
 ./install.py build       # Build only, don't install
 ./install.py clean       # Clean build directory
 ./install.py uninstall   # Remove installed binaries
 ./install.py test        # Run tests
-./install.py --debug     # Debug build (ASAN/UBSAN, no logging)
+./install.py --debug     # Debug build (ASan/UBSan, no logging)
 ./install.py --debug-log # Debug build with logging to /tmp/muemacs_debug.log
 ```
 
 ### Dependencies
 
+- **montauk tree** beside this one, built, for `libsublimation.a` and the
+  `sublimation/src/include` headers (override with `-DMONTAUK_BUILD_DIR`)
 - **Compiler**: GCC 13+ or Clang 16+ with C23 support
 - **Build**: CMake 3.20+
-- **Libraries**: None (pure ANSI terminal driver, no ncurses)
-- **Optional**: xclip or xsel for system clipboard, gpg or age for encryption
+- **Libraries**: None — pure raw-ANSI terminal driver, no ncurses
+- **Optional**: liburing for the io_uring event-loop backend (off by
+  default; epoll and poll need nothing), xclip/xsel/wl-copy for
+  clipboard fallback beyond OSC 52, gpg or age for encryption
+- **Extensions**: Each out-of-process extension needs its language
+  toolchain to rebuild; prebuilt `.so` files load without one
 
-**Arch Linux:**
-```bash
-sudo pacman -S gcc cmake
-```
+### Quickstart
 
-**Debian/Ubuntu:**
-```bash
-sudo apt install gcc cmake
-```
+Open a file, `C-x C-s` saves, `C-x C-c` quits, `M-x` runs a named
+command, `C-g` aborts anything. Vim users: `evil_mode = true` in
+`~/.config/muemacs/settings.toml` (or `M-x evil-mode`) and the c_evil
+extension announces `[EVIL: ON]` when its background load completes —
+from there it is normal/insert/visual with the motions, operators, text
+objects, registers, marks and search you expect. Full tables below.
+
+## Verification
+
+The claims in this README are backed by gates, in the montauk style of
+the sibling projects:
+
+- **Integration suite**: 84 tests, each forked into an isolated
+  subprocess with per-test timeouts and crash detection. Green in
+  Release and green under a Debug ASan/UBSan build with **zero
+  sanitizer reports**. Any argument to the runner acts as a name
+  filter: `./build/bin/full_integration_test search` runs the search
+  suites alone.
+- **c_evil PTY suite**: 109 tests across 16 files driving the real
+  binary through pexpect + pyte — mode switching, motions, operators,
+  counts, find-char, text objects, marks, registers, search, undo,
+  visual modes. This suite is the editor's behavioral spec for modal
+  editing; in one sweep it surfaced six core display and dispatch bugs
+  the unit tests could not see.
+- **Both build configurations compile warning-free** under `-Wall
+  -Wextra` (Debug adds `-Werror`).
+- The search engine itself carries sublimation's own gates upstream:
+  Byte-parity against Python `re` for regex, a brute k-mismatch oracle
+  for fuzzy, 843k checks green, ASan and TSan clean (see montauk's
+  README).
+
+## Performance
+
+Measured on an AMD Ryzen 5 3600 (Zen 2), kernel 7.1.4-arch1-1, gcc
+16.1, powersave governor, Release `-O2`. Harnesses are in-tree:
+`build/bin/bench_*` and the PTY startup probe. Startup numbers are
+end-to-end — process spawn under a PTY to the first frame byte the
+editor writes, median of 20, spawn overhead included.
+
+| Metric | Result | Method |
+|---|---|---|
+| Startup to first frame | **2.6 ms** median (2.3 min) | PTY spawn probe, n=20, empty buffer |
+| 49,592-line file to first frame | **2.6 ms** median | Same probe on `tests/data/poe-collected-fictions.txt`: The mmap piece-table load costs nothing measurable over an empty start |
+| Full 80×24 redraw | **21 µs** | `bench_editor`, 200 forced `update()` iterations |
+| Character insert | **0.83 µs** | `bench_editor`, 10,000 inserts on one line |
+| Keymap lookup | **9.3 ns** | `bench_keymap`, 1M hash-table lookups |
+| UTF-8 encode/decode | **4.0 ns** | `bench_utf8`, 500k round-trips |
+| Search dispatch | **~0.15 µs**/invocation | `bench_search`, 2,000 `scanner()` calls over a 2,000-line buffer, first-line match |
+| Binary size | 1.8 MB | Release, unstripped |
+
+No comparative multipliers against other editors: Earlier revisions of
+this README carried a "~35x faster than Vim" line with no named
+methodology, and it does not survive the house rule that a claim
+carries its proof.
+
+## The search engine
+
+Every search command — incremental (`C-s`/`C-r`), non-incremental,
+hunt, replace, query-replace and `search-fuzzy` — runs through one
+engine: A cached `sublimation_search` program, recompiled only when the
+pattern text, case mode (`MDEXACT`) or magic mode (`MDMAGIC`) changes.
+Magic mode selects the Glushkov bit-parallel regex face; plain mode the
+literal face with its rare-byte prefilter; an invalid regex degrades to
+literal, matching the historical fall-through. `search-fuzzy` selects
+the k-mismatch face — a numeric argument sets k (capped at 3), so
+`C-u 2 M-x search-fuzzy` finds within two mismatched bytes. Matching is
+fed per buffer line, so `^` and `$` anchor to line boundaries exactly
+as they always did; patterns containing newlines take a multi-line
+literal walk instead.
+
+What was retired, and what deliberately was not: v3.1.0 removed the
+in-tree Thompson NFA engine, the Boyer-Moore-Horspool paths (including
+the private copies inside both storage backends) and the legacy
+`mcscanner` magic interpreter — three engines, one of which disagreed
+with another about where reverse search should leave the cursor
+depending on pattern length. The replacement-side metacharacter
+machinery survives: `query-replace` still expands `&` to the matched
+text through `rmcpat`, because that half was never the scanner's
+problem. Match spans are recorded exactly, so a variable-length regex
+replace deletes precisely what matched — the old NFA path left the
+length stale.
+
+## Display
+
+Double-buffered in the classic uEmacs shape — a virtual screen the
+editor writes and a physical screen mirroring the terminal — with
+line-granularity damage tracking, line hashing to skip clean rows and
+the whole frame flushed as one atomic write (the montauk pattern: Build
+everything, write once, no incremental flicker). Soft wrap uses a
+two-phase segment cache: Per-line wrap segments computed once on edit,
+layout derived by arithmetic on resize, no backtracking and no fixed
+line-length ceiling. The modeline's line/column indicators are kept
+current by a chokepoint in the cursor-position pass that catches every
+dot move — core motion, search jump or extension `set_point` alike —
+because three separate stale-cache bugs taught us that per-call-site
+invalidation does not survive contact with reality. Cursor-line
+highlight, 256-color and truecolor theming with terminal-palette
+integration, and kitty keyboard protocol (CSI-u) plus SGR mouse
+decoding on the input side.
+
+## Text storage
+
+Two backends behind one vtable: A gap buffer (O(1) edits at the
+cursor, line index, character cache) for files under 2 MB, and an mmap
+piece table (O(1) load, view lines referencing buffer-level storage)
+above it, with conversion back to gap buffer when edit density passes
+20%. UTF-8 native throughout — multi-byte input inserts full sequences
+(a single-byte truncation bug here once corrupted real journals; the
+regression test types U+2019/U+25CF/U+2014 through a PTY and asserts
+the saved bytes). The undo system groups operations VSCode-style within
+400 ms windows and at word boundaries, in an atomic circular buffer of
+10,000 operations.
+
+## Vim editing is an extension
+
+c_evil implements modal editing entirely against the public UEP API:
+Nine C sources (bridge, mode, motion, ops, find, search, marks,
+text_objects, edit) resolving 38 editor functions by name at load, an
+`input:raw` pre-dispatch hook for counts, prefixes and operator-pending
+state, and its own modeline segment. Core retains exactly two pieces of
+vim infrastructure — empty keymaps the extension populates and an ESC
+fallback — and nothing else: The old core `evil-mode` stub is deleted,
+so without the extension `M-x evil-mode` reports an honest unknown
+command instead of half-activating. With `evil_mode = true` in
+settings, the state arms at startup and the extension announces
+`[EVIL: ON]` when its background load completes.
+
+The surface: Normal, insert, visual, visual-line, visual-block and
+replace modes; motions (`h/j/k/l`, `w/b/e`, `0/$/^`, `gg/G`, `f/F/t/T`
+with `;`/`,`, `+`/`-`); operators `d`/`c`/`y` composing with motions
+and text objects (`iw/aw`, `i"/a"`, `i(/a(`); counts everywhere; named
+and numbered registers with `"x` targeting (`"ay`, `"0p` — yanks write
+register 0); marks (`m`, `` ` ``, `'`); search (`/`, `?`, `n`, `N`,
+`*`, `#`) riding the same sublimation engine as core; scrolls
+(`C-d/C-u/C-f/C-b/C-e/C-y`, `zz/zt/zb`); repeat (`.`) and undo/redo.
+Every behavior listed here has a passing PTY test.
+
+## Extension protocol (UEP)
+
+Extensions today span nine languages — C, Fortran, Rust, Zig, Go, Ada,
+Haskell, Crystal and Pascal — under one rule: The runtime picks the
+isolation. C, Rust and Zig load in-process over `dlopen` for lowest
+latency; garbage-collected and runtime-heavy languages run
+out-of-process behind `muemacs-ext-runner`, talking over memfd shared
+memory and eventfd signaling, with pidfd lifecycle management,
+per-runtime seccomp-bpf syscall whitelists and landlock filesystem
+restriction. A version handshake on the IPC layer fails closed on
+mismatch rather than corrupting frames.
+
+| Mode | Languages | Mechanism | Trade-off |
+|---|---|---|---|
+| In-process | C, Fortran (via C bridge), Rust, Zig | `dlopen()` | Lowest latency, shared memory |
+| Out-of-process | Go, Ada, Haskell, Crystal, Pascal | memfd + eventfd IPC | Crash isolation, GC freedom |
+
+The API (v4) is ABI-stable named lookup: `api->get_function("name")`
+against a registry of 90+ functions, so extensions survive editor
+upgrades without recompiling against struct layouts. Extensions
+register commands (which override same-named core commands — that
+resolution order is what lets c_evil own `evil-mode`), subscribe to the
+event bus (`buffer:load/save/close`, `input:raw`, `input:key`,
+`char:insert`, idle hooks), contribute modeline segments and read their
+own `[extension.name]` settings blocks. Loading is non-blocking at
+startup and completes from the input idle loop, so an idle editor
+finishes loading without waiting for a keystroke.
+
+The extensions themselves — c_evil, c_git (C + Fortran core), c_lint,
+c_linus (the uEmacs/PK look, on by default), c_minibuffer, c_mouse,
+c_org, c_write_edit, rust_re2, zig_treesitter, go_lsp, go_chess,
+go_sam, go_dfs, go_sudoku, ada_fuzzy, haskell_calc, haskell_project,
+crystal_ai, pascal_multicursor — live in the [μEmacs-extensions]
+repository, deliberately separate: The API headers are the published
+contract, and the editor repo carries no language toolchain burden.
+A script layer (`~/.config/muemacs/scripts/`) runs external
+executable scripts in any interpreter as named commands.
+
+## Kernel integration
+
+The event loop is a backend-agnostic abstraction: epoll by default,
+poll as the floor, io_uring as an opt-in build (`-DENABLE_IO_URING=ON`
+with liburing; off by default). timerfd drives auto-save and debounce
+timers; pidfd watches out-of-process extensions race-free; seccomp-bpf
+and landlock sandbox them. Signal handling is `sigaction`-based across
+all 24 operational handlers, with a signalfd path available as the
+documented migration target — stated here the way the code audit
+states it, not as a finished migration. The piece table advises the
+kernel (`madvise`) about its mmap access patterns.
 
 ## Configuration
 
-μEmacs reads from `~/.config/muemacs/settings.toml` (XDG compliant):
+TOML at `~/.config/muemacs/settings.toml` (XDG-compliant, with
+installed-default and in-tree fallbacks). Fresh installs boot into
+Linus Torvalds' uEmacs/PK defaults — the c_linus extension enabled,
+72-column fill, no ruler, no line highlight — and one block turns the
+modern chrome back on. The shipped defaults, abbreviated:
 
 ```toml
 [editor]
-column_width = 80
+column_width = 72           # Linus's fillcol
 wrap = false
-evil_mode = false           # Enable vim emulation (requires c_evil extension)
+evil_mode = false           # Vim modal editing via c_evil
 tab_width = 8
 
 [visual]
-ruler = true
-ruler_col = 80
-highlight_line = true
+ruler = false               # Linus-first; set true for the ruler
+highlight_line = false
 
 [terminal]
-enabled = true              # Allow C-x t terminal
+enabled = true              # C-x t split terminal
 height_percent = 45
 
 [clipboard]
 provider = "auto"           # auto, osc52, xclip, xsel, wl-copy
-osc52_enabled = true        # Works over SSH/tmux
+osc52_enabled = true        # Works over SSH and tmux
 
-[wrap]
-soft_wrap = false
-soft_wrap_column = 80
+[extension.c_linus]
+enabled = true              # The uEmacs/PK look; false for modern chrome
 
-[extensions.python]
-format = "black -q -"
-
-[extensions.rust]
-format = "rustfmt"
-
-[extensions.c]
-format = "clang-format"
-
-[performance]
-parallel_threshold = 1000   # Min lines for parallel search
-max_threads = 8
-
-# Native UEP extensions (in ~/.config/muemacs/extensions/)
 [extension.c_mouse]
 enabled = true
 scroll_lines = 3
-
-[extension.c_git]
-auto_status = true
 ```
 
-**Locations:**
-- User config: `~/.config/muemacs/settings.toml`
-- System defaults: `/usr/share/muemacs/editor/settings.toml`
+`M-x set-variable` changes values live; `open-user-config`,
+`list-settings` and `save-settings` manage the file. The settings
+watcher reloads on change.
 
 ## Keybindings
 
+Emacs bindings by default; the vim surface is the section above. `ESC`
+or `Alt` is Meta.
+
 ### Essential
 | Key | Action |
-|-----|--------|
+|---|---|
 | `C-x C-c` | Quit |
 | `C-x C-s` | Save |
 | `C-x C-f` | Open file |
 | `C-g` | Abort |
-| `M-x` | Execute command |
+| `M-x` | Execute named command |
 
 ### Navigation
 | Key | Action |
-|-----|--------|
-| `C-a` / `C-e` | Beginning/end of line |
-| `C-f` / `C-b` | Forward/backward char |
-| `C-n` / `C-p` | Next/previous line |
-| `C-v` / `M-v` | Page down/up |
-| `M-<` / `M->` | Beginning/end of buffer |
+|---|---|
+| `C-a` / `C-e` | Beginning / end of line |
+| `C-f` / `C-b` | Forward / backward character |
+| `C-n` / `C-p` | Next / previous line |
+| `C-v` / `M-v` | Page down / up |
+| `M-<` / `M->` | Beginning / end of buffer |
 | `M-g` | Go to line |
 
 ### Editing
 | Key | Action |
-|-----|--------|
+|---|---|
 | `C-d` | Delete forward |
 | `C-k` | Kill to end of line |
 | `C-w` | Kill region (cut) |
@@ -320,148 +325,79 @@ auto_status = true
 | `C-y` | Yank (paste) |
 | `C-_` | Undo |
 | `M-_` | Redo |
+| `M-q` | Fill paragraph (soft-wrap-aware hybrid fill) |
 
-### Windows & Buffers
+### Windows, buffers, terminal
 | Key | Action |
-|-----|--------|
+|---|---|
 | `C-x 2` | Split window |
 | `C-x o` | Next window |
 | `C-x 0` | Close window |
 | `C-x b` | Switch buffer |
 | `C-x t` | Open terminal |
 
-### Search
+### Search and replace
 | Key | Action |
-|-----|--------|
-| `C-s` | Incremental search forward |
-| `C-r` | Incremental search backward |
-| `M-r` | Replace |
-| `M-C-r` | Query replace |
+|---|---|
+| `C-s` / `C-r` | Incremental search forward / backward |
+| `M-R` | Replace string |
+| `M-%` | Query replace |
+| `M-x search-fuzzy` | Fuzzy search within k mismatches (numeric arg sets k) |
 
-**Meta Key**: Use `ESC` or `Alt` as Meta prefix.
+## Shell integration
 
-## Vim Mode (c_evil Extension)
-
-Vim modal editing is provided by the `c_evil` extension in `muEmacs-extensions`.
-Enable with `evil_mode = true` in settings.toml or `M-x evil-mode`.
-
-### Modes
-- **Normal**: Navigation and commands (default when enabled)
-- **Insert**: Text entry (`i`, `a`, `o`, `A`, `O`)
-- **Visual**: Selection (`v`, `V`, `C-v`)
-- **Replace**: Overwrite (`R`)
-
-### Commands
-```
-h/j/k/l     Movement
-w/b/e       Word motion
-0/$         Line start/end
-gg/G        Buffer start/end
-dd/yy/cc    Line operations
-dw/yw/cw    Word operations
-diw/daw     Text objects
-p/P         Paste after/before
-u / C-r     Undo/redo
-.           Repeat last command
-```
-
-## Terminal Emulator
-
-Press `C-x t` to open a shell in a split window:
-
-- Full VT100/xterm emulation
-- Run builds, git, tests while editing
-- `C-x o` switches between editor and terminal
-- `C-x 0` closes terminal window
-- `build-run` runs make/build command
-- `build-next-error` / `build-prev-error` jump to errors
-
-## Shell Integration
-
-μEmacs exports environment variables to spawned processes:
+Spawned commands and the split terminal see the editor's state:
 
 | Variable | Content |
-|----------|---------|
+|---|---|
 | `$UE_FILENAME` | Current file path |
 | `$UE_BUFNAME` | Current buffer name |
 | `$UE_LINE` | Cursor line (1-indexed) |
 | `$UE_COL` | Cursor column (0-indexed) |
-| `$UE_FILETYPE` | Detected type (c, python, rust...) |
+| `$UE_FILETYPE` | Detected type (c, python, rust, ...) |
 | `$UE_MODIFIED` | "1" if buffer modified |
-| `$UE_TERMINAL` | "1" when inside μEmacs terminal |
+| `$UE_TERMINAL` | "1" inside the μEmacs terminal |
 
-Use in shell scripts for editor-aware tooling.
+## Encryption and clipboard
 
-## Performance
-
-| Metric | Result | Notes |
-|--------|--------|-------|
-| **Startup** | **435 us** | 100-run average. ~35x faster than Vim (~15ms) |
-| **49,592-line file load** | **1 ms** | Poe collected works. mmap piece table path |
-| **Full clean rebuild** | **2.3 s** | 90 .c files, 6 targets, all tests. `-j$(nproc)` |
-| **Binary size** | **1.7 MB** | Debug build, unstripped |
-| **Test suite** | **88/88 pass** | 12 suites, fork-isolated, ASAN/UBSAN compatible |
-
-### Test Results
-
-| Suite | Tests | Status |
-|-------|-------|--------|
-| Keymap & Input | 6 | PASS |
-| Core Text & Buffer | 15 | PASS |
-| Navigation & Editing | 7 | PASS |
-| Text Processing | 9 | PASS |
-| Configuration | 6 | PASS |
-| I/O & File Operations | 4 | PASS |
-| Terminal & Display | 8 | PASS |
-| Vim Mode (Evil) | 2 | PASS |
-| Utilities & Platform | 7 | PASS |
-| Atomic Stats & Concurrency | 4 | PASS |
-| Commands & Integration | 3 | PASS |
-| Security | 5 | PASS |
+Encryption shells out to battle-tested tools — GPG (`encrypt-buffer`),
+age (`encrypt-buffer-age`), auto-detection (`encrypt-buffer-auto`) —
+rather than shipping crypto. Clipboard walks a provider chain: OSC 52
+escape sequences first (works over SSH and tmux on kitty, alacritty,
+foot, wezterm, iTerm2), then wl-copy, xclip, xsel.
 
 ## Testing
 
 ```bash
-# Run integration tests
-./build/bin/full_integration_test
-
-# Python TUI tests (requires pexpect, pyte)
-cd tests/tui && python -m pytest
+./build/bin/full_integration_test            # the whole fork-isolated suite
+./build/bin/full_integration_test search     # name-filtered subset
+cd tests/tui && python3 test_search_replace.py   # PTY suites, per file
+cd ../μEmacs-extensions/extensions/c_evil/tests && python3 run_all.py
+./build/bin/bench_editor                     # and bench_search, bench_keymap, bench_utf8
 ```
+
+The integration runner forks every test into an isolated subprocess
+with a timeout and crash detection; arguments are substring filters
+over test names. The PTY suites (pexpect + pyte) drive the real binary
+in a real pseudo-terminal — screen-buffer assertions, not mocks. The
+c_evil suite's 109 tests double as the vim-behavior specification.
+Debug builds carry ASan/UBSan by default; `build_noasan/` exists for
+the inverse.
 
 ## Architecture
 
 ```
-~50,000 lines C23
-├── src/core/       # Buffer, window, display, undo, keymap, piece table, gap buffer
-├── src/terminal/   # PTY, VT100 emulation, input state machine
-├── src/text/       # Search, NFA regex, word operations
-├── src/config/     # TOML parser, settings, vim core infrastructure
-├── src/io/         # File I/O, encryption, io_uring batch read
-├── src/platform/   # Event loop (io_uring/epoll/poll), timers, sandbox, clipboard, spawn
-├── src/syntax/     # Lexer, syntax highlighting
-├── src/uep/        # Extension system, polyglot bridge, ext runner
-└── src/util/       # UTF-8, memory, logging
+src/
+├── core/       Buffer, window, display, undo, keymap, gap buffer, piece table, event bus
+├── terminal/   Raw-ANSI driver, input state machine, PTY, capability detection, palette
+├── text/       Search (sublimation-backed), isearch, word operations, region
+├── config/     Bindings, names table, settings (TOML), exec, vim keymap infrastructure
+├── io/         File I/O, preload, locking, encryption, io_uring batch read
+├── platform/   Event loop backends, timers, sandbox, clipboard, spawn
+├── syntax/     Lexer, per-language highlighting
+├── uep/        Extension system: API registry, loader, IPC, out-of-process host
+└── util/       UTF-8, display width, memory, strings, logger, profiler
 ```
-
-## Technical Highlights
-
-- **50,000 lines** of C23 (src/ + include/), 180K lines of tests
-- **Sub-millisecond startup** (435us average, ~35x faster than Vim)
-- **O(1) keymap** with hash-based lookup
-- **Zero legacy code** - all MSDOS/VMS/termcap removed
-- **Zero external dependencies** - pure ANSI terminal driver, no ncurses
-- **Dual text storage**: Gap buffer + piece table with mmap, heuristic selection
-- **Boyer-Moore-Horspool** search on both storage backends
-- **Pretext-inspired wrap cache**: Segment-based line layout with pending-break pattern
-- **Event loop**: Three-tier backend (io_uring > epoll > poll) with timerfd and signalfd
-- **Extension sandboxing**: seccomp-bpf syscall filtering + landlock filesystem restriction
-- **Thread-safe** extension loading with mutex-protected command registry
-- **Atomic operations** throughout (cursor, display, undo)
-- **Polyglot extensions** - 11 languages via hybrid in-process/IPC architecture
-- **Thompson NFA** regex with zero-heap runtime
-- **io_uring batch file I/O**: Single-syscall file loading via IORING_OP_READ
-- **88 tests** across 12 suites with fork isolation and signal-based crash detection
 
 ## History
 
@@ -472,25 +408,44 @@ uEmacs/PK (Petri Kutvonen)
     ↓
 μEmacs (Linus Torvalds' personal fork)
     ↓
-μEmacs v3.0.0 (C23 modernization)
+μEmacs v3.x (C23 modernization)
 ```
 
-μEmacs traces from MicroEMACS (1985) through Petri Kutvonen's uEmacs/PK to Linus Torvalds' personal fork. This project modernizes for 2026 while preserving the small, fast, keyboard-driven editor philosophy.
+- **v1.0**: Terminal emulator, vim mode, polyglot extensions, modern
+  keymap system.
+- **v2.1.0**: Linus baseline defaults, vim extracted toward the c_evil
+  extension, piece table with mmap, text storage abstraction, event
+  bus, kernel integration (io_uring, epoll, timerfd, signalfd, pidfd,
+  seccomp-bpf, landlock).
+- **v3.0.0**: Wrap segment cache (two-phase prepare/layout), storage
+  backend hardening, warning sweep.
+- **v3.1.0**: The search engine moved onto sublimation and the old
+  engines were deleted — Thompson NFA, Boyer-Moore-Horspool and the
+  legacy magic interpreter, with the replacement-meta half preserved.
+  `search-fuzzy` added. The c_evil extraction completed: Standalone
+  build, 109-test PTY suite, core stub retired so absence is honest.
+  Extension-command override resolution fixed (registration now
+  actually overrides), extension init no longer starves waiting for a
+  keystroke, modeline line/column made current within the key cycle.
+  UEP API extended (public vim state typedefs, `input:raw`, register
+  and undo-boundary primitives, OSC 52 bridge). Linus-first shipped as
+  default. UTF-8 multi-byte insert truncation fixed. A quality sweep
+  behind an ASan/UBSan gate: A use-after-free in the extension API's
+  buffer-clear, an input-ring overwrite guard, a SIGWINCH ordering
+  fix, dead-code deletion across the tree and a uniform 4-space
+  reindent.
 
 ## Credits
 
-- **Original μEmacs**: Linus Torvalds
 - **MicroEMACS**: Dave G. Conroy, Daniel M. Lawrence
 - **uEmacs/PK**: Petri H. Kutvonen
-- **C23 Modernization**: Will Clingan
-- v1.0: Terminal emulator, Vim mode, polyglot extensions, CI/CD, modern keymap system
-- v2.1.0: Linus baseline defaults, Vim extracted to c_evil extension, piece table
-  with mmap, text storage abstraction, event bus, kernel integration (io_uring,
-  epoll, timerfd, signalfd, pidfd, seccomp-bpf, landlock), codebase audit
-- v3.0.0: Pretext-inspired wrap segment cache (two-phase prepare/layout, pending-break
-  pattern, no 4KB limit), Boyer-Moore on both storage backends, piece table memory
-  safety cleanup, parallel search thread hardening, compilation warning sweep
+- **Original μEmacs**: Linus Torvalds
+- **C23 modernization**: Will Clingan
+- **sublimation**: The search core, from the montauk project
 
 ## License
 
-Original μEmacs license terms apply.
+GPL-2.0, matching the packaging. One open item, stated the way the
+packaging states it: The lineage from the original MicroEMACS license
+is pending verification, and the license declaration follows that
+check's outcome.

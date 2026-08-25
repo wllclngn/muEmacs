@@ -36,9 +36,7 @@ static int memfd_create_wrapper(const char *name, unsigned int flags) {
 #endif
 }
 
-/* =========================================================================
- * Channel Lifecycle
- * ========================================================================= */
+/* Channel Lifecycle */
 
 ext_ipc_channel_t *ext_ipc_create(void) {
     ext_ipc_channel_t *ch = calloc(1, sizeof(*ch));
@@ -106,8 +104,22 @@ ext_ipc_channel_t *ext_ipc_attach(int memfd) {
         return nullptr;
     }
 
-    /* Validate */
+    /* Validate magic + version. A version mismatch means the editor and
+     * runner were built against different IPC layouts — reading from shared
+     * memory blind would produce corrupt frames and mystery hangs. Refuse
+     * the attach loudly. */
     if (ch->shm->magic != EXT_IPC_MAGIC) {
+        LOG_ERRORF("ext_ipc: magic mismatch (got 0x%08x, expected 0x%08x) — "
+                   "shared-memory header is not a UEP IPC channel",
+                   ch->shm->magic, EXT_IPC_MAGIC);
+        munmap(ch->shm, ch->shm_size);
+        free(ch);
+        return nullptr;
+    }
+    if (ch->shm->version != EXT_IPC_VERSION) {
+        LOG_ERRORF("ext_ipc: version mismatch (runner expects %d, editor wrote %d) — "
+                   "rebuild both sides against the same uep/ext_ipc.h",
+                   EXT_IPC_VERSION, ch->shm->version);
         munmap(ch->shm, ch->shm_size);
         free(ch);
         return nullptr;
@@ -141,9 +153,7 @@ int ext_ipc_get_memfd(ext_ipc_channel_t *ch) {
     return ch ? ch->memfd : -1;
 }
 
-/* =========================================================================
- * Ring Buffer Operations
- * ========================================================================= */
+/* Ring Buffer Operations */
 
 int ext_ipc_find_empty_slot(ext_ipc_ring_t *ring) {
     for (int i = 0; i < EXT_IPC_RING_SLOTS; i++) {

@@ -46,9 +46,7 @@
 #include "util/logger.h"
 #include <time.h>
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * TIMING INSTRUMENTATION
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* TIMING INSTRUMENTATION */
 
 static double get_time_ms(void) {
     struct timespec ts;
@@ -56,9 +54,7 @@ static double get_time_ms(void) {
     return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * CONFIGURATION
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* CONFIGURATION */
 
 /* Thread pool configuration for parallel loading */
 constexpr int LOADER_THREAD_COUNT = 4;  /* Parallel dlopen is safe - init is serialized */
@@ -74,9 +70,7 @@ constexpr int URING_QUEUE_DEPTH = 64;
 constexpr int URING_BATCH_SIZE = 32;
 #endif
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * DATA STRUCTURES
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* DATA STRUCTURES */
 
 /* Loaded extension tracking */
 typedef struct {
@@ -103,9 +97,7 @@ typedef struct {
     bool needs_build;
 } build_task_t;
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * GLOBAL STATE
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* GLOBAL STATE */
 
 static loaded_extension_t extensions[MUEMACS_MAX_EXTENSIONS];
 static int extension_count_internal = 0;
@@ -131,12 +123,10 @@ static int inotify_wd = -1;
 static time_t cached_api_mtime = 0;
 static bool api_mtime_cached = false;
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * ASYNC LOADING - Pending init queue
+/* ASYNC LOADING - Pending init queue
  *
  * Background threads do dlopen() + dlsym(), then add to this queue.
- * Main loop drains queue and calls init() (single-threaded, no races).
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * Main loop drains queue and calls init() (single-threaded, no races). */
 
 typedef struct {
     char *path;
@@ -178,9 +168,7 @@ static loaded_extension_t *find_extension(const char *name);
 static loaded_extension_t *find_extension_by_path(const char *path);
 static void extension_load_dir_async(const char *dir);
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * MODERN LINUX SYSCALLS
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* MODERN LINUX SYSCALLS */
 
 /*
  * Get file mtime using statx() with AT_STATX_DONT_SYNC.
@@ -239,9 +227,7 @@ static bool is_file_fast(const char *path) {
     return false;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * INOTIFY - LAZY REBUILD DETECTION
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* INOTIFY - LAZY REBUILD DETECTION */
 
 /*
  * Initialize inotify watching on the extensions directory.
@@ -308,9 +294,7 @@ static void inotify_watch_cleanup(void) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * IO_URING - BATCH SYSCALLS (P3 OPTIMIZATION)
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* IO_URING - BATCH SYSCALLS (P3 OPTIMIZATION) */
 
 #ifdef HAVE_LIBURING
 
@@ -453,9 +437,7 @@ static int io_uring_check_rebuilds(const char **ext_paths, int count,
 
 #endif /* HAVE_LIBURING */
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * BUILD SCRIPT LOCATION
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* BUILD SCRIPT LOCATION */
 
 /*
  * Find uep_build.py script path (cached after first call).
@@ -525,9 +507,7 @@ static time_t get_api_header_mtime(void) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * POSIX_SPAWN - FAST PROCESS CREATION
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* POSIX_SPAWN - FAST PROCESS CREATION */
 
 /*
  * Build single extension using posix_spawn() instead of popen().
@@ -646,15 +626,13 @@ static void batch_build_extensions(char **paths, int count) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * TWO-PHASE PARALLEL LOADING
+/* TWO-PHASE PARALLEL LOADING
  *
  * Phase 1: Parallel dlopen (I/O bound, no shared state modification)
  * Phase 2: Serial init (shared state modification, must be sequential)
  *
  * This architecture eliminates race conditions without requiring mutexes
- * in event_bus, config storage, hooks, or other shared subsystems.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * in event_bus, config storage, hooks, or other shared subsystems. */
 
 /*
  * Phase 1 worker: dlopen + dlsym only.
@@ -720,7 +698,7 @@ typedef struct {
 static void *async_dlopen_worker(void *arg) {
     async_dlopen_arg_t *a = arg;
     char *path = a->path;
-    free(a);
+    SAFE_FREE(a);
 
     /* Detect runtime type */
     char *ext_dir = get_extension_dir(path);
@@ -731,7 +709,7 @@ static void *async_dlopen_worker(void *arg) {
     if (needs_isolation) {
         /* Out-of-process extension - add to queue for spawning */
         pending_queue_add(path, nullptr, nullptr, runtime, true);
-        free(path);
+        SAFE_FREE(path);
         atomic_fetch_sub(&async_threads_active, 1);
         return nullptr;
     }
@@ -740,7 +718,7 @@ static void *async_dlopen_worker(void *arg) {
     void *handle = dlopen(path, RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
     if (!handle) {
         LOG_ERRORF("Extension: dlopen failed: %s", dlerror());
-        free(path);
+        SAFE_FREE(path);
         atomic_fetch_sub(&async_threads_active, 1);
         return nullptr;
     }
@@ -758,24 +736,24 @@ static void *async_dlopen_worker(void *arg) {
     if (dl_error || !entry) {
         LOG_ERRORF("Extension: dlsym failed: %s", dl_error ? dl_error : "nullptr");
         dlclose(handle);
-        free(path);
+        SAFE_FREE(path);
         atomic_fetch_sub(&async_threads_active, 1);
         return nullptr;
     }
 
     /* Add to pending queue - main thread will call init */
     pending_queue_add(path, handle, entry, runtime, false);
-    free(path);
+    SAFE_FREE(path);
     atomic_fetch_sub(&async_threads_active, 1);
     return nullptr;
 }
 
 /* Fire-and-forget async extension load */
 static void async_load_extension(const char *path) {
-    async_dlopen_arg_t *arg = malloc(sizeof(*arg));
+    async_dlopen_arg_t *arg = SAFE_ALLOC(async_dlopen_arg_t, "async dlopen arg");
     if (!arg) return;
-    arg->path = strdup(path);
-    if (!arg->path) { free(arg); return; }
+    arg->path = SAFE_STRDUP(path, "async dlopen path");
+    if (!arg->path) { SAFE_FREE(arg); return; }
 
     atomic_fetch_add(&async_threads_active, 1);
     pthread_t t;
@@ -1012,9 +990,7 @@ static int parallel_load_extensions(const char **paths, int count) {
     return loaded;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * SOURCE FILE SCANNING
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* SOURCE FILE SCANNING */
 
 /* Source file extensions to check */
 static const char *source_exts[] = {
@@ -1277,9 +1253,7 @@ static bool is_extension_dir(const char *path) {
     return has_source;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * EXTENSION SLOT MANAGEMENT
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* EXTENSION SLOT MANAGEMENT */
 
 /* Find extension by name */
 [[nodiscard]]
@@ -1323,9 +1297,7 @@ static loaded_extension_t *find_free_slot(void) {
     return slot;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * PUBLIC API
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* PUBLIC API */
 
 /* Set the auto-load directory (called from settings parser) */
 void extension_set_autoload_dir(const char *dir) {
@@ -1504,6 +1476,13 @@ int extension_poll_pending(void) {
         }
 
         free(p->path);
+    }
+
+    if (initialized > 0) {
+        /* Init may have registered modeline segments or flipped editor
+         * state; repaint the modelines so it shows without waiting for
+         * the next edit. */
+        upmode();
     }
 
     return initialized;
@@ -1846,7 +1825,7 @@ int extension_load_dir(const char *dir) {
     }
 #endif
 
-    /* ─── PASS 1: Collect extensions needing rebuild ─────────────────── */
+    /* PASS 1: Collect extensions needing rebuild */
     if (extension_auto_build) {
         for (int i = 0; i < all_count; i++) {
             const char *full_path = all_paths[i];
@@ -1905,7 +1884,7 @@ int extension_load_dir(const char *dir) {
         }
     }
 
-    /* ─── PASS 2: Collect all .so files for parallel loading ─────────── */
+    /* PASS 2: Collect all .so files for parallel loading */
     /* Use pre-collected paths with io_uring results when available */
     for (int i = 0; i < all_count && load_count < MAX_LOAD_BATCH; i++) {
         const char *full_path = all_paths[i];
@@ -1957,7 +1936,7 @@ int extension_load_dir(const char *dir) {
         SAFE_FREE(all_paths[i]);
     }
 
-    /* ─── LOAD EXTENSIONS (PARALLEL) ─────────────────────────────────── */
+    /* LOAD EXTENSIONS (PARALLEL) */
     int loaded = 0;
 
     if (load_count > 0) {
@@ -1988,7 +1967,7 @@ static void extension_load_dir_async(const char *dir) {
         return;
     }
 
-    int spawned = 0;
+    [[maybe_unused]] int spawned = 0;
     struct dirent *entry;
     char full_path[PATH_MAX];
 
@@ -2073,9 +2052,7 @@ void extension_cleanup(void) {
     LOG_INFO("Extension: Subsystem cleaned up");
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * INTERACTIVE COMMANDS
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* INTERACTIVE COMMANDS */
 
 /* Interactive command: Load extension */
 int extension_load_cmd([[maybe_unused]] int f, [[maybe_unused]] int n) {

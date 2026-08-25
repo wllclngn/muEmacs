@@ -92,13 +92,13 @@ size_t gap_buffer_search_backward(struct gap_buffer *gb, size_t start_pos,
                                   const char *pattern, size_t pattern_len);
 
 // Batch operations for efficiency
-int gap_buffer_insert_lines(struct gap_buffer *gb, size_t line_num,
+NODISCARD int gap_buffer_insert_lines(struct gap_buffer *gb, size_t line_num,
                            const char **lines, size_t line_count);
-int gap_buffer_delete_lines(struct gap_buffer *gb, size_t start_line, size_t line_count);
+NODISCARD int gap_buffer_delete_lines(struct gap_buffer *gb, size_t start_line, size_t line_count);
 
 // Memory management and optimization
-int gap_buffer_compact(struct gap_buffer *gb);
-int gap_buffer_reserve(struct gap_buffer *gb, size_t additional_capacity);
+NODISCARD int gap_buffer_compact(struct gap_buffer *gb);
+NODISCARD int gap_buffer_reserve(struct gap_buffer *gb, size_t additional_capacity);
 void gap_buffer_trim(struct gap_buffer *gb);
 
 // Cache management

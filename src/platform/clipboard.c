@@ -68,11 +68,9 @@ static int base64_encode(const char *input, size_t input_len,
     size_t out_pos = 0;
     for (size_t i = 0; i < input_len; i += 3) {
         unsigned int val = 0;
-        int valb = -6;
 
         for (size_t j = i; j < i + 3 && j < input_len; j++) {
             val = (val << 8) | (unsigned char)input[j];
-            valb += 8;
         }
 
         /* Pad remaining bits */

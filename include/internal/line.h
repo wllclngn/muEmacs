@@ -22,24 +22,24 @@ struct text_storage;
 struct buffer;
 
 struct line {
-	struct line *l_fp;	      /* Link to the next line        */
-	struct line *l_bp;	      /* Link to the previous line    */
-	struct text_storage *storage; /* Abstract storage backend (nullptr = view mode) */
+    struct line *l_fp;	      /* Link to the next line        */
+    struct line *l_bp;	      /* Link to the previous line    */
+    struct text_storage *storage; /* Abstract storage backend (nullptr = view mode) */
 
-	/* View mode: when storage is nullptr, line is a view into buffer's b_text.
-	 * This enables O(1) loading of large files via mmap.
-	 */
-	size_t l_view_offset;         /* Start offset in buffer's b_text */
-	size_t l_view_length;         /* Length in bytes (excluding newline) */
-	struct buffer *l_bp_owner;    /* Owning buffer (for view mode b_text access) */
+    /* View mode: when storage is nullptr, line is a view into buffer's b_text.
+    * This enables O(1) loading of large files via mmap.
+    */
+    size_t l_view_offset;         /* Start offset in buffer's b_text */
+    size_t l_view_length;         /* Length in bytes (excluding newline) */
+    struct buffer *l_bp_owner;    /* Owning buffer (for view mode b_text access) */
 
-	// Atomic column cache for instant UTF-8 cursor positioning
-	_Atomic int l_column_cache_offset;  /* Last cached byte offset */
-	_Atomic int l_column_cache_column;  /* Display column at offset */
-	_Atomic bool l_column_cache_dirty;  /* Cache needs invalidation */
+    // Atomic column cache for instant UTF-8 cursor positioning
+    _Atomic int l_column_cache_offset;  /* Last cached byte offset */
+    _Atomic int l_column_cache_column;  /* Display column at offset */
+    _Atomic bool l_column_cache_dirty;  /* Cache needs invalidation */
 
-	// Pretext-inspired wrap segment cache (lazily computed, invalidated on edit)
-	struct wrap_cache *l_wrap_cache;
+    // Pretext-inspired wrap segment cache (lazily computed, invalidated on edit)
+    struct wrap_cache *l_wrap_cache;
 };
 
 /* View mode support functions (defined in line.c) */
@@ -54,38 +54,38 @@ static inline struct line *lback(struct line *lp) { return lp->l_bp; }
 
 /* Get character at position n - view-aware */
 static inline int lgetc(struct line *lp, int n) {
-	if (lp->storage) {
-		return (unsigned char)TS_GET_CHAR(lp->storage, (size_t)n);
-	}
-	/* View mode: delegate to function that can access buffer's b_text */
-	return lgetc_view(lp, n);
+    if (lp->storage) {
+        return (unsigned char)TS_GET_CHAR(lp->storage, (size_t)n);
+    }
+    /* View mode: delegate to function that can access buffer's b_text */
+    return lgetc_view(lp, n);
 }
 
 /* Put character at position n - view-aware (materializes line if needed) */
 static inline void lputc(struct line *lp, int n, int c) {
-	if (!lp->storage) {
-		/* View mode: must materialize before editing */
-		line_materialize(lp);
-	}
-	lputc_impl(lp, n, c);
+    if (!lp->storage) {
+        /* View mode: must materialize before editing */
+        line_materialize(lp);
+    }
+    lputc_impl(lp, n, c);
 }
 
 /* Get line length - view-aware */
 static inline int llength(struct line *lp) {
-	if (lp->storage) {
-		return (int)TS_SIZE(lp->storage);
-	}
-	/* View mode: verify backing storage is accessible */
-	if (line_view_accessible(lp)) {
-		return (int)lp->l_view_length;
-	}
-	/* View mode but backing storage inaccessible - effectively empty */
-	return 0;
+    if (lp->storage) {
+        return (int)TS_SIZE(lp->storage);
+    }
+    /* View mode: verify backing storage is accessible */
+    if (line_view_accessible(lp)) {
+        return (int)lp->l_view_length;
+    }
+    /* View mode but backing storage inaccessible - effectively empty */
+    return 0;
 }
 
 /* Shared word-byte classification for undo grouping and word operations */
 UNSEQUENCED static inline bool is_word_byte(int ch) {
-	return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
+    return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
 }
 
 extern void lfree(struct line *lp);

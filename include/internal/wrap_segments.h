@@ -9,19 +9,19 @@ struct line;
 // Segment break classification (Pretext-inspired)
 // Determines where the line-breaker can split
 typedef enum {
-	SEG_TEXT  = 0,  // Non-breaking text run (letters, digits, punctuation)
-	SEG_SPACE = 1,  // Breakable whitespace run
-	SEG_TAB   = 2,  // Tab character (display width depends on column)
-	SEG_CTRL  = 3,  // Control character (renders as ^X, 2 display columns)
+    SEG_TEXT  = 0,  // Non-breaking text run (letters, digits, punctuation)
+    SEG_SPACE = 1,  // Breakable whitespace run
+    SEG_TAB   = 2,  // Tab character (display width depends on column)
+    SEG_CTRL  = 3,  // Control character (renders as ^X, 2 display columns)
 } wrap_seg_kind_t;
 
 // A single wrap segment: a contiguous run of same-kind characters
 typedef struct {
-	uint16_t byte_offset;     // Start byte position within the line
-	uint16_t byte_len;        // Length in bytes
-	uint16_t display_width;   // Total display columns (tab: unwrapped width)
-	uint16_t char_count;      // Logical character count (for syntax face lookup)
-	wrap_seg_kind_t kind;     // Break classification
+    uint16_t byte_offset;     // Start byte position within the line
+    uint16_t byte_len;        // Length in bytes
+    uint16_t display_width;   // Total display columns (tab: unwrapped width)
+    uint16_t char_count;      // Logical character count (for syntax face lookup)
+    wrap_seg_kind_t kind;     // Break classification
 } wrap_segment_t;
 
 // Fast-path detection flags
@@ -32,18 +32,18 @@ typedef struct {
 
 // Per-line wrap segment cache
 typedef struct wrap_cache {
-	wrap_segment_t *segments;       // Heap-allocated segment array
-	uint16_t count;                 // Number of segments
-	uint16_t capacity;              // Allocated capacity
-	int total_display_width;        // Sum of all segment display_widths
-	uint8_t flags;                  // WRAP_* bitmask
+    wrap_segment_t *segments;       // Heap-allocated segment array
+    uint16_t count;                 // Number of segments
+    uint16_t capacity;              // Allocated capacity
+    int total_display_width;        // Sum of all segment display_widths
+    uint8_t flags;                  // WRAP_* bitmask
 } wrap_cache_t;
 
 // Unified layout result
 typedef struct {
-	int row_count;    // Total display rows this line occupies
-	int cursor_row;   // Row the cursor falls on (0-indexed from line start)
-	int cursor_col;   // Display column within cursor_row
+    int row_count;    // Total display rows this line occupies
+    int cursor_row;   // Row the cursor falls on (0-indexed from line start)
+    int cursor_col;   // Display column within cursor_row
 } wrap_result_t;
 
 // Build segment cache for a line. Reads via lgetc(), no size limit.

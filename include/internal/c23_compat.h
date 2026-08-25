@@ -217,15 +217,11 @@ static inline int safe_chcase(int c) {
 #define ENUM_SET_FLAG(value, flag) ((value) |= (flag))
 #define ENUM_CLEAR_FLAG(value, flag) ((value) &= ~(flag))
 
-/*
- * =============================================================================
- * C23 <stdckdint.h> - Checked Integer Arithmetic
- * =============================================================================
+/* C23 <stdckdint.h> - Checked Integer Arithmetic
  * Provides overflow-safe arithmetic: ckd_add, ckd_sub, ckd_mul
  * Returns true on overflow, false on success. Result stored in first arg.
  *
- * Source: https://gustedt.wordpress.com/2022/12/18/checked-integer-arithmetic-in-the-prospect-of-c23/
- */
+ * Source: https://gustedt.wordpress.com/2022/12/18/checked-integer-arithmetic-in-the-prospect-of-c23/ */
 #if HAVE_C23 && __has_include(<stdckdint.h>)
 #include <stdckdint.h>
 #define HAVE_STDCKDINT 1
@@ -254,14 +250,10 @@ static inline bool ckd_mul_size(size_t *result, size_t a, size_t b) {
 #endif
 #endif
 
-/*
- * =============================================================================
- * C23 <stdbit.h> - Bit Manipulation Functions
- * =============================================================================
+/* C23 <stdbit.h> - Bit Manipulation Functions
  * Standardized bit operations: count_ones, leading_zeros, trailing_zeros, etc.
  *
- * Source: https://en.cppreference.com/w/c/header/stdbit.html
- */
+ * Source: https://en.cppreference.com/w/c/header/stdbit.html */
 #if HAVE_C23 && __has_include(<stdbit.h>)
 #include <stdbit.h>
 #define HAVE_STDBIT 1
@@ -340,14 +332,10 @@ static inline unsigned int stdc_trailing_zeros_ui_fallback(unsigned int x) {
 #endif
 #endif
 
-/*
- * =============================================================================
- * C23 [[noreturn]] - Replaces deprecated _Noreturn
- * =============================================================================
+/* C23 [[noreturn]] - Replaces deprecated _Noreturn
  * C23 deprecates _Noreturn and <stdnoreturn.h> in favor of [[noreturn]].
  *
- * Source: https://en.cppreference.com/w/c/language/_Noreturn
- */
+ * Source: https://en.cppreference.com/w/c/language/_Noreturn */
 #if HAVE_C23
 #define NORETURN [[noreturn]]
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L

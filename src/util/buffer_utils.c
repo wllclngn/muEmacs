@@ -65,7 +65,7 @@ size_t count_buffer_bytes(struct buffer* bp) {
     size_t total = 0;
     FOR_EACH_LINE_IN_BUFFER(lp, bp) {
         total += (size_t)llength(lp);
-        total++; // Add newline character
+        total++;
     }
     
     // Don't count the final newline if buffer ends without it

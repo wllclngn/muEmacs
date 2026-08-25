@@ -28,7 +28,6 @@ struct variable_description;
 typedef int (*fn_t)(int f, int n);
 
 /* vim_core.c - vim mode infrastructure (c_evil extension provides commands) */
-extern int evil_mode(int f, int n);
 extern void vim_init_keymaps(void);
 extern int vim_enter_normal_mode_external(int f, int n);
 extern int cmd_focus_cycle(int f, int n);
@@ -363,6 +362,7 @@ extern int term_handle_input(int c);
 
 /* search.c */
 extern int forwsearch(int f, int n);
+extern int fuzzsearch(int f, int n);
 extern int forwhunt(int f, int n);
 extern int backsearch(int f, int n);
 extern int backhunt(int f, int n);
@@ -374,7 +374,6 @@ extern int qreplace(int f, int n);
 extern int delins(int dlength, char *instr, int use_meta);
 extern int expandp(char *srcstr, char *deststr, int maxlength);
 extern int boundry(struct line *curline, int curoff, int dir);
-extern void mcclear(void);
 extern void rmcclear(void);
 
 /* isearch.c */
@@ -385,7 +384,6 @@ extern int checknext(char chr, const char *patrn, int dir);
 extern int scanmore(char *patrn, int dir);
 extern int match_pat(const char *patrn);
 extern int promptpattern(char *prompt);
-extern int get_char(void);
 extern int uneat(void);
 extern void reeat(int c);
 
@@ -474,6 +472,7 @@ extern int uep_scripts_try_execute(const char *name);
 extern void extension_emit_buffer_save(struct buffer *bp);
 extern void extension_emit_buffer_load(struct buffer *bp);
 extern bool extension_emit_key(int key);  /* Returns true if key was consumed */
+extern bool extension_emit_raw_key(const struct input_key_event *evt);  /* Pre-dispatch; returns true if consumed */
 extern void extension_emit_idle(void);
 extern bool extension_emit_mouse(struct input_key_event *evt);  /* Returns true if consumed */
 extern int extension_emit_char_insert(int c, int *out);  /* 0=no transform, 1=use out, -1=delete+insert */

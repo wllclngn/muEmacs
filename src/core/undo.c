@@ -59,14 +59,11 @@ struct atomic_undo_stack {
 
 // --- Private Functions ---
 
-// Frees the data associated with a single undo operation
 static void free_undo_operation(struct undo_operation *op) {
     if (op && op->text_data) {
         SAFE_FREE(op->text_data);
     }
 }
-
-// --- Private Functions ---
 
 // Resizes the undo stack if it's full, doubling its capacity up to UNDO_MAX_CAPACITY
 static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
@@ -115,10 +112,8 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
         }
     }
 
-    // Free old operations array
     SAFE_FREE(stack->operations);
 
-    // Update stack pointers atomically
     stack->operations = new_operations;
     atomic_store(&stack->capacity, new_capacity);
     atomic_store(&stack->head, count); // Head is now at the end of copied elements
@@ -130,7 +125,6 @@ static bool undo_stack_resize_if_needed(struct atomic_undo_stack *stack) {
 
 // --- Public API ---
 
-// Creates and initializes a new undo stack for a buffer.
 struct atomic_undo_stack *undo_stack_create(void) {
     struct atomic_undo_stack *stack = safe_alloc(sizeof(struct atomic_undo_stack), "undo stack", __FILE__, __LINE__);
     if (!stack) {
@@ -159,7 +153,6 @@ struct atomic_undo_stack *undo_stack_create(void) {
     return stack;
 }
 
-// Destroys an undo stack, freeing all associated memory.
 void undo_stack_destroy(struct atomic_undo_stack *stack) {
     if (!stack) return;
 
@@ -175,7 +168,6 @@ void undo_stack_destroy(struct atomic_undo_stack *stack) {
 void undo_stack_clear(struct atomic_undo_stack *stack) {
     if (!stack) return;
 
-    // Free all operation text data
     int capacity = atomic_load(&stack->capacity);
     for (int i = 0; i < capacity; ++i) {
         free_undo_operation(&stack->operations[i]);
@@ -196,7 +188,6 @@ void undo_stack_clear(struct atomic_undo_stack *stack) {
     // Note: Keep resize_failed and capacity as-is
 }
 
-// Records a text insertion for undo.
 void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int len) {
     if (!bp || !bp->b_undo_stack || !text) return;
     struct atomic_undo_stack *stack = bp->b_undo_stack;
@@ -222,10 +213,9 @@ void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int 
         atomic_store(&stack->head, (undo_ptr + 1) % atomic_load(&stack->capacity));
     }
 
-    // Get the next slot
     int head = atomic_load(&stack->head);
     struct undo_operation *op = &stack->operations[head];
-    free_undo_operation(op); // Free any old data at this slot
+    free_undo_operation(op);
 
     op->type = EDIT_INSERT;
     op->dot_l = l;
@@ -289,7 +279,6 @@ void undo_record_insert(struct buffer *bp, long l, int o, const char *text, int 
     }
 }
 
-// Records a text deletion for undo.
 void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int len) {
     if (!bp || !bp->b_undo_stack || !text) return;
     struct atomic_undo_stack *stack = bp->b_undo_stack;
@@ -315,7 +304,6 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
         atomic_store(&stack->head, (undo_ptr + 1) % atomic_load(&stack->capacity));
     }
 
-    // Get the next slot
     int head = atomic_load(&stack->head);
     int capacity = atomic_load(&stack->capacity);
     if (head < 0 || head >= capacity) {
@@ -386,7 +374,6 @@ void undo_record_delete(struct buffer *bp, long l, int o, const char *text, int 
     }
 }
 
-// Performs an undo operation on the given buffer.
 int undo_operation(struct buffer *bp) {
     if (!bp || !bp->b_undo_stack) return false;
     struct atomic_undo_stack *stack = bp->b_undo_stack;
@@ -465,7 +452,6 @@ int undo_operation(struct buffer *bp) {
     return success ? true : false;
 }
 
-// Performs a redo operation on the given buffer.
 int redo_operation(struct buffer *bp) {
     if (!bp || !bp->b_undo_stack) return false;
     struct atomic_undo_stack *stack = bp->b_undo_stack;

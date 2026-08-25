@@ -33,29 +33,29 @@ static int cmd_reexecute = -1;		/* > 0 if re-executing command */
  */
 int risearch(int f, int n)
 {
-	struct line *curline;		/* Current line on entry              */
-	int curoff;		/* Current offset on entry            */
+    struct line *curline;		/* Current line on entry              */
+    int curoff;		/* Current offset on entry            */
 
-	/* remember the initial . on entry: */
+    /* remember the initial . on entry: */
 
-	curline = curwp->w_dotp;	/* Save the current line pointer      */
-	curoff = curwp->w_doto;	/* Save the current offset            */
+    curline = curwp->w_dotp;	/* Save the current line pointer      */
+    curoff = curwp->w_doto;	/* Save the current offset            */
 
-	/* Make sure the search doesn't match where we already are:               */
+    /* Make sure the search doesn't match where we already are:               */
 
-	move_char_backward(true, 1);	/* Back up a character                */
+    move_char_backward(true, 1);	/* Back up a character                */
 
-	if (!(isearch(f, -n))) {	/* Call ISearch backwards       *//* If error in search:                */
-		curwp->w_dotp = curline;	/* Reset the line pointer             */
-		curwp->w_doto = curoff;	/*  and the offset to original value  */
-		curwp->w_flag |= WFMOVE;	/* Say we've moved                    */
-		update(false);	/* And force an update                */
-		mlwrite("[SEARCH FAILED]");	/* Say we died                        */
-		matchlen = (unsigned int)strlen(pat);
-	} else
-		mlerase();	/* If happy, just erase the cmd line  */
-	matchlen = (unsigned int)strlen(pat);
-	return true;
+    if (!(isearch(f, -n))) {	/* Call ISearch backwards       *//* If error in search:                */
+        curwp->w_dotp = curline;	/* Reset the line pointer             */
+        curwp->w_doto = curoff;	/*  and the offset to original value  */
+        curwp->w_flag |= WFMOVE;	/* Say we've moved                    */
+        update(false);	/* And force an update                */
+        mlwrite("[SEARCH FAILED]");	/* Say we died                        */
+        matchlen = (unsigned int)strlen(pat);
+    } else
+        mlerase();	/* If happy, just erase the cmd line  */
+    matchlen = (unsigned int)strlen(pat);
+    return true;
 }
 
 /*
@@ -63,27 +63,27 @@ int risearch(int f, int n)
  */
 int fisearch(int f, int n)
 {
-	struct line *curline;		/* Current line on entry              */
-	int curoff;		/* Current offset on entry            */
+    struct line *curline;		/* Current line on entry              */
+    int curoff;		/* Current offset on entry            */
 
-	/* remember the initial . on entry: */
+    /* remember the initial . on entry: */
 
-	curline = curwp->w_dotp;	/* Save the current line pointer      */
-	curoff = curwp->w_doto;	/* Save the current offset            */
+    curline = curwp->w_dotp;	/* Save the current line pointer      */
+    curoff = curwp->w_doto;	/* Save the current offset            */
 
-	/* do the search */
+    /* do the search */
 
-	if (!(isearch(f, n))) {	/* Call ISearch forwards        *//* If error in search:                */
-		curwp->w_dotp = curline;	/* Reset the line pointer             */
-		curwp->w_doto = curoff;	/*  and the offset to original value  */
-		curwp->w_flag |= WFMOVE;	/* Say we've moved                    */
-		update(false);	/* And force an update                */
-		mlwrite("[SEARCH FAILED]");	/* Say we died                        */
-		matchlen = (unsigned int)strlen(pat);
-	} else
-		mlerase();	/* If happy, just erase the cmd line  */
-	matchlen = (unsigned int)strlen(pat);
-	return true;
+    if (!(isearch(f, n))) {	/* Call ISearch forwards        *//* If error in search:                */
+        curwp->w_dotp = curline;	/* Reset the line pointer             */
+        curwp->w_doto = curoff;	/*  and the offset to original value  */
+        curwp->w_flag |= WFMOVE;	/* Say we've moved                    */
+        update(false);	/* And force an update                */
+        mlwrite("[SEARCH FAILED]");	/* Say we died                        */
+        matchlen = (unsigned int)strlen(pat);
+    } else
+        mlerase();	/* If happy, just erase the cmd line  */
+    matchlen = (unsigned int)strlen(pat);
+    return true;
 }
 
 /*
@@ -114,144 +114,144 @@ int fisearch(int f, int n)
 
 int isearch(int f, int n)
 {
-	int status;
-	int col;
-	int cpos;
-	input_key_event_t evt;
-	char pat_save[NPAT];
-	struct line *curline;
-	int curoff;
-	int init_direction;
+    int status;
+    int col;
+    int cpos;
+    input_key_event_t evt;
+    char pat_save[NPAT];
+    struct line *curline;
+    int curoff;
+    int init_direction;
 
-	/* Initialize starting conditions */
-	cmd_reexecute = -1;
-	cmd_offset = 0;
-	cmd_buff[0] = '\0';
-	safe_strcpy(pat_save, pat, NPAT);
-	curline = curwp->w_dotp;
-	curoff = curwp->w_doto;
-	init_direction = n;
+    /* Initialize starting conditions */
+    cmd_reexecute = -1;
+    cmd_offset = 0;
+    cmd_buff[0] = '\0';
+    safe_strcpy(pat_save, pat, NPAT);
+    curline = curwp->w_dotp;
+    curoff = curwp->w_doto;
+    init_direction = n;
 
 start_over:
-	col = promptpattern("ISearch: ");
-	cpos = 0;
-	status = true;
+    col = promptpattern("ISearch: ");
+    cpos = 0;
+    status = true;
 
-	/* Get first character - if Ctrl-S/Ctrl-R, reuse old pattern */
-	if (!isearch_read_event(&evt))
-		return false;
+    /* Get first character - if Ctrl-S/Ctrl-R, reuse old pattern */
+    if (!isearch_read_event(&evt))
+        return false;
 
-	if (evt_is_ctrl(&evt, 'S') || evt_is_ctrl(&evt, 'R')) {
-		/* Reuse old search string */
-		for (cpos = 0; pat[cpos] != 0; cpos++)
-			col = echo_char(pat[cpos], col);
-		if (evt_is_ctrl(&evt, 'R')) {
-			n = -1;
-			move_char_backward(true, 1);
-		} else {
-			n = 1;
-		}
-		status = scanmore(pat, n);
-		if (!isearch_read_event(&evt))
-			return false;
-	}
+    if (evt_is_ctrl(&evt, 'S') || evt_is_ctrl(&evt, 'R')) {
+        /* Reuse old search string */
+        for (cpos = 0; pat[cpos] != 0; cpos++)
+            col = echo_char(pat[cpos], col);
+        if (evt_is_ctrl(&evt, 'R')) {
+            n = -1;
+            move_char_backward(true, 1);
+        } else {
+            n = 1;
+        }
+        status = scanmore(pat, n);
+        if (!isearch_read_event(&evt))
+            return false;
+    }
 
-	/* Main search loop */
-	for (;;) {
-		/* ESC or Meta: quit searching successfully */
-		if (evt_is_esc(&evt) || evt_has_meta(&evt))
-			return true;
+    /* Main search loop */
+    for (;;) {
+        /* ESC or Meta: quit searching successfully */
+        if (evt_is_esc(&evt) || evt_has_meta(&evt))
+            return true;
 
-		/* Ctrl-G: abort search */
-		if (evt_is_ctrl(&evt, 'G'))
-			return false;
+        /* Ctrl-G: abort search */
+        if (evt_is_ctrl(&evt, 'G'))
+            return false;
 
-		/* Ctrl-S: search forward */
-		if (evt_is_ctrl(&evt, 'S')) {
-			n = 1;
-			status = scanmore(pat, n);
-			if (!isearch_read_event(&evt))
-				return false;
-			continue;
-		}
+        /* Ctrl-S: search forward */
+        if (evt_is_ctrl(&evt, 'S')) {
+            n = 1;
+            status = scanmore(pat, n);
+            if (!isearch_read_event(&evt))
+                return false;
+            continue;
+        }
 
-		/* Ctrl-R: search backward */
-		if (evt_is_ctrl(&evt, 'R')) {
-			n = -1;
-			/* If pattern matches immediately behind cursor, skip past it first */
-			if (pat[0] != '\0' && match_pat_behind(pat)) {
-				move_char_backward(true, (int)strlen(pat));
-			}
-			status = scanmore(pat, n);
-			if (!isearch_read_event(&evt))
-				return false;
-			continue;
-		}
+        /* Ctrl-R: search backward */
+        if (evt_is_ctrl(&evt, 'R')) {
+            n = -1;
+            /* If pattern matches immediately behind cursor, skip past it first */
+            if (pat[0] != '\0' && match_pat_behind(pat)) {
+                move_char_backward(true, (int)strlen(pat));
+            }
+            status = scanmore(pat, n);
+            if (!isearch_read_event(&evt))
+                return false;
+            continue;
+        }
 
-		/* Ctrl-Q: quote next character */
-		if (evt_is_ctrl(&evt, 'Q')) {
-			if (!isearch_read_event(&evt))
-				return false;
-			/* Fall through to add the quoted char */
-		}
+        /* Ctrl-Q: quote next character */
+        if (evt_is_ctrl(&evt, 'Q')) {
+            if (!isearch_read_event(&evt))
+                return false;
+            /* Fall through to add the quoted char */
+        }
 
-		/* Backspace/Delete: undo last character */
-		if (evt_is_backspace(&evt)) {
-			if (cmd_offset <= 1)
-				return true;
-			--cmd_offset;
-			cmd_buff[--cmd_offset] = '\0';
-			curwp->w_dotp = curline;
-			curwp->w_doto = curoff;
-			n = init_direction;
-			safe_strcpy(pat, pat_save, NPAT);
-			cmd_reexecute = 0;
-			goto start_over;
-		}
+        /* Backspace/Delete: undo last character */
+        if (evt_is_backspace(&evt)) {
+            if (cmd_offset <= 1)
+                return true;
+            --cmd_offset;
+            cmd_buff[--cmd_offset] = '\0';
+            curwp->w_dotp = curline;
+            curwp->w_doto = curoff;
+            n = init_direction;
+            safe_strcpy(pat, pat_save, NPAT);
+            cmd_reexecute = 0;
+            goto start_over;
+        }
 
-		/* Get character code */
-		int c = evt_char(&evt);
+        /* Get character code */
+        int c = evt_char(&evt);
 
-		/* Enter: treat as newline in pattern */
-		if (evt_is_enter(&evt))
-			c = '\n';
+        /* Enter: treat as newline in pattern */
+        if (evt_is_enter(&evt))
+            c = '\n';
 
-		/* Tab is allowed in pattern */
-		if (evt_is_tab(&evt))
-			c = '\t';
+        /* Tab is allowed in pattern */
+        if (evt_is_tab(&evt))
+            c = '\t';
 
-		/* Non-printable control char: re-eat and exit */
-		if (c >= 0 && c < ' ' && c != '\n' && c != '\t') {
-			reeat(c);
-			return true;
-		}
+        /* Non-printable control char: re-eat and exit */
+        if (c >= 0 && c < ' ' && c != '\n' && c != '\t') {
+            reeat(c);
+            return true;
+        }
 
-		/* Skip if not a valid character */
-		if (c < 0) {
-			if (!isearch_read_event(&evt))
-				return false;
-			continue;
-		}
+        /* Skip if not a valid character */
+        if (c < 0) {
+            if (!isearch_read_event(&evt))
+                return false;
+            continue;
+        }
 
-		/* Add character to search pattern */
-		pat[cpos++] = (char)c;
-		if (cpos >= NPAT) {
-			mlwrite("? SEARCH STRING TOO LONG");
-			return true;
-		}
-		pat[cpos] = '\0';
-		col = echo_char(c, col);
+        /* Add character to search pattern */
+        pat[cpos++] = (char)c;
+        if (cpos >= NPAT) {
+            mlwrite("? SEARCH STRING TOO LONG");
+            return true;
+        }
+        pat[cpos] = '\0';
+        col = echo_char(c, col);
 
-		if (!status) {
-			TTputc(BELL);
-			TTflush();
-		} else if (!(status = checknext((char)c, pat, n))) {
-			status = scanmore(pat, n);
-		}
+        if (!status) {
+            TTputc(BELL);
+            TTflush();
+        } else if (!(status = checknext((char)c, pat, n))) {
+            status = scanmore(pat, n);
+        }
 
-		if (!isearch_read_event(&evt))
-			return false;
-	}
+        if (!isearch_read_event(&evt))
+            return false;
+    }
 }
 
 /*
@@ -270,34 +270,34 @@ start_over:
  */
 int checknext(char chr, const char *patrn, int dir)	/* Check next character in search string */
 {
-	struct line *curline;	/* current line during scan           */
-	int curoff;	/* position within current line       */
-	int buffchar;	/* character at current position      */
-	int status;		/* how well things go                 */
+    struct line *curline;	/* current line during scan           */
+    int curoff;	/* position within current line       */
+    int buffchar;	/* character at current position      */
+    int status;		/* how well things go                 */
 
 
-	/* setup the local scan pointer to current "." */
+    /* setup the local scan pointer to current "." */
 
-	curline = curwp->w_dotp;		/* Get the current line structure     */
-	curoff = curwp->w_doto;			/* Get the offset within that line    */
+    curline = curwp->w_dotp;		/* Get the current line structure     */
+    curoff = curwp->w_doto;			/* Get the offset within that line    */
 
-	if (dir > 0) {				/* If searching forward                 */
-		if (curoff == llength(curline)) {		/* If at end of line                    */
-			curline = lforw(curline);		/* Skip to the next line              */
-			if (curline == curbp->b_linep)
-				return false;			/* Abort if at end of buffer          */
-			curoff = 0;				/* Start at the beginning of the line */
-			buffchar = '\n';			/* And say the next char is NL        */
-		} else
-			buffchar = lgetc(curline, curoff++);	/* Get the next char         */
-		if ((status = eq((unsigned char)buffchar, (unsigned char)chr)) != 0) {	/* Is it what we're looking for?      */
-			curwp->w_dotp = curline;		/* Yes, set the buffer's point        */
-			curwp->w_doto = curoff;			/*  to the matched character          */
-			curwp->w_flag |= WFMOVE;		/* Say that we've moved               */
-		}
-		return status;		/* And return the status              */
-	} else					/* Else, if reverse search:       */
-		return match_pat(patrn);	/* See if we're in the right place    */
+    if (dir > 0) {				/* If searching forward                 */
+        if (curoff == llength(curline)) {		/* If at end of line                    */
+            curline = lforw(curline);		/* Skip to the next line              */
+            if (curline == curbp->b_linep)
+                return false;			/* Abort if at end of buffer          */
+            curoff = 0;				/* Start at the beginning of the line */
+            buffchar = '\n';			/* And say the next char is NL        */
+        } else
+            buffchar = lgetc(curline, curoff++);	/* Get the next char         */
+        if ((status = eq((unsigned char)buffchar, (unsigned char)chr)) != 0) {	/* Is it what we're looking for?      */
+            curwp->w_dotp = curline;		/* Yes, set the buffer's point        */
+            curwp->w_doto = curoff;			/*  to the matched character          */
+            curwp->w_flag |= WFMOVE;		/* Say that we've moved               */
+        }
+        return status;		/* And return the status              */
+    } else					/* Else, if reverse search:       */
+        return match_pat(patrn);	/* See if we're in the right place    */
 }
 
 /*
@@ -314,20 +314,20 @@ int checknext(char chr, const char *patrn, int dir)	/* Check next character in s
  */
 int scanmore(char *patrn, int dir)	/* search forward or back for a pattern           */
 {
-	int sts;		/* search status                      */
+    int sts;		/* search status                      */
 
-	if (dir < 0) {		/* reverse search?              */
-		rvstrcpy(tap, patrn, NPAT);	/* Put reversed string in tap */
-		sts = scanner(tap, DIR_REVERSE, POS_BEGIN);
-	} else
-		sts = scanner(patrn, DIR_FORWARD, POS_END);	/* Nope. Go forward   */
+    if (dir < 0) {		/* reverse search?              */
+        rvstrcpy(tap, patrn, NPAT);	/* Put reversed string in tap */
+        sts = scanner(tap, DIR_REVERSE, POS_BEGIN);
+    } else
+        sts = scanner(patrn, DIR_FORWARD, POS_END);	/* Nope. Go forward   */
 
-	if (!sts) {
-		TTputc(BELL);	/* Feep if search fails       */
-		TTflush();	/* see that the feep feeps    */
-	}
+    if (!sts) {
+        TTputc(BELL);	/* Feep if search fails       */
+        TTflush();	/* see that the feep feeps    */
+    }
 
-	return sts;		/* else, don't even try       */
+    return sts;		/* else, don't even try       */
 }
 
 /*
@@ -337,31 +337,31 @@ int scanmore(char *patrn, int dir)	/* search forward or back for a pattern      
  */
 static int match_pat_behind(const char *patrn)
 {
-	int patlen = (int)strlen(patrn);
-	if (patlen == 0) return false;
+    int patlen = (int)strlen(patrn);
+    if (patlen == 0) return false;
 
-	/* Calculate start position: patlen chars before cursor */
-	struct line *lp = curwp->w_dotp;
-	int off = curwp->w_doto;
+    /* Calculate start position: patlen chars before cursor */
+    struct line *lp = curwp->w_dotp;
+    int off = curwp->w_doto;
 
-	/* Move back patlen characters */
-	for (int i = 0; i < patlen; i++) {
-		if (off == 0) {
-			lp = lback(lp);
-			if (lp == curbp->b_linep)
-				return false;  /* Hit beginning of buffer */
-			off = llength(lp);
-			/* Account for newline at end of previous line */
-			if (patrn[patlen - 1 - i] != '\n')
-				return false;
-		} else {
-			off--;
-			if (lgetc(lp, off) != patrn[patlen - 1 - i] &&
-			    !eq((unsigned char)lgetc(lp, off), (unsigned char)patrn[patlen - 1 - i]))
-				return false;
-		}
-	}
-	return true;
+    /* Move back patlen characters */
+    for (int i = 0; i < patlen; i++) {
+        if (off == 0) {
+            lp = lback(lp);
+            if (lp == curbp->b_linep)
+                return false;  /* Hit beginning of buffer */
+            off = llength(lp);
+            /* Account for newline at end of previous line */
+            if (patrn[patlen - 1 - i] != '\n')
+                return false;
+        } else {
+            off--;
+            if (lgetc(lp, off) != patrn[patlen - 1 - i] &&
+              !eq((unsigned char)lgetc(lp, off), (unsigned char)patrn[patlen - 1 - i]))
+                return false;
+        }
+    }
+    return true;
 }
 
 /*
@@ -377,31 +377,31 @@ static int match_pat_behind(const char *patrn)
  */
 int match_pat(const char *patrn)	/* See if the pattern string matches string at "."   */
 {
-	size_t i;		/* Generic loop index/offset          */
-	int buffchar;	/* character at current position      */
-	struct line *curline;	/* current line during scan           */
-	int curoff;	/* position within current line       */
+    size_t i;		/* Generic loop index/offset          */
+    int buffchar;	/* character at current position      */
+    struct line *curline;	/* current line during scan           */
+    int curoff;	/* position within current line       */
 
-	/* setup the local scan pointer to current "." */
+    /* setup the local scan pointer to current "." */
 
-	curline = curwp->w_dotp;	/* Get the current line structure     */
-	curoff = curwp->w_doto;	/* Get the offset within that line    */
+    curline = curwp->w_dotp;	/* Get the current line structure     */
+    curoff = curwp->w_doto;	/* Get the offset within that line    */
 
-	/* top of per character compare loop: */
+    /* top of per character compare loop: */
 
-	for (i = 0; i < strlen(patrn); i++) {	/* Loop for all characters in patrn   */
-		if (curoff == llength(curline)) {	/* If at end of line                    */
-			curline = lforw(curline);	/* Skip to the next line              */
-			curoff = 0;	/* Start at the beginning of the line */
-			if (curline == curbp->b_linep)
-				return false;	/* Abort if at end of buffer          */
-			buffchar = '\n';	/* And say the next char is NL        */
-		} else
-			buffchar = lgetc(curline, curoff++);	/* Get the next char         */
-		if (!eq((unsigned char)buffchar, (unsigned char)patrn[i]))	/* Is it what we're looking for?      */
-			return false;	/* Nope, just punt it then            */
-	}
-	return true;		/* Everything matched? Let's celebrate */
+    for (i = 0; i < strlen(patrn); i++) {	/* Loop for all characters in patrn   */
+        if (curoff == llength(curline)) {	/* If at end of line                    */
+            curline = lforw(curline);	/* Skip to the next line              */
+            curoff = 0;	/* Start at the beginning of the line */
+            if (curline == curbp->b_linep)
+                return false;	/* Abort if at end of buffer          */
+            buffchar = '\n';	/* And say the next char is NL        */
+        } else
+            buffchar = lgetc(curline, curoff++);	/* Get the next char         */
+        if (!eq((unsigned char)buffchar, (unsigned char)patrn[i]))	/* Is it what we're looking for?      */
+            return false;	/* Nope, just punt it then            */
+    }
+    return true;		/* Everything matched? Let's celebrate */
 }
 
 /*
@@ -409,18 +409,18 @@ int match_pat(const char *patrn)	/* See if the pattern string matches string at 
  */
 int promptpattern(char *prompt)
 {
-	char tpat[NPAT + 20];
+    char tpat[NPAT + 20];
 
     safe_strcpy(tpat, prompt, sizeof(tpat));	/* copy prompt to output string */
     safe_strcat(tpat, " (", sizeof(tpat));	/* build new prompt string */
-	expandp(pat, &tpat[strlen(tpat)], NPAT / 2);	/* add old pattern */
+    expandp(pat, &tpat[strlen(tpat)], NPAT / 2);	/* add old pattern */
     safe_strcat(tpat, ")<Meta>: ", sizeof(tpat));
 
-	/* check to see if we are executing a command line */
-	if (!clexec) {
-		mlwrite(tpat);
-	}
-	return (int)strlen(tpat);
+    /* check to see if we are executing a command line */
+    if (!clexec) {
+        mlwrite(tpat);
+    }
+    return (int)strlen(tpat);
 }
 
 /*
@@ -431,41 +431,41 @@ int promptpattern(char *prompt)
  */
 static int echo_char(int c, int col)
 {
-	movecursor(term.t_nrow, col);	/* Position the cursor        */
-	if ((c < ' ') || (c == 0x7F)) {	/* Control character?           */
-		switch (c) {	/* Yes, dispatch special cases */
-		case '\n':	/* Newline                    */
-			TTputc('<');
-			TTputc('N');
-			TTputc('L');
-			TTputc('>');
-			col += 3;
-			break;
+    movecursor(term.t_nrow, col);	/* Position the cursor        */
+    if ((c < ' ') || (c == 0x7F)) {	/* Control character?           */
+        switch (c) {	/* Yes, dispatch special cases */
+        case '\n':	/* Newline                    */
+            TTputc('<');
+            TTputc('N');
+            TTputc('L');
+            TTputc('>');
+            col += 3;
+            break;
 
-		case '\t':	/* Tab                        */
-			TTputc('<');
-			TTputc('T');
-			TTputc('A');
-			TTputc('B');
-			TTputc('>');
-			col += 4;
-			break;
+        case '\t':	/* Tab                        */
+            TTputc('<');
+            TTputc('T');
+            TTputc('A');
+            TTputc('B');
+            TTputc('>');
+            col += 4;
+            break;
 
-		case 0x7F:	/* Rubout:                    */
-			TTputc('^');	/* Output a funny looking     */
-			TTputc('?');	/*  indication of Rubout      */
-			col++;	/* Count the extra char       */
-			break;
+        case 0x7F:	/* Rubout:                    */
+            TTputc('^');	/* Output a funny looking     */
+            TTputc('?');	/*  indication of Rubout      */
+            col++;	/* Count the extra char       */
+            break;
 
-		default:	/* Vanilla control char       */
-			TTputc('^');	/* Yes, output prefix         */
-			TTputc(c + 0x40);	/* Make it "^X"               */
-			col++;	/* Count this char            */
-		}
-	} else
-		TTputc(c);	/* Otherwise, output raw char */
-	TTflush();		/* Flush the output           */
-	return ++col;		/* return the new column no   */
+        default:	/* Vanilla control char       */
+            TTputc('^');	/* Yes, output prefix         */
+            TTputc(c + 0x40);	/* Make it "^X"               */
+            col++;	/* Count this char            */
+        }
+    } else
+        TTputc(c);	/* Otherwise, output raw char */
+    TTflush();		/* Flush the output           */
+    return ++col;		/* return the new column no   */
 }
 
 /*
@@ -476,46 +476,37 @@ static int echo_char(int c, int col)
  */
 static bool isearch_read_event(input_key_event_t *out)
 {
-	/* See if we're re-executing a saved command */
-	if (cmd_reexecute >= 0) {
-		int c = cmd_buff[cmd_reexecute++];
-		if (c != 0) {
-			out->type = KEY_CHAR;
-			out->code = (uint32_t)c;
-			out->modifiers = 0;
-			return true;
-		}
-	}
+    /* See if we're re-executing a saved command */
+    if (cmd_reexecute >= 0) {
+        int c = cmd_buff[cmd_reexecute++];
+        if (c != 0) {
+            out->type = KEY_CHAR;
+            out->code = (uint32_t)c;
+            out->modifiers = 0;
+            return true;
+        }
+    }
 
-	/* Not re-executing - get real input */
-	cmd_reexecute = -1;
-	update(false);
+    /* Not re-executing - get real input */
+    cmd_reexecute = -1;
+    update(false);
 
-	if (cmd_offset >= CMDBUFLEN - 1) {
-		mlwrite("? COMMAND TOO LONG");
-		return false;
-	}
+    if (cmd_offset >= CMDBUFLEN - 1) {
+        mlwrite("? COMMAND TOO LONG");
+        return false;
+    }
 
-	if (input_read_event(out) < 0)
-		return false;
+    if (input_read_event(out) < 0)
+        return false;
 
-	/* Save character for re-execution (only simple chars) */
-	int c = evt_char(out);
-	if (c >= 0) {
-		cmd_buff[cmd_offset++] = c;
-		cmd_buff[cmd_offset] = '\0';
-	}
+    /* Save character for re-execution (only simple chars) */
+    int c = evt_char(out);
+    if (c >= 0) {
+        cmd_buff[cmd_offset++] = c;
+        cmd_buff[cmd_offset] = '\0';
+    }
 
-	return true;
-}
-
-/* Legacy wrapper for backward compatibility */
-int get_char(void)
-{
-	input_key_event_t evt;
-	if (!isearch_read_event(&evt))
-		return 0x1B;  /* Return ESC on error (will quit search) */
-	return evt_char(&evt);
+    return true;
 }
 
 /*
@@ -533,19 +524,19 @@ int get_char(void)
 
 int uneat(void)
 {
-	int c;
+    int c;
 
-	term.t_getchar = saved_get_char;	/* restore the routine address        */
-	c = eaten_char;		/* Get the re-eaten char              */
-	eaten_char = -1;	/* Clear the old char                 */
-	return c;		/* and return the last char           */
+    term.t_getchar = saved_get_char;	/* restore the routine address        */
+    c = eaten_char;		/* Get the re-eaten char              */
+    eaten_char = -1;	/* Clear the old char                 */
+    return c;		/* and return the last char           */
 }
 
 void reeat(int c)
 {
-	if (eaten_char != -1)	/* If we've already been here             */
-		return /*(nullptr) */ ;	/* Don't do it again                  */
-	eaten_char = c;		/* Else, save the char for later      */
-	saved_get_char = term.t_getchar;	/* Save the char get routine          */
-	term.t_getchar = uneat;	/* Replace it with ours               */
+    if (eaten_char != -1)	/* If we've already been here             */
+        return /*(nullptr) */ ;	/* Don't do it again                  */
+    eaten_char = c;		/* Else, save the char for later      */
+    saved_get_char = term.t_getchar;	/* Save the char get routine          */
+    term.t_getchar = uneat;	/* Replace it with ours               */
 }

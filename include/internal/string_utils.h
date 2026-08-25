@@ -12,10 +12,8 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-/* ============================================================================
- * CORE SAFE STRING OPERATIONS
- * Replaces unsafe strcpy/strcat/sprintf throughout codebase
- * ============================================================================ */
+/* CORE SAFE STRING OPERATIONS
+ * Replaces unsafe strcpy/strcat/sprintf throughout codebase */
 
 size_t safe_strcpy(char *restrict dest, const char *restrict src, size_t dest_size);
 size_t safe_strcat(char *restrict dest, const char *restrict src, size_t dest_size);
@@ -23,9 +21,7 @@ size_t safe_sprintf(char *restrict dest, size_t dest_size, const char *restrict 
 size_t safe_vsnprintf(char *restrict dest, size_t dest_size, const char *restrict format, va_list args);
 int safe_snprintf(char *restrict dest, size_t size, const char *restrict fmt, ...);
 
-/* ============================================================================
- * STRING VALIDATION AND UTILITIES
- * ============================================================================ */
+/* STRING VALIDATION AND UTILITIES */
 
 bool is_valid_string(const char *str, size_t max_len);
 size_t safe_strlen(const char *str, size_t max_len);
@@ -36,9 +32,7 @@ char *safe_strtok(char *str, const char *delim, char **saveptr);
 int safe_stricmp(const char *s1, const char *s2);
 const char *safe_basename(const char *path);
 
-/* ============================================================================
- * SAFE NUMBER PARSING (replaces unsafe atoi)
- * ============================================================================ */
+/* SAFE NUMBER PARSING (replaces unsafe atoi) */
 
 /**
  * safe_atoi - Convert string to int with error handling
@@ -55,16 +49,12 @@ int safe_atoi(const char *str, int default_val);
  */
 int safe_atoi_range(const char *str, int default_val, int min_val, int max_val);
 
-/* ============================================================================
- * BUFFER BOUNDARY CHECKING
- * ============================================================================ */
+/* BUFFER BOUNDARY CHECKING */
 
 bool check_buffer_bounds(const void *buffer, size_t buffer_size, size_t access_size);
 size_t get_safe_buffer_length(const char *buffer, size_t max_size);
 
-/* ============================================================================
- * TERMINAL DISPLAY FUNCTIONS
- * ============================================================================ */
+/* TERMINAL DISPLAY FUNCTIONS */
 
 int vtputs(const char *str);
 int vtprintf(const char *fmt, ...);
@@ -72,12 +62,10 @@ int vtputs_width(const char *str, int min_width, int pad_ch);
 int vtput_separator(const char *sep, int count);
 int vtput_progress_bar(int percent, int width);
 
-/* ============================================================================
- * DISPLAY WIDTH CALCULATION (ANSI-aware)
+/* DISPLAY WIDTH CALCULATION (ANSI-aware)
  *
  * These functions properly skip ANSI escape sequences when calculating
- * display width, essential for correct status line and modeline rendering.
- * ============================================================================ */
+ * display width, essential for correct status line and modeline rendering. */
 
 /* Calculate display columns, skipping ANSI escape sequences */
 int display_cols(const char *str);
@@ -88,9 +76,7 @@ int display_truncate(char *str, int max_cols);
 /* Pad or truncate string to exactly target_cols display columns */
 int display_pad(char *dest, size_t dest_size, const char *src, int target_cols, char pad_char);
 
-/* ============================================================================
- * CONVENIENCE MACROS
- * ============================================================================ */
+/* CONVENIENCE MACROS */
 
 #define SAFE_STRCPY(dest, src) \
     safe_strcpy(dest, src, sizeof(dest))
@@ -104,9 +90,7 @@ int display_pad(char *dest, size_t dest_size, const char *src, int target_cols, 
 #define SAFE_SPRINTF(dest, fmt, ...) \
     safe_sprintf(dest, sizeof(dest), fmt, ##__VA_ARGS__)
 
-/* ============================================================================
- * ERROR HANDLING (Enhanced operations)
- * ============================================================================ */
+/* ERROR HANDLING (Enhanced operations) */
 
 typedef enum {
     STRING_SUCCESS = 0,

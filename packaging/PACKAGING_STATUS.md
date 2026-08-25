@@ -1,43 +1,40 @@
 # μEmacs Packaging Status
 
-## ✅ COMPLETE - Ready for Distribution
+**Status: Needs verification pass.** The pieces below exist but none of
+them has been re-verified against a clean v3.1.0 install. Do not treat
+this directory as release-ready until each item is checked.
 
-### FHS Compliance Implemented
-- ✅ `/usr/bin/uemacs` - Executable binary
-- ✅ `/usr/share/applications/uemacs.desktop` - Desktop integration  
-- ✅ `/usr/share/pixmaps/uemacs.png` - Application icon (48x48)
-- ✅ `/usr/share/man/man1/uemacs.1` - Manual page
-- ✅ `/usr/share/uemacs/` - Application data directory
+## What Exists
 
-### Distribution Packaging Ready
-- ✅ **Debian/Ubuntu**: Complete `debian/` directory with control, rules, changelog
-- ✅ **Arch Linux AUR**: PKGBUILD ready for submission
-- ✅ **Generic Linux**: CMake + GNUInstallDirs for universal compatibility
+### Install rules (CMake)
+- `muEmacs` binary and `muemacs-ext-runner` (install TARGETS)
+- `packaging/muEmacs.desktop` - desktop entry
+- `packaging/muEmacs.1` - manual page
+- `packaging/muemacs-icon.svg` - application icon
+- `config/` defaults, `scripts/uep_build.py`, `include/uep` headers,
+  `README.md`
 
-### Legal Compliance
-- ✅ Icon attribution documented (CC BY-SA 4.0)
-- ✅ License files maintained
-- ✅ Copyright notices preserved
+### Distribution files
+- `debian/` - control, rules, changelog, copyright, compat
+- `PKGBUILD` - Arch build script (pkgname muemacs, pkgver 3.1.0)
+- `_aur_local/PKGBUILD` - local-tarball variant
 
-### Installation Testing
-```bash
-# Verified successful installation to all FHS paths
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-make -j$(nproc)
-sudo make install
-```
+### Legal
+- Icon attribution documented (ICON_ATTRIBUTION.txt, CC BY-SA 4.0)
+- Packaging license set to GPL-2.0; lineage vs the original MicroEMACS
+  license is pending owner verification
 
-## Next Steps for Repository Submission
+## Verification Checklist (open)
 
-### Debian Repository
-1. File ITP (Intent to Package) via `reportbug wnpp`
-2. Find sponsor on debian-mentors mailing list
-3. Upload to mentors.debian.net
+1. Clean-chroot build of the PKGBUILD (`makepkg`, then `namcap`)
+2. `dpkg-buildpackage` run against `debian/` on a current Debian/Ubuntu
+3. Confirm installed paths: binary, desktop file, icon, man page
+4. Fill the TODO homepage/url placeholders with the real project URL
+5. Generate real sha256sums (both PKGBUILDs currently use SKIP)
+6. Resolve the license lineage question, then finalize license fields
 
-### Arch Linux AUR
-1. Setup SSH key on aur.archlinux.org
-2. Clone AUR repository: `git clone ssh://aur@aur.archlinux.org/uemacs.git`
-3. Submit PKGBUILD and .SRCINFO
+## Repository Submission (after verification)
 
-**μEmacs is now packaged to modern Linux standards and ready for official distribution repositories.**
+- Debian: File ITP via `reportbug wnpp`, find a sponsor on
+  debian-mentors, upload to mentors.debian.net
+- AUR: Set up SSH key on aur.archlinux.org, push PKGBUILD and .SRCINFO

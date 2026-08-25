@@ -11,10 +11,6 @@ int test_utf8_randomized_sanity(void);
 int test_util_profiler(void);       // Profiler system tests
 
 // Text module tests
-int test_bmh_literals(void);
-int test_bmh_edge_cases(void);
-int test_bmh_additional_edges(void);
-int test_text_nfa(void);     // NFA regex engine tests
 int test_text_search(void);  // Search functionality tests
 
 // Core module tests

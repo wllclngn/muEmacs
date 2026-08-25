@@ -149,10 +149,8 @@ static int register_script(const char *name, const char *path) {
 static void unregister_script(int slot) {
     if (slot < 0 || slot >= MAX_SCRIPTS || !scripts[slot].active) return;
 
-    free(scripts[slot].name);
-    free(scripts[slot].path);
-    scripts[slot].name = nullptr;
-    scripts[slot].path = nullptr;
+    SAFE_FREE(scripts[slot].name);
+    SAFE_FREE(scripts[slot].path);
     scripts[slot].active = false;
     script_count--;
 }
@@ -230,7 +228,7 @@ int uep_scripts_load(void) {
             loaded++;
         }
 
-        free(name);
+        SAFE_FREE(name);
     }
 
     closedir(dir);
@@ -454,11 +452,12 @@ static void show_output(const char *output, size_t len, const char *script_name)
     mlwrite("[%s] Output in *Script Output* buffer", script_name);
 }
 
+/* Returns 0 on success, -1 on failure (not found, spawn error, nonzero exit) */
 int uep_scripts_exec(const char *name) {
     const char *path = uep_scripts_find(name);
     if (!path) {
         mlwrite("Script not found: %s", name);
-        return 0;
+        return -1;
     }
 
     /* Get buffer contents */
@@ -481,8 +480,8 @@ int uep_scripts_exec(const char *name) {
     int stdin_pipe[2], stdout_pipe[2];
     if (pipe(stdin_pipe) < 0 || pipe(stdout_pipe) < 0) {
         LOG_ERROR("uep_scripts: pipe failed");
-        free(input);
-        return 0;
+        SAFE_FREE(input);
+        return -1;
     }
 
     mlwrite("Running %s...", name);
@@ -493,8 +492,8 @@ int uep_scripts_exec(const char *name) {
         LOG_ERROR("uep_scripts: fork failed");
         close(stdin_pipe[0]); close(stdin_pipe[1]);
         close(stdout_pipe[0]); close(stdout_pipe[1]);
-        free(input);
-        return 0;
+        SAFE_FREE(input);
+        return -1;
     }
 
     if (pid == 0) {
@@ -575,7 +574,7 @@ int uep_scripts_exec(const char *name) {
     unsetenv("MUEMACS_LINE");
     unsetenv("MUEMACS_COLUMN");
 
-    return exit_code == 0 ? 1 : 0;
+    return exit_code == 0 ? 0 : -1;
 }
 
 /*
@@ -619,7 +618,8 @@ typedef int (*fn_t)(int, int);
 
 /*
  * Try to execute a command as a script.
- * Returns 1 if executed, 0 if not a script.
+ * Returns 1 if the name is a registered script (execution errors are
+ * reported to the user by uep_scripts_exec), 0 if not a script.
  */
 int uep_scripts_try_execute(const char *name) {
     if (!name) return 0;
@@ -627,5 +627,6 @@ int uep_scripts_try_execute(const char *name) {
     const char *path = uep_scripts_find(name);
     if (!path) return 0;
 
-    return uep_scripts_exec(name);
+    (void)uep_scripts_exec(name);
+    return 1;
 }

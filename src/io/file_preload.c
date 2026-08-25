@@ -24,7 +24,11 @@ static int thread_active = 0;
 
 static struct {
     char fname[NFILEN];     /* Filename being preloaded */
-    char *data;             /* File content (malloc'd) */
+    char *data;             /* File content. Raw malloc by contract:
+                             * allocated on the preload thread, ownership
+                             * transfers through file_preload_get() and
+                             * the consumer raw-frees (buffer.c). Not a
+                             * SAFE_* allocation. */
     size_t size;            /* Content size */
     int status;             /* 0=pending, 1=done, -1=error */
 } preload_cache;

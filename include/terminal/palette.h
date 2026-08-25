@@ -126,119 +126,46 @@ color_capability_t palette_detect_capability(void);
  */
 bool palette_truecolor_capable(void);
 
-/*
- * Generate SGR escape sequence for foreground color.
- *
- * @param idx  Palette index (0-255, -1 for default, -2 for truecolor)
- * @return     Static buffer with escape sequence (e.g., "\033[38;5;14m")
- *             Returns "" for idx == -1 (no color change)
- */
+/* Foreground SGR for palette index (0-255, -2 truecolor); static buffer, "" for idx == -1 */
 const char* sgr_palette_fg(int idx);
 
-/*
- * Generate SGR escape sequence for background color.
- *
- * @param idx  Palette index (0-255, -1 for default, -2 for truecolor)
- * @return     Static buffer with escape sequence (e.g., "\033[48;5;236m")
- *             Returns "" for idx == -1 (no color change)
- */
+/* Background SGR for palette index (0-255, -2 truecolor); static buffer, "" for idx == -1 */
 const char* sgr_palette_bg(int idx);
 
-/*
- * Generate SGR escape sequence for truecolor background.
- *
- * @param r, g, b  RGB values (0-255)
- * @return         Static buffer with escape sequence
- */
+/* Truecolor background SGR from RGB; static buffer */
 const char* sgr_truecolor_bg(int r, int g, int b);
 
-/*
- * Generate SGR escape sequence for truecolor foreground.
- *
- * @param r, g, b  RGB values (0-255)
- * @return         Static buffer with escape sequence
- */
+/* Truecolor foreground SGR from RGB; static buffer */
 const char* sgr_truecolor_fg(int r, int g, int b);
 
-/*
- * Generate SGR for vim mode indicator color.
- *
- * @param mode  Vim mode (0=NORMAL, 1=INSERT, 2=VISUAL, 3=REPLACE, etc.)
- * @return      Static buffer with foreground color escape sequence
- */
+/* Foreground SGR for the vim mode indicator (0=NORMAL, 1=INSERT, 2=VISUAL, 3=REPLACE, ...) */
 const char* sgr_mode_color(int mode);
 
-/*
- * Generate SGR for selection background.
- * Uses selection_rgb from g_palette.
- *
- * @return  Static buffer with background color escape sequence
- */
+/* Background SGR for the selection, from g_palette.selection_rgb */
 const char* sgr_selection_bg(void);
 
-/*
- * Generate SGR for search match background.
- * Uses search_bg_rgb from g_palette.
- *
- * @return  Static buffer with background color escape sequence
- */
+/* Background SGR for search matches, from g_palette.search_bg_rgb */
 const char* sgr_search_bg(void);
 
-/*
- * Generate SGR for search match foreground (if set).
- * Returns empty string if search_fg_set is false.
- *
- * @return  Static buffer with foreground color escape sequence, or ""
- */
+/* Foreground SGR for search matches; "" if search_fg_set is false */
 const char* sgr_search_fg(void);
 
-/*
- * Generate SGR for message type (error, warning, success).
- *
- * @param type  0=error, 1=warning, 2=success
- * @return      Static buffer with foreground color escape sequence
- */
+/* Foreground SGR for message type (0=error, 1=warning, 2=success) */
 const char* sgr_message_color(int type);
 
-/*
- * Clamp palette index to terminal capability.
- * Downgrades 256-color to 16-color if needed.
- *
- * @param idx  Palette index
- * @return     Clamped index suitable for terminal
- */
+/* Clamp palette index to terminal capability (256-color downgrades to 16) */
 int palette_clamp(int idx);
 
-/*
- * Parse hex color string to RGB values.
- *
- * @param hex      Hex string (e.g., "#2d2d32" or "2d2d32")
- * @param r, g, b  Output RGB values
- * @return         true if parsed successfully
- */
+/* Parse "#rrggbb" or "rrggbb" into RGB; returns true on success */
 bool palette_parse_hex(const char* hex, int* r, int* g, int* b);
 
-/*
- * Generate SGR escape sequence for syntax face foreground color.
- *
- * @param face_id  Syntax face ID (from syntax_face_t enum)
- * @return         Static buffer with foreground color escape sequence
- */
+/* Foreground SGR for a syntax face (syntax_face_t); static buffer */
 const char* sgr_syntax_fg(int face_id);
 
-/*
- * Generate SGR escape sequence for syntax face style (bold/italic/underline).
- *
- * @param face_id  Syntax face ID (from syntax_face_t enum)
- * @return         Static buffer with style escape sequence, or ""
- */
+/* Style SGR (bold/italic/underline) for a syntax face; "" if none */
 const char* sgr_syntax_style(int face_id);
 
-/*
- * Reset syntax style (turn off bold/italic/underline).
- *
- * @return         Static buffer with reset sequence
- */
+/* Reset bold/italic/underline; static buffer */
 const char* sgr_syntax_style_reset(void);
 
 #endif /* TERMINAL_PALETTE_H */

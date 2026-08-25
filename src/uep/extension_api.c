@@ -28,6 +28,8 @@
 #include "internal/event_bus.h"
 #include "internal/memory.h"
 #include "internal/line.h"
+#include "internal/utf8.h"
+#include "../util/display_width.h"
 #include "internal/syntax.h"
 #include "μemacs/keymap.h"
 #include "editor_mode.h"
@@ -35,9 +37,7 @@
 #include "terminal/palette.h"
 #include "util/logger.h"
 
-/* ============================================================================
- * Dynamic Command Registry
- * ============================================================================ */
+/* Dynamic Command Registry */
 
 #define MAX_DYNAMIC_COMMANDS 256
 
@@ -129,12 +129,10 @@ uemacs_cmd_fn extension_find_command(const char *name) {
     return nullptr;
 }
 
-/* ============================================================================
- * ABI-Stable Function Registry
+/* ABI-Stable Function Registry
  *
  * Maps function names to pointers for dynamic lookup.
- * Extensions using get_function() are immune to struct layout changes.
- * ============================================================================ */
+ * Extensions using get_function() are immune to struct layout changes. */
 
 /* Forward declarations for all API functions */
 static int api_on(const char *event, uemacs_event_fn handler, void *user_data, int priority);
@@ -210,6 +208,23 @@ static struct keymap *api_get_vim_visual_keymap(void);
 static void api_set_vim_mode_active(int active);
 static int api_get_vim_mode_active(void);
 static void *api_get_vim_state(void);
+
+/* Vim state accessors — typed public surface (task #5) */
+static uemacs_vim_mode_t api_vim_get_mode(void);
+static void api_vim_set_mode(uemacs_vim_mode_t mode);
+static int api_vim_get_count(void);
+static void api_vim_set_count(int count);
+static uemacs_vim_operator_t api_vim_get_pending_op(void);
+static int api_vim_get_last_change(char *buf, int max_len);
+static bool api_vim_get_mark(char name, int *line_out, int *col_out);
+static bool api_vim_set_mark(char name, int line_num, int col);
+
+/* Register + undo-boundary accessors — task #7 */
+static int  api_vim_get_register(char name, char *buf, int max_len, bool *linewise_out);
+static int  api_vim_set_register(char name, const char *text, int len, bool linewise);
+static int  api_clipboard_set(const char *text, int len);
+static void api_undo_group_begin(struct buffer *bp);
+static void api_undo_group_end(struct buffer *bp);
 
 /* Display setting accessors (for c_linus and similar extensions) */
 static void api_set_highlight_line(int enabled);
@@ -338,6 +353,23 @@ static const api_registry_entry_t api_registry[] = {
     {"get_vim_mode_active", FN(api_get_vim_mode_active)},
     {"get_vim_state", FN(api_get_vim_state)},
 
+    /* Vim state typed accessors (task #5 — opaque-struct public surface) */
+    {"vim_get_mode", FN(api_vim_get_mode)},
+    {"vim_set_mode", FN(api_vim_set_mode)},
+    {"vim_get_count", FN(api_vim_get_count)},
+    {"vim_set_count", FN(api_vim_set_count)},
+    {"vim_get_pending_op", FN(api_vim_get_pending_op)},
+    {"vim_get_last_change", FN(api_vim_get_last_change)},
+    {"vim_get_mark", FN(api_vim_get_mark)},
+    {"vim_set_mark", FN(api_vim_set_mark)},
+
+    /* Registers + undo-boundary (task #7) */
+    {"vim_get_register", FN(api_vim_get_register)},
+    {"vim_set_register", FN(api_vim_set_register)},
+    {"clipboard_set", FN(api_clipboard_set)},
+    {"undo_group_begin", FN(api_undo_group_begin)},
+    {"undo_group_end", FN(api_undo_group_end)},
+
     /* Display settings */
     {"set_highlight_line", FN(api_set_highlight_line)},
     {"set_ruler", FN(api_set_ruler)},
@@ -367,9 +399,7 @@ static generic_fn_t api_get_function(const char *name) {
     return nullptr;
 }
 
-/* ============================================================================
- * Generic Event System (Wrappers to event_bus.c)
- * ============================================================================ */
+/* Generic Event System (Wrappers to event_bus.c) */
 
 static int api_on(const char *event, uemacs_event_fn handler,
                   void *user_data, int priority) {
@@ -384,9 +414,7 @@ static bool api_emit(const char *event, void *data) {
     return event_bus_emit(event, data, 0);
 }
 
-/* ============================================================================
- * Configuration Storage (populated by settings.c TOML parser)
- * ============================================================================ */
+/* Configuration Storage (populated by settings.c TOML parser) */
 
 /* Simple hash-based config store for extension settings */
 #define EXT_CONFIG_HASH_SIZE 127
@@ -556,9 +584,7 @@ static void extension_config_cleanup(void) {
     }
 }
 
-/* ============================================================================
- * Declarative Event Hooks (TOML-based command execution on events)
- * ============================================================================ */
+/* Declarative Event Hooks (TOML-based command execution on events) */
 
 /* Maximum declarative hooks and commands per hook */
 #define MAX_DECL_HOOKS      32
@@ -686,9 +712,7 @@ static void decl_hooks_cleanup(void) {
     decl_hook_count = 0;
 }
 
-/* ============================================================================
- * Buffer Operations
- * ============================================================================ */
+/* Buffer Operations */
 
 static struct buffer *api_current_buffer(void) {
     return curbp;
@@ -828,6 +852,14 @@ static int api_buffer_insert_at(struct buffer *bp, int line, int col,
     curwp->w_dotp = saved_dotp;
     curwp->w_doto = saved_doto;
 
+    /* The dot is restored exactly, so the updpos dot-change chokepoint
+     * never fires — but inserting lines above it changed its absolute
+     * line number. Invalidate every window showing this buffer. */
+    for (struct window *wp = wheadp; wp; wp = wp->w_wndp) {
+        if (wp->w_bufp == bp)
+            invalidate_line_cache(wp);
+    }
+
     return result;
 }
 
@@ -844,21 +876,17 @@ static int api_buffer_switch(struct buffer *bp) {
 static int api_buffer_clear(struct buffer *bp) {
     if (!bp) return -1;
 
-    struct line *lp = lforw(bp->b_linep);
-    while (lp != bp->b_linep) {
-        struct line *next = lforw(lp);
-        lfree(lp);
-        lp = next;
-    }
-
-    bp->b_linep->l_fp = bp->b_linep;
-    bp->b_linep->l_bp = bp->b_linep;
-    bp->b_dotp = bp->b_linep;
-    bp->b_doto = 0;
-    bp->b_markp = nullptr;
-    bp->b_marko = 0;
+    /* Route through bclear so every cache resets with the lines:
+     * b_line_count/b_byte_count/b_word_count, b_stats_dirty, the line
+     * index, the undo stack and the piece-table storage. The
+     * hand-rolled version here skipped all of those, leaving
+     * b_line_index[] entries pointing at freed lines. Clearing BFCHG
+     * first suppresses bclear's interactive discard prompt — a
+     * programmatic clear never prompts. */
     bp->b_flag &= ~BFCHG;
+    if (bclear(bp) != true) return -1;
 
+    /* bclear leaves window fixup to the caller. */
     struct window *wp = wheadp;
     while (wp) {
         if (wp->w_bufp == bp) {
@@ -867,6 +895,7 @@ static int api_buffer_clear(struct buffer *bp) {
             wp->w_markp = nullptr;
             wp->w_marko = 0;
             wp->w_flag |= WFHARD;
+            invalidate_line_cache(wp);
         }
         wp = wp->w_wndp;
     }
@@ -882,9 +911,7 @@ static struct buffer *api_buffer_next(struct buffer *bp) {
     return bp ? bp->b_bufp : nullptr;
 }
 
-/* ============================================================================
- * Cursor/Point Operations
- * ============================================================================ */
+/* Cursor/Point Operations */
 
 static void api_get_point(int *line, int *col) {
     if (line) *line = (int)getlinenum(curbp, curwp->w_dotp);
@@ -904,6 +931,10 @@ static void api_set_point(int line, int col) {
         if (offset > llength(lp)) offset = llength(lp);
         curwp->w_doto = offset;
         curwp->w_flag |= WFMOVE;
+        /* Core motions invalidate this on their own paths; without it
+         * the modeline's cached line number goes stale on every
+         * extension-driven jump. */
+        invalidate_line_cache(curwp);
     }
 }
 
@@ -1023,9 +1054,7 @@ static int api_find_file_line(const char *path, int line) {
     return 0;
 }
 
-/* ============================================================================
- * Window Operations
- * ============================================================================ */
+/* Window Operations */
 
 static struct window *api_current_window(void) {
     return curwp;
@@ -1100,20 +1129,34 @@ static int api_screen_to_buffer_pos(struct window *wp, int screen_row, int scree
     if (buf_line) *buf_line = line_num;
 
     if (buf_offset) {
-        int offset = 0;
-        int col = 0;
+        /* Display-width-aware column walk: multibyte UTF-8 advances by
+         * codepoint (double-width CJK counts 2 columns) and tabs honor
+         * the configured width. Wrapped and horizontally scrolled rows
+         * are not yet mapped (see ROADMAP). */
+        char line_buf[NSTRING];
         int len = llength(lp);
+        if (len > NSTRING - 1) len = NSTRING - 1;
+        lget_text(lp, 0, (size_t)len, line_buf, sizeof(line_buf));
 
-        while (offset < len && col < screen_col) {
-            char c = (char)lgetc(lp, offset);
-            if (c == '\t') {
-                col = ((col / 8) + 1) * 8;
+        int tab_width = tabmask + 1;
+        unsigned offset = 0;
+        int col = 0;
+
+        while ((int)offset < len && col < screen_col) {
+            if (line_buf[offset] == '\t') {
+                col = ((col / tab_width) + 1) * tab_width;
+                offset++;
             } else {
-                col++;
+                unicode_t uc;
+                unsigned step = utf8_to_unicode(line_buf, offset,
+                                                (unsigned)len, &uc);
+                if (step == 0) { offset++; col++; continue; }
+                int w = unicode_display_width(uc);
+                col += (w > 0) ? w : 1;
+                offset += step;
             }
-            offset++;
         }
-        *buf_offset = offset;
+        *buf_offset = (int)offset;
     }
 
     return 0;
@@ -1154,9 +1197,7 @@ static int api_scroll_down(int lines) {
     return 0;
 }
 
-/* ============================================================================
- * User Interface
- * ============================================================================ */
+/* User Interface */
 
 static void api_message(const char *fmt, ...) {
     if (!fmt) return;
@@ -1192,9 +1233,7 @@ static void api_update_display(void) {
     update(true);
 }
 
-/* ============================================================================
- * Shell Integration
- * ============================================================================ */
+/* Shell Integration */
 
 static int api_shell_command(const char *cmd, char **output, size_t *len) {
     if (!cmd) return -1;
@@ -1266,9 +1305,7 @@ static int api_shell_command(const char *cmd, char **output, size_t *len) {
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
-/* ============================================================================
- * Memory Helpers
- * ============================================================================ */
+/* Memory Helpers */
 
 static void *api_alloc(size_t size) {
     return safe_alloc(size, "extension api alloc", __FILE__, __LINE__);
@@ -1282,9 +1319,7 @@ static char *api_strdup(const char *s) {
     return s ? SAFE_STRDUP(s, "extension api strdup") : nullptr;
 }
 
-/* ============================================================================
- * Logging
- * ============================================================================ */
+/* Logging */
 
 static void api_log_info(const char *fmt, ...) {
     char buf[512];
@@ -1322,9 +1357,7 @@ static void api_log_debug(const char *fmt, ...) {
     LOG_DEBUGF("Extension: %s", buf);
 }
 
-/* ============================================================================
- * Syntax Highlighting API
- * ============================================================================ */
+/* Syntax Highlighting API */
 
 static int api_syntax_register_lexer(
     const char *name,
@@ -1384,9 +1417,7 @@ static void api_syntax_invalidate_buffer(struct buffer *bp) {
     }
 }
 
-/* ============================================================================
- * Modeline Extension Segments
- * ============================================================================ */
+/* Modeline Extension Segments */
 
 #define MAX_MODELINE_SEGMENTS 16
 #define MODELINE_NAME_MAX     32
@@ -1456,9 +1487,7 @@ static int api_kill_line(void) {
     return kill_to_eol(false, 1) == true ? 0 : -1;
 }
 
-/* ============================================================================
- * Keymap API - Extension keymap registration
- * ============================================================================ */
+/* Keymap API - Extension keymap registration */
 
 static struct keymap *api_keymap_create(const char *name) {
     if (!name) return nullptr;
@@ -1479,9 +1508,7 @@ static int api_keymap_unbind(struct keymap *km, uint32_t code, uint16_t mods) {
     return keymap_unbind(km, keymap_key_make(code, mods));
 }
 
-/* ============================================================================
- * Vim Infrastructure Accessors
- * ============================================================================ */
+/* Vim Infrastructure Accessors */
 
 static struct keymap *api_get_vim_normal_keymap(void) {
     return atomic_load(&vim_normal_keymap);
@@ -1503,9 +1530,208 @@ static void *api_get_vim_state(void) {
     return &g_vim_state;
 }
 
-/* ============================================================================
- * Display Setting Accessors
- * ============================================================================ */
+/* Vim typed accessors — task #5.
+ *
+ * These let extensions query/mutate vim modal-editing state without including
+ * internal/editor_mode.h. The enum values in the public API header mirror the
+ * internal enum editor_mode exactly, so a plain integer cast is safe. If the
+ * internal enum ever grows values the public enum doesn't have, widen the
+ * public enum first, never narrow the cast. */
+
+static uemacs_vim_mode_t api_vim_get_mode(void) {
+    return (uemacs_vim_mode_t)atomic_load(&g_vim_state.current_mode);
+}
+
+static void api_vim_set_mode(uemacs_vim_mode_t mode) {
+    atomic_store(&g_vim_state.current_mode, (enum editor_mode)mode);
+}
+
+static int api_vim_get_count(void) {
+    return atomic_load(&g_vim_state.count);
+}
+
+static void api_vim_set_count(int count) {
+    /* Counts are non-negative; 0 means "no count pending". */
+    atomic_store(&g_vim_state.count, count > 0 ? count : 0);
+}
+
+static uemacs_vim_operator_t api_vim_get_pending_op(void) {
+    int op = atomic_load(&g_vim_state.pending_op);
+    /* Internal codes (OP_NONE=0, OP_DELETE=1, OP_CHANGE=2, OP_YANK=3) map
+     * directly to UEMACS_VIM_OP_* values. Defensive clamp on unexpected input. */
+    if (op < 0 || op > UEMACS_VIM_OP_YANK) return UEMACS_VIM_OP_NONE;
+    return (uemacs_vim_operator_t)op;
+}
+
+static int api_vim_get_last_change(char *buf, int max_len) {
+    if (!buf || max_len <= 0) return 0;
+    int len = g_vim_state.last_change_len;
+    if (len < 0) len = 0;
+    if (len > max_len) len = max_len;
+    memcpy(buf, g_vim_state.last_change, (size_t)len);
+    return len;
+}
+
+static bool api_vim_get_mark(char name, int *line_out, int *col_out) {
+    if (name < 'a' || name > 'z') return false;
+    int idx = name - 'a';
+    struct line *lp = g_vim_state.marks[idx].line;
+    if (!lp) return false;
+    if (line_out) *line_out = (int)getlinenum(curbp, lp);
+    if (col_out) *col_out = g_vim_state.marks[idx].offset;
+    return true;
+}
+
+static bool api_vim_set_mark(char name, int line_num, int col) {
+    if (name < 'a' || name > 'z') return false;
+    if (line_num < 1) return false;
+    /* Walk to the target line. getlinenum is O(1) with the index;
+     * translate back via linear scan (acceptable — marks set rarely). */
+    struct line *lp = lforw(curbp->b_linep);
+    int n = 1;
+    while (lp != curbp->b_linep && n < line_num) {
+        lp = lforw(lp);
+        n++;
+    }
+    if (lp == curbp->b_linep) return false;
+    int idx = name - 'a';
+    g_vim_state.marks[idx].line = lp;
+    g_vim_state.marks[idx].offset = col;
+    return true;
+}
+
+/* Registers + undo-boundary — task #7.
+ *
+ * Register naming:
+ *   '0'..'9'  → numbered registers, stored at registers[0..9]
+ *   'a'..'z'  → named registers, stored at registers[10..35]
+ *   'A'..'Z'  → same as lowercase (case-insensitive, vim-style)
+ *
+ * Storage: g_vim_state.registers is a fixed array of 36 slots. Each slot owns
+ * a malloc'd char* text buffer; we free/replace on set.
+ *
+ * System clipboard: api_clipboard_set emits an OSC 52 escape sequence, which
+ * modern terminals (kitty, wezterm, iTerm2, alacritty, xterm with
+ * allowWindowOps, foot, etc.) recognize and pipe to the system clipboard.
+ * Clipboard READ via OSC 52 is not implemented — it requires parsing a
+ * terminal response which conflicts with the input state machine. */
+
+static int register_name_to_index(char name) {
+    if (name >= '0' && name <= '9') return name - '0';
+    if (name >= 'a' && name <= 'z') return 10 + (name - 'a');
+    if (name >= 'A' && name <= 'Z') return 10 + (name - 'A');
+    return -1;
+}
+
+static int api_vim_get_register(char name, char *buf, int max_len, bool *linewise_out) {
+    int idx = register_name_to_index(name);
+    if (idx < 0 || !buf || max_len <= 0) return 0;
+
+    const char *src = g_vim_state.registers[idx].text;
+    int src_len = g_vim_state.registers[idx].len;
+    if (!src || src_len <= 0) {
+        if (linewise_out) *linewise_out = false;
+        return 0;
+    }
+
+    int copy_len = (src_len < max_len) ? src_len : max_len;
+    memcpy(buf, src, (size_t)copy_len);
+    if (linewise_out) *linewise_out = (g_vim_state.registers[idx].linewise != 0);
+    return copy_len;
+}
+
+static int api_vim_set_register(char name, const char *text, int len, bool linewise) {
+    int idx = register_name_to_index(name);
+    if (idx < 0 || len < 0) return -1;
+
+    /* Free any previous content so the register owns exactly one buffer. */
+    char *old = g_vim_state.registers[idx].text;
+    if (old) SAFE_FREE(old);
+
+    if (text && len > 0) {
+        char *copy = SAFE_ARRAY(char, len + 1, "vim register");
+        if (!copy) {
+            g_vim_state.registers[idx].text = nullptr;
+            g_vim_state.registers[idx].len = 0;
+            g_vim_state.registers[idx].linewise = 0;
+            return -1;
+        }
+        memcpy(copy, text, (size_t)len);
+        copy[len] = '\0';
+        g_vim_state.registers[idx].text = copy;
+        g_vim_state.registers[idx].len = len;
+        g_vim_state.registers[idx].linewise = linewise ? 1 : 0;
+    } else {
+        g_vim_state.registers[idx].text = nullptr;
+        g_vim_state.registers[idx].len = 0;
+        g_vim_state.registers[idx].linewise = 0;
+    }
+    return 0;
+}
+
+/* Base64-encode text for OSC 52. Returns bytes written (not including null). */
+static int base64_encode(const char *src, int src_len, char *dst, int dst_max) {
+    static const char alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    int out = 0;
+    int i = 0;
+    while (i + 3 <= src_len && out + 4 < dst_max) {
+        uint32_t v = ((uint32_t)(unsigned char)src[i] << 16) |
+                     ((uint32_t)(unsigned char)src[i+1] << 8) |
+                      (uint32_t)(unsigned char)src[i+2];
+        dst[out++] = alphabet[(v >> 18) & 0x3F];
+        dst[out++] = alphabet[(v >> 12) & 0x3F];
+        dst[out++] = alphabet[(v >> 6)  & 0x3F];
+        dst[out++] = alphabet[ v        & 0x3F];
+        i += 3;
+    }
+    int remain = src_len - i;
+    if (remain > 0 && out + 4 < dst_max) {
+        uint32_t v = (uint32_t)(unsigned char)src[i] << 16;
+        if (remain == 2) v |= (uint32_t)(unsigned char)src[i+1] << 8;
+        dst[out++] = alphabet[(v >> 18) & 0x3F];
+        dst[out++] = alphabet[(v >> 12) & 0x3F];
+        dst[out++] = (remain == 2) ? alphabet[(v >> 6) & 0x3F] : '=';
+        dst[out++] = '=';
+    }
+    if (out < dst_max) dst[out] = '\0';
+    return out;
+}
+
+static int api_clipboard_set(const char *text, int len) {
+    if (!text || len < 0) return -1;
+    /* OSC 52 payload size is bounded by terminal implementations (kitty 8KB,
+     * wezterm larger). Hard cap at 64KB base64 output ≈ 48KB input to keep
+     * us from blasting multi-MB documents through the PTY. */
+    if (len > 49152) len = 49152;
+
+    int enc_cap = ((len + 2) / 3) * 4 + 1;
+    char *b64 = SAFE_ARRAY(char, enc_cap, "osc52 clipboard");
+    if (!b64) return -1;
+    int enc_len = base64_encode(text, len, b64, enc_cap);
+
+    /* Emit "\x1b]52;c;<base64>\x07". Use TTputc so it goes through the normal
+     * terminal-write path. */
+    TTputc(0x1B); TTputc(']');
+    TTputc('5'); TTputc('2'); TTputc(';');
+    TTputc('c'); TTputc(';');
+    for (int i = 0; i < enc_len; i++) TTputc((unsigned char)b64[i]);
+    TTputc(0x07);
+    TTflush();
+
+    SAFE_FREE(b64);
+    return 0;
+}
+
+static void api_undo_group_begin(struct buffer *bp) {
+    undo_group_begin(bp ? bp : curbp);
+}
+
+static void api_undo_group_end(struct buffer *bp) {
+    undo_group_end(bp ? bp : curbp);
+}
+
+/* Display Setting Accessors */
 
 static void api_set_highlight_line(int enabled) {
     highlight_current_line = enabled;
@@ -1519,9 +1745,7 @@ static void api_set_syntax_enabled(int enabled) {
     g_palette.syntax_enabled = (bool)enabled;
 }
 
-/* ============================================================================
- * Command Lookup
- * ============================================================================ */
+/* Command Lookup */
 
 static fn_t api_find_command(const char *name) {
     if (!name) return nullptr;
@@ -1588,9 +1812,7 @@ char *extension_get_modeline_full(void) {
     return nullptr;
 }
 
-/* ============================================================================
- * The Global API Instance
- * ============================================================================ */
+/* The Global API Instance */
 
 static struct muemacs_api global_api = {
     .api_version = MUEMACS_API_VERSION,
@@ -1695,9 +1917,7 @@ struct muemacs_api *muemacs_get_api(void) {
     return &global_api;
 }
 
-/* ============================================================================
- * Initialization and Cleanup
- * ============================================================================ */
+/* Initialization and Cleanup */
 
 void extension_api_init(void) {
     memset(dynamic_commands, 0, sizeof(dynamic_commands));
@@ -1730,9 +1950,7 @@ void extension_api_cleanup(void) {
     LOG_INFO("Extension API: Cleaned up");
 }
 
-/* ============================================================================
- * Event Dispatch (called from core)
- * ============================================================================ */
+/* Event Dispatch (called from core) */
 
 /*
  * These functions are called from core files (main.c, file.c) to emit events.
@@ -1749,6 +1967,38 @@ void extension_emit_buffer_load(struct buffer *bp) {
 
 bool extension_emit_key(int key) {
     return event_bus_emit(UEMACS_EVT_INPUT_KEY, &key, sizeof(key));
+}
+
+/* Emit the raw-input event fired BEFORE binding dispatch. Extensions doing
+ * modal editing (vim operator-pending, count prefixes, ex-command mode) hook
+ * this to claim keys before the core keymap looks them up.
+ *
+ * Maps the internal input_key_event_t to the narrower public
+ * uemacs_raw_key_event_t so extensions don't need internal headers. */
+bool extension_emit_raw_key(const struct input_key_event *evt) {
+    if (!evt) return false;
+
+    uemacs_raw_key_event_t payload = {
+        .code      = evt->code,
+        .modifiers = evt->modifiers,
+        .kind      = UEMACS_KEY_KIND_CHAR,  /* default; overridden below */
+    };
+
+    switch (evt->type) {
+    case KEY_CHAR:        payload.kind = UEMACS_KEY_KIND_CHAR;        break;
+    case KEY_SPECIAL:     payload.kind = UEMACS_KEY_KIND_SPECIAL;     break;
+    case KEY_PASTE_START: payload.kind = UEMACS_KEY_KIND_PASTE_START; break;
+    case KEY_PASTE_END:   payload.kind = UEMACS_KEY_KIND_PASTE_END;   break;
+    case KEY_FOCUS_IN:    payload.kind = UEMACS_KEY_KIND_FOCUS_IN;    break;
+    case KEY_FOCUS_OUT:   payload.kind = UEMACS_KEY_KIND_FOCUS_OUT;   break;
+    default:
+        /* Unhandled event types (KEY_MOUSE, KEY_OSC_RECEIVED, KEY_CSI_UNKNOWN,
+         * KEY_NONE) do not fire input:raw. Mouse has its own event; the
+         * rest aren't meaningful to modal-editing extensions. */
+        return false;
+    }
+
+    return event_bus_emit(UEMACS_EVT_INPUT_RAW, &payload, sizeof(payload));
 }
 
 void extension_emit_idle(void) {

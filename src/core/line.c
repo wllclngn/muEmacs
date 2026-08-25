@@ -36,22 +36,22 @@ static void kill_ring_add(const char *text, size_t len);
 
 // Returns true if the codepoint is a Unicode word character
 static inline bool is_unicode_word(wchar_t wc) {
-	// Use POSIX wctype for word characters (alnum or mark or connector)
-	return iswalnum((wint_t)wc) || iswalpha((wint_t)wc) || iswpunct((wint_t)wc) || wc == L'_';
+    // Use POSIX wctype for word characters (alnum or mark or connector)
+    return iswalnum((wint_t)wc) || iswalpha((wint_t)wc) || iswpunct((wint_t)wc) || wc == L'_';
 }
 
 // Convert a UTF-8 sequence to a wide character (wchar_t)
 static inline int utf8_to_wchar(const char *s, wchar_t *wc) {
-	mbstate_t state = {0};
-	return (int)mbrtowc(wc, s, MB_CUR_MAX, &state);
+    mbstate_t state = {0};
+    return (int)mbrtowc(wc, s, MB_CUR_MAX, &state);
 }
 
 // Returns true if the byte sequence at s is a word character (Unicode-aware)
 static inline bool is_word_byte_utf8(const char *s) {
-	wchar_t wc;
-	int len = utf8_to_wchar(s, &wc);
-	if (len <= 0) return false;
-	return is_unicode_word(wc);
+    wchar_t wc;
+    int len = utf8_to_wchar(s, &wc);
+    if (len <= 0) return false;
+    return is_unicode_word(wc);
 }
 /* is_word_byte() now in line.h for shared use with undo.c */
 
@@ -77,35 +77,35 @@ long getlinenum(struct buffer *bp, struct line *lp) {
  */
 struct line *lalloc(int used)
 {
-	struct line *lp;
+    struct line *lp;
 
-	lp = (struct line *)safe_alloc(sizeof(struct line), "line buffer", __FILE__, __LINE__);
-	if (!lp) {
-		return nullptr;
-	}
+    lp = (struct line *)safe_alloc(sizeof(struct line), "line buffer", __FILE__, __LINE__);
+    if (!lp) {
+        return nullptr;
+    }
 
-	size_t initial_capacity = (used > 0) ? (size_t)used : 16;
-	lp->storage = text_storage_create(initial_capacity, STORAGE_HINT_DEFAULT);
-	if (!lp->storage) {
-		safe_free((void **)&lp);
-		return nullptr;
-	}
+    size_t initial_capacity = (used > 0) ? (size_t)used : 16;
+    lp->storage = text_storage_create(initial_capacity, STORAGE_HINT_DEFAULT);
+    if (!lp->storage) {
+        safe_free((void **)&lp);
+        return nullptr;
+    }
 
-	/* Initialize as a circular list of one - safe for lfree() if never linked */
-	lp->l_fp = lp;
-	lp->l_bp = lp;
+    /* Initialize as a circular list of one - safe for lfree() if never linked */
+    lp->l_fp = lp;
+    lp->l_bp = lp;
 
-	/* Initialize view mode fields (not used when storage is non-nullptr) */
-	lp->l_view_offset = 0;
-	lp->l_view_length = 0;
-	lp->l_bp_owner = nullptr;
+    /* Initialize view mode fields (not used when storage is non-nullptr) */
+    lp->l_view_offset = 0;
+    lp->l_view_length = 0;
+    lp->l_bp_owner = nullptr;
 
-	atomic_store(&lp->l_column_cache_offset, 0);
-	atomic_store(&lp->l_column_cache_column, 0);
-	atomic_store(&lp->l_column_cache_dirty, true);  /* Force recalc on first use */
-	lp->l_wrap_cache = nullptr;
+    atomic_store(&lp->l_column_cache_offset, 0);
+    atomic_store(&lp->l_column_cache_column, 0);
+    atomic_store(&lp->l_column_cache_dirty, true);  /* Force recalc on first use */
+    lp->l_wrap_cache = nullptr;
 
-	return lp;
+    return lp;
 }
 
 /*
@@ -115,29 +115,29 @@ struct line *lalloc(int used)
  */
 struct line *lalloc_view(struct buffer *bp, size_t offset, size_t length)
 {
-	struct line *lp;
+    struct line *lp;
 
-	lp = (struct line *)safe_alloc(sizeof(struct line), "view line", __FILE__, __LINE__);
-	if (!lp) {
-		return nullptr;
-	}
+    lp = (struct line *)safe_alloc(sizeof(struct line), "view line", __FILE__, __LINE__);
+    if (!lp) {
+        return nullptr;
+    }
 
-	/* View mode: no storage, reference buffer's b_text */
-	lp->storage = nullptr;
-	lp->l_view_offset = offset;
-	lp->l_view_length = length;
-	lp->l_bp_owner = bp;
+    /* View mode: no storage, reference buffer's b_text */
+    lp->storage = nullptr;
+    lp->l_view_offset = offset;
+    lp->l_view_length = length;
+    lp->l_bp_owner = bp;
 
-	/* Initialize as a circular list of one */
-	lp->l_fp = lp;
-	lp->l_bp = lp;
+    /* Initialize as a circular list of one */
+    lp->l_fp = lp;
+    lp->l_bp = lp;
 
-	atomic_store(&lp->l_column_cache_offset, 0);
-	atomic_store(&lp->l_column_cache_column, 0);
-	atomic_store(&lp->l_column_cache_dirty, true);
-	lp->l_wrap_cache = nullptr;
+    atomic_store(&lp->l_column_cache_offset, 0);
+    atomic_store(&lp->l_column_cache_column, 0);
+    atomic_store(&lp->l_column_cache_dirty, true);
+    lp->l_wrap_cache = nullptr;
 
-	return lp;
+    return lp;
 }
 
 /*
@@ -146,11 +146,11 @@ struct line *lalloc_view(struct buffer *bp, size_t offset, size_t length)
  */
 int lgetc_view(struct line *lp, int n)
 {
-	if (!lp->l_bp_owner || !lp->l_bp_owner->b_text) {
-		return 0;  /* Safety: shouldn't happen */
-	}
-	size_t pos = lp->l_view_offset + (size_t)n;
-	return (unsigned char)TS_GET_CHAR(lp->l_bp_owner->b_text, pos);
+    if (!lp->l_bp_owner || !lp->l_bp_owner->b_text) {
+        return 0;  /* Safety: shouldn't happen */
+    }
+    size_t pos = lp->l_view_offset + (size_t)n;
+    return (unsigned char)TS_GET_CHAR(lp->l_bp_owner->b_text, pos);
 }
 
 /*
@@ -159,9 +159,9 @@ int lgetc_view(struct line *lp, int n)
  */
 bool line_view_accessible(struct line *lp)
 {
-	if (!lp) return false;
-	if (lp->storage) return true;  /* Has own storage, always accessible */
-	return (lp->l_bp_owner != nullptr && lp->l_bp_owner->b_text != nullptr);
+    if (!lp) return false;
+    if (lp->storage) return true;  /* Has own storage, always accessible */
+    return (lp->l_bp_owner != nullptr && lp->l_bp_owner->b_text != nullptr);
 }
 
 /*
@@ -169,16 +169,16 @@ bool line_view_accessible(struct line *lp)
  */
 void lputc_impl(struct line *lp, int n, int c)
 {
-	char ch = (char)c;
-	size_t pos = (size_t)n;
-	size_t size = TS_SIZE(lp->storage);
-	if (pos >= size) {
-		/* Extending: insert at end */
-		TS_INSERT(lp->storage, size, &ch, 1);
-	} else {
-		/* Overwriting existing character */
-		TS_REPLACE(lp->storage, pos, 1, &ch, 1);
-	}
+    char ch = (char)c;
+    size_t pos = (size_t)n;
+    size_t size = TS_SIZE(lp->storage);
+    if (pos >= size) {
+        /* Extending: insert at end */
+        TS_INSERT(lp->storage, size, &ch, 1);
+    } else {
+        /* Overwriting existing character */
+        TS_REPLACE(lp->storage, pos, 1, &ch, 1);
+    }
 }
 
 /*
@@ -187,39 +187,39 @@ void lputc_impl(struct line *lp, int n, int c)
  */
 void line_materialize(struct line *lp)
 {
-	if (lp->storage) {
-		return;  /* Already has storage, nothing to do */
-	}
+    if (lp->storage) {
+        return;  /* Already has storage, nothing to do */
+    }
 
-	struct buffer *bp = lp->l_bp_owner;
-	if (!bp || !bp->b_text) {
-		/* Shouldn't happen - create empty storage as fallback */
-		lp->storage = text_storage_create(16, STORAGE_HINT_DEFAULT);
-		return;
-	}
+    struct buffer *bp = lp->l_bp_owner;
+    if (!bp || !bp->b_text) {
+        /* Shouldn't happen - create empty storage as fallback */
+        lp->storage = text_storage_create(16, STORAGE_HINT_DEFAULT);
+        return;
+    }
 
-	size_t len = lp->l_view_length;
+    size_t len = lp->l_view_length;
 
-	/* Create gap buffer for this line with some extra room for edits */
-	lp->storage = text_storage_create(len + 64, STORAGE_HINT_HEAVY_EDIT);
-	if (!lp->storage) {
-		return;  /* Out of memory */
-	}
+    /* Create gap buffer for this line with some extra room for edits */
+    lp->storage = text_storage_create(len + 64, STORAGE_HINT_HEAVY_EDIT);
+    if (!lp->storage) {
+        return;  /* Out of memory */
+    }
 
-	/* Copy content from buffer's piece table into line's gap buffer */
-	if (len > 0) {
-		char *temp = safe_alloc(len, "materialize temp", __FILE__, __LINE__);
-		if (temp) {
-			TS_GET_TEXT(bp->b_text, lp->l_view_offset, len, temp, len);
-			TS_INSERT(lp->storage, 0, temp, len);
-			safe_free((void **)&temp);
-		}
-	}
+    /* Copy content from buffer's piece table into line's gap buffer */
+    if (len > 0) {
+        char *temp = safe_alloc(len, "materialize temp", __FILE__, __LINE__);
+        if (temp) {
+            TS_GET_TEXT(bp->b_text, lp->l_view_offset, len, temp, len);
+            TS_INSERT(lp->storage, 0, temp, len);
+            safe_free((void **)&temp);
+        }
+    }
 
-	/* Clear view mode fields */
-	lp->l_view_offset = 0;
-	lp->l_view_length = 0;
-	/* Keep l_bp_owner for potential future use */
+    /* Clear view mode fields */
+    lp->l_view_offset = 0;
+    lp->l_view_length = 0;
+    /* Keep l_bp_owner for potential future use */
 }
 
 /*
@@ -228,36 +228,36 @@ void line_materialize(struct line *lp)
  */
 size_t lget_text(struct line *lp, size_t offset, size_t len, char *buf, size_t buf_size)
 {
-	if (!lp || !buf || buf_size == 0) {
-		return 0;
-	}
+    if (!lp || !buf || buf_size == 0) {
+        return 0;
+    }
 
-	/* Clamp length to buffer size minus null terminator */
-	if (len >= buf_size) {
-		len = buf_size - 1;
-	}
+    /* Clamp length to buffer size minus null terminator */
+    if (len >= buf_size) {
+        len = buf_size - 1;
+    }
 
-	size_t result;
-	if (lp->storage) {
-		/* Regular line: get from line's storage */
-		result = TS_GET_TEXT(lp->storage, offset, len, buf, buf_size);
-	} else if (lp->l_bp_owner && lp->l_bp_owner->b_text) {
-		/* View line: get from buffer's piece table */
-		size_t abs_offset = lp->l_view_offset + offset;
-		result = TS_GET_TEXT(lp->l_bp_owner->b_text, abs_offset, len, buf, buf_size);
-	} else {
-		/* No storage available - return empty */
-		result = 0;
-	}
+    size_t result;
+    if (lp->storage) {
+        /* Regular line: get from line's storage */
+        result = TS_GET_TEXT(lp->storage, offset, len, buf, buf_size);
+    } else if (lp->l_bp_owner && lp->l_bp_owner->b_text) {
+        /* View line: get from buffer's piece table */
+        size_t abs_offset = lp->l_view_offset + offset;
+        result = TS_GET_TEXT(lp->l_bp_owner->b_text, abs_offset, len, buf, buf_size);
+    } else {
+        /* No storage available - return empty */
+        result = 0;
+    }
 
-	/* Ensure null termination */
-	if (result < buf_size) {
-		buf[result] = '\0';
-	} else {
-		buf[buf_size - 1] = '\0';
-	}
+    /* Ensure null termination */
+    if (result < buf_size) {
+        buf[result] = '\0';
+    } else {
+        buf[buf_size - 1] = '\0';
+    }
 
-	return result;
+    return result;
 }
 
 /*
@@ -265,48 +265,48 @@ size_t lget_text(struct line *lp, size_t offset, size_t len, char *buf, size_t b
  */
 void lfree(struct line *lp)
 {
-	struct buffer *bp;
-	struct window *wp;
+    struct buffer *bp;
+    struct window *wp;
 
-	wp = wheadp;
-	while (wp != nullptr) {
-		if (wp->w_linep == lp)
-			wp->w_linep = lp->l_fp;
-		if (wp->w_dotp == lp) {
-			wp->w_dotp = lp->l_fp;
-			wp->w_doto = 0;
-		}
-		if (wp->w_markp == lp) {
-			wp->w_markp = lp->l_fp;
-			wp->w_marko = 0;
-		}
-		wp = wp->w_wndp;
-	}
-	bp = bheadp;
-	while (bp != nullptr) {
-		if (bp->b_nwnd == 0) {
-			if (bp->b_dotp == lp) {
-				bp->b_dotp = lp->l_fp;
-				bp->b_doto = 0;
-			}
-			if (bp->b_markp == lp) {
-				bp->b_markp = lp->l_fp;
-				bp->b_marko = 0;
-			}
-		}
-		bp = bp->b_bufp;
-	}
-	lp->l_bp->l_fp = lp->l_fp;
-	lp->l_fp->l_bp = lp->l_bp;
+    wp = wheadp;
+    while (wp != nullptr) {
+        if (wp->w_linep == lp)
+            wp->w_linep = lp->l_fp;
+        if (wp->w_dotp == lp) {
+            wp->w_dotp = lp->l_fp;
+            wp->w_doto = 0;
+        }
+        if (wp->w_markp == lp) {
+            wp->w_markp = lp->l_fp;
+            wp->w_marko = 0;
+        }
+        wp = wp->w_wndp;
+    }
+    bp = bheadp;
+    while (bp != nullptr) {
+        if (bp->b_nwnd == 0) {
+            if (bp->b_dotp == lp) {
+                bp->b_dotp = lp->l_fp;
+                bp->b_doto = 0;
+            }
+            if (bp->b_markp == lp) {
+                bp->b_markp = lp->l_fp;
+                bp->b_marko = 0;
+            }
+        }
+        bp = bp->b_bufp;
+    }
+    lp->l_bp->l_fp = lp->l_fp;
+    lp->l_fp->l_bp = lp->l_bp;
 
-	/* Free wrap segment cache */
-	wrap_invalidate(lp);
+    /* Free wrap segment cache */
+    wrap_invalidate(lp);
 
-	/* View mode lines don't own storage - only destroy if storage exists */
-	if (lp->storage) {
-		TS_DESTROY(lp->storage);
-	}
-	safe_free((void **) &lp);
+    /* View mode lines don't own storage - only destroy if storage exists */
+    if (lp->storage) {
+        TS_DESTROY(lp->storage);
+    }
+    safe_free((void **) &lp);
 }
 
 /*
@@ -318,32 +318,32 @@ void lfree(struct line *lp)
  */
 void lchange(int flag)
 {
-	struct window *wp;
+    struct window *wp;
 
-	if (curbp->b_nwnd != 1)	/* Ensure hard.     */
-		flag = WFHARD;
-	if ((curbp->b_flag & BFCHG) == 0) { /* First change, so */
-		curbp->b_flag |= BFCHG;
-	}
+    if (curbp->b_nwnd != 1)	/* Ensure hard.     */
+        flag = WFHARD;
+    if ((curbp->b_flag & BFCHG) == 0) { /* First change, so */
+        curbp->b_flag |= BFCHG;
+    }
 
-	/* Mark buffer dirty for display tracking (montauk/OUROBOROS pattern) */
-	mark_buffer_dirty(curbp);
+    /* Mark buffer dirty for display tracking (montauk/OUROBOROS pattern) */
+    mark_buffer_dirty(curbp);
 
-	/* Invalidate syntax highlighting from current line */
-	if (curbp->b_syntax && curbp->b_syntax->enabled) {
-		long lnum = getlinenum(curbp, curwp->w_dotp);
-		if (lnum > 0) {
-			syntax_invalidate_from_line(curbp->b_syntax, (int)(lnum - 1));
-		}
-	}
+    /* Invalidate syntax highlighting from current line */
+    if (curbp->b_syntax && curbp->b_syntax->enabled) {
+        long lnum = getlinenum(curbp, curwp->w_dotp);
+        if (lnum > 0) {
+            syntax_invalidate_from_line(curbp->b_syntax, (int)(lnum - 1));
+        }
+    }
 
-	flag |= WFMODE;	/* Always update mode lines for instant status */
-	wp = wheadp;
-	while (wp != nullptr) {
-		if (wp->w_bufp == curbp)
-			wp->w_flag |= (short)flag;
-		wp = wp->w_wndp;
-	}
+    flag |= WFMODE;	/* Always update mode lines for instant status */
+    wp = wheadp;
+    while (wp != nullptr) {
+        if (wp->w_bufp == curbp)
+            wp->w_flag |= (short)flag;
+        wp = wp->w_wndp;
+    }
 }
 
 /* Forward declaration for bulk segment insert */
@@ -550,48 +550,48 @@ char *getctext(void) {
 
 int lnewline(void)
 {
-	struct line *lp1;
-	struct line *lp2;
-	int doto;
-	struct window *wp;
+    struct line *lp1;
+    struct line *lp2;
+    int doto;
+    struct window *wp;
 
-	if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
-		return rdonly();	/* we are in read only mode     */
-	lchange(WFHARD);
-	lp1 = curwp->w_dotp;	/* Get the address and  */
-	doto = curwp->w_doto;	/* offset of "."        */
+    if (curbp->b_mode & MDVIEW)	/* don't allow this command if      */
+        return rdonly();	/* we are in read only mode     */
+    lchange(WFHARD);
+    lp1 = curwp->w_dotp;	/* Get the address and  */
+    doto = curwp->w_doto;	/* offset of "."        */
 
-	/* Materialize view mode lines before editing */
-	if (lp1 != curbp->b_linep && !lp1->storage) {
-		line_materialize(lp1);
-	}
+    /* Materialize view mode lines before editing */
+    if (lp1 != curbp->b_linep && !lp1->storage) {
+        line_materialize(lp1);
+    }
 
     undo_record_insert(curbp, getlinenum(curbp, lp1), doto, "\n", 1);
 
-	/* Create new line for first half */
-	if ((lp2 = lalloc(doto)) == nullptr)
-		return false;
-	
-	/* Copy first 'doto' bytes from lp1 to lp2 using text storage */
-	if (doto > 0) {
-		char *temp = safe_alloc((size_t)doto, "newline split temp", __FILE__, __LINE__);
-		if (!temp) {
-			lfree(lp2);
-			return false;
-		}
-		TS_GET_TEXT(lp1->storage, 0, (size_t)doto, temp, (size_t)doto);
-		TS_INSERT(lp2->storage, 0, temp, (size_t)doto);
-		SAFE_FREE(temp);
+    /* Create new line for first half */
+    if ((lp2 = lalloc(doto)) == nullptr)
+        return false;
+    
+    /* Copy first 'doto' bytes from lp1 to lp2 using text storage */
+    if (doto > 0) {
+        char *temp = safe_alloc((size_t)doto, "newline split temp", __FILE__, __LINE__);
+        if (!temp) {
+            lfree(lp2);
+            return false;
+        }
+        TS_GET_TEXT(lp1->storage, 0, (size_t)doto, temp, (size_t)doto);
+        TS_INSERT(lp2->storage, 0, temp, (size_t)doto);
+        SAFE_FREE(temp);
 
-		/* Remove first 'doto' bytes from lp1 */
-		TS_DELETE(lp1->storage, 0, (size_t)doto);
-	}
-	
-	/* Link lp2 into list before lp1 */
-	lp2->l_bp = lp1->l_bp;
-	lp1->l_bp = lp2;
-	lp2->l_bp->l_fp = lp2;
-	lp2->l_fp = lp1;
+        /* Remove first 'doto' bytes from lp1 */
+        TS_DELETE(lp1->storage, 0, (size_t)doto);
+    }
+    
+    /* Link lp2 into list before lp1 */
+    lp2->l_bp = lp1->l_bp;
+    lp1->l_bp = lp2;
+    lp2->l_bp->l_fp = lp2;
+    lp2->l_fp = lp1;
     
     // O(1) Index Update: Insert lp2 at position of lp1 (pushing lp1 down)
     long lnum = getlinenum(curbp, lp1);
@@ -609,31 +609,31 @@ int lnewline(void)
         buffer_index_insert(curbp, idx, lp2);
     }
 
-	/* Fix up window pointers */
-	wp = wheadp;
-	while (wp != nullptr) {
-		if (wp->w_linep == lp1)
-			wp->w_linep = lp2;
-		if (wp->w_dotp == lp1) {
-			if (wp->w_doto < doto)
-				wp->w_dotp = lp2;
-			else
-				wp->w_doto -= doto;
-		}
-		if (wp->w_markp == lp1) {
-			if (wp->w_marko < doto)
-				wp->w_markp = lp2;
-			else
-				wp->w_marko -= doto;
-		}
-		wp = wp->w_wndp;
-	}
-	
-	// Update atomic statistics for new line insertion
+    /* Fix up window pointers */
+    wp = wheadp;
+    while (wp != nullptr) {
+        if (wp->w_linep == lp1)
+            wp->w_linep = lp2;
+        if (wp->w_dotp == lp1) {
+            if (wp->w_doto < doto)
+                wp->w_dotp = lp2;
+            else
+                wp->w_doto -= doto;
+        }
+        if (wp->w_markp == lp1) {
+            if (wp->w_marko < doto)
+                wp->w_markp = lp2;
+            else
+                wp->w_marko -= doto;
+        }
+        wp = wp->w_wndp;
+    }
+    
+    // Update atomic statistics for new line insertion
     buffer_update_stats_incremental(curbp, 1, 1, 0); // +1 line, +1 byte (for newline)
     buffer_mark_stats_dirty(curbp); // Mark dirty for word count recalculation
 
-	return true;
+    return true;
 }
 
 /*
@@ -641,110 +641,110 @@ int lnewline(void)
  */
 int linsert(int n, int c)
 {
-	if (curbp->b_mode & MDVIEW)
-		return rdonly();
-	lchange(WFEDIT);
+    if (curbp->b_mode & MDVIEW)
+        return rdonly();
+    lchange(WFEDIT);
 
-	// --- PROFILING HOOK ---
-	perf_start_timing("linsert");
+    // --- PROFILING HOOK ---
+    perf_start_timing("linsert");
 
-	struct line *lp1;
-	int doto;
-	struct window *wp;
-	char *inserted_text;
-	long lnum;
+    struct line *lp1;
+    int doto;
+    struct window *wp;
+    char *inserted_text;
+    long lnum;
 
-	lp1 = curwp->w_dotp;
+    lp1 = curwp->w_dotp;
 
-	/* Materialize view mode lines before editing */
-	if (lp1 != curbp->b_linep && !lp1->storage) {
-		line_materialize(lp1);
-	}
+    /* Materialize view mode lines before editing */
+    if (lp1 != curbp->b_linep && !lp1->storage) {
+        line_materialize(lp1);
+    }
 
-	// Capture state for undo
-	lnum = getlinenum(curbp, lp1);
-	doto = curwp->w_doto;
+    // Capture state for undo
+    lnum = getlinenum(curbp, lp1);
+    doto = curwp->w_doto;
 
-	inserted_text = safe_alloc((size_t)n + 1, "undo insert buffer", __FILE__, __LINE__);
-	if (inserted_text == nullptr) {
-		perf_end_timing("linsert");
-		return false;
-	}
-	for (int i = 0; i < n; ++i) inserted_text[i] = (char)c;
-	inserted_text[n] = '\0';
+    inserted_text = safe_alloc((size_t)n + 1, "undo insert buffer", __FILE__, __LINE__);
+    if (inserted_text == nullptr) {
+        perf_end_timing("linsert");
+        return false;
+    }
+    for (int i = 0; i < n; ++i) inserted_text[i] = (char)c;
+    inserted_text[n] = '\0';
 
-	if (lp1 == curbp->b_linep) {
-		if (lp1->l_fp == lp1) {
-			// Empty buffer - create first line
-			struct line *first = lalloc(0);
-			if (first == nullptr) {
-				SAFE_FREE(inserted_text);
-				perf_end_timing("linsert");
-				return false;
-			}
-			first->l_bp = lp1;
-			first->l_fp = lp1->l_fp;
-		
+    if (lp1 == curbp->b_linep) {
+        if (lp1->l_fp == lp1) {
+            // Empty buffer - create first line
+            struct line *first = lalloc(0);
+            if (first == nullptr) {
+                SAFE_FREE(inserted_text);
+                perf_end_timing("linsert");
+                return false;
+            }
+            first->l_bp = lp1;
+            first->l_fp = lp1->l_fp;
+        
 lp1->l_fp->l_bp = first;
-		
+        
 lp1->l_fp = first;
             
             // O(1) Index Update
             buffer_index_insert(curbp, 0, first);
 
-			wp = wheadp;
-			while (wp != nullptr) {
-				if (wp->w_linep == lp1) wp->w_linep = first;
-				if (wp->w_dotp == lp1) wp->w_dotp = first;
-				if (wp->w_markp == lp1) wp->w_markp = first;
-				wp = wp->w_wndp;
-			}
-		
+            wp = wheadp;
+            while (wp != nullptr) {
+                if (wp->w_linep == lp1) wp->w_linep = first;
+                if (wp->w_dotp == lp1) wp->w_dotp = first;
+                if (wp->w_markp == lp1) wp->w_markp = first;
+                wp = wp->w_wndp;
+            }
+        
 lp1 = curwp->w_dotp = first;
-			curwp->w_doto = 0;
-		} else {
-			// At EOF but buffer not empty - extend last line
-		
+            curwp->w_doto = 0;
+        } else {
+            // At EOF but buffer not empty - extend last line
+        
 lp1 = curwp->w_dotp = lp1->l_bp;  // Go to last actual line
-			curwp->w_doto = llength(lp1);      // Position at end of line
-		}
-		doto = curwp->w_doto;
+            curwp->w_doto = llength(lp1);      // Position at end of line
+        }
+        doto = curwp->w_doto;
 
-		/* Materialize if lp1 was reassigned to a view line */
-		if (!lp1->storage) {
-			line_materialize(lp1);
-		}
-	}
+        /* Materialize if lp1 was reassigned to a view line */
+        if (!lp1->storage) {
+            line_materialize(lp1);
+        }
+    }
 
-	/* Insert into text storage */
-	if (TS_INSERT(lp1->storage, (size_t)doto, inserted_text, (size_t)n) != TS_SUCCESS) {
-		SAFE_FREE(inserted_text);
-		perf_end_timing("linsert");
-		return false;
-	}
-	curwp->w_doto += n;
-	
-	wp = wheadp;
-	while (wp != nullptr) {
-		if (wp->w_dotp == lp1 && wp->w_doto >= doto && wp != curwp) {
-			wp->w_doto += n;
-		}
-		wp = wp->w_wndp;
-	}
-	
-	atomic_store(&lp1->l_column_cache_dirty, true);
-	wrap_invalidate(lp1);
+    /* Insert into text storage */
+    if (TS_INSERT(lp1->storage, (size_t)doto, inserted_text, (size_t)n) != TS_SUCCESS) {
+        SAFE_FREE(inserted_text);
+        perf_end_timing("linsert");
+        return false;
+    }
+    curwp->w_doto += n;
+    
+    wp = wheadp;
+    while (wp != nullptr) {
+        if (wp->w_dotp == lp1 && wp->w_doto >= doto && wp != curwp) {
+            wp->w_doto += n;
+        }
+        wp = wp->w_wndp;
+    }
+    
+    atomic_store(&lp1->l_column_cache_dirty, true);
+    wrap_invalidate(lp1);
 
-	// Update word/line/char stats incrementally
-	int word_delta = 0;
-	buffer_update_stats_incremental(curbp, 0, n, word_delta);
-	if (word_delta == 0) buffer_mark_stats_dirty(curbp);
+    // Update word/line/char stats incrementally
+    int word_delta = 0;
+    buffer_update_stats_incremental(curbp, 0, n, word_delta);
+    if (word_delta == 0) buffer_mark_stats_dirty(curbp);
 
-	undo_record_insert(curbp, lnum, doto, inserted_text, n);
-	SAFE_FREE(inserted_text);
+    undo_record_insert(curbp, lnum, doto, inserted_text, n);
+    SAFE_FREE(inserted_text);
 
-	perf_end_timing("linsert");
-	return true;
+    perf_end_timing("linsert");
+    return true;
 }
 
 /*
@@ -752,17 +752,17 @@ lp1 = curwp->w_dotp = lp1->l_bp;  // Go to last actual line
  */
 int ldelete(long n, int kflag)
 {
-	struct line *dotp;
-	int doto;
-	int chunk;
-	struct window *wp;
+    struct line *dotp;
+    int doto;
+    int chunk;
+    struct window *wp;
     char *deleted_text;
     long lnum;
 
-	if (curbp->b_mode & MDVIEW)
-		return rdonly();
-	if (n < 0) return false;
-	if (n == 0) return true;
+    if (curbp->b_mode & MDVIEW)
+        return rdonly();
+    if (n < 0) return false;
+    if (n == 0) return true;
 
     /* Capture state for undo */
     dotp = curwp->w_dotp;
@@ -787,85 +787,87 @@ int ldelete(long n, int kflag)
     }
     deleted_text[collected_len] = '\0';
 
-	/* Start with WFEDIT - only upgrade to WFHARD if we merge lines */
-	lchange(WFEDIT);
-	while (n > 0) {
-		dotp = curwp->w_dotp;
-		doto = curwp->w_doto;
-		if (dotp == curbp->b_linep) break;
+    /* Start with WFEDIT - only upgrade to WFHARD if we merge lines */
+    lchange(WFEDIT);
+    while (n > 0) {
+        dotp = curwp->w_dotp;
+        doto = curwp->w_doto;
+        if (dotp == curbp->b_linep) break;
 
-		/* Materialize view mode lines before editing */
-		if (!dotp->storage) {
-			line_materialize(dotp);
-		}
+        /* Materialize view mode lines before editing */
+        if (!dotp->storage) {
+            line_materialize(dotp);
+        }
 
-		chunk = llength(dotp) - doto;
-		if (chunk > n) chunk = (int)n;
-		if (chunk == 0) { /* End of line, merge.  */
-			lchange(WFHARD);  /* Line merge requires full refresh */
-			if (ldelnewline() == false || (kflag != false && kinsert('\n') == false))
-				goto undo_fail;
-			--n;
-		} else {
-			/* Delete from text storage */
-			if (kflag != false) {
-				for (int i = 0; i < chunk; i++) {
-					char ch = TS_GET_CHAR(dotp->storage, (size_t)(doto + i));
-					if (kinsert(ch) == false) goto undo_fail;
-				}
-			}
+        chunk = llength(dotp) - doto;
+        if (chunk > n) chunk = (int)n;
+        if (chunk == 0) { /* End of line, merge.  */
+            lchange(WFHARD);  /* Line merge requires full refresh */
+            if (ldelnewline() == false || (kflag != false && kinsert('\n') == false))
+                goto undo_fail;
+            --n;
+        } else {
+            /* Delete from text storage */
+            if (kflag != false) {
+                for (int i = 0; i < chunk; i++) {
+                    char ch = TS_GET_CHAR(dotp->storage, (size_t)(doto + i));
+                    if (kinsert(ch) == false) goto undo_fail;
+                }
+            }
 
-			if (TS_DELETE(dotp->storage, (size_t)doto, (size_t)chunk) != TS_SUCCESS) {
-				goto undo_fail;
-			}
-			
-			wp = wheadp;
-			while (wp != nullptr) {
-				if (wp->w_dotp == dotp && wp->w_doto >= doto) {
-					wp->w_doto -= chunk;
-					if (wp->w_doto < doto) wp->w_doto = doto;
-				}
-				if (wp->w_markp == dotp && wp->w_marko >= doto) {
-					wp->w_marko -= chunk;
-					if (wp->w_marko < doto) wp->w_marko = doto;
-				}
-				wp = wp->w_wndp;
-			}
-			
-			atomic_store(&dotp->l_column_cache_dirty, true);
-			wrap_invalidate(dotp);
-			n -= chunk;
-		}
-	}
+            if (TS_DELETE(dotp->storage, (size_t)doto, (size_t)chunk) != TS_SUCCESS) {
+                goto undo_fail;
+            }
+            
+            wp = wheadp;
+            while (wp != nullptr) {
+                if (wp->w_dotp == dotp && wp->w_doto >= doto) {
+                    wp->w_doto -= chunk;
+                    if (wp->w_doto < doto) wp->w_doto = doto;
+                }
+                if (wp->w_markp == dotp && wp->w_marko >= doto) {
+                    wp->w_marko -= chunk;
+                    if (wp->w_marko < doto) wp->w_marko = doto;
+                }
+                wp = wp->w_wndp;
+            }
+            
+            atomic_store(&dotp->l_column_cache_dirty, true);
+            wrap_invalidate(dotp);
+            n -= chunk;
+        }
+    }
 
     // Update atomic statistics
     int word_delta = 0;
     if (n == 1 && collected_len == 1 && deleted_text[0] != '\n') {
-		int left_is_word = 0;
-		int right_is_word = 0;
-		if (doto > 0) {
-			char left_ch = (char)lgetc(dotp, doto - 1);
-			left_is_word = is_word_byte_utf8((const char *)&left_ch);
-		}
-		if (doto + 1 < llength(dotp)) {
-			char right_ch = (char)lgetc(dotp, doto + 1);
-			right_is_word = is_word_byte_utf8((const char *)&right_ch);
-		}
-		if (!is_word_byte_utf8((const char *)&deleted_text[0])) {
-			if (left_is_word && right_is_word) word_delta -= 1;
-		} else {
-			if (!left_is_word && !right_is_word) word_delta -= 1;
-		}
+        int left_is_word = 0;
+        int right_is_word = 0;
+        if (doto > 0) {
+            char left_ch = (char)lgetc(dotp, doto - 1);
+            left_is_word = is_word_byte_utf8((const char *)&left_ch);
+        }
+        /* The tail already shifted left: the old right neighbor now
+        * sits AT doto, not doto + 1. */
+        if (doto < llength(dotp)) {
+            char right_ch = (char)lgetc(dotp, doto);
+            right_is_word = is_word_byte_utf8((const char *)&right_ch);
+        }
+        if (!is_word_byte_utf8((const char *)&deleted_text[0])) {
+            if (left_is_word && right_is_word) word_delta -= 1;
+        } else {
+            if (!left_is_word && !right_is_word) word_delta -= 1;
+        }
     }
-	buffer_update_stats_incremental(curbp, 0, -collected_len, word_delta);
+    buffer_update_stats_incremental(curbp, 0, -collected_len, word_delta);
     if (word_delta == 0) buffer_mark_stats_dirty(curbp);
 
-	undo_record_delete(curbp, lnum, doto, deleted_text, (int)collected_len);
-	if (kflag != false && collected_len > 0) {
-		clipboard_set(deleted_text, (size_t)collected_len);
-	}
+    undo_record_delete(curbp, lnum, doto, deleted_text, (int)collected_len);
+    if (kflag != false && collected_len > 0) {
+        clipboard_set(deleted_text, (size_t)collected_len);
+    }
     SAFE_FREE(deleted_text);
-	return n == 0;
+    return n == 0;
 
 undo_fail:
     SAFE_FREE(deleted_text);
@@ -877,54 +879,54 @@ undo_fail:
  */
 int ldelnewline(void)
 {
-	struct line *lp1;
-	struct line *lp2;
-	struct window *wp;
+    struct line *lp1;
+    struct line *lp2;
+    struct window *wp;
 
-	if (curbp->b_mode & MDVIEW) return rdonly();
+    if (curbp->b_mode & MDVIEW) return rdonly();
     lchange(WFHARD);
     
     lp1 = curwp->w_dotp;
     lp2 = lp1->l_fp;
-	if (lp2 == curbp->b_linep) {
-		if (llength(lp1) == 0) {
-			lfree(lp1);
+    if (lp2 == curbp->b_linep) {
+        if (llength(lp1) == 0) {
+            lfree(lp1);
             buffer_update_stats_incremental(curbp, -1, -1, 0);
             buffer_mark_stats_dirty(curbp);
         }
-		return true;
-	}
+        return true;
+    }
 
-	/* Materialize view mode lines before merging */
-	if (!lp1->storage) {
-		line_materialize(lp1);
-	}
-	if (!lp2->storage) {
-		line_materialize(lp2);
-	}
+    /* Materialize view mode lines before merging */
+    if (!lp1->storage) {
+        line_materialize(lp1);
+    }
+    if (!lp2->storage) {
+        line_materialize(lp2);
+    }
 
-	size_t lp1_len = TS_SIZE(lp1->storage);
-	size_t lp2_len = TS_SIZE(lp2->storage);
-	char *temp = safe_alloc(lp2_len, "merge temp", __FILE__, __LINE__);
-	if (!temp) return false;
+    size_t lp1_len = TS_SIZE(lp1->storage);
+    size_t lp2_len = TS_SIZE(lp2->storage);
+    char *temp = safe_alloc(lp2_len, "merge temp", __FILE__, __LINE__);
+    if (!temp) return false;
 
-	TS_GET_TEXT(lp2->storage, 0, lp2_len, temp, lp2_len);
-	TS_INSERT(lp1->storage, lp1_len, temp, lp2_len);
-	SAFE_FREE(temp);
-	
-	wp = wheadp;
-	while (wp != nullptr) {
-		if (wp->w_linep == lp2) wp->w_linep = lp1;
-		if (wp->w_dotp == lp2) {
-			wp->w_dotp = lp1;
-			wp->w_doto += (int)lp1_len;
-		}
-		if (wp->w_markp == lp2) {
-			wp->w_markp = lp1;
-			wp->w_marko += (int)lp1_len;
-		}
-		wp = wp->w_wndp;
-	}
+    TS_GET_TEXT(lp2->storage, 0, lp2_len, temp, lp2_len);
+    TS_INSERT(lp1->storage, lp1_len, temp, lp2_len);
+    SAFE_FREE(temp);
+    
+    wp = wheadp;
+    while (wp != nullptr) {
+        if (wp->w_linep == lp2) wp->w_linep = lp1;
+        if (wp->w_dotp == lp2) {
+            wp->w_dotp = lp1;
+            wp->w_doto += (int)lp1_len;
+        }
+        if (wp->w_markp == lp2) {
+            wp->w_markp = lp1;
+            wp->w_marko += (int)lp1_len;
+        }
+        wp = wp->w_wndp;
+    }
     
     lp1->l_fp = lp2->l_fp;
     lp2->l_fp->l_bp = lp1;
@@ -950,11 +952,11 @@ int ldelnewline(void)
         buffer_index_delete(curbp, 0);
     }
 
-	lfree(lp2);
+    lfree(lp2);
     buffer_update_stats_incremental(curbp, -1, -1, 0);
     buffer_mark_stats_dirty(curbp);
 
-	return true;
+    return true;
 }
 
 /*
@@ -962,12 +964,12 @@ int ldelnewline(void)
  */
 void kdelete(void)
 {
-	if (temp_kill_len > 0) {
-		temp_kill_buf[temp_kill_len] = '\0';
-		kill_ring_add(temp_kill_buf, temp_kill_len);
-		clipboard_set(temp_kill_buf, temp_kill_len);
-		temp_kill_len = 0;
-	}
+    if (temp_kill_len > 0) {
+        temp_kill_buf[temp_kill_len] = '\0';
+        kill_ring_add(temp_kill_buf, temp_kill_len);
+        clipboard_set(temp_kill_buf, temp_kill_len);
+        temp_kill_len = 0;
+    }
 }
 
 /*
@@ -975,9 +977,9 @@ void kdelete(void)
  */
 int kinsert(int c)
 {
-	if (temp_kill_len >= 8191) return false;
-	temp_kill_buf[temp_kill_len++] = (char)c;
-	return true;
+    if (temp_kill_len >= 8191) return false;
+    temp_kill_buf[temp_kill_len++] = (char)c;
+    return true;
 }
 
 /*
@@ -985,51 +987,51 @@ int kinsert(int c)
  */
 int yank(int f, int n)
 {
-	int c;
-	if (curbp->b_mode & MDVIEW) return rdonly();
-	if (n < 0) return false;
-	
-	if (temp_kill_len == 0) return true;
+    int c;
+    if (curbp->b_mode & MDVIEW) return rdonly();
+    if (n < 0) return false;
+    
+    if (temp_kill_len == 0) return true;
 
-	while (n--) {
-		for (size_t i = 0; i < temp_kill_len; i++) {
-			c = temp_kill_buf[i];
-			if (c == '\n') {
-				if (lnewline() == false) return false;
-			} else {
-				if (linsert(1, c) == false) return false;
-			}
-		}
-	}
+    while (n--) {
+        for (size_t i = 0; i < temp_kill_len; i++) {
+            c = temp_kill_buf[i];
+            if (c == '\n') {
+                if (lnewline() == false) return false;
+            } else {
+                if (linsert(1, c) == false) return false;
+            }
+        }
+    }
 
-	thisflag |= (int)CFYANK;
-	yanked_size = (int)temp_kill_len;
-	return true;
+    thisflag |= (int)CFYANK;
+    yanked_size = (int)temp_kill_len;
+    return true;
 }
 
 /* Yank directly from the system clipboard into the buffer */
 int yank_clipboard(int f, int n)
 {
-	char buf[8192];
-	(void)f; (void)n;
-	if (curbp->b_mode & MDVIEW) return rdonly();
-	int len = clipboard_get(buf, sizeof(buf));
-	if (len <= 0) {
-		mlwrite("[CLIPBOARD EMPTY]");
-		return true; /* not an error */
-	}
-	const char *p = buf;
-	while (*p) {
-		if (*p == '\n') {
-			if (lnewline() == false) return false;
-		} else {
-			if (linsert(1, (unsigned char)*p) == false) return false;
-		}
-		++p;
-	}
-	thisflag |= (int)CFYANK;
-	yanked_size = (int)strlen(buf);
-	return true;
+    char buf[8192];
+    (void)f; (void)n;
+    if (curbp->b_mode & MDVIEW) return rdonly();
+    int len = clipboard_get(buf, sizeof(buf));
+    if (len <= 0) {
+        mlwrite("[CLIPBOARD EMPTY]");
+        return true; /* not an error */
+    }
+    const char *p = buf;
+    while (*p) {
+        if (*p == '\n') {
+            if (lnewline() == false) return false;
+        } else {
+            if (linsert(1, (unsigned char)*p) == false) return false;
+        }
+        ++p;
+    }
+    thisflag |= (int)CFYANK;
+    yanked_size = (int)strlen(buf);
+    return true;
 }
 
 /* 
@@ -1037,86 +1039,86 @@ int yank_clipboard(int f, int n)
  */
 
 static void kill_ring_add(const char *text, size_t len) {
-	if (len == 0 || len >= KILL_ENTRY_MAX) return;
+    if (len == 0 || len >= KILL_ENTRY_MAX) return;
 
-	size_t head = atomic_fetch_add_explicit(&g_kill_ring.head, 1, memory_order_acq_rel);
-	head &= (KILL_RING_MAX - 1);
+    size_t head = atomic_fetch_add_explicit(&g_kill_ring.head, 1, memory_order_acq_rel);
+    head &= (KILL_RING_MAX - 1);
 
-	struct kill_ring_entry *entry = &g_kill_ring.entries[head];
+    struct kill_ring_entry *entry = &g_kill_ring.entries[head];
 
-	memcpy(entry->text, text, len);
-	entry->text[len] = '\0';
+    memcpy(entry->text, text, len);
+    entry->text[len] = '\0';
 
-	atomic_store_explicit(&entry->length, len, memory_order_release);
-	atomic_store_explicit(&entry->valid, true, memory_order_release);
+    atomic_store_explicit(&entry->length, len, memory_order_release);
+    atomic_store_explicit(&entry->valid, true, memory_order_release);
 
-	atomic_fetch_add_explicit(&g_kill_ring.count, 1, memory_order_relaxed);
-	atomic_store_explicit(&g_kill_ring.yank_index, head, memory_order_release);
+    atomic_fetch_add_explicit(&g_kill_ring.count, 1, memory_order_relaxed);
+    atomic_store_explicit(&g_kill_ring.yank_index, head, memory_order_release);
 
-	/* Sync to system clipboard if enabled (configurable via TOML) */
-	if (g_clipboard_config.sync_kills) {
-		clipboard_set(text, len);
-	}
+    /* Sync to system clipboard if enabled (configurable via TOML) */
+    if (g_clipboard_config.sync_kills) {
+        clipboard_set(text, len);
+    }
 }
 
 static const char *kill_ring_get(size_t index, size_t *out_len) {
-	index &= (KILL_RING_MAX - 1);
-	struct kill_ring_entry *entry = &g_kill_ring.entries[index];
-	
-	if (!atomic_load_explicit(&entry->valid, memory_order_acquire)) {
-		if (out_len) *out_len = 0;
-		return nullptr;
-	}
-	
-	size_t len = atomic_load_explicit(&entry->length, memory_order_acquire);
-	if (out_len) *out_len = len;
-	return entry->text;
+    index &= (KILL_RING_MAX - 1);
+    struct kill_ring_entry *entry = &g_kill_ring.entries[index];
+    
+    if (!atomic_load_explicit(&entry->valid, memory_order_acquire)) {
+        if (out_len) *out_len = 0;
+        return nullptr;
+    }
+    
+    size_t len = atomic_load_explicit(&entry->length, memory_order_acquire);
+    if (out_len) *out_len = len;
+    return entry->text;
 }
 
 int yankpop(int f, int n) {
-	size_t text_len;
-	const char *text;
-	
-	if (curbp->b_mode & MDVIEW) return rdonly();
-	if (n < 0) return false;
-	
-	if (!((unsigned int)lastflag & CFYANK)) {
-		mlwrite("PREVIOUS COMMAND WAS NOT A YANK");
-		return false;
-	}
-	
-	size_t count = atomic_load_explicit(&g_kill_ring.count, memory_order_acquire);
-	if (count == 0) {
-		mlwrite("KILL RING IS EMPTY");  
-		return false;
-	}
-	
-	size_t current_yank = atomic_load_explicit(&g_kill_ring.yank_index, memory_order_acquire);
-	size_t prev_yank = (current_yank - 1) & (KILL_RING_MAX - 1);
-	
-	text = kill_ring_get(prev_yank, &text_len);
-	if (!text || text_len == 0) {
-		mlwrite("NO PREVIOUS KILL");
-		return false;
-	}
-	
-	if (ldelete(yanked_size, false) == false) {
-		return false;
-	}
-	
-	for (size_t i = 0; i < text_len; i++) {
-		char c = text[i];
-		if (c == '\n') {
-			if (lnewline() == false) return false;
-		} else {
-			if (linsert(1, c) == false) return false;
-		}
-	}
-	
-	atomic_store_explicit(&g_kill_ring.yank_index, prev_yank, memory_order_release);
-	yanked_size = (int)text_len;
-	thisflag |= (int)CFYANK;
-	return true;
+    size_t text_len;
+    const char *text;
+    
+    if (curbp->b_mode & MDVIEW) return rdonly();
+    if (n < 0) return false;
+    
+    if (!((unsigned int)lastflag & CFYANK)) {
+        mlwrite("PREVIOUS COMMAND WAS NOT A YANK");
+        return false;
+    }
+    
+    size_t count = atomic_load_explicit(&g_kill_ring.count, memory_order_acquire);
+    if (count == 0) {
+        mlwrite("KILL RING IS EMPTY");  
+        return false;
+    }
+    
+    size_t current_yank = atomic_load_explicit(&g_kill_ring.yank_index, memory_order_acquire);
+    size_t prev_yank = (current_yank - 1) & (KILL_RING_MAX - 1);
+    
+    text = kill_ring_get(prev_yank, &text_len);
+    if (!text || text_len == 0) {
+        mlwrite("NO PREVIOUS KILL");
+        return false;
+    }
+    
+    if (ldelete(yanked_size, false) == false) {
+        return false;
+    }
+    
+    for (size_t i = 0; i < text_len; i++) {
+        char c = text[i];
+        if (c == '\n') {
+            if (lnewline() == false) return false;
+        } else {
+            if (linsert(1, c) == false) return false;
+        }
+    }
+    
+    atomic_store_explicit(&g_kill_ring.yank_index, prev_yank, memory_order_release);
+    yanked_size = (int)text_len;
+    thisflag |= (int)CFYANK;
+    return true;
 }
 
 int ldelchar(long n, int kflag) {

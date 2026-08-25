@@ -112,9 +112,8 @@ void git_status_set_enabled(int enabled_flag) {
     enabled = (enabled_flag && !test_env) ? 1 : 0;
 }
 
-/* Legacy init - now a no-op, use git_status_set_enabled() after settings load */
+/* Startup default: disabled until settings_load() calls git_status_set_enabled() */
 void git_status_init(void) {
-    /* Default disabled until settings_load() calls git_status_set_enabled() */
     enabled = 0;
 }
 

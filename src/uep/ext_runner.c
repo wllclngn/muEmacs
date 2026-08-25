@@ -32,9 +32,7 @@
 #include "uep/extension.h"
 #include "uep/extension_api.h"
 
-/* =========================================================================
- * Local utility functions
- * ========================================================================= */
+/* Local utility functions */
 
 static int safe_atoi(const char *str, int default_val)
 {
@@ -48,9 +46,7 @@ static int safe_atoi(const char *str, int default_val)
     return (int)val;
 }
 
-/* =========================================================================
- * Global state
- * ========================================================================= */
+/* Global state */
 
 static ext_ipc_channel_t *g_ipc = nullptr;
 static void *g_ext_handle = nullptr;
@@ -116,9 +112,7 @@ typedef struct {
 static local_handler_t g_local_handlers[MAX_LOCAL_HANDLERS];
 static int g_num_handlers = 0;
 
-/* =========================================================================
- * Signal handling
- * ========================================================================= */
+/* Signal handling */
 
 static void signal_handler(int sig)
 {
@@ -126,9 +120,7 @@ static void signal_handler(int sig)
     g_running = 0;
 }
 
-/* =========================================================================
- * IPC-based logging (atomic, goes through main editor)
- * ========================================================================= */
+/* IPC-based logging (atomic, goes through main editor) */
 
 static void ipc_log(const char *fmt, ...)
 {
@@ -155,9 +147,7 @@ static void ipc_log(const char *fmt, ...)
     /* If IPC not ready, log is silently dropped - early startup logs not critical */
 }
 
-/* =========================================================================
- * Local command management
- * ========================================================================= */
+/* Local command management */
 
 static uemacs_cmd_fn find_local_command(const char *name)
 {
@@ -170,12 +160,10 @@ static uemacs_cmd_fn find_local_command(const char *name)
     return nullptr;
 }
 
-/* =========================================================================
- * Atomic IPC Helpers
+/* Atomic IPC Helpers
  *
  * Extension -> Editor calls: write to to_editor ring, spin for COMPLETE
- * Editor -> Extension calls: received from to_ext ring
- * ========================================================================= */
+ * Editor -> Extension calls: received from to_ext ring */
 
 /* Send request to editor and spin-wait for response */
 static int call_editor(uint32_t msg_type, const void *req, uint32_t req_len,
@@ -272,11 +260,9 @@ static void notify_editor(uint32_t msg_type, const void *data, uint32_t len)
     ext_ipc_slot_release(slot);
 }
 
-/* =========================================================================
- * Proxy API Implementation
+/* Proxy API Implementation
  *
- * Each function sends a message to editor and waits for response.
- * ========================================================================= */
+ * Each function sends a message to editor and waits for response. */
 
 static int proxy_on(const char *event, uemacs_event_fn handler, void *user_data, int priority)
 {
@@ -793,9 +779,7 @@ static void proxy_modeline_refresh(void)
 typedef void (*generic_fn_t)(void);
 static generic_fn_t proxy_get_function(const char *name);
 
-/* =========================================================================
- * Proxy API struct
- * ========================================================================= */
+/* Proxy API struct */
 
 static struct muemacs_api proxy_api = {
     .api_version = MUEMACS_API_VERSION,
@@ -927,9 +911,7 @@ static generic_fn_t proxy_get_function(const char *name)
     return nullptr;
 }
 
-/* =========================================================================
- * Command Handler
- * ========================================================================= */
+/* Command Handler */
 
 static void handle_command(ext_ipc_slot_t *slot)
 {
@@ -955,9 +937,7 @@ static void handle_command(ext_ipc_slot_t *slot)
     ext_ipc_slot_complete(slot, result, nullptr, 0);
 }
 
-/* =========================================================================
- * Main Loop - Spin-based
- * ========================================================================= */
+/* Main Loop - Spin-based */
 
 static void extension_main_loop(void)
 {
@@ -1041,9 +1021,7 @@ static void extension_main_loop(void)
     }
 }
 
-/* =========================================================================
- * Main
- * ========================================================================= */
+/* Main */
 
 static void print_usage(const char *prog)
 {

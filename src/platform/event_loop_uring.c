@@ -67,7 +67,6 @@ static int io_uring_enter(int fd, unsigned to_submit, unsigned min_complete,
                         flags, nullptr, 0);
 }
 
-// Map the SQ and CQ rings
 static int uring_map_rings(struct io_uring_params *p) {
     size_t sq_sz = p->sq_off.array + p->sq_entries * sizeof(unsigned);
     size_t cq_sz = p->cq_off.cqes + p->cq_entries * sizeof(struct io_uring_cqe);
@@ -102,7 +101,6 @@ static int uring_map_rings(struct io_uring_params *p) {
     g_uring.cq_ring_ptr = cq_ptr;
     g_uring.cq_ring_sz = cq_sz;
 
-    // Set up pointers
     g_uring.sq_head = (unsigned *)((char *)sq_ptr + p->sq_off.head);
     g_uring.sq_tail = (unsigned *)((char *)sq_ptr + p->sq_off.tail);
     g_uring.sq_ring_mask = (unsigned *)((char *)sq_ptr + p->sq_off.ring_mask);
@@ -131,7 +129,6 @@ static int uring_map_rings(struct io_uring_params *p) {
     return 0;
 }
 
-// Get next available SQE
 static struct io_uring_sqe *uring_get_sqe(void) {
     unsigned tail = *g_uring.sq_tail;
     unsigned head = atomic_load_explicit((_Atomic unsigned *)g_uring.sq_head,
@@ -146,7 +143,6 @@ static struct io_uring_sqe *uring_get_sqe(void) {
     return sqe;
 }
 
-// Submit pending SQEs
 static void uring_submit_sqe(void) {
     atomic_store_explicit((_Atomic unsigned *)g_uring.sq_tail,
                           *g_uring.sq_tail + 1, memory_order_release);

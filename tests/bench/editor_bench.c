@@ -16,6 +16,10 @@ static void init_editor_minimal(const char* name) {
     term.t_ncol = 80;
     term.t_mrow = 24;
     term.t_mcol = 80;
+    /* update() walks the virtual/physical screens; allocate them
+     * without terminal I/O or the redraw loop dereferences null
+     * vscreen rows. */
+    vtinit_test();
     edinit((char*)(name ? name : "bench-editor"));
     varinit();
 }
@@ -57,8 +61,8 @@ int main(void) {
     for (int i = 0; i < insert_chars; ++i) linsert(1, 'a' + (i % 26));
     double t3 = now_sec();
 
-    LOG_INFOF("Redraw iterations: %d time: %.3f ms", iters, (t1 - t0) * 1000.0);
-    LOG_INFOF("Insert chars: %d time: %.3f ms", insert_chars, (t3 - t2) * 1000.0);
+    printf("Redraw iterations: %d time: %.3f ms\n", iters, (t1 - t0) * 1000.0);
+    printf("Insert chars: %d time: %.3f ms\n", insert_chars, (t3 - t2) * 1000.0);
 
     // Print profiler results (timings for insert, update, scroll, etc.)
     perf_report();

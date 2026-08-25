@@ -251,9 +251,7 @@ int vtput_progress_bar(int percent, int width) {
     return total;
 }
 
-/* ============================================================================
- * ENHANCED STRING OPERATIONS (merged from string_enhanced.c)
- * ============================================================================ */
+/* ENHANCED STRING OPERATIONS (merged from string_enhanced.c) */
 
 /* Buffer boundary checking */
 bool check_buffer_bounds(const void* buffer, size_t buffer_size, size_t access_size) {
@@ -296,9 +294,7 @@ int safe_stricmp(const char* s1, const char* s2) {
     return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
 }
 
-/* ============================================================================
- * ADDITIONAL STRING UTILITIES (merged from string_missing.c)
- * ============================================================================ */
+/* ADDITIONAL STRING UTILITIES (merged from string_missing.c) */
 
 /* Safe snprintf implementation */
 int safe_snprintf(char *restrict dest, size_t size, const char *restrict fmt, ...) {
@@ -340,13 +336,10 @@ const char* safe_basename(const char* path) {
     return basename(path_copy);
 }
 
-/* ============================================================================
- * DISPLAY WIDTH CALCULATION (from montauk pattern)
- * ============================================================================
+/* DISPLAY WIDTH CALCULATION (from montauk pattern)
  *
  * Properly calculates display width of strings containing ANSI escape sequences.
- * Escape sequences are NOT counted as display characters.
- */
+ * Escape sequences are NOT counted as display characters. */
 
 /*
  * Skip an ANSI CSI (Control Sequence Introducer) escape sequence.
@@ -499,9 +492,7 @@ int display_pad(char* dest, size_t dest_size, const char* src, int target_cols, 
     return target_cols - need_pad;
 }
 
-/* ============================================================================
- * SAFE NUMBER PARSING - Modern replacement for atoi()
- * ============================================================================ */
+/* SAFE NUMBER PARSING - Modern replacement for atoi() */
 
 #include <errno.h>
 #include <limits.h>

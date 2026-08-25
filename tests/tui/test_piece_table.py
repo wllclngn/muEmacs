@@ -9,13 +9,15 @@ Tests:
 - Navigation in large files
 - Clean exit without crash
 
-Requires: tests/data/perf_100m.txt (82MB test file)
+The large test file is generated into /tmp at run time (no checked-in
+fixture). Tests skip cleanly if generation is not feasible.
 
 Usage:
     python3 tests/tui/test_piece_table.py
 """
 
 import os
+import shutil
 import sys
 import time
 
@@ -23,27 +25,49 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from base import UEmacsTest
 
 
-# Path to large test file (relative to project root)
-LARGE_FILE = 'tests/data/perf_100m.txt'
+# Generated fixture: numbered lines, large enough (>= 10MB) to force the
+# piece table / mmap load path. Regenerated only if missing or truncated.
+LARGE_FILE = '/tmp/muemacs/perf_piece_table.txt'
+TARGET_SIZE = 16 * 1024 * 1024  # 16MB
 
 
 def get_large_file_path():
-    """Get absolute path to the large test file."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir))
-    path = os.path.join(project_root, LARGE_FILE)
+    """Generate (if needed) and return the large test file path.
 
-    if not os.path.exists(path):
-        print(f"WARNING: Large test file not found: {path}")
-        print("Create it with: dd if=/dev/zero bs=1M count=100 | tr '\\0' 'x' > tests/data/perf_100m.txt")
+    Returns None, with a message, when generation is not feasible; the
+    callers treat that as a skip, not a failure.
+    """
+    try:
+        if (os.path.exists(LARGE_FILE)
+                and os.path.getsize(LARGE_FILE) >= TARGET_SIZE):
+            return LARGE_FILE
+
+        tmp_dir = os.path.dirname(LARGE_FILE)
+        os.makedirs(tmp_dir, exist_ok=True)
+
+        usage = shutil.disk_usage(tmp_dir)
+        if usage.free < 2 * TARGET_SIZE:
+            print(f"WARNING: Not enough free space in {tmp_dir} "
+                  f"({usage.free} bytes) to generate the large test file")
+            return None
+
+        tmp_path = LARGE_FILE + '.partial'
+        written = 0
+        line_no = 0
+        with open(tmp_path, 'w', encoding='ascii') as fh:
+            while written < TARGET_SIZE:
+                line = (f"LINE_{line_no:08d} "
+                        + "the quick brown fox jumps over the lazy dog "
+                        + f"payload_{line_no % 977:04d}\n")
+                fh.write(line)
+                written += len(line)
+                line_no += 1
+        os.replace(tmp_path, LARGE_FILE)
+        print(f"Generated {LARGE_FILE} ({written} bytes, {line_no} lines)")
+        return LARGE_FILE
+    except OSError as e:
+        print(f"WARNING: Could not generate large test file: {e}")
         return None
-
-    size = os.path.getsize(path)
-    if size < 10 * 1024 * 1024:  # Less than 10MB
-        print(f"WARNING: Test file too small ({size} bytes), needs >= 10MB for piece table")
-        return None
-
-    return path
 
 
 def wait_for_file_load(emu, timeout=30):
@@ -79,7 +103,7 @@ def test_piece_table_loading():
     try:
         emu.start(filename=filepath, evil_mode=False)
 
-        # Wait for load to complete - 82MB file needs time
+        # Wait for load to complete - the 16MB file needs a moment
         if not wait_for_file_load(emu, timeout=30):
             print("FAIL: File load timed out")
             emu.dump_screen()

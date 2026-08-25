@@ -62,12 +62,6 @@ static_assert(NFILEN >= 64, "NFILEN must be at least 64 bytes for modern paths")
 static_assert(NSTRING >= 1024, "NSTRING must be at least 1KB for string operations");
 static_assert((NCOLORS & (NCOLORS - 1)) == 0, "NCOLORS must be power of 2 for efficient lookup");
 
-/* Legacy key encoding macros - REMOVED 2024-12
- * The old bit-flag system (CONTROL|META|CTLX|SPEC) has been replaced by
- * the modern input_key_event_t structure with separate code and modifiers.
- * See include/terminal/input_state.h for MOD_CTRL, MOD_META, etc.
- */
-
 /* Boolean values */
 #ifdef	false
 #undef	false
@@ -76,42 +70,40 @@ static_assert((NCOLORS & (NCOLORS - 1)) == 0, "NCOLORS must be power of 2 for ef
 #undef	true
 #endif
 
-// #define FALSE   0		/* False, no, bad, etc.         */  /* Removed: Using <stdbool.h> instead */
-// #define TRUE    1		/* True, yes, good, etc.        */  /* Removed: Using <stdbool.h> instead */
 #define ABORT   2		/* Death, ^G, abort, etc.       */
 #define	FAILED	3		/* not-quite fatal false return */
 
 /* Macro states - C23 enum for type safety */
 enum macro_state {
-	MACRO_STOP   = 0,	/* keyboard macro not in use    */
-	MACRO_PLAY   = 1,	/*                playing       */
-	MACRO_RECORD = 2	/*                recording     */
+    MACRO_STOP   = 0,	/* keyboard macro not in use    */
+    MACRO_PLAY   = 1,	/*                playing       */
+    MACRO_RECORD = 2	/*                recording     */
 };
 
 /* Directive definitions - C23 enum for type safety */
 enum directive {
-	DIR_IF        = 0,
-	DIR_ELSE      = 1,
-	DIR_ENDIF     = 2,
-	DIR_GOTO      = 3,
-	DIR_RETURN    = 4,
-	DIR_ENDM      = 5,
-	DIR_WHILE     = 6,
-	DIR_ENDWHILE  = 7,
-	DIR_BREAK     = 8,
-	DIR_FORCE     = 9,
-	DIR_COUNT     = 10	/* Number of directives */
+    DIR_IF        = 0,
+    DIR_ELSE      = 1,
+    DIR_ENDIF     = 2,
+    DIR_GOTO      = 3,
+    DIR_RETURN    = 4,
+    DIR_ENDM      = 5,
+    DIR_WHILE     = 6,
+    DIR_ENDWHILE  = 7,
+    DIR_BREAK     = 8,
+    DIR_FORCE     = 9,
+    DIR_COUNT     = 10	/* Number of directives */
 };
 
 /* Search position and direction - C23 enums for type safety */
 enum search_position {
-	POS_BEGIN = 0,		/* Leave the point at the beginning on search  */
-	POS_END   = 1		/* Leave the point at the end on search         */
+    POS_BEGIN = 0,		/* Leave the point at the beginning on search  */
+    POS_END   = 1		/* Leave the point at the end on search         */
 };
 
 enum search_direction {
-	DIR_FORWARD = 0,	/* forward direction            */
-	DIR_REVERSE = 1		/* backwards direction          */
+    DIR_FORWARD = 0,	/* forward direction            */
+    DIR_REVERSE = 1		/* backwards direction          */
 };
 
 /* File I/O status codes - Standard enum */
@@ -139,17 +131,17 @@ enum FileStatus {
 
 /* Macro argument token types - C23 enum for type safety */
 enum token_type {
-	TOKEN_NUL  = 0,		/* end-of-string                */
-	TOKEN_ARG  = 1,		/* interactive argument         */
-	TOKEN_BUF  = 2,		/* buffer argument              */
-	TOKEN_VAR  = 3,		/* user variables               */
-	TOKEN_ENV  = 4,		/* environment variables        */
-	TOKEN_FUN  = 5,		/* function....                 */
-	TOKEN_DIR  = 6,		/* directive                    */
-	TOKEN_LBL  = 7,		/* line label                   */
-	TOKEN_LIT  = 8,		/* numeric literal              */
-	TOKEN_STR  = 9,		/* quoted string literal        */
-	TOKEN_CMD  = 10		/* command name                 */
+    TOKEN_NUL  = 0,		/* end-of-string                */
+    TOKEN_ARG  = 1,		/* interactive argument         */
+    TOKEN_BUF  = 2,		/* buffer argument              */
+    TOKEN_VAR  = 3,		/* user variables               */
+    TOKEN_ENV  = 4,		/* environment variables        */
+    TOKEN_FUN  = 5,		/* function....                 */
+    TOKEN_DIR  = 6,		/* directive                    */
+    TOKEN_LBL  = 7,		/* line label                   */
+    TOKEN_LIT  = 8,		/* numeric literal              */
+    TOKEN_STR  = 9,		/* quoted string literal        */
+    TOKEN_CMD  = 10		/* command name                 */
 };
 /* Legacy aliases for backward compatibility during transition */
 #define TKNUL TOKEN_NUL
@@ -202,7 +194,7 @@ enum token_type {
 
 /* Branchless unsigned range check: true if lo <= x <= hi */
 #define UEMACS_IN_RANGE(x, lo, hi) \
-	((unsigned)((x) - (lo)) <= (unsigned)((hi) - (lo)))
+    ((unsigned)((x) - (lo)) <= (unsigned)((hi) - (lo)))
 
 /*
  * Character classification - branchless, always inlined.
@@ -212,20 +204,20 @@ enum token_type {
 
 [[gnu::always_inline, gnu::const]]
 static inline int is_lower(int c) {
-	unsigned u = (unsigned char)c;
-	return UEMACS_IN_RANGE(u, 'a', 'z');  /* ASCII only - Latin-1 conflicts with UTF-8 */
+    unsigned u = (unsigned char)c;
+    return UEMACS_IN_RANGE(u, 'a', 'z');  /* ASCII only - Latin-1 conflicts with UTF-8 */
 }
 
 [[gnu::always_inline, gnu::const]]
 static inline int is_upper(int c) {
-	unsigned u = (unsigned char)c;
-	return UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only - Latin-1 conflicts with UTF-8 */
+    unsigned u = (unsigned char)c;
+    return UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only - Latin-1 conflicts with UTF-8 */
 }
 
 [[gnu::always_inline, gnu::const]]
 static inline int is_letter(int c) {
-	unsigned u = (unsigned char)c;
-	return UEMACS_IN_RANGE(u, 'a', 'z') | UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only */
+    unsigned u = (unsigned char)c;
+    return UEMACS_IN_RANGE(u, 'a', 'z') | UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only */
 }
 
 /*
@@ -238,16 +230,16 @@ static inline int is_letter(int c) {
 
 [[gnu::always_inline, gnu::const]]
 static inline int to_lower(int c) {
-	unsigned u = (unsigned char)c;
-	int is_up = UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only */
-	return c ^ (is_up * DIFCASE);
+    unsigned u = (unsigned char)c;
+    int is_up = UEMACS_IN_RANGE(u, 'A', 'Z');  /* ASCII only */
+    return c ^ (is_up * DIFCASE);
 }
 
 [[gnu::always_inline, gnu::const]]
 static inline int to_upper(int c) {
-	unsigned u = (unsigned char)c;
-	int is_lo = UEMACS_IN_RANGE(u, 'a', 'z');  /* ASCII only */
-	return c ^ (is_lo * DIFCASE);
+    unsigned u = (unsigned char)c;
+    int is_lo = UEMACS_IN_RANGE(u, 'a', 'z');  /* ASCII only */
+    return c ^ (is_lo * DIFCASE);
 }
 
 /*
@@ -256,7 +248,7 @@ static inline int to_upper(int c) {
  */
 [[gnu::always_inline, gnu::const]]
 static inline int eq_nocase(int c1, int c2) {
-	return to_lower(c1) == to_lower(c2);
+    return to_lower(c1) == to_lower(c2);
 }
 
 /*
@@ -269,38 +261,38 @@ static inline int eq_nocase(int c1, int c2) {
  * character.
  */
 struct window {
-	struct window *w_wndp;	/* Next window                  */
-	struct buffer *w_bufp;	/* Buffer displayed in window   */
-	struct line *w_linep;	/* Top line in the window       */
-	struct line *w_dotp;	/* Line containing "."          */
-	struct line *w_markp;	/* Line containing "mark"       */
-	int w_doto;		/* Byte offset for "."          */
-	int w_marko;		/* Byte offset for "mark"       */
-	int w_toprow;		/* Origin 0 top row of window   */
-	int w_ntrows;		/* # of rows of text in window  */
-	int w_wrap_col;		/* Soft wrap column (0 = disabled) */
-	char w_force;		/* If NZ, forcing row.          */
-	short w_flag;		/* Flags (expanded for WFTERM)  */
+    struct window *w_wndp;	/* Next window                  */
+    struct buffer *w_bufp;	/* Buffer displayed in window   */
+    struct line *w_linep;	/* Top line in the window       */
+    struct line *w_dotp;	/* Line containing "."          */
+    struct line *w_markp;	/* Line containing "mark"       */
+    int w_doto;		/* Byte offset for "."          */
+    int w_marko;		/* Byte offset for "mark"       */
+    int w_toprow;		/* Origin 0 top row of window   */
+    int w_ntrows;		/* # of rows of text in window  */
+    int w_wrap_col;		/* Soft wrap column (0 = disabled) */
+    char w_force;		/* If NZ, forcing row.          */
+    short w_flag;		/* Flags (expanded for WFTERM)  */
 
-	// Atomic cursor position cache for instant status updates
-	_Atomic int w_line_cache;	/* Cached line number for w_dotp */
-	_Atomic bool w_line_cache_dirty; /* Line cache needs recalculation */
+    // Atomic cursor position cache for instant status updates
+    _Atomic int w_line_cache;	/* Cached line number for w_dotp */
+    _Atomic bool w_line_cache_dirty; /* Line cache needs recalculation */
 
-	// Soft-wrap display cache - avoid recalculating screen position every keystroke
-	struct line *w_sline_dotp;	/* w_dotp when cache was computed */
-	struct line *w_sline_linep;	/* w_linep when cache was computed */
-	int w_sline_cache;		/* Cached screen row for cursor line */
-	int w_sline_rows;		/* Cached row count for cursor line */
+    // Soft-wrap display cache - avoid recalculating screen position every keystroke
+    struct line *w_sline_dotp;	/* w_dotp when cache was computed */
+    struct line *w_sline_linep;	/* w_linep when cache was computed */
+    int w_sline_cache;		/* Cached screen row for cursor line */
+    int w_sline_rows;		/* Cached row count for cursor line */
 };
 
 /* Window flags - Standard enum */
 enum WindowFlags {
-	WFFORCE = 0x01,		/* Window needs forced reframe  */
-	WFMOVE  = 0x02,		/* Movement from line to line   */
-	WFEDIT  = 0x04,		/* Editing within a line        */
-	WFHARD  = 0x08,		/* Better to a full display     */
-	WFMODE  = 0x10,		/* Update mode line.            */
-	WFTERM  = 0x20		/* Terminal emulator window     */
+    WFFORCE = 0x01,		/* Window needs forced reframe  */
+    WFMOVE  = 0x02,		/* Movement from line to line   */
+    WFEDIT  = 0x04,		/* Editing within a line        */
+    WFHARD  = 0x08,		/* Better to a full display     */
+    WFMODE  = 0x10,		/* Update mode line.            */
+    WFTERM  = 0x20		/* Terminal emulator window     */
 };
 
 
@@ -319,66 +311,66 @@ enum WindowFlags {
  * C23 modernized buffer structure with improved memory layout and type safety
  */
 struct buffer {
-	struct buffer *b_bufp;	/* Link to next struct buffer   */
-	struct line *b_dotp;	/* Link to "." struct line structure   */
-	struct line *b_markp;	/* The same as the above two,   */
-	struct line *b_linep;	/* Link to the header struct line      */
-	int b_doto;		/* Offset of "." in above struct line  */
-	int b_marko;		/* but for the "mark"           */
-	uint32_t b_mode;	/* editor mode of this buffer (was int) */
-	uint8_t b_active;	/* window activated flag (was char) */
-	_Atomic uint8_t b_nwnd;		/* Count of windows on buffer - C23 atomic */
-	_Atomic uint8_t b_flag;		/* Buffer flags - C23 atomic for RMW safety */
-	uint8_t _reserved;	/* Padding for 32-bit alignment */
-	
-	// Cached status line statistics for instant updates
-	_Atomic int b_line_count;	/* Total lines in buffer - cached */
-	_Atomic long b_byte_count;	/* Total bytes in buffer - cached */
-	_Atomic int b_word_count;	/* Total words in buffer - cached */
-	_Atomic bool b_stats_dirty;	/* Statistics need recalculation */
+    struct buffer *b_bufp;	/* Link to next struct buffer   */
+    struct line *b_dotp;	/* Link to "." struct line structure   */
+    struct line *b_markp;	/* The same as the above two,   */
+    struct line *b_linep;	/* Link to the header struct line      */
+    int b_doto;		/* Offset of "." in above struct line  */
+    int b_marko;		/* but for the "mark"           */
+    uint32_t b_mode;	/* editor mode of this buffer (was int) */
+    uint8_t b_active;	/* window activated flag (was char) */
+    _Atomic uint8_t b_nwnd;		/* Count of windows on buffer - C23 atomic */
+    _Atomic uint8_t b_flag;		/* Buffer flags - C23 atomic for RMW safety */
+    uint8_t _reserved;	/* Padding for 32-bit alignment */
+    
+    // Cached status line statistics for instant updates
+    _Atomic int b_line_count;	/* Total lines in buffer - cached */
+    _Atomic long b_byte_count;	/* Total bytes in buffer - cached */
+    _Atomic int b_word_count;	/* Total words in buffer - cached */
+    _Atomic bool b_stats_dirty;	/* Statistics need recalculation */
 
-	// Display dirty tracking (montauk/OUROBOROS pattern)
-	_Atomic uint64_t b_dirty_seq;	/* Incremented on any modification */
-	
-	// O(1) Line Access Index (Phase 2)
-	struct line **b_line_index;     /* Dynamic array of line pointers */
-	size_t b_line_capacity;         /* Capacity of the index array */
+    // Display dirty tracking (montauk/OUROBOROS pattern)
+    _Atomic uint64_t b_dirty_seq;	/* Incremented on any modification */
+    
+    // O(1) Line Access Index (Phase 2)
+    struct line **b_line_index;     /* Dynamic array of line pointers */
+    size_t b_line_capacity;         /* Capacity of the index array */
 
-	// Atomic undo/redo system (VSCode-inspired)
-	struct atomic_undo_stack *b_undo_stack;	/* Edit history for this buffer */
-	_Atomic uint64_t b_saved_version_id;   /* Version id of last saved/clean state */
-	
-	char b_fname[NFILEN];	/* File name                    */
-	char b_bname[NBUFN];	/* Buffer name                  */
-	/* Legacy b_key removed - use external GPG/age via encrypt.c */
+    // Atomic undo/redo system (VSCode-inspired)
+    struct atomic_undo_stack *b_undo_stack;	/* Edit history for this buffer */
+    _Atomic uint64_t b_saved_version_id;   /* Version id of last saved/clean state */
+    
+    char b_fname[NFILEN];	/* File name                    */
+    char b_bname[NBUFN];	/* Buffer name                  */
+    /* Legacy b_key removed - use external GPG/age via encrypt.c */
 
-	void *b_term_data;	/* Modern terminal state (terminal.h) */
-	struct keymap *b_local_keymap;	/* Buffer-local keybindings (nullptr = use global) */
+    void *b_term_data;	/* Modern terminal state (terminal.h) */
+    struct keymap *b_local_keymap;	/* Buffer-local keybindings (nullptr = use global) */
 
-	/* Syntax highlighting state (nullptr = no highlighting) */
-	struct buffer_syntax *b_syntax;
-	int b_lang_id;	/* Language ID for syntax highlighting (-1 = unknown) */
+    /* Syntax highlighting state (nullptr = no highlighting) */
+    struct buffer_syntax *b_syntax;
+    int b_lang_id;	/* Language ID for syntax highlighting (-1 = unknown) */
 
-	/* Large file support: buffer-level piece table storage
-	 * When b_text is non-nullptr, lines are "views" into this storage
-	 * rather than owning their own gap buffers. This enables O(1)
-	 * file loading via mmap for files >= 10MB.
-	 */
-	struct text_storage *b_text;	/* Buffer-level storage (nullptr = per-line mode) */
+    /* Large file support: buffer-level piece table storage
+    * When b_text is non-nullptr, lines are "views" into this storage
+    * rather than owning their own gap buffers. This enables O(1)
+    * file loading via mmap for files >= 10MB.
+    */
+    struct text_storage *b_text;	/* Buffer-level storage (nullptr = per-line mode) */
 };
 
 /* Buffer flags - Standard enum */
 enum BufferFlags {
-	BFINVS  = 0x01,		/* Internal invisible buffer    */
-	BFCHG   = 0x02,		/* Changed since last write     */
-	BFTRUNC = 0x04		/* buffer was truncated when read */
+    BFINVS  = 0x01,		/* Internal invisible buffer    */
+    BFCHG   = 0x02,		/* Changed since last write     */
+    BFTRUNC = 0x04		/* buffer was truncated when read */
 };
 
 /* Hash table for O(1) buffer lookup by name */
 #define BUFFER_HASH_SIZE 256  /* Power of 2 for fast modulo */
 struct buffer_hash_entry {
-	struct buffer *buffer;         /* Pointer to buffer */
-	struct buffer_hash_entry *next; /* Collision chain */
+    struct buffer *buffer;         /* Pointer to buffer */
+    struct buffer_hash_entry *next; /* Collision chain */
 };
 
 /* Global buffer hash table for instant buffer lookup */
@@ -403,9 +395,9 @@ extern struct buffer_hash_entry *buffer_hash_table[BUFFER_HASH_SIZE];
  * characters, is kept in a region structure.  Used by the region commands.
  */
 struct region {
-	struct line *r_linep;	/* Origin struct line address.         */
-	int r_offset;		/* Origin struct line offset.          */
-	long r_size;		/* Length in characters.        */
+    struct line *r_linep;	/* Origin struct line address.         */
+    int r_offset;		/* Origin struct line offset.          */
+    long r_size;		/* Length in characters.        */
 };
 
 /*
@@ -418,31 +410,31 @@ struct region {
  * one terminal type.
  */
 struct terminal {
-	_Atomic short t_mrow;		/* max number of rows - C23 atomic for signal safety */
-	_Atomic short t_nrow;		/* current rows used - C23 atomic for signal safety */
-	_Atomic short t_mcol;		/* max columns - C23 atomic for signal safety */
-	_Atomic short t_ncol;		/* current columns - C23 atomic for signal safety */
-	short t_margin;		/* min margin for extended lines */
-	short t_scrsiz;		/* size of scroll region "      */
-	int t_pause;		/* # times thru update to pause */
-	void (*t_open)(void);	/* Open terminal at the start.  */
-	void (*t_close)(void);	/* Close terminal at end.       */
-	void (*t_kopen)(void);	/* Open keyboard                */
-	void (*t_kclose)(void);	/* close keyboard               */
-	int (*t_getchar)(void);	/* Get character from keyboard. */
-	int (*t_putchar)(int);	/* Put character to display.    */
-	void (*t_flush) (void);	/* Flush output buffers.        */
-	void (*t_move)(int, int);/* Move the cursor, origin 0.   */
-	void (*t_eeol)(void);	/* Erase to end of line.        */
-	void (*t_eeop)(void);	/* Erase to end of page.        */
-	void (*t_beep)(void);	/* Beep.                        */
-	void (*t_rev)(int);	/* set reverse video state      */
-	int (*t_rez)(const char *);	/* change screen resolution     */
-	void (*t_scroll)(int, int,int);	/* scroll a region of the screen */
+    _Atomic short t_mrow;		/* max number of rows - C23 atomic for signal safety */
+    _Atomic short t_nrow;		/* current rows used - C23 atomic for signal safety */
+    _Atomic short t_mcol;		/* max columns - C23 atomic for signal safety */
+    _Atomic short t_ncol;		/* current columns - C23 atomic for signal safety */
+    short t_margin;		/* min margin for extended lines */
+    short t_scrsiz;		/* size of scroll region "      */
+    int t_pause;		/* # times thru update to pause */
+    void (*t_open)(void);	/* Open terminal at the start.  */
+    void (*t_close)(void);	/* Close terminal at end.       */
+    void (*t_kopen)(void);	/* Open keyboard                */
+    void (*t_kclose)(void);	/* close keyboard               */
+    int (*t_getchar)(void);	/* Get character from keyboard. */
+    int (*t_putchar)(int);	/* Put character to display.    */
+    void (*t_flush) (void);	/* Flush output buffers.        */
+    void (*t_move)(int, int);/* Move the cursor, origin 0.   */
+    void (*t_eeol)(void);	/* Erase to end of line.        */
+    void (*t_eeop)(void);	/* Erase to end of page.        */
+    void (*t_beep)(void);	/* Beep.                        */
+    void (*t_rev)(int);	/* set reverse video state      */
+    int (*t_rez)(const char *);	/* change screen resolution     */
+    void (*t_scroll)(int, int,int);	/* scroll a region of the screen */
 };
 
 /*	TEMPORARY macros for terminal I/O  (to be placed in a machine
-					    dependant place later)	*/
+                      dependant place later)	*/
 
 // LEGACY TERMINAL MACROS REPLACED - See include/μemacs/terminal_ops.h
 // 18 unsafe function pointer macros eliminated in Phase 2
@@ -451,14 +443,14 @@ struct terminal {
 
 /* Structure for the table of initial key bindings. */
 struct key_tab {
-	int k_code;		 /* Key code */
-	int (*k_fp)(int, int);	 /* Routine to handle it */
+    int k_code;		 /* Key code */
+    int (*k_fp)(int, int);	 /* Routine to handle it */
 };
 
 /* Structure for the name binding table. */
 struct name_bind {
-	char *n_name;		 /* name of function key */
-	int (*n_func)(int, int); /* function name is bound to */
+    char *n_name;		 /* name of function key */
+    int (*n_func)(int, int); /* function name is bound to */
 };
 
 
@@ -474,17 +466,17 @@ static_assert((KILL_RING_MAX & (KILL_RING_MAX - 1)) == 0,
 static_assert(KILL_ENTRY_MAX >= 250, "KILL_ENTRY_MAX must be >= 250 for kill buffer compatibility");
 
 struct kill_ring_entry {
-	_Atomic size_t length;              /* Length of text in entry */
-	_Atomic bool valid;                 /* Entry contains valid data */
-	ALIGN_TO(64) char text[KILL_ENTRY_MAX];  /* Cache-aligned text storage */
+    _Atomic size_t length;              /* Length of text in entry */
+    _Atomic bool valid;                 /* Entry contains valid data */
+    ALIGN_TO(64) char text[KILL_ENTRY_MAX];  /* Cache-aligned text storage */
 };
 
 struct kill_ring {
-	_Atomic size_t head;                /* Next slot to write (producer) */
-	_Atomic size_t tail;                /* Oldest valid entry (for GC) */
-	_Atomic size_t yank_index;          /* Current yank position for yankpop */
-	_Atomic size_t count;               /* Number of valid entries */
-	ALIGN_TO(64) struct kill_ring_entry entries[KILL_RING_MAX];
+    _Atomic size_t head;                /* Next slot to write (producer) */
+    _Atomic size_t tail;                /* Oldest valid entry (for GC) */
+    _Atomic size_t yank_index;          /* Current yank position for yankpop */
+    _Atomic size_t count;               /* Number of valid entries */
+    ALIGN_TO(64) struct kill_ring_entry entries[KILL_RING_MAX];
 };
 
 /* When emacs' command interpetor needs to get a variable's name,
@@ -492,8 +484,8 @@ struct kill_ring {
  * structure. The v_num field is a index into the appropriate variable table.
  */
 struct variable_description {
-	int v_type;  /* Type of variable. */
-	int v_num;   /* Ordinal pointer to variable in list. */
+    int v_type;  /* Type of variable. */
+    int v_num;   /* Ordinal pointer to variable in list. */
 };
 
 /* The !WHILE directive in the execution language needs to
@@ -502,16 +494,16 @@ struct variable_description {
  * the following structure.
 */
 struct while_block {
-	struct line *w_begin;        /* ptr to !while statement */
-	struct line *w_end;          /* ptr to the !endwhile statement */
-	int w_type;		     /* block type */
-	struct while_block *w_next;  /* next while */
+    struct line *w_begin;        /* ptr to !while statement */
+    struct line *w_end;          /* ptr to the !endwhile statement */
+    int w_type;		     /* block type */
+    struct while_block *w_next;  /* next while */
 };
 
 /* While block types - C23 enum for type safety */
 enum block_type {
-	BLOCK_WHILE = 1,
-	BLOCK_BREAK = 2
+    BLOCK_WHILE = 1,
+    BLOCK_BREAK = 2
 };
 /* Legacy aliases */
 #define BTWHILE BLOCK_WHILE
@@ -524,14 +516,14 @@ enum block_type {
 
 /* Regex metacharacter types - C23 enum for type safety */
 enum metachar_type {
-	MC_NIL     = 0,		/* Like the '\0' for strings    */
-	MC_LITCHAR = 1,		/* Literal character, or string */
-	MC_ANYCHAR = 2,		/* Any character                */
-	MC_CHARCLASS = 3,	/* Character class              */
-	MC_NEGCLASS  = 4,	/* Negated character class      */
-	MC_BEGLINE   = 5,	/* Beginning of line            */
-	MC_ENDLINE   = 6,	/* End of line                  */
-	MC_DITTO_REP = 7	/* Replacement ditto            */
+    MC_NIL     = 0,		/* Like the '\0' for strings    */
+    MC_LITCHAR = 1,		/* Literal character, or string */
+    MC_ANYCHAR = 2,		/* Any character                */
+    MC_CHARCLASS = 3,	/* Character class              */
+    MC_NEGCLASS  = 4,	/* Negated character class      */
+    MC_BEGLINE   = 5,	/* Beginning of line            */
+    MC_ENDLINE   = 6,	/* End of line                  */
+    MC_DITTO_REP = 7	/* Replacement ditto            */
 };
 /* Legacy aliases */
 #define MCNIL   MC_NIL
@@ -564,16 +556,16 @@ enum metachar_type {
  * (struct magic_replacement).
  */
 struct magic {
-	short int mc_type;
-	union {
-		int lchar;
-		char *cclmap;
-	} u;
+    short int mc_type;
+    union {
+        int lchar;
+        char *cclmap;
+    } u;
 };
 
 struct magic_replacement {
-	short int mc_type;
-	char *rstr;
+    short int mc_type;
+    char *rstr;
 };
 
 #endif  /* ESTRUCT_H */

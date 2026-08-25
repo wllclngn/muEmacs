@@ -20,7 +20,25 @@
 #include <stdbool.h>
 #include <termios.h>
 
-/* Signal flags - volatile sig_atomic_t for async-signal safety */
+/*
+ * Signal flags — volatile sig_atomic_t for async-signal safety.
+ *
+ * C23 Safety classification (per C23_CPP23_SAFETY_REFERENCE.md):
+ *   All eight flags below are OPERATIONAL signals, not fatal-crash handlers.
+ *   signalfd (see signal_create_signalfd() at the bottom of this file) is
+ *   the preferred path on Linux 2.6.22+ — it delivers these signals to a
+ *   pollable fd and eliminates async-signal-handler re-entrancy concerns.
+ *
+ *   These volatile flags remain as a fallback for code paths that run
+ *   before signalfd is active (early startup) and for portability to
+ *   non-Linux systems. When the signalfd backend is active, the same
+ *   flags are populated by signal_process_signalfd() from the main loop,
+ *   not from an async signal handler — the volatile qualifier is
+ *   defensive but no longer strictly required.
+ *
+ *   DO NOT migrate these flags to plain int without also removing the
+ *   traditional sigaction-based handlers in signal_handler.c:handle_*.
+ */
 extern volatile sig_atomic_t sig_winch_pending;
 extern volatile sig_atomic_t sig_int_pending;
 extern volatile sig_atomic_t sig_pipe_pending;
@@ -28,7 +46,7 @@ extern volatile sig_atomic_t sig_hup_pending;
 extern volatile sig_atomic_t sig_term_pending;
 extern volatile sig_atomic_t sig_cont_pending;
 
-/* Terminal dimensions after SIGWINCH */
+/* Terminal dimensions after SIGWINCH (operational, same rules as above). */
 extern volatile sig_atomic_t sig_new_rows;
 extern volatile sig_atomic_t sig_new_cols;
 

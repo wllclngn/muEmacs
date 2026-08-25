@@ -32,6 +32,6 @@ int main(void) {
     }
     uint64_t end = now_ns();
     double ms = (end - start)/1e6;
-    LOG_INFOF("[bench] utf8 encode/decode: %d ops in %.2f ms (ok=%d)", iters, ms, okcount);
+    printf("[bench] utf8 encode/decode: %d ops in %.2f ms (ok=%d)\n", iters, ms, okcount);
     return 0;
 }

@@ -5,12 +5,13 @@
 ```
 tests/
 ├── test_registry.h              # Add your entry point here
+├── test_runner.h                # Fork-isolated runner (TEST_RUN macros)
 ├── test_utils.h/c               # Shared harness (timeouts, stats, colors)
 ├── integration/
-│   └── full_integration_test.c  # Add test call in main()
+│   └── main_test_suite.c        # Add a TEST_RUN line here
 ├── unit/
 │   └── test_<module>_<feature>.c
-├── data/                        # Test fixtures (perf_100m.txt, etc.)
+├── data/                        # Test fixtures (poe, utf8-demo, etc.)
 └── *.exp                        # Expect scripts (interactive tests)
 ```
 
@@ -285,25 +286,27 @@ static int test_performance_benchmark(void) {
 int test_mymodule_feature(void);
 ```
 
-### 2. Add call to `tests/integration/full_integration_test.c`
+### 2. Add a TEST_RUN to `tests/integration/main_test_suite.c`
+
+Every test runs through the fork-isolated runner (`test_runner.h`).
+Inside the appropriate `TEST_SUITE_BEGIN`/`TEST_SUITE_END` block in
+`main()`:
 
 ```c
-// In main() function
-int all_phases_passed = 1;
-
-// ... existing tests ...
-all_phases_passed &= test_mymodule_feature();
-// ... more tests ...
-
-return all_phases_passed ? 0 : 1;
+TEST_RUN(test_mymodule_feature, "One-line description", 30);
 ```
+
+The third argument is the per-test timeout in seconds (0 uses the 60s
+default). Exit code 77 from a test marks it SKIP.
 
 ### 3. Build and run
 
 ```bash
-cd build
-cmake .. && make
-./tests/integration/full_integration_test
+cmake --build build
+./build/bin/full_integration_test
+
+# Any command-line args act as substring filters on test names:
+./build/bin/full_integration_test mymodule
 ```
 
 ## Common Patterns
@@ -377,9 +380,13 @@ while (lp != curbp->b_linep) {
 ## Available Test Data
 
 Located in `tests/data/`:
-- `perf_100m.txt` (85MB) - Large file performance testing
 - `poe-collected-works.txt` (308KB) - Text wrapping edge cases
+- `poe-collected-fictions.txt` (2.9MB) - Larger wrapping/load cases
 - `utf8-demo.txt` (14KB) - UTF-8 encoding validation
+
+Large-file tests generate their fixtures into /tmp at run time (see
+`tests/tui/test_piece_table.py`); no multi-megabyte fixture is checked
+in.
 
 ## Color Output
 
@@ -441,7 +448,7 @@ Then add to `test_registry.h`:
 int test_example(void);
 ```
 
-And to `full_integration_test.c`:
+And to `main_test_suite.c`:
 ```c
-all_phases_passed &= test_example();
+TEST_RUN(test_example, "Simple example test", 30);
 ```

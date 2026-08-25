@@ -40,46 +40,21 @@
 #cmakedefine HAVE_SIGNAL_H 1
 #cmakedefine HAVE_LOCALE_H 1
 
-/* System functions */
-#cmakedefine HAVE_GETENV 1
-#cmakedefine HAVE_MKSTEMP 1
-#cmakedefine HAVE_STRDUP 1
-#cmakedefine HAVE_SIGWINCH 1
-
 /* Platform - Linux only now */
 #define LINUX 1
 #define UNIX 1
 #define POSIX 1
-#define AUTOCONF 1
-
-/* Linux-only build: remove legacy platform toggles */
 
 /* Features always enabled for modern Linux */
 #define UTF8 1
 #define COLOR 1
 #define CRYPT 1
-#define FILOCK 1
 #define MODERN 1
-#define SCROLLCODE 1
-#define ISRCH 1
-#define WORDPRO 1
-#define APROP 1
 #define MAGIC 1
-#define AEDIT 1
-#define PROC 1
 #define PKCODE 1
-
-/* Terminal configuration - Modern Linux */
-#define TERMCAP 1
-#define VT220 1
 
 /* Modern Linux features */
 #define TRUECOLOR 1
-#define BRACKETED_PASTE 1
-/* Mouse tracking removed (keyboard-only editor) */
-#define FILE_WATCHING 1
-#define SYSTEM_CLIPBOARD 1
-#define GIT_INTEGRATION 1
 
 /* Limits */
 #define MAXCOL 500
@@ -91,12 +66,5 @@
 
 /* Character set */
 #define ASCII 1
-#define EBCDIC 0
-#define IBMCHR 0
-
-/* Other settings */
-#define XONXOFF 0
-#define NATIONL 0
-#define CLEAN 0
 
 #endif /* ΜEMACS_CONFIG_H */

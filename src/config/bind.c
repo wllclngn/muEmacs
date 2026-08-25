@@ -40,75 +40,75 @@ void cmdstr_key(keymap_key_t key, char *seq);
 
 int help(int f, int n)
 {				/* give me some help!!!!
-				   bring up a fake buffer and read the help file
-				   into it with view mode                 */
-	struct window *wp;	/* scaning pointer to windows */
-	struct buffer *bp;	/* buffer pointer to help */
-	const char *fname = nullptr;	/* ptr to file returned by flook() */
+                 bring up a fake buffer and read the help file
+                 into it with view mode                 */
+    struct window *wp;	/* scaning pointer to windows */
+    struct buffer *bp;	/* buffer pointer to help */
+    const char *fname = nullptr;	/* ptr to file returned by flook() */
 
-	/* first check if we are already here */
-	bp = bfind("emacs.hlp", false, BFINVS);
+    /* first check if we are already here */
+    bp = bfind("emacs.hlp", false, BFINVS);
 
-	if (bp == nullptr) {
-		fname = flook(pathname[1], false);
-		if (fname == nullptr) {
-			REPORT_ERROR(ERR_FILE_NOT_FOUND, "HELP FILE IS NOT ONLINE");
-			return false;
-		}
-	}
+    if (bp == nullptr) {
+        fname = flook(pathname[1], false);
+        if (fname == nullptr) {
+            REPORT_ERROR(ERR_FILE_NOT_FOUND, "HELP FILE IS NOT ONLINE");
+            return false;
+        }
+    }
 
-	/* split the current window to make room for the help stuff */
-	if (window_split(false, 1) == false)
-		return false;
+    /* split the current window to make room for the help stuff */
+    if (window_split(false, 1) == false)
+        return false;
 
-	if (bp == nullptr) {
-		/* and read the stuff in */
-		if (getfile(fname, false) == false)
-			return false;
-	} else if (swbuffer(bp) != true)
-		return false;
+    if (bp == nullptr) {
+        /* and read the stuff in */
+        if (getfile(fname, false) == false)
+            return false;
+    } else if (swbuffer(bp) != true)
+        return false;
 
-	/* make this window in VIEW mode, update all mode lines */
-	curwp->w_bufp->b_mode |= MDVIEW;
-	curwp->w_bufp->b_flag |= BFINVS;
-	wp = wheadp;
-	while (wp != nullptr) {
-		wp->w_flag |= WFMODE;
-		wp = wp->w_wndp;
-	}
-	return true;
+    /* make this window in VIEW mode, update all mode lines */
+    curwp->w_bufp->b_mode |= MDVIEW;
+    curwp->w_bufp->b_flag |= BFINVS;
+    wp = wheadp;
+    while (wp != nullptr) {
+        wp->w_flag |= WFMODE;
+        wp = wp->w_wndp;
+    }
+    return true;
 }
 
 int describe_key_binding(int f, int n)
 {				/* describe the command for a certain key */
-	int c;		/* key to describe */
-	char *ptr;	/* string pointer to scan output strings */
-	char outseq[NSTRING];	/* output buffer for command sequence */
+    int c;		/* key to describe */
+    char *ptr;	/* string pointer to scan output strings */
+    char outseq[NSTRING];	/* output buffer for command sequence */
 
-	/* prompt the user to type us a key to describe */
-	mlwrite(": DESCRIBE-KEY ");
+    /* prompt the user to type us a key to describe */
+    mlwrite(": DESCRIBE-KEY ");
 
-	/* get the command sequence to describe
-	   change it to something we can print as well */
-	keymap_key_t key = read_key(false);
-	cmdstr_key(key, &outseq[0]);
+    /* get the command sequence to describe
+     change it to something we can print as well */
+    keymap_key_t key = read_key(false);
+    cmdstr_key(key, &outseq[0]);
 
-	/* and dump it out */
-	ostring(outseq);
-	ostring(" ");
+    /* and dump it out */
+    ostring(outseq);
+    ostring(" ");
 
-	/* find the right ->function */
-	input_key_event_t evt = {
-		.code = key.code,
-		.modifiers = key.modifiers,
-		.type = KEY_CHAR
-	};
-	if ((ptr = getfname(getbind_event(&evt))) == nullptr)
-		ptr = "Not Bound";
+    /* find the right ->function */
+    input_key_event_t evt = {
+        .code = key.code,
+        .modifiers = key.modifiers,
+        .type = KEY_CHAR
+    };
+    if ((ptr = getfname(getbind_event(&evt))) == nullptr)
+        ptr = "Not Bound";
 
-	/* output the command sequence */
-	ostring(ptr);
-	return true;
+    /* output the command sequence */
+    ostring(ptr);
+    return true;
 }
 
 /*
@@ -119,50 +119,50 @@ int describe_key_binding(int f, int n)
  */
 int bindtokey(int f, int n)
 {
-	fn_t kfunc;	     /* ptr to the requested function to bind to */
-	char outseq[80];     /* output buffer for keystroke sequence */
+    fn_t kfunc;	     /* ptr to the requested function to bind to */
+    char outseq[80];     /* output buffer for keystroke sequence */
 
-	/* prompt the user to type in a key to bind */
-	mlwrite(": BIND-TO-KEY ");
+    /* prompt the user to type in a key to bind */
+    mlwrite(": BIND-TO-KEY ");
 
-	/* get the function name to bind it to */
-	kfunc = getname();
-	if (kfunc == nullptr) {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
-		return false;
-	}
-	ostring(" ");
+    /* get the function name to bind it to */
+    kfunc = getname();
+    if (kfunc == nullptr) {
+        REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
+        return false;
+    }
+    ostring(" ");
 
-	/* get the command sequence to bind */
-	keymap_key_t key = read_key((kfunc == metafn) || (kfunc == cex) ||
-		    (kfunc == unarg) || (kfunc == ctrlg));
+    /* get the command sequence to bind */
+    keymap_key_t key = read_key((kfunc == metafn) || (kfunc == cex) ||
+          (kfunc == unarg) || (kfunc == ctrlg));
 
-	/* change it to something we can print as well */
-	cmdstr_key(key, &outseq[0]);
+    /* change it to something we can print as well */
+    cmdstr_key(key, &outseq[0]);
 
-	/* and dump it out */
-	ostring(outseq);
+    /* and dump it out */
+    ostring(outseq);
 
-	/* Determine target keymap based on key modifiers */
-	struct keymap *dst = nullptr;
-	if (key.modifiers & MOD_META) {
-		dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-		key.modifiers &= (uint16_t)~MOD_META;  /* Clear meta since using meta map */
-	} else {
-		dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
-	}
+    /* Determine target keymap based on key modifiers */
+    struct keymap *dst = nullptr;
+    if (key.modifiers & MOD_META) {
+        dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+        key.modifiers &= (uint16_t)~MOD_META;  /* Clear meta since using meta map */
+    } else {
+        dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    }
 
-	if (dst) {
-		if (!keymap_bind(dst, key, kfunc)) {
-			mlwrite("FAILED TO BIND KEY IN MODERN KEYMAP");
-			return false;
-		}
-	} else {
-		mlwrite("FAILED TO RESOLVE KEYMAP");
-		return false;
-	}
+    if (dst) {
+        if (!keymap_bind(dst, key, kfunc)) {
+            mlwrite("FAILED TO BIND KEY IN MODERN KEYMAP");
+            return false;
+        }
+    } else {
+        mlwrite("FAILED TO RESOLVE KEYMAP");
+        return false;
+    }
 
-	return true;
+    return true;
 }
 
 /*
@@ -173,39 +173,39 @@ int bindtokey(int f, int n)
  */
 int unbindkey(int f, int n)
 {
-	char outseq[80];	/* output buffer for keystroke sequence */
+    char outseq[80];	/* output buffer for keystroke sequence */
 
-	/* prompt the user to type in a key to unbind */
-	mlwrite(": UNBIND-KEY ");
+    /* prompt the user to type in a key to unbind */
+    mlwrite(": UNBIND-KEY ");
 
-	/* get the command sequence to unbind */
-	keymap_key_t key = read_key(false);
+    /* get the command sequence to unbind */
+    keymap_key_t key = read_key(false);
 
-	/* change it to something we can print as well */
-	cmdstr_key(key, &outseq[0]);
+    /* change it to something we can print as well */
+    cmdstr_key(key, &outseq[0]);
 
-	/* and dump it out */
-	ostring(outseq);
+    /* and dump it out */
+    ostring(outseq);
 
-	/* Determine target keymap based on key modifiers */
-	struct keymap *dst = nullptr;
-	if (key.modifiers & MOD_META) {
-		dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
-		key.modifiers &= (uint16_t)~MOD_META;
-	} else {
-		dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
-	}
+    /* Determine target keymap based on key modifiers */
+    struct keymap *dst = nullptr;
+    if (key.modifiers & MOD_META) {
+        dst = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+        key.modifiers &= (uint16_t)~MOD_META;
+    } else {
+        dst = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    }
 
-	if (dst) {
-		if (!keymap_unbind(dst, key)) {
-			REPORT_ERROR(ERR_COMMAND_UNKNOWN, "KEY NOT BOUND");
-			return false;
-		}
-	} else {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "KEY NOT BOUND");
-		return false;
-	}
-	return true;
+    if (dst) {
+        if (!keymap_unbind(dst, key)) {
+            REPORT_ERROR(ERR_COMMAND_UNKNOWN, "KEY NOT BOUND");
+            return false;
+        }
+    } else {
+        REPORT_ERROR(ERR_COMMAND_UNKNOWN, "KEY NOT BOUND");
+        return false;
+    }
+    return true;
 }
 
 
@@ -216,49 +216,49 @@ int unbindkey(int f, int n)
  */
 int localsetkey(int f, int n)
 {
-	fn_t kfunc;
-	char outseq[80];
+    fn_t kfunc;
+    char outseq[80];
 
-	/* Must have a current buffer */
-	if (!curbp) {
-		mlwrite("[NO CURRENT BUFFER]");
-		return false;
-	}
+    /* Must have a current buffer */
+    if (!curbp) {
+        mlwrite("[NO CURRENT BUFFER]");
+        return false;
+    }
 
-	/* Prompt the user */
-	mlwrite(": LOCAL-SET-KEY ");
+    /* Prompt the user */
+    mlwrite(": LOCAL-SET-KEY ");
 
-	/* Get the function name to bind */
-	kfunc = getname();
-	if (kfunc == nullptr) {
-		REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
-		return false;
-	}
-	ostring(" ");
+    /* Get the function name to bind */
+    kfunc = getname();
+    if (kfunc == nullptr) {
+        REPORT_ERROR(ERR_COMMAND_UNKNOWN, "NO SUCH FUNCTION");
+        return false;
+    }
+    ostring(" ");
 
-	/* Get the key sequence */
-	keymap_key_t key = read_key((kfunc == metafn) || (kfunc == cex) ||
-		    (kfunc == unarg) || (kfunc == ctrlg));
-	cmdstr_key(key, &outseq[0]);
-	ostring(outseq);
+    /* Get the key sequence */
+    keymap_key_t key = read_key((kfunc == metafn) || (kfunc == cex) ||
+          (kfunc == unarg) || (kfunc == ctrlg));
+    cmdstr_key(key, &outseq[0]);
+    ostring(outseq);
 
-	/* Create buffer-local keymap if needed */
-	if (!curbp->b_local_keymap) {
-		curbp->b_local_keymap = keymap_create("buffer-local");
-		if (!curbp->b_local_keymap) {
-			mlwrite("[FAILED TO CREATE LOCAL KEYMAP]");
-			return false;
-		}
-	}
+    /* Create buffer-local keymap if needed */
+    if (!curbp->b_local_keymap) {
+        curbp->b_local_keymap = keymap_create("buffer-local");
+        if (!curbp->b_local_keymap) {
+            mlwrite("[FAILED TO CREATE LOCAL KEYMAP]");
+            return false;
+        }
+    }
 
-	/* Bind to buffer-local keymap */
-	if (!keymap_bind(curbp->b_local_keymap, key, kfunc)) {
-		mlwrite("[FAILED TO BIND LOCAL KEY]");
-		return false;
-	}
+    /* Bind to buffer-local keymap */
+    if (!keymap_bind(curbp->b_local_keymap, key, kfunc)) {
+        mlwrite("[FAILED TO BIND LOCAL KEY]");
+        return false;
+    }
 
-	mlwrite("[BOUND LOCALLY]");
-	return true;
+    mlwrite("[BOUND LOCALLY]");
+    return true;
 }
 
 /*
@@ -267,34 +267,34 @@ int localsetkey(int f, int n)
  */
 int localunsetkey(int f, int n)
 {
-	char outseq[80];
+    char outseq[80];
 
-	/* Must have a current buffer with local keymap */
-	if (!curbp) {
-		mlwrite("[NO CURRENT BUFFER]");
-		return false;
-	}
-	if (!curbp->b_local_keymap) {
-		mlwrite("[NO LOCAL BINDINGS]");
-		return false;
-	}
+    /* Must have a current buffer with local keymap */
+    if (!curbp) {
+        mlwrite("[NO CURRENT BUFFER]");
+        return false;
+    }
+    if (!curbp->b_local_keymap) {
+        mlwrite("[NO LOCAL BINDINGS]");
+        return false;
+    }
 
-	/* Prompt the user */
-	mlwrite(": LOCAL-UNSET-KEY ");
+    /* Prompt the user */
+    mlwrite(": LOCAL-UNSET-KEY ");
 
-	/* Get the key sequence */
-	keymap_key_t key = read_key(false);
-	cmdstr_key(key, &outseq[0]);
-	ostring(outseq);
+    /* Get the key sequence */
+    keymap_key_t key = read_key(false);
+    cmdstr_key(key, &outseq[0]);
+    ostring(outseq);
 
-	/* Unbind from buffer-local keymap */
-	if (!keymap_unbind(curbp->b_local_keymap, key)) {
-		mlwrite("[KEY NOT LOCALLY BOUND]");
-		return false;
-	}
+    /* Unbind from buffer-local keymap */
+    if (!keymap_unbind(curbp->b_local_keymap, key)) {
+        mlwrite("[KEY NOT LOCALLY BOUND]");
+        return false;
+    }
 
-	mlwrite("[UNBOUND LOCALLY]");
-	return true;
+    mlwrite("[UNBOUND LOCALLY]");
+    return true;
 }
 
 /* describe bindings
@@ -303,20 +303,20 @@ int localunsetkey(int f, int n)
  */
 int describe_all_bindings(int f, int n)
 {
-	buildlist(true, "");
-	return true;
+    buildlist(true, "");
+    return true;
 }
 
 int apropos_command(int f, int n)
 {				/* Apropos (List functions that match a substring) */
-	char mstring[NSTRING];	/* string to match cmd names to */
-	int status;		/* status return */
+    char mstring[NSTRING];	/* string to match cmd names to */
+    int status;		/* status return */
 
-	status = minibuf_read("APROPOS STRING: ", mstring, NSTRING - 1);
-	if (status != true)
-		return status;
+    status = minibuf_read("APROPOS STRING: ", mstring, NSTRING - 1);
+    if (status != true)
+        return status;
 
-	return buildlist(false, mstring);
+    return buildlist(false, mstring);
 }
 
 /*
@@ -358,93 +358,93 @@ static void append_bindings_for_map(struct keymap *map, const char *prefix_str,
 
 int buildlist(int type, const char *mstring)
 {
-	struct window *wp;         /* scanning pointer to windows */
-	struct name_bind *nptr;          /* pointer into the name binding table */
-	struct buffer *bp;    /* buffer to put binding list into */
-	int cpos;             /* current position to use in outseq */
-	char outseq[80];      /* output buffer for keystroke sequence */
+    struct window *wp;         /* scanning pointer to windows */
+    struct name_bind *nptr;          /* pointer into the name binding table */
+    struct buffer *bp;    /* buffer to put binding list into */
+    int cpos;             /* current position to use in outseq */
+    char outseq[80];      /* output buffer for keystroke sequence */
 
-	/* split the current window to make room for the binding list */
-	if (window_split(false, 1) == false)
-		return false;
+    /* split the current window to make room for the binding list */
+    if (window_split(false, 1) == false)
+        return false;
 
-	/* and get a buffer for it */
-	bp = bfind("*Binding list*", true, 0);
-	if (bp == nullptr || bclear(bp) == false) {
-		REPORT_ERROR(ERR_BUFFER_INVALID, "CANNOT DISPLAY BINDING LIST");
-		return false;
-	}
+    /* and get a buffer for it */
+    bp = bfind("*Binding list*", true, 0);
+    if (bp == nullptr || bclear(bp) == false) {
+        REPORT_ERROR(ERR_BUFFER_INVALID, "CANNOT DISPLAY BINDING LIST");
+        return false;
+    }
 
-	/* let us know this is in progress */
-	mlwrite("[BUILDING BINDING LIST]");
+    /* let us know this is in progress */
+    mlwrite("[BUILDING BINDING LIST]");
 
-	/* disconect the current buffer */
-	if (--curbp->b_nwnd == 0) {	/* Last use.            */
-		curbp->b_dotp = curwp->w_dotp;
-		curbp->b_doto = curwp->w_doto;
-		curbp->b_markp = curwp->w_markp;
-		curbp->b_marko = curwp->w_marko;
-	}
+    /* disconect the current buffer */
+    if (--curbp->b_nwnd == 0) {	/* Last use.            */
+        curbp->b_dotp = curwp->w_dotp;
+        curbp->b_doto = curwp->w_doto;
+        curbp->b_markp = curwp->w_markp;
+        curbp->b_marko = curwp->w_marko;
+    }
 
-	/* connect the current window to this buffer */
-	curbp = bp;		/* make this buffer current in current window */
-	bp->b_mode = 0;		/* no modes active in binding list */
-	bp->b_nwnd++;		/* mark us as more in use */
-	wp = curwp;
-	wp->w_bufp = bp;
-	wp->w_linep = bp->b_linep;
-	wp->w_flag = WFHARD | WFFORCE;
-	wp->w_dotp = bp->b_dotp;
-	wp->w_doto = bp->b_doto;
-	wp->w_markp = nullptr;
-	wp->w_marko = 0;
+    /* connect the current window to this buffer */
+    curbp = bp;		/* make this buffer current in current window */
+    bp->b_mode = 0;		/* no modes active in binding list */
+    bp->b_nwnd++;		/* mark us as more in use */
+    wp = curwp;
+    wp->w_bufp = bp;
+    wp->w_linep = bp->b_linep;
+    wp->w_flag = WFHARD | WFFORCE;
+    wp->w_dotp = bp->b_dotp;
+    wp->w_doto = bp->b_doto;
+    wp->w_markp = nullptr;
+    wp->w_marko = 0;
 
-	/* build the contents of this window, inserting it line by line */
-	struct keymap *gkm_list = atomic_load_explicit(&global_keymap, memory_order_acquire);
-	struct keymap *ckm_list = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
-	struct keymap *mkm_list = atomic_load_explicit(&meta_keymap, memory_order_acquire);
+    /* build the contents of this window, inserting it line by line */
+    struct keymap *gkm_list = atomic_load_explicit(&global_keymap, memory_order_acquire);
+    struct keymap *ckm_list = atomic_load_explicit(&ctlx_keymap, memory_order_acquire);
+    struct keymap *mkm_list = atomic_load_explicit(&meta_keymap, memory_order_acquire);
 
-	nptr = &names[0];
-	while (nptr->n_func != nullptr) {
+    nptr = &names[0];
+    while (nptr->n_func != nullptr) {
 
-		/* add in the command name */
+        /* add in the command name */
         SAFE_STRCPY(outseq, nptr->n_name);
-		cpos = (int)strlen(outseq);
+        cpos = (int)strlen(outseq);
 
-		/* if we are executing an apropos command..... */
-		if (type == false &&
-		    /* and current string doesn't include the search string */
-		    string_contains(outseq, mstring) == false)
-			goto fail;
+        /* if we are executing an apropos command..... */
+        if (type == false &&
+          /* and current string doesn't include the search string */
+          string_contains(outseq, mstring) == false)
+            goto fail;
 
-		/* append all modern keymap bindings for this function */
-		append_bindings_for_map(gkm_list, "", nptr, outseq, &cpos);
-		append_bindings_for_map(ckm_list, "^X ", nptr, outseq, &cpos);
-		append_bindings_for_map(mkm_list, "M-", nptr, outseq, &cpos);
+        /* append all modern keymap bindings for this function */
+        append_bindings_for_map(gkm_list, "", nptr, outseq, &cpos);
+        append_bindings_for_map(ckm_list, "^X ", nptr, outseq, &cpos);
+        append_bindings_for_map(mkm_list, "M-", nptr, outseq, &cpos);
 
-		/* if no key was bound, we need to dump it anyway */
-		if (cpos > 0) {
-			outseq[cpos++] = '\n';
-			outseq[cpos] = 0;
-			if (linstr(outseq) != true)
-				return false;
-		}
+        /* if no key was bound, we need to dump it anyway */
+        if (cpos > 0) {
+            outseq[cpos++] = '\n';
+            outseq[cpos] = 0;
+            if (linstr(outseq) != true)
+                return false;
+        }
 
-	      fail:		/* and on to the next name */
-		++nptr;
-	}
+       fail:		/* and on to the next name */
+        ++nptr;
+    }
 
-	curwp->w_bufp->b_mode |= MDVIEW;	/* put this buffer view mode */
-	curbp->b_flag &= ~BFCHG;	/* don't flag this as a change */
-	wp->w_dotp = lforw(bp->b_linep);	/* back to the beginning */
-	wp->w_doto = 0;
-	wp = wheadp;		/* and update ALL mode lines */
-	while (wp != nullptr) {
-		wp->w_flag |= WFMODE;
-		wp = wp->w_wndp;
-	}
-	mlwrite("");		/* clear the mode line */
-	return true;
+    curwp->w_bufp->b_mode |= MDVIEW;	/* put this buffer view mode */
+    curbp->b_flag &= ~BFCHG;	/* don't flag this as a change */
+    wp->w_dotp = lforw(bp->b_linep);	/* back to the beginning */
+    wp->w_doto = 0;
+    wp = wheadp;		/* and update ALL mode lines */
+    while (wp != nullptr) {
+        wp->w_flag |= WFMODE;
+        wp = wp->w_wndp;
+    }
+    mlwrite("");		/* clear the mode line */
+    return true;
 }
 
 
@@ -456,32 +456,32 @@ int buildlist(int type, const char *mstring)
  */
 int string_contains(const char *source, const char *sub)
 {
-	const char *sp;		/* ptr into source */
-	const char *nxtsp;		/* next ptr into source */
-	const char *tp;		/* ptr into substring */
+    const char *sp;		/* ptr into source */
+    const char *nxtsp;		/* next ptr into source */
+    const char *tp;		/* ptr into substring */
 
-	/* for each character in the source string */
-	sp = source;
-	while (*sp) {
-		tp = sub;
-		nxtsp = sp;
+    /* for each character in the source string */
+    sp = source;
+    while (*sp) {
+        tp = sub;
+        nxtsp = sp;
 
-		/* is the substring here? */
-		while (*tp) {
-			if (*nxtsp++ != *tp)
-				break;
-			else
-				tp++;
-		}
+        /* is the substring here? */
+        while (*tp) {
+            if (*nxtsp++ != *tp)
+                break;
+            else
+                tp++;
+        }
 
-		/* yes, return a success */
-		if (*tp == 0)
-			return true;
+        /* yes, return a success */
+        if (*tp == 0)
+            return true;
 
-		/* no, onward */
-		sp++;
-	}
-	return false;
+        /* no, onward */
+        sp++;
+    }
+    return false;
 }
 
 /*
@@ -491,22 +491,22 @@ int string_contains(const char *source, const char *sub)
  */
 keymap_key_t read_key([[maybe_unused]] int mflag)
 {
-	char tok[NSTRING];
+    char tok[NSTRING];
 
-	/* check to see if we are executing a command line */
-	if (clexec) {
-		macarg(tok);
-		return stock_key(tok);
-	}
+    /* check to see if we are executing a command line */
+    if (clexec) {
+        macarg(tok);
+        return stock_key(tok);
+    }
 
-	/* or the normal way - read event and convert to keymap_key_t */
-	input_key_event_t evt;
-	if (input_read_event(&evt) < 0) return keymap_key_make(0, 0);
+    /* or the normal way - read event and convert to keymap_key_t */
+    input_key_event_t evt;
+    if (input_read_event(&evt) < 0) return keymap_key_make(0, 0);
 
-	uint16_t mods = 0;
-	if (evt.modifiers & MOD_CTRL) mods |= MOD_CTRL;
-	if (evt.modifiers & (MOD_META | MOD_ALT)) mods |= MOD_META;
-	return keymap_key_make(evt.code, mods);
+    uint16_t mods = 0;
+    if (evt.modifiers & MOD_CTRL) mods |= MOD_CTRL;
+    if (evt.modifiers & (MOD_META | MOD_ALT)) mods |= MOD_META;
+    return keymap_key_make(evt.code, mods);
 }
 
 /*
@@ -516,20 +516,20 @@ keymap_key_t read_key([[maybe_unused]] int mflag)
  */
 int startup(const char *sfname)
 {
-	const char *fname;		/* resulting file name to execute */
+    const char *fname;		/* resulting file name to execute */
 
-	/* look up the startup file */
-	if (*sfname != 0)
-		fname = flook(sfname, true);
-	else
-		fname = flook(pathname[0], true);
+    /* look up the startup file */
+    if (*sfname != 0)
+        fname = flook(sfname, true);
+    else
+        fname = flook(pathname[0], true);
 
-	/* if it isn't around, don't sweat it */
-	if (fname == nullptr)
-		return true;
+    /* if it isn't around, don't sweat it */
+    if (fname == nullptr)
+        return true;
 
-	/* otherwise, execute the sucker */
-	return dofile(fname);
+    /* otherwise, execute the sucker */
+    return dofile(fname);
 }
 
 /*
@@ -542,72 +542,72 @@ int startup(const char *sfname)
  */
 const char *flook(const char *fname, int hflag)
 {
-	char *home;	/* path to home directory */
-	char *path;	/* environmental PATH variable */
-	char *sp;	/* pointer into path spec */
-	size_t i;		/* index */
-	static _Thread_local char fspec[NSTRING];	/* Thread-safe path spec */
+    char *home;	/* path to home directory */
+    char *path;	/* environmental PATH variable */
+    char *sp;	/* pointer into path spec */
+    size_t i;		/* index */
+    static _Thread_local char fspec[NSTRING];	/* Thread-safe path spec */
 
-	if (hflag) {
-		home = getenv("HOME");
-		if (home != nullptr) {
-			/* build home dir file spec */
+    if (hflag) {
+        home = getenv("HOME");
+        if (home != nullptr) {
+            /* build home dir file spec */
             SAFE_STRCPY(fspec, home);
             SAFE_STRCAT(fspec, "/");
             SAFE_STRCAT(fspec, fname);
 
-			/* and try it out */
-			if (ffropen(fspec) == FIOSUC) {
-				(void)ffclose();
-				return fspec;
-			}
-		}
-	}
+            /* and try it out */
+            if (ffropen(fspec) == FIOSUC) {
+                (void)ffclose();
+                return fspec;
+            }
+        }
+    }
 
-	/* always try the current directory first */
-	if (ffropen(fname) == FIOSUC) {
-		(void)ffclose();
-		return fname;
-	}
-	/* get the PATH variable */
-	path = getenv("PATH");
-	if (path != nullptr)
-		while (*path) {
+    /* always try the current directory first */
+    if (ffropen(fname) == FIOSUC) {
+        (void)ffclose();
+        return fname;
+    }
+    /* get the PATH variable */
+    path = getenv("PATH");
+    if (path != nullptr)
+        while (*path) {
 
-			/* build next possible file spec */
-			sp = fspec;
-			while (*path && (*path != PATHCHR))
-				*sp++ = *path++;
+            /* build next possible file spec */
+            sp = fspec;
+            while (*path && (*path != PATHCHR))
+                *sp++ = *path++;
 
-			/* add a terminating dir separator if we need it */
-			if (sp != fspec)
-				*sp++ = '/';
-			*sp = 0;
+            /* add a terminating dir separator if we need it */
+            if (sp != fspec)
+                *sp++ = '/';
+            *sp = 0;
             SAFE_STRCAT(fspec, fname);
 
-			/* and try it out */
-			if (ffropen(fspec) == FIOSUC) {
-				(void)ffclose();
-				return fspec;
-			}
+            /* and try it out */
+            if (ffropen(fspec) == FIOSUC) {
+                (void)ffclose();
+                return fspec;
+            }
 
-			if (*path == PATHCHR)
-				++path;
-		}
+            if (*path == PATHCHR)
+                ++path;
+        }
 
-	/* look it up via the old table method */
-	for (i = 2; i < ARRAY_SIZE(pathname); i++) {
+    /* look it up via the old table method */
+    for (i = 2; i < ARRAY_SIZE(pathname); i++) {
         SAFE_STRCPY(fspec, pathname[i]);
         SAFE_STRCAT(fspec, fname);
 
-		/* and try it out */
-		if (ffropen(fspec) == FIOSUC) {
-			(void)ffclose();
-			return fspec;
-		}
-	}
+        /* and try it out */
+        if (ffropen(fspec) == FIOSUC) {
+            (void)ffclose();
+            return fspec;
+        }
+    }
 
-	return nullptr;		/* no such luck */
+    return nullptr;		/* no such luck */
 }
 
 /*
@@ -615,17 +615,17 @@ const char *flook(const char *fname, int hflag)
  */
 void cmdstr_key(keymap_key_t key, char *seq)
 {
-	char *ptr = seq;
+    char *ptr = seq;
 
-	if (key.modifiers & MOD_META) {
-		*ptr++ = 'M';
-		*ptr++ = '-';
-	}
-	if (key.modifiers & MOD_CTRL) {
-		*ptr++ = '^';
-	}
-	*ptr++ = (char)(key.code & 0xFF);
-	*ptr = '\0';
+    if (key.modifiers & MOD_META) {
+        *ptr++ = 'M';
+        *ptr++ = '-';
+    }
+    if (key.modifiers & MOD_CTRL) {
+        *ptr++ = '^';
+    }
+    *ptr++ = (char)(key.code & 0xFF);
+    *ptr = '\0';
 }
 
 /* Forward declaration for vim mode switching */
@@ -640,12 +640,12 @@ extern int vim_enter_normal_mode_external(int f, int n);
  */
 int generic_prefix_dispatch(int f, int n)
 {
-	struct keymap *km = atomic_exchange(&g_pending_prefix, nullptr);
-	if (!km) {
-		mlwrite("[NO PENDING PREFIX]");
-		return false;
-	}
-	return prefix_dispatch_external(km, false, f, n);
+    struct keymap *km = atomic_exchange(&g_pending_prefix, nullptr);
+    if (!km) {
+        mlwrite("[NO PENDING PREFIX]");
+        return false;
+    }
+    return prefix_dispatch_external(km, false, f, n);
 }
 
 /*
@@ -841,16 +841,16 @@ fn_t getbind_event(input_key_event_t *evt)
  */
 char *getfname(fn_t func)
 {
-	struct name_bind *nptr;	/* pointer into the name binding table */
+    struct name_bind *nptr;	/* pointer into the name binding table */
 
-	/* skim through the table, looking for a match */
-	nptr = &names[0];
-	while (nptr->n_func != nullptr) {
-		if (nptr->n_func == func)
-			return nptr->n_name;
-		++nptr;
-	}
-	return nullptr;
+    /* skim through the table, looking for a match */
+    nptr = &names[0];
+    while (nptr->n_func != nullptr) {
+        if (nptr->n_func == func)
+            return nptr->n_name;
+        ++nptr;
+    }
+    return nullptr;
 }
 
 /*
@@ -863,42 +863,45 @@ char *getfname(fn_t func)
  */
 int (*fncmatch(const char *fname)) (int, int)
 {
-	if (!fname || !fname[0]) return nullptr;
-	
-	/* Binary search through sorted names table */
-	/* Find table size by scanning for nullptr terminator */
-	int left = 0;
-	int right = 0;
-	while (names[right].n_name != nullptr) {
-		right++;
-	}
-	right--;  /* Point to last valid entry */
-	
-	while (left <= right) {
-		int mid = left + (right - left) / 2;  /* Avoid overflow */
-		int cmp = strcmp(fname, names[mid].n_name);
-		
-		if (cmp == 0) {
-			/* Found exact match */
-			return names[mid].n_func;
-		} else if (cmp < 0) {
-			/* Search left half */
-			right = mid - 1;
-		} else {
-			/* Search right half */
-			left = mid + 1;
-		}
-	}
-	
-	/* Not found in static table - check dynamic extension commands */
-	extern fn_t extension_find_command(const char *name);
-	fn_t ext_func = extension_find_command(fname);
-	if (ext_func) {
-		return ext_func;
-	}
+    if (!fname || !fname[0]) return nullptr;
 
-	/* Not found anywhere */
-	return nullptr;
+    /* Dynamic extension commands take precedence: register_command() is
+    * the documented override mechanism for core stubs (e.g. c_evil's
+    * evil-mode over the vim_core.c fallback). Checking the static table
+    * first would make those stubs permanently shadow their overrides. */
+    extern fn_t extension_find_command(const char *name);
+    fn_t ext_func = extension_find_command(fname);
+    if (ext_func) {
+        return ext_func;
+    }
+
+    /* Binary search through sorted names table */
+    /* Find table size by scanning for nullptr terminator */
+    int left = 0;
+    int right = 0;
+    while (names[right].n_name != nullptr) {
+        right++;
+    }
+    right--;  /* Point to last valid entry */
+    
+    while (left <= right) {
+        int mid = left + (right - left) / 2;  /* Avoid overflow */
+        int cmp = strcmp(fname, names[mid].n_name);
+        
+        if (cmp == 0) {
+            /* Found exact match */
+            return names[mid].n_func;
+        } else if (cmp < 0) {
+            /* Search left half */
+            right = mid - 1;
+        } else {
+            /* Search right half */
+            left = mid + 1;
+        }
+    }
+    
+    /* Not found anywhere */
+    return nullptr;
 }
 
 /*
@@ -908,86 +911,86 @@ int (*fncmatch(const char *fname)) (int, int)
  */
 keymap_key_t stock_key(const char *keyname)
 {
-	uint32_t code = 0;
-	uint16_t mods = 0;
+    uint32_t code = 0;
+    uint16_t mods = 0;
 
-	/* Handle special key names first */
-	if (strcmp(keyname, "DELETE") == 0 || strcmp(keyname, "Del") == 0) {
-		return keymap_key_make(SPECIAL_DELETE, 0);
-	}
-	if (strcmp(keyname, "INSERT") == 0 || strcmp(keyname, "Ins") == 0) {
-		return keymap_key_make(SPECIAL_INSERT, 0);
-	}
-	if (strcmp(keyname, "HOME") == 0) {
-		return keymap_key_make(SPECIAL_HOME, 0);
-	}
-	if (strcmp(keyname, "END") == 0) {
-		return keymap_key_make(SPECIAL_END, 0);
-	}
-	if (strcmp(keyname, "PAGEUP") == 0 || strcmp(keyname, "PgUp") == 0) {
-		return keymap_key_make(SPECIAL_PAGEUP, 0);
-	}
-	if (strcmp(keyname, "PAGEDOWN") == 0 || strcmp(keyname, "PgDn") == 0) {
-		return keymap_key_make(SPECIAL_PAGEDOWN, 0);
-	}
-	if (strcmp(keyname, "UP") == 0) {
-		return keymap_key_make(SPECIAL_UP, 0);
-	}
-	if (strcmp(keyname, "DOWN") == 0) {
-		return keymap_key_make(SPECIAL_DOWN, 0);
-	}
-	if (strcmp(keyname, "RIGHT") == 0) {
-		return keymap_key_make(SPECIAL_RIGHT, 0);
-	}
-	if (strcmp(keyname, "LEFT") == 0) {
-		return keymap_key_make(SPECIAL_LEFT, 0);
-	}
-	if (strcmp(keyname, "BACKSPACE") == 0 || strcmp(keyname, "BS") == 0) {
-		return keymap_key_make(0x7F, 0);  /* DEL/Backspace = 0x7F */
-	}
+    /* Handle special key names first */
+    if (strcmp(keyname, "DELETE") == 0 || strcmp(keyname, "Del") == 0) {
+        return keymap_key_make(SPECIAL_DELETE, 0);
+    }
+    if (strcmp(keyname, "INSERT") == 0 || strcmp(keyname, "Ins") == 0) {
+        return keymap_key_make(SPECIAL_INSERT, 0);
+    }
+    if (strcmp(keyname, "HOME") == 0) {
+        return keymap_key_make(SPECIAL_HOME, 0);
+    }
+    if (strcmp(keyname, "END") == 0) {
+        return keymap_key_make(SPECIAL_END, 0);
+    }
+    if (strcmp(keyname, "PAGEUP") == 0 || strcmp(keyname, "PgUp") == 0) {
+        return keymap_key_make(SPECIAL_PAGEUP, 0);
+    }
+    if (strcmp(keyname, "PAGEDOWN") == 0 || strcmp(keyname, "PgDn") == 0) {
+        return keymap_key_make(SPECIAL_PAGEDOWN, 0);
+    }
+    if (strcmp(keyname, "UP") == 0) {
+        return keymap_key_make(SPECIAL_UP, 0);
+    }
+    if (strcmp(keyname, "DOWN") == 0) {
+        return keymap_key_make(SPECIAL_DOWN, 0);
+    }
+    if (strcmp(keyname, "RIGHT") == 0) {
+        return keymap_key_make(SPECIAL_RIGHT, 0);
+    }
+    if (strcmp(keyname, "LEFT") == 0) {
+        return keymap_key_make(SPECIAL_LEFT, 0);
+    }
+    if (strcmp(keyname, "BACKSPACE") == 0 || strcmp(keyname, "BS") == 0) {
+        return keymap_key_make(0x7F, 0);  /* DEL/Backspace = 0x7F */
+    }
 
-	/* META prefix */
-	if (*keyname == 'M' && *(keyname + 1) == '-') {
-		mods |= MOD_META;
-		keyname += 2;
-	}
+    /* META prefix */
+    if (*keyname == 'M' && *(keyname + 1) == '-') {
+        mods |= MOD_META;
+        keyname += 2;
+    }
 
-	/* ^X prefix for C-x keymap - handled by caller selecting target keymap */
-	if (*keyname == '^' && *(keyname + 1) == 'X') {
-		keyname += 2;
-		/* If there's nothing after ^X, it's the prefix key itself */
-		if (*keyname == '\0') {
-			return keymap_key_make('X', MOD_CTRL);
-		}
-		/* Skip any space after ^X */
-		while (*keyname == ' ') keyname++;
-	}
+    /* ^X prefix for C-x keymap - handled by caller selecting target keymap */
+    if (*keyname == '^' && *(keyname + 1) == 'X') {
+        keyname += 2;
+        /* If there's nothing after ^X, it's the prefix key itself */
+        if (*keyname == '\0') {
+            return keymap_key_make('X', MOD_CTRL);
+        }
+        /* Skip any space after ^X */
+        while (*keyname == ' ') keyname++;
+    }
 
-	/* Control key prefix */
-	if (*keyname == '^' && *(keyname + 1) != '\0') {
-		/* Special case: ^[ is ESC (0x1B), not Ctrl+[ */
-		if (*(keyname + 1) == '[') {
-			return keymap_key_make(0x1B, 0);
-		}
-		mods |= MOD_CTRL;
-		keyname++;
-	}
+    /* Control key prefix */
+    if (*keyname == '^' && *(keyname + 1) != '\0') {
+        /* Special case: ^[ is ESC (0x1B), not Ctrl+[ */
+        if (*(keyname + 1) == '[') {
+            return keymap_key_make(0x1B, 0);
+        }
+        mods |= MOD_CTRL;
+        keyname++;
+    }
 
-	char cur_char = *keyname;
+    char cur_char = *keyname;
 
-	/* Raw control character */
-	if (cur_char < 32) {
-		mods |= MOD_CTRL;
-		cur_char += 'A';
-	}
+    /* Raw control character */
+    if (cur_char < 32) {
+        mods |= MOD_CTRL;
+        cur_char += 'A';
+    }
 
-	/* Uppercase control and meta keys for consistency */
-	if ((mods & (MOD_CTRL | MOD_META)) && cur_char >= 'a' && cur_char <= 'z') {
-		cur_char -= 32;
-	}
+    /* Uppercase control and meta keys for consistency */
+    if ((mods & (MOD_CTRL | MOD_META)) && cur_char >= 'a' && cur_char <= 'z') {
+        cur_char -= 32;
+    }
 
-	code = (uint32_t)cur_char;
-	return keymap_key_make(code, mods);
+    code = (uint32_t)cur_char;
+    return keymap_key_make(code, mods);
 }
 
 /*
@@ -997,18 +1000,18 @@ keymap_key_t stock_key(const char *keyname)
  */
 char *transbind(const char *skey)
 {
-	char *bindname;
+    char *bindname;
 
-	/* Parse key string and convert to event for lookup */
-	keymap_key_t key = stock_key(skey);
-	input_key_event_t evt = {
-		.code = key.code,
-		.modifiers = key.modifiers,
-		.type = (key.code >= SPECIAL_KEY_BASE) ? KEY_SPECIAL : KEY_CHAR
-	};
-	bindname = getfname(getbind_event(&evt));
-	if (bindname == nullptr)
-		bindname = "ERROR";
+    /* Parse key string and convert to event for lookup */
+    keymap_key_t key = stock_key(skey);
+    input_key_event_t evt = {
+        .code = key.code,
+        .modifiers = key.modifiers,
+        .type = (key.code >= SPECIAL_KEY_BASE) ? KEY_SPECIAL : KEY_CHAR
+    };
+    bindname = getfname(getbind_event(&evt));
+    if (bindname == nullptr)
+        bindname = "ERROR";
 
-	return bindname;
+    return bindname;
 }

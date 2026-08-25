@@ -25,10 +25,10 @@ static int eofflag;			/* end-of-file flag */
  */
 int ffropen(const char *fn)
 {
-	if ((ffp = fopen(fn, "r")) == nullptr)
-		return FIOFNF;
-	eofflag = false;
-	return FIOSUC;
+    if ((ffp = fopen(fn, "r")) == nullptr)
+        return FIOFNF;
+    eofflag = false;
+    return FIOSUC;
 }
 
 /*
@@ -37,11 +37,11 @@ int ffropen(const char *fn)
  */
 int ffwopen(const char *fn)
 {
-	if ((ffp = safe_fopen(fn, FILE_WRITE)) == nullptr) {
-		REPORT_ERROR(ERR_FILE_WRITE, fn);
-		return FIOERR;
-	}
-	return FIOSUC;
+    if ((ffp = safe_fopen(fn, FILE_WRITE)) == nullptr) {
+        REPORT_ERROR(ERR_FILE_WRITE, fn);
+        return FIOERR;
+    }
+    return FIOSUC;
 }
 
 /*
@@ -49,19 +49,19 @@ int ffwopen(const char *fn)
  */
 int ffclose(void)
 {
-	/* free this since we do not need it anymore */
-	if (fline) {
-		SAFE_FREE(fline);
-		fline = nullptr;
-	}
-	eofflag = false;
+    /* free this since we do not need it anymore */
+    if (fline) {
+        SAFE_FREE(fline);
+        fline = nullptr;
+    }
+    eofflag = false;
 
 
-	if (!safe_fclose(&ffp)) {
-		REPORT_ERROR(ERR_FILE_WRITE, "ERROR CLOSING FILE");
-		return FIOERR;
-	}
-	return FIOSUC;
+    if (!safe_fclose(&ffp)) {
+        REPORT_ERROR(ERR_FILE_WRITE, "ERROR CLOSING FILE");
+        return FIOERR;
+    }
+    return FIOSUC;
 }
 
 /*
@@ -71,20 +71,20 @@ int ffclose(void)
  */
 int ffputline(const char *buf, int nbuf)
 {
-	/* Bulk write instead of character-by-character (major I/O optimization) */
-	if (nbuf > 0) {
-		if (fwrite(buf, 1, (size_t)nbuf, ffp) != (size_t)nbuf) {
-			REPORT_ERROR(ERR_FILE_WRITE, "WRITE I/O ERROR");
-			return FIOERR;
-		}
-	}
+    /* Bulk write instead of character-by-character (major I/O optimization) */
+    if (nbuf > 0) {
+        if (fwrite(buf, 1, (size_t)nbuf, ffp) != (size_t)nbuf) {
+            REPORT_ERROR(ERR_FILE_WRITE, "WRITE I/O ERROR");
+            return FIOERR;
+        }
+    }
 
-	if (fputc('\n', ffp) == EOF) {
-		REPORT_ERROR(ERR_FILE_WRITE, "WRITE I/O ERROR");
-		return FIOERR;
-	}
+    if (fputc('\n', ffp) == EOF) {
+        REPORT_ERROR(ERR_FILE_WRITE, "WRITE I/O ERROR");
+        return FIOERR;
+    }
 
-	return FIOSUC;
+    return FIOSUC;
 }
 
 /*
@@ -95,63 +95,63 @@ int ffputline(const char *buf, int nbuf)
  */
 int ffgetline(void)
 {
-	int c;		/* current character read */
-	int i;		/* current index into fline */
-	char *tmpline;	/* temp storage for expanding line */
+    int c;		/* current character read */
+    int i;		/* current index into fline */
+    char *tmpline;	/* temp storage for expanding line */
 
-	/* if we are at the end...return it */
-	if (eofflag)
-		return FIOEOF;
+    /* if we are at the end...return it */
+    if (eofflag)
+        return FIOEOF;
 
-	/* dump fline if it ended up too big */
-	if (flen > NSTRING) {
-		SAFE_FREE(fline);
-		fline = nullptr;
-	}
+    /* dump fline if it ended up too big */
+    if (flen > NSTRING) {
+        SAFE_FREE(fline);
+        fline = nullptr;
+    }
 
-	/* if we don't have an fline, allocate one */
-	if (fline == nullptr)
-		if ((fline = (char*)safe_alloc((size_t)(flen = NSTRING), "file line buffer", __FILE__, __LINE__)) == nullptr) {
-			REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE FILE LINE BUFFER");
-			return FIOMEM;
-		}
+    /* if we don't have an fline, allocate one */
+    if (fline == nullptr)
+        if ((fline = (char*)safe_alloc((size_t)(flen = NSTRING), "file line buffer", __FILE__, __LINE__)) == nullptr) {
+            REPORT_ERROR(ERR_MEMORY, "FAILED TO ALLOCATE FILE LINE BUFFER");
+            return FIOMEM;
+        }
 
-	/* read the line in */
-	if (!nullflag) {
-		// Check for EOF first, then try to read line
-		if (feof(ffp)) {
-			i = 0;
-			c = EOF;
-		} else {
-			size_t read_len = safe_fread_line(fline, NSTRING, ffp);
-			if (read_len == 0 && feof(ffp)) {
-				// True EOF
-				i = 0;
-				c = EOF;
-			} else if (read_len == 0 && ferror(ffp)) {
-				// Read error (e.g. EISDIR from reading a directory)
-				i = 0;
-				c = EOF;
-			} else {
-				// Valid line (could be empty)
-				i = (int)strlen(fline);
-				c = '\n';  // safe_fread_line already removed newline, so simulate it
-			}
-		}
-	} else {
-		i = 0;
-		c = fgetc(ffp);
-	}
-	while (c != EOF && c != '\n') {
-		if (c) {
-			fline[i++] = (char)c;
-			/* if it's longer, get more room */
-			if (i >= flen) {
-				if ((tmpline =
-				     (char*)safe_alloc((size_t)(flen + NSTRING), "expanded line buffer", __FILE__, __LINE__)) == nullptr) {
-					LOG_ERRORF("FileIO: Line buffer expansion failed (flen=%d)", flen);
-					return FIOMEM;
-				}
+    /* read the line in */
+    if (!nullflag) {
+        // Check for EOF first, then try to read line
+        if (feof(ffp)) {
+            i = 0;
+            c = EOF;
+        } else {
+            size_t read_len = safe_fread_line(fline, NSTRING, ffp);
+            if (read_len == 0 && feof(ffp)) {
+                // True EOF
+                i = 0;
+                c = EOF;
+            } else if (read_len == 0 && ferror(ffp)) {
+                // Read error (e.g. EISDIR from reading a directory)
+                i = 0;
+                c = EOF;
+            } else {
+                // Valid line (could be empty)
+                i = (int)strlen(fline);
+                c = '\n';  // safe_fread_line already removed newline, so simulate it
+            }
+        }
+    } else {
+        i = 0;
+        c = fgetc(ffp);
+    }
+    while (c != EOF && c != '\n') {
+        if (c) {
+            fline[i++] = (char)c;
+            /* if it's longer, get more room */
+            if (i >= flen) {
+                if ((tmpline =
+                  (char*)safe_alloc((size_t)(flen + NSTRING), "expanded line buffer", __FILE__, __LINE__)) == nullptr) {
+                    LOG_ERRORF("FileIO: Line buffer expansion failed (flen=%d)", flen);
+                    return FIOMEM;
+                }
                 if (flen > 0) {
                     size_t maxlen = NSTRING - 1;
                     size_t cpy = (size_t)flen;
@@ -161,53 +161,53 @@ int ffgetline(void)
                 } else {
                     tmpline[0] = '\0';
                 }
-				flen += NSTRING;
-				SAFE_FREE(fline);
-				fline = tmpline;
-			}
-		}
-		c = fgetc(ffp);
-	}
+                flen += NSTRING;
+                SAFE_FREE(fline);
+                fline = tmpline;
+            }
+        }
+        c = fgetc(ffp);
+    }
 
-	/* test for any errors that may have occured */
-	if (c == EOF) {
-		if (ferror(ffp)) {
-			REPORT_ERROR(ERR_FILE_READ, "FILE READ ERROR");
-			return FIOERR;
-		}
+    /* test for any errors that may have occured */
+    if (c == EOF) {
+        if (ferror(ffp)) {
+            REPORT_ERROR(ERR_FILE_READ, "FILE READ ERROR");
+            return FIOERR;
+        }
 
-		if (i != 0)
-			eofflag = true;
-		else
-			return FIOEOF;
-	}
+        if (i != 0)
+            eofflag = true;
+        else
+            return FIOEOF;
+    }
 
-	/* terminate the string */
-	fline[i] = 0;
+    /* terminate the string */
+    fline[i] = 0;
 
 #if UEMACS_DEBUG_LOG
-	/* DEBUG: Hex dump first line to trace UTF-8 corruption */
-	if (i > 0 && i < 40) {
-		static int line_num = 0;
-		if (line_num == 0) {
-			LOG_DEBUGF("FILEIO_READ: line=%d bytes[0..9] = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-			           line_num,
-			           i > 0 ? (unsigned char)fline[0] : 0,
-			           i > 1 ? (unsigned char)fline[1] : 0,
-			           i > 2 ? (unsigned char)fline[2] : 0,
-			           i > 3 ? (unsigned char)fline[3] : 0,
-			           i > 4 ? (unsigned char)fline[4] : 0,
-			           i > 5 ? (unsigned char)fline[5] : 0,
-			           i > 6 ? (unsigned char)fline[6] : 0,
-			           i > 7 ? (unsigned char)fline[7] : 0,
-			           i > 8 ? (unsigned char)fline[8] : 0,
-			           i > 9 ? (unsigned char)fline[9] : 0);
-		}
-		line_num++;
-	}
+    /* DEBUG: Hex dump first line to trace UTF-8 corruption */
+    if (i > 0 && i < 40) {
+        static int line_num = 0;
+        if (line_num == 0) {
+            LOG_DEBUGF("FILEIO_READ: line=%d bytes[0..9] = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+                 line_num,
+                 i > 0 ? (unsigned char)fline[0] : 0,
+                 i > 1 ? (unsigned char)fline[1] : 0,
+                 i > 2 ? (unsigned char)fline[2] : 0,
+                 i > 3 ? (unsigned char)fline[3] : 0,
+                 i > 4 ? (unsigned char)fline[4] : 0,
+                 i > 5 ? (unsigned char)fline[5] : 0,
+                 i > 6 ? (unsigned char)fline[6] : 0,
+                 i > 7 ? (unsigned char)fline[7] : 0,
+                 i > 8 ? (unsigned char)fline[8] : 0,
+                 i > 9 ? (unsigned char)fline[9] : 0);
+        }
+        line_num++;
+    }
 #endif
 
-	return FIOSUC;
+    return FIOSUC;
 }
 
 /*
@@ -217,5 +217,5 @@ int ffgetline(void)
  */
 int fexist(const char *fname)
 {
-	return file_exists(fname) ? true : false;
+    return file_exists(fname) ? true : false;
 }

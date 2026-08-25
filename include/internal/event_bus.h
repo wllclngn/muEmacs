@@ -15,9 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* ============================================================================
- * Event Data Structure
- * ============================================================================ */
+/* Event Data Structure */
 
 /*
  * Generic event structure passed to all handlers.
@@ -36,9 +34,7 @@ typedef struct uemacs_event {
  */
 typedef bool (*event_handler_fn)(uemacs_event_t *event, void *user_data);
 
-/* ============================================================================
- * Standard Event Names
- * ============================================================================ */
+/* Standard Event Names */
 
 /* Input events */
 #define EVT_INPUT_RAW       "input:raw"         /* Raw bytes before parsing */
@@ -75,9 +71,7 @@ typedef bool (*event_handler_fn)(uemacs_event_t *event, void *user_data);
 #define EVT_WINDOW_SPLIT    "window:split"      /* Window split */
 #define EVT_WINDOW_CLOSE    "window:close"      /* Window closed */
 
-/* ============================================================================
- * Event Bus API
- * ============================================================================ */
+/* Event Bus API */
 
 /*
  * Initialize the event bus.
@@ -150,9 +144,7 @@ int event_bus_handler_count(const char *event);
  */
 const char **event_bus_list_events(int *count);
 
-/* ============================================================================
- * Event Data Helpers
- * ============================================================================ */
+/* Event Data Helpers */
 
 /*
  * Common event data structures.

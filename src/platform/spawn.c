@@ -169,48 +169,48 @@ static int run_shell(const char *shell, const char *cmd)
  */
 int spawncli([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
-	/* don't allow this command if restricted */
-	if (restflag)
-		return resterr();
+    /* don't allow this command if restricted */
+    if (restflag)
+        return resterr();
 
-	movecursor(term.t_nrow, 0);	/* Seek to last line.   */
-	TTflush();
-	TTclose();		/* stty to old settings */
-	TTkclose();		/* Close "keyboard" */
+    movecursor(term.t_nrow, 0);	/* Seek to last line.   */
+    TTflush();
+    TTclose();		/* stty to old settings */
+    TTkclose();		/* Close "keyboard" */
 
-	/* Spawn interactive shell using posix_spawn */
-	run_shell(nullptr, nullptr);
+    /* Spawn interactive shell using posix_spawn */
+    run_shell(nullptr, nullptr);
 
-	sgarbf = true;
-	sleep(2);
-	TTopen();
-	TTkopen();
+    sgarbf = true;
+    sleep(2);
+    TTopen();
+    TTkopen();
 #ifdef SIGWINCH
-	/*
-	 * This fools the update routines to force a full
-	 * redraw with complete window size checking.
-	 *		-lbt
-	 */
-	chg_width = term.t_ncol;
-	chg_height = term.t_nrow + 1;
-	term.t_nrow = term.t_ncol = 0;
+    /*
+    * This fools the update routines to force a full
+    * redraw with complete window size checking.
+    *		-lbt
+    */
+    chg_width = term.t_ncol;
+    chg_height = term.t_nrow + 1;
+    term.t_nrow = term.t_ncol = 0;
 #endif
-	return true;
+    return true;
 }
 
 int bktoshell([[maybe_unused]] int f, [[maybe_unused]] int n)
 {				/* suspend MicroEMACS and wait to wake up */
-	vttidy();
-	kill(0, SIGTSTP);
-	return true;
+    vttidy();
+    kill(0, SIGTSTP);
+    return true;
 }
 
 void rtfrmshell(void)
 {
-	TTopen();
-	/* Preserve WFTERM if set (terminal window marker) */
-	curwp->w_flag = (curwp->w_flag & WFTERM) | WFHARD;
-	sgarbf = true;
+    TTopen();
+    /* Preserve WFTERM if set (terminal window marker) */
+    curwp->w_flag = (curwp->w_flag & WFTERM) | WFHARD;
+    sgarbf = true;
 }
 
 /*
@@ -220,34 +220,34 @@ void rtfrmshell(void)
  */
 int spawn([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
-	int s;
-	char line[NLINE];
+    int s;
+    char line[NLINE];
 
-	/* don't allow this command if restricted */
-	if (restflag)
-		return resterr();
+    /* don't allow this command if restricted */
+    if (restflag)
+        return resterr();
 
-	if ((s = minibuf_read("!", line, NLINE)) != true)
-		return s;
-	TTflush();
-	TTclose();		/* stty to old modes    */
-	TTkclose();
+    if ((s = minibuf_read("!", line, NLINE)) != true)
+        return s;
+    TTflush();
+    TTclose();		/* stty to old modes    */
+    TTkclose();
 
-	/* Execute command using posix_spawn */
-	run_shell(nullptr, line);
+    /* Execute command using posix_spawn */
+    run_shell(nullptr, line);
 
-	fflush(stdout);		/* to be sure P.K.      */
-	TTopen();
+    fflush(stdout);		/* to be sure P.K.      */
+    TTopen();
 
-	if (clexec == false) {
-		mlputs("(End)");	/* Pause.               */
-		TTflush();
-		while ((s = input_read_byte()) != '\r' && s != ' ');
-		mlputs("\r\n");
-	}
-	TTkopen();
-	sgarbf = true;
-	return true;
+    if (clexec == false) {
+        mlputs("(End)");	/* Pause.               */
+        TTflush();
+        while ((s = input_read_byte()) != '\r' && s != ' ');
+        mlputs("\r\n");
+    }
+    TTkopen();
+    sgarbf = true;
+    return true;
 }
 
 /*
@@ -257,30 +257,30 @@ int spawn([[maybe_unused]] int f, [[maybe_unused]] int n)
  */
 int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
-	int s;
-	char line[NLINE];
+    int s;
+    char line[NLINE];
 
-	/* don't allow this command if restricted */
-	if (restflag)
-		return resterr();
+    /* don't allow this command if restricted */
+    if (restflag)
+        return resterr();
 
-	if ((s = minibuf_read("!", line, NLINE)) != true)
-		return s;
-	TTputc('\n');		/* Already have '\r'    */
-	TTflush();
-	TTclose();		/* stty to old modes    */
-	TTkclose();
+    if ((s = minibuf_read("!", line, NLINE)) != true)
+        return s;
+    TTputc('\n');		/* Already have '\r'    */
+    TTflush();
+    TTclose();		/* stty to old modes    */
+    TTkclose();
 
-	/* Execute command using posix_spawn */
-	run_shell(nullptr, line);
+    /* Execute command using posix_spawn */
+    run_shell(nullptr, line);
 
-	fflush(stdout);		/* to be sure P.K.      */
-	TTopen();
-	mlputs("(End)");	/* Pause.               */
-	TTflush();
-	while ((s = input_read_byte()) != '\r' && s != ' ');
-	sgarbf = true;
-	return true;
+    fflush(stdout);		/* to be sure P.K.      */
+    TTopen();
+    mlputs("(End)");	/* Pause.               */
+    TTflush();
+    while ((s = input_read_byte()) != '\r' && s != ' ');
+    sgarbf = true;
+    return true;
 }
 
 /*
@@ -289,78 +289,78 @@ int execprg([[maybe_unused]] int f, [[maybe_unused]] int n)
  */
 int pipecmd([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
-	int s;		/* return status from CLI */
-	struct window *wp;	/* pointer to new window */
-	struct buffer *bp;	/* pointer to buffer to zot */
-	char line[NLINE];	/* command line send to shell */
-	static char bname[] = "command";
+    int s;		/* return status from CLI */
+    struct window *wp;	/* pointer to new window */
+    struct buffer *bp;	/* pointer to buffer to zot */
+    char line[NLINE];	/* command line send to shell */
+    static char bname[] = "command";
 
-	static char filnam[NSTRING] = "command";
+    static char filnam[NSTRING] = "command";
 
-	/* don't allow this command if restricted */
-	if (restflag)
-		return resterr();
+    /* don't allow this command if restricted */
+    if (restflag)
+        return resterr();
 
-	/* get the command to pipe in */
-	if ((s = minibuf_read("@", line, NLINE)) != true)
-		return s;
+    /* get the command to pipe in */
+    if ((s = minibuf_read("@", line, NLINE)) != true)
+        return s;
 
-	/* get rid of the command output buffer if it exists */
-	if ((bp = bfind(bname, false, 0)) != false) {
-		/* try to make sure we are off screen */
-		wp = wheadp;
-		while (wp != nullptr) {
-			if (wp->w_bufp == bp) {
-				if (wp == curwp)
-					window_delete(false, 1);
-				else
-					window_only(false, 1);
-				break;
-			}
-			wp = wp->w_wndp;
-		}
-		if (zotbuf(bp) != true)
+    /* get rid of the command output buffer if it exists */
+    if ((bp = bfind(bname, false, 0)) != false) {
+        /* try to make sure we are off screen */
+        wp = wheadp;
+        while (wp != nullptr) {
+            if (wp->w_bufp == bp) {
+                if (wp == curwp)
+                    window_delete(false, 1);
+                else
+                    window_only(false, 1);
+                break;
+            }
+            wp = wp->w_wndp;
+        }
+        if (zotbuf(bp) != true)
 
-			return false;
-	}
+            return false;
+    }
 
-	TTflush();
-	TTclose();		/* stty to old modes    */
-	TTkclose();
-	safe_strcat(line, " >", NLINE);
-	safe_strcat(line, filnam, NLINE);
+    TTflush();
+    TTclose();		/* stty to old modes    */
+    TTkclose();
+    safe_strcat(line, " >", NLINE);
+    safe_strcat(line, filnam, NLINE);
 
-	/* Execute command with output redirection using posix_spawn */
-	run_shell(nullptr, line);
+    /* Execute command with output redirection using posix_spawn */
+    run_shell(nullptr, line);
 
-	TTopen();
-	TTkopen();
-	TTflush();
-	sgarbf = true;
-	s = true;
+    TTopen();
+    TTkopen();
+    TTflush();
+    sgarbf = true;
+    s = true;
 
-	if (s != true)
-		return s;
+    if (s != true)
+        return s;
 
-	/* split the current window to make room for the command output */
-	if (window_split(false, 1) == false)
-		return false;
+    /* split the current window to make room for the command output */
+    if (window_split(false, 1) == false)
+        return false;
 
-	/* and read the stuff in */
-	if (getfile(filnam, false) == false)
-		return false;
+    /* and read the stuff in */
+    if (getfile(filnam, false) == false)
+        return false;
 
-	/* make this window in VIEW mode, update all mode lines */
-	curwp->w_bufp->b_mode |= MDVIEW;
-	wp = wheadp;
-	while (wp != nullptr) {
-		wp->w_flag |= WFMODE;
-		wp = wp->w_wndp;
-	}
+    /* make this window in VIEW mode, update all mode lines */
+    curwp->w_bufp->b_mode |= MDVIEW;
+    wp = wheadp;
+    while (wp != nullptr) {
+        wp->w_flag |= WFMODE;
+        wp = wp->w_wndp;
+    }
 
-	/* and get rid of the temporary file */
-	unlink(filnam);
-	return true;
+    /* and get rid of the temporary file */
+    unlink(filnam);
+    return true;
 }
 
 /*
@@ -511,7 +511,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
 {
     int s;
     char line[NLINE];
-    char tmpnam[NFILEN];
+    char tmp_fname[NFILEN];
 
     /* don't allow this command if restricted */
     if (restflag)
@@ -525,7 +525,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
         return s;
 
     struct buffer *bp = curbp;
-    safe_strcpy(tmpnam, bp->b_fname, sizeof(tmpnam));
+    safe_strcpy(tmp_fname, bp->b_fname, sizeof(tmp_fname));
 
     /* Collect buffer contents into a string */
     size_t total_len = 0;
@@ -611,7 +611,7 @@ int filter_buffer([[maybe_unused]] int f, [[maybe_unused]] int n)
     free(output);
 
     /* Reset buffer state */
-    safe_strcpy(bp->b_fname, tmpnam, NFILEN);
+    safe_strcpy(bp->b_fname, tmp_fname, NFILEN);
     bp->b_dotp = lforw(bp->b_linep);
     bp->b_doto = 0;
     bp->b_flag |= BFCHG;

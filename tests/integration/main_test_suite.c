@@ -5,7 +5,11 @@
  * Catches crashes, timeouts, and provides detailed error reporting.
  *
  * Build: cmake --build build
- * Run:   ./build/bin/full_integration_test
+ * Run:   ./build/bin/full_integration_test [FILTER...]
+ *
+ * Any command-line arguments act as substring filters on test-function
+ * names: a TEST_RUN whose name matches no filter is skipped. Zero
+ * arguments runs everything.
  */
 
 #include <stdio.h>
@@ -97,13 +101,45 @@ extern int test_mx_command_flow(void);
 /* Writing/Gutenberg Test */
 extern int test_poe_gutenberg_wrap(void);
 
+/* Name filtering - argv substrings select which TEST_RUNs execute */
+
+static int g_filter_count = 0;
+static char **g_filters = nullptr;
+
+static int test_name_selected(const char *name) {
+    if (g_filter_count == 0) return 1;
+    for (int i = 0; i < g_filter_count; i++) {
+        if (strstr(name, g_filters[i]) != nullptr) return 1;
+    }
+    return 0;
+}
+
+/* Wrap the runner's TEST_RUN: unmatched tests are skipped entirely
+ * (not run, not counted). With no filters this is the original macro. */
+#undef TEST_RUN
+#define TEST_RUN(func, desc, timeout) \
+    do { \
+        if (!test_name_selected(#func)) break; \
+        g_suite_stats.total++; \
+        test_result_t _result = run_test_isolated(#func, desc, func, timeout); \
+        switch (_result) { \
+            case TEST_PASS:    g_suite_stats.passed++; break; \
+            case TEST_FAIL:    g_suite_stats.failed++; break; \
+            case TEST_ERROR:   g_suite_stats.errors++; break; \
+            case TEST_CRASH:   g_suite_stats.crashes++; break; \
+            case TEST_TIMEOUT: g_suite_stats.timeouts++; break; \
+            case TEST_SKIP:    g_suite_stats.skipped++; break; \
+        } \
+    } while (0)
+
 /* ============================================================================
  * Main Test Suite
  * ============================================================================ */
 
 int main(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
+    /* Any args become substring filters on test-function names */
+    g_filter_count = argc - 1;
+    g_filters = argv + 1;
 
     /* Setup */
     setenv("ASAN_OPTIONS", "detect_leaks=0", 1);
@@ -173,9 +209,6 @@ int main(int argc, char *argv[]) {
     TEST_RUN(test_api_crossline_literal_extended, "Extended cross-line", 30);
     TEST_RUN(test_api_search_degenerate_case, "Degenerate search cases", 30);
     TEST_RUN(test_api_search_nomatch_and_long, "No-match and long patterns", 30);
-    TEST_RUN(test_bmh_literals, "BMH literal search", 30);
-    TEST_RUN(test_bmh_edge_cases, "BMH edge cases", 30);
-    TEST_RUN(test_bmh_additional_edges, "BMH additional edges", 30);
     TEST_RUN(test_text_search, "Text search system", 60);
 
     TEST_SECTION("Buffer & Gap Buffer");
@@ -215,7 +248,6 @@ int main(int argc, char *argv[]) {
     TEST_RUN(test_text_writing, "Writing mode", 60);
 
     TEST_SECTION("NFA & Regex");
-    TEST_RUN(test_text_nfa, "NFA regex engine", 60);
 
     TEST_SECTION("UTF-8 Handling");
     TEST_RUN(test_utf8_invalid_sequences, "Invalid UTF-8", 30);

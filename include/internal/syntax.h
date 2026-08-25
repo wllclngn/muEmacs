@@ -18,9 +18,7 @@
 #include <stddef.h>
 #include "c23_compat.h"
 
-/* ============================================================================
- * Face IDs (4 bits = 16 faces)
- * ============================================================================ */
+/* Face IDs (4 bits = 16 faces) */
 
 typedef enum syntax_face {
     FACE_DEFAULT = 0,
@@ -54,9 +52,7 @@ static_assert(FACE_MAX <= 16, "Face IDs must fit in 4 bits (SYNTAX_FACE_SHIFT pa
 #define FACE_ID(x)      ((x) & 0x0F)
 #define FACE_STYLE(x)   ((x) & 0xF0)
 
-/* ============================================================================
- * Per-Line Token Storage
- * ============================================================================ */
+/* Per-Line Token Storage */
 
 /*
  * Tokens stored as pairs: [end_col, face_id]
@@ -72,9 +68,7 @@ typedef struct line_tokens {
     uint16_t capacity;  /* allocated pairs */
 } line_tokens_t;
 
-/* ============================================================================
- * Lexer State (for incremental re-lexing)
- * ============================================================================ */
+/* Lexer State (for incremental re-lexing) */
 
 typedef enum lexer_mode {
     LEX_NORMAL = 0,
@@ -106,9 +100,7 @@ UNSEQUENCED static inline bool lexer_state_eq(lexer_state_t a, lexer_state_t b) 
            a.string_delim == b.string_delim;
 }
 
-/* ============================================================================
- * Buffer Syntax State
- * ============================================================================ */
+/* Buffer Syntax State */
 
 typedef struct buffer_syntax {
     line_tokens_t *lines;   /* array, one per buffer line */
@@ -120,9 +112,7 @@ typedef struct buffer_syntax {
     int first_invalid_line; /* -1 = all valid, else first line needing re-lex */
 } buffer_syntax_t;
 
-/* ============================================================================
- * Language Definition
- * ============================================================================ */
+/* Language Definition */
 
 /* Forward declaration for lexer function type */
 struct syntax_language;
@@ -176,9 +166,7 @@ typedef struct syntax_language {
     syntax_lex_fn custom_lexer;
 } syntax_language_t;
 
-/* ============================================================================
- * Public API
- * ============================================================================ */
+/* Public API */
 
 /* Initialize syntax highlighting subsystem */
 int syntax_init(void);
@@ -223,9 +211,7 @@ void syntax_update_if_needed(buffer_syntax_t *syn, int lang_id,
                               struct buffer *bp,
                               const char **lines, int line_count);
 
-/* ============================================================================
- * Line Token Helpers
- * ============================================================================ */
+/* Line Token Helpers */
 
 /* Allocate tokens array */
 line_tokens_t *line_tokens_alloc(int capacity);
@@ -242,9 +228,7 @@ int line_tokens_add(line_tokens_t *lt, uint16_t end_col, uint16_t face);
 /* Binary search for face at column */
 int line_tokens_get_face(const line_tokens_t *lt, int col);
 
-/* ============================================================================
- * Extension Registration (for UEP)
- * ============================================================================ */
+/* Extension Registration (for UEP) */
 
 /* Register a custom language lexer from extension */
 int syntax_register_language(

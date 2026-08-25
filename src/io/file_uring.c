@@ -37,7 +37,6 @@ int file_read_uring(int fd, size_t file_size, char **out_buf, size_t *out_len) {
     if (fd < 0 || file_size == 0 || !out_buf || !out_len)
         return -1;
 
-    // Allocate output buffer
     char *buf = safe_alloc(file_size, "file_uring read buffer", __FILE__, __LINE__);
     if (!buf) return -1;
 
@@ -51,7 +50,6 @@ int file_read_uring(int fd, size_t file_size, char **out_buf, size_t *out_len) {
         return -1;
     }
 
-    // Map rings
     size_t sq_sz = params.sq_off.array + params.sq_entries * sizeof(unsigned);
     size_t cq_sz = params.cq_off.cqes + params.cq_entries * sizeof(struct io_uring_cqe);
 
@@ -84,7 +82,6 @@ int file_read_uring(int fd, size_t file_size, char **out_buf, size_t *out_len) {
         return -1;
     }
 
-    // Ring pointers
     unsigned *sq_tail = (unsigned *)((char *)sq_ptr + params.sq_off.tail);
     unsigned *sq_mask = (unsigned *)((char *)sq_ptr + params.sq_off.ring_mask);
     unsigned *sq_array = (unsigned *)((char *)sq_ptr + params.sq_off.array);
@@ -93,7 +90,6 @@ int file_read_uring(int fd, size_t file_size, char **out_buf, size_t *out_len) {
     unsigned *cq_mask = (unsigned *)((char *)cq_ptr + params.cq_off.ring_mask);
     struct io_uring_cqe *cqes = (struct io_uring_cqe *)((char *)cq_ptr + params.cq_off.cqes);
 
-    // Calculate chunks
     size_t n_chunks = (file_size + FILE_CHUNK_SIZE - 1) / FILE_CHUNK_SIZE;
     if (n_chunks > params.sq_entries)
         n_chunks = params.sq_entries; // Limit to ring size

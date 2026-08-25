@@ -1,15 +1,17 @@
-uemacs (1.0.0-1) unstable; urgency=medium
+muemacs (3.1.0-1) unstable; urgency=medium
 
-  * μEmacs v1.0 Production Release
-  * Vim/Evil mode with full modal editing support
-  * Built-in terminal emulator with VT500 emulation
-  * Polyglot extension system (C, Zig, Go, Rust, Crystal, Fortran, Ada, Haskell, Pascal)
-  * TOML configuration with XDG Base Directory support
-  * TrueColor display with cursor-line highlighting
-  * CI/CD pipeline with multi-distro testing
-  * REPL integration for 25+ languages
-  * Build system detection and error parsing
-  * AI agent orchestration via NEUROXUS
-  * Complete C23 modernization from original codebase
+  * Search engine swapped onto sublimation, montauk's adaptive sort and
+    search core (literal + regex faces; one engine behind every search
+    command).
+  * UEP extension API v4: public vim state typedefs, input:raw
+    pre-dispatch event, register and undo-boundary primitives, OSC 52
+    clipboard bridge.
+  * Vim/Evil modal editing provided by the c_evil extension.
+  * Linus-first defaults shipped (column_width=72, classic modeline).
+  * UTF-8 multi-byte insert truncation fixed; M-q hybrid soft/hard wrap.
+  * Event-loop regression fixed (edge-triggered epoll, false EOF in
+    raw_getchar).
+  * TOML configuration with XDG Base Directory support.
+  * C23 codebase, TrueColor display, built-in terminal emulator.
 
- -- μEmacs Team <maintainer@example.com>  Thu, 02 Jan 2026 12:00:00 +0000
+ -- Will Clingan <wuz352@hotmail.com>  Tue, 21 Jul 2026 12:00:00 +0000

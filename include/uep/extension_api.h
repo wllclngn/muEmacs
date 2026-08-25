@@ -32,10 +32,71 @@ struct syntax_language;
 struct input_key_event;
 struct uemacs_event;
 struct muemacs_api;
+struct vim_state;
+struct keymap;
 
-/* ============================================================================
- * Event System Types
- * ============================================================================ */
+/* Vim Modal Editing Public Types (for c_evil and other modal-editing extensions) */
+
+/* Opaque handle to vim modal-editing state. Extensions access it only through
+ * the vim_get_* / vim_set_* accessor functions below; layout is internal. */
+typedef struct vim_state uemacs_vim_state_t;
+
+/* Opaque keymap handle. */
+typedef struct keymap uemacs_keymap_t;
+
+/* Vim modal-editing mode enum. Matches internal editor_mode. */
+typedef enum {
+    UEMACS_VIM_MODE_NORMAL       = 0,
+    UEMACS_VIM_MODE_INSERT       = 1,
+    UEMACS_VIM_MODE_VISUAL       = 2,
+    UEMACS_VIM_MODE_VISUAL_LINE  = 3,
+    UEMACS_VIM_MODE_VISUAL_BLOCK = 4,
+    UEMACS_VIM_MODE_REPLACE      = 5,
+} uemacs_vim_mode_t;
+
+/* Vim operator pending codes (for d, c, y prefixes). */
+typedef enum {
+    UEMACS_VIM_OP_NONE   = 0,
+    UEMACS_VIM_OP_DELETE = 1,  /* 'd' */
+    UEMACS_VIM_OP_CHANGE = 2,  /* 'c' */
+    UEMACS_VIM_OP_YANK   = 3,  /* 'y' */
+} uemacs_vim_operator_t;
+
+/* Raw Input Event (for modal-editing extensions that need pre-dispatch hook) */
+
+/* Modifier flags for raw key events. Mirror the internal MOD_* constants. */
+#define UEMACS_KEY_MOD_SHIFT    0x0001
+#define UEMACS_KEY_MOD_ALT      0x0002
+#define UEMACS_KEY_MOD_CTRL     0x0004
+#define UEMACS_KEY_MOD_SUPER    0x0008
+#define UEMACS_KEY_MOD_HYPER    0x0010
+#define UEMACS_KEY_MOD_META     0x0020
+
+/* Raw key event kind. Mirrors internal input_key_event_type_t for the cases
+ * extensions will actually want to handle. */
+typedef enum {
+    UEMACS_KEY_KIND_CHAR        = 1,   /* Normal Unicode character in .code */
+    UEMACS_KEY_KIND_SPECIAL     = 2,   /* Special key (arrows, F-keys) in .code */
+    UEMACS_KEY_KIND_PASTE_START = 3,
+    UEMACS_KEY_KIND_PASTE_END   = 4,
+    UEMACS_KEY_KIND_FOCUS_IN    = 5,
+    UEMACS_KEY_KIND_FOCUS_OUT   = 6,
+} uemacs_key_kind_t;
+
+/* Event data for UEMACS_EVT_INPUT_RAW. Fires AFTER input parsing and BEFORE
+ * the core binding dispatch. Handler may set `event->consumed = true` to
+ * prevent the core from looking up a binding for this key.
+ *
+ * This is the hook modal-editing extensions (vim, emacs-style compose)
+ * use to build count prefixes, operator-pending state, and claim keys
+ * before the global keymap sees them. */
+typedef struct {
+    uint32_t code;           /* Unicode codepoint (KIND_CHAR) or special-key code (KIND_SPECIAL) */
+    uint16_t modifiers;      /* Bitmask of UEMACS_KEY_MOD_* */
+    uemacs_key_kind_t kind;  /* Event kind */
+} uemacs_raw_key_event_t;
+
+/* Event System Types */
 
 /*
  * Generic event structure passed to all handlers.
@@ -56,6 +117,7 @@ typedef bool (*uemacs_event_fn)(uemacs_event_t *event, void *user_data);
 
 /* Standard event names (use these constants for type safety) */
 #define UEMACS_EVT_INPUT_KEY       "input:key"
+#define UEMACS_EVT_INPUT_RAW       "input:raw"
 #define UEMACS_EVT_INPUT_MOUSE     "input:mouse"
 #define UEMACS_EVT_BUFFER_LOAD     "buffer:load"
 #define UEMACS_EVT_BUFFER_SAVE     "buffer:save:after"
@@ -69,9 +131,7 @@ typedef bool (*uemacs_event_fn)(uemacs_event_t *event, void *user_data);
 #define UEMACS_EVT_DISPLAY_GUTTER  "display:gutter"   /* Before rendering gutter */
 #define UEMACS_EVT_CONFIG_CHANGED  "config:changed"
 
-/* ============================================================================
- * Display Line Event Types (for folding, narrowing, org-mode, etc.)
- * ============================================================================ */
+/* Display Line Event Types (for folding, narrowing, org-mode, etc.) */
 
 /* What the display loop should do with this line */
 typedef enum {
@@ -93,9 +153,7 @@ typedef struct {
     int substitute_face;                /* Syntax face for substitute text */
 } uemacs_display_line_event_t;
 
-/* ============================================================================
- * Syntax Highlighting Types (for extension lexers)
- * ============================================================================ */
+/* Syntax Highlighting Types (for extension lexers) */
 
 /* Face IDs - what kind of token is this? */
 typedef enum {
@@ -158,17 +216,13 @@ typedef char *(*uemacs_modeline_fn)(void *user_data);
 #define UEMACS_MODELINE_URGENCY_HIGH 1  /* Mode indicator (left side in auto mode) */
 #define UEMACS_MODELINE_URGENCY_FULL 2  /* Full takeover - extension renders entire modeline */
 
-/* ============================================================================
- * The Editor API
- * ============================================================================ */
+/* The Editor API */
 
 struct muemacs_api {
     /* API version for compatibility checking */
     int api_version;
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Generic Event System (NEW - replaces individual hook functions)
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Generic Event System (NEW - replaces individual hook functions) */
 
     /*
      * Register an event handler.
@@ -202,24 +256,18 @@ struct muemacs_api {
      */
     bool (*emit)(const char *event, void *data);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Configuration Access (NEW - read extension config from TOML)
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Configuration Access (NEW - read extension config from TOML) */
 
     int (*config_int)(const char *ext_name, const char *key, int default_val);
     bool (*config_bool)(const char *ext_name, const char *key, bool default_val);
     const char *(*config_string)(const char *ext_name, const char *key, const char *default_val);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Command Registration
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Command Registration */
 
     int (*register_command)(const char *name, uemacs_cmd_fn func);
     int (*unregister_command)(const char *name);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Buffer Operations
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Buffer Operations */
 
     struct buffer *(*current_buffer)(void);
     struct buffer *(*find_buffer)(const char *name);
@@ -235,9 +283,7 @@ struct muemacs_api {
     int (*buffer_switch)(struct buffer *bp);
     int (*buffer_clear)(struct buffer *bp);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Cursor/Point Operations
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Cursor/Point Operations */
 
     void (*get_point)(int *line, int *col);
     void (*set_point)(int line, int col);
@@ -246,9 +292,7 @@ struct muemacs_api {
     char *(*get_current_line)(void);
     char *(*get_line_at)(struct buffer *bp, int line_num);  /* 1-based, caller must free */
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Window Operations
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Window Operations */
 
     struct window *(*current_window)(void);
     int (*window_count)(void);
@@ -256,9 +300,7 @@ struct muemacs_api {
     struct window *(*window_at_row)(int screen_row);
     int (*window_switch)(struct window *wp);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Mouse/Cursor Helpers
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Mouse/Cursor Helpers */
 
     int (*screen_to_buffer_pos)(struct window *wp, int screen_row, int screen_col,
                                 int *buf_line, int *buf_offset);
@@ -266,9 +308,7 @@ struct muemacs_api {
     int (*scroll_up)(int lines);
     int (*scroll_down)(int lines);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * User Interface
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* User Interface */
 
     void (*message)(const char *fmt, ...);
     void (*vmessage)(const char *fmt, va_list ap);
@@ -276,38 +316,28 @@ struct muemacs_api {
     int (*prompt_yn)(const char *prompt);
     void (*update_display)(void);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * File Operations
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* File Operations */
 
     int (*find_file_line)(const char *path, int line);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Shell Integration
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Shell Integration */
 
     int (*shell_command)(const char *cmd, char **output, size_t *len);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Memory Helpers
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Memory Helpers */
 
     void *(*alloc)(size_t size);
     void (*free)(void *ptr);
     char *(*strdup)(const char *s);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Logging
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Logging */
 
     void (*log_info)(const char *fmt, ...);
     void (*log_warn)(const char *fmt, ...);
     void (*log_error)(const char *fmt, ...);
     void (*log_debug)(const char *fmt, ...);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Syntax Highlighting
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Syntax Highlighting */
 
     int (*syntax_register_lexer)(
         const char *name,
@@ -319,37 +349,29 @@ struct muemacs_api {
     int (*syntax_add_token)(uemacs_line_tokens_t *tokens, int end_col, int face);
     void (*syntax_invalidate_buffer)(struct buffer *bp);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Modeline Extension Segments
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Modeline Extension Segments */
 
     int (*modeline_register)(const char *name, uemacs_modeline_fn format_fn,
                              void *user_data, int urgency);
     int (*modeline_unregister)(const char *name);
     void (*modeline_refresh)(void);
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * Text Manipulation
-     * ───────────────────────────────────────────────────────────────────────── */
+    /* Text Manipulation */
 
     int (*delete_chars)(int n);  /* Delete n chars forward from point */
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * ABI-Stable Extension Fields (added after initial release)
+    /* ABI-Stable Extension Fields (added after initial release)
      *
      * NEW FIELDS GO HERE - at the END of the struct to preserve backward compat.
-     * Extensions compiled against older headers won't access these fields.
-     * ───────────────────────────────────────────────────────────────────────── */
+     * Extensions compiled against older headers won't access these fields. */
 
     struct buffer *(*buffer_first)(void);
     struct buffer *(*buffer_next)(struct buffer *bp);
     /* NOTE: buffer_set_scratch available via get_function("buffer_set_scratch") */
 
-    /* ─────────────────────────────────────────────────────────────────────────
-     * ABI-Stable Function Lookup (API v4)
+    /* ABI-Stable Function Lookup (API v4)
      *
-     * struct_size and get_function MUST be last for version detection.
-     * ───────────────────────────────────────────────────────────────────────── */
+     * struct_size and get_function MUST be last for version detection. */
 
     size_t struct_size;  /* sizeof(struct muemacs_api) - for version detection */
 
@@ -381,9 +403,7 @@ bool extension_modeline_has_full_override(void);
 /* Get full modeline from override extension (caller frees) */
 char *extension_get_modeline_full(void);
 
-/* ============================================================================
- * Extension Configuration Setters (called by settings.c during TOML parsing)
- * ============================================================================ */
+/* Extension Configuration Setters (called by settings.c during TOML parsing) */
 
 /*
  * Set extension configuration values.
@@ -397,9 +417,7 @@ void extension_config_set_int(const char *ext_name, const char *key, int value);
 void extension_config_set_bool(const char *ext_name, const char *key, bool value);
 void extension_config_set_string(const char *ext_name, const char *key, const char *value);
 
-/* ============================================================================
- * Declarative Event Hooks (called by settings.c for [hooks.*] sections)
- * ============================================================================ */
+/* Declarative Event Hooks (called by settings.c for [hooks.*] sections) */
 
 /*
  * Register a command to execute when an event fires.

@@ -56,14 +56,16 @@ static const char seq_focus_off[] = "\033[?1004l";
 
 static void handle_winch(int sig) {
     (void)sig;
-    sig_winch_pending = 1;
 
-    /* Try to get new size immediately (ioctl is async-signal-safe) */
+    /* Dimensions before the pending flag: a consumer that sees the
+     * flag must never read a prior resize's rows/cols. (ioctl is
+     * async-signal-safe.) */
     struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
         sig_new_rows = ws.ws_row;
         sig_new_cols = ws.ws_col;
     }
+    sig_winch_pending = 1;
 }
 
 static void handle_int(int sig) {

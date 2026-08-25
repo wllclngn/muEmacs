@@ -27,24 +27,6 @@ void vim_init_keymaps(void) {
 }
 
 /*
- * evil_mode - toggle vim mode on/off.
- * When vim is an extension, the extension overrides this via register_command().
- * This stub provides a minimal toggle for the names[] table entry.
- */
-int evil_mode(int f, int n) {
-    (void)f; (void)n;
-    vim_mode_active = !vim_mode_active;
-    if (vim_mode_active) {
-        atomic_store(&g_vim_state.current_mode, MODE_NORMAL);
-        mlwrite("[EVIL: Enabled - load c_evil extension for full vim mode]");
-    } else {
-        atomic_store(&g_vim_state.current_mode, MODE_INSERT);
-        mlwrite("[EVIL: Disabled]");
-    }
-    return true;
-}
-
-/*
  * vim_enter_normal_mode_external - ESC handler for bind.c.
  * When vim is an extension, the extension sets vim_esc_handler to its
  * own implementation. This stub handles the case where the extension

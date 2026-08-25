@@ -56,6 +56,7 @@ const char *uep_scripts_find(const char *name);
 /*
  * Execute a script by name.
  * Pipes current buffer to stdin, captures stdout.
+ * Returns 0 on success, -1 on failure.
  */
 int uep_scripts_exec(const char *name);
 

@@ -19,21 +19,21 @@
  */
 static void mlputi(int i, int r)
 {
-	int q;
-	static char hexdigits[] = "0123456789ABCDEF";
+    int q;
+    static char hexdigits[] = "0123456789ABCDEF";
 
-	if (i < 0) {
-		i = -i;
-		TTputc('-');
-	}
+    if (i < 0) {
+        i = -i;
+        TTputc('-');
+    }
 
-	q = i / r;
+    q = i / r;
 
-	if (q != 0)
-		mlputi(q, r);
+    if (q != 0)
+        mlputi(q, r);
 
-	TTputc(hexdigits[i % r]);
-	++ttcol;
+    TTputc(hexdigits[i % r]);
+    ++ttcol;
 }
 
 /*
@@ -41,20 +41,20 @@ static void mlputi(int i, int r)
  */
 static void mlputli(long l, int r)
 {
-	long q;
+    long q;
 
-	if (l < 0) {
-		l = -l;
-		TTputc('-');
-	}
+    if (l < 0) {
+        l = -l;
+        TTputc('-');
+    }
 
-	q = l / r;
+    q = l / r;
 
-	if (q != 0)
-		mlputli(q, r);
+    if (q != 0)
+        mlputli(q, r);
 
-	TTputc((int) (l % r) + '0');
-	++ttcol;
+    TTputc((int) (l % r) + '0');
+    ++ttcol;
 }
 
 /*
@@ -64,19 +64,19 @@ static void mlputli(long l, int r)
  */
 static void mlputf(int s)
 {
-	int i;			/* integer portion of number */
-	int f;			/* fractional portion of number */
+    int i;			/* integer portion of number */
+    int f;			/* fractional portion of number */
 
-	/* break it up */
-	i = s / 100;
-	f = s % 100;
+    /* break it up */
+    i = s / 100;
+    f = s % 100;
 
-	/* send out the integer portion */
-	mlputi(i, 10);
-	TTputc('.');
-	TTputc((f / 10) + '0');
-	TTputc((f % 10) + '0');
-	ttcol += 3;
+    /* send out the integer portion */
+    mlputi(i, 10);
+    TTputc('.');
+    TTputc((f / 10) + '0');
+    TTputc((f % 10) + '0');
+    ttcol += 3;
 }
 
 /*
@@ -86,14 +86,14 @@ static void mlputf(int s)
  */
 void mlerase(void)
 {
-	movecursor(term.t_nrow, 0);
-	if (discmd == false)
-		return;
+    movecursor(term.t_nrow, 0);
+    if (discmd == false)
+        return;
 
-	ttputs("\033[0m");  /* Reset to terminal defaults */
-	TTeeol();  /* Modern terminals always support clear-to-EOL */
-	TTflush();
-	mpresf = false;
+    ttputs("\033[0m");  /* Reset to terminal defaults */
+    TTeeol();  /* Modern terminals always support clear-to-EOL */
+    TTflush();
+    mpresf = false;
 }
 
 /*
@@ -107,60 +107,60 @@ void mlerase(void)
  */
 void mlwrite(const char *restrict fmt, ...)
 {
-	int c;		/* current char in format string */
-	va_list ap;
+    int c;		/* current char in format string */
+    va_list ap;
 
-	/* if we are not currently echoing on the command line, abort this */
-	if (discmd == false) {
-		movecursor(term.t_nrow, 0);
-		return;
-	}
+    /* if we are not currently echoing on the command line, abort this */
+    if (discmd == false) {
+        movecursor(term.t_nrow, 0);
+        return;
+    }
 
-	movecursor(term.t_nrow, 0);
-	ttputs("\033[0m");  /* Reset to terminal defaults */
-	va_start(ap, fmt);
-	while ((c = *fmt++) != 0) {
-		if (c != '%') {
-			TTputc(c);
-			++ttcol;
-		} else {
-			c = *fmt++;
-			switch (c) {
-			case 'd':
-				mlputi(va_arg(ap, int), 10);
-				break;
+    movecursor(term.t_nrow, 0);
+    ttputs("\033[0m");  /* Reset to terminal defaults */
+    va_start(ap, fmt);
+    while ((c = *fmt++) != 0) {
+        if (c != '%') {
+            TTputc(c);
+            ++ttcol;
+        } else {
+            c = *fmt++;
+            switch (c) {
+            case 'd':
+                mlputi(va_arg(ap, int), 10);
+                break;
 
-			case 'o':
-				mlputi(va_arg(ap, int), 8);
-				break;
+            case 'o':
+                mlputi(va_arg(ap, int), 8);
+                break;
 
-			case 'x':
-				mlputi(va_arg(ap, int), 16);
-				break;
+            case 'x':
+                mlputi(va_arg(ap, int), 16);
+                break;
 
-			case 'D':
-				mlputli(va_arg(ap, long), 10);
-				break;
+            case 'D':
+                mlputli(va_arg(ap, long), 10);
+                break;
 
-			case 's':
-				mlputs(va_arg(ap, char *));
-				break;
+            case 's':
+                mlputs(va_arg(ap, char *));
+                break;
 
-			case 'f':
-				mlputf(va_arg(ap, int));
-				break;
+            case 'f':
+                mlputf(va_arg(ap, int));
+                break;
 
-			default:
-				TTputc(c);
-				++ttcol;
-			}
-		}
-	}
-	va_end(ap);
+            default:
+                TTputc(c);
+                ++ttcol;
+            }
+        }
+    }
+    va_end(ap);
 
-	TTeeol();  /* Clear to end of line */
-	TTflush();
-	mpresf = true;
+    TTeeol();  /* Clear to end of line */
+    TTflush();
+    mpresf = true;
 }
 
 /*
@@ -172,12 +172,12 @@ void mlwrite(const char *restrict fmt, ...)
  */
 void mlforce(const char *restrict s)
 {
-	int oldcmd;	/* original command display flag */
+    int oldcmd;	/* original command display flag */
 
-	oldcmd = discmd;	/* save the discmd value */
-	discmd = true;		/* and turn display on */
-	mlwrite(s);		/* write the string out */
-	discmd = oldcmd;	/* and restore the original setting */
+    oldcmd = discmd;	/* save the discmd value */
+    discmd = true;		/* and turn display on */
+    mlwrite(s);		/* write the string out */
+    discmd = oldcmd;	/* and restore the original setting */
 }
 
 /*
@@ -187,10 +187,10 @@ void mlforce(const char *restrict s)
  */
 void mlputs(const char *restrict s)
 {
-	int c;
+    int c;
 
-	while ((c = *s++) != 0) {
-		TTputc(c);
-		++ttcol;
-	}
+    while ((c = *s++) != 0) {
+        TTputc(c);
+        ++ttcol;
+    }
 }

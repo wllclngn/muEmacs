@@ -65,9 +65,8 @@ int main(void) {
     }
     double t3 = now_sec();
 
-    LOG_INFOF("BMH_MIN_LEN=%d", BMH_MIN_LEN);
-    LOG_INFOF("Short literal (len=4): %.3f ms total", (t1 - t0) * 1000.0);
-    LOG_INFOF("BMH literal   (len=5): %.3f ms total", (t3 - t2) * 1000.0);
-    LOG_INFO("Done.");
+    printf("Literal search (len=4): %.3f ms total\n", (t1 - t0) * 1000.0);
+    printf("Literal search (len=5): %.3f ms total\n", (t3 - t2) * 1000.0);
+    printf("Done.\n");
     return 0;
 }

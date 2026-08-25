@@ -3,7 +3,7 @@ COMMIT_MESSAGE.txt
 
 # Build directories
 build/
-build-debug/
+build-*/
 cmake-build-*/
 
 # Generated config (contains machine-specific paths)

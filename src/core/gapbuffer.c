@@ -11,13 +11,12 @@
 #include "efunc.h"
 #include "memory.h"
 #include "utf8.h"
-#include "../text/boyer_moore.h"
+#include <sublimation_text.h>
 #include "util/logger.h"
 
 // Global statistics
 struct gap_buffer_stats gap_buffer_global_stats = {0};
 
-// Create a new gap buffer with initial capacity
 struct gap_buffer *gap_buffer_create(size_t initial_capacity) {
     if (initial_capacity < GAP_BUFFER_MIN_SIZE) {
         initial_capacity = GAP_BUFFER_MIN_SIZE;
@@ -39,7 +38,6 @@ struct gap_buffer *gap_buffer_create(size_t initial_capacity) {
     gb->logical_size = 0;
     atomic_init(&gb->generation, 0);
     
-    // Initialize line index
     gb->line_idx.offsets = safe_alloc(LINE_INDEX_CHUNK * sizeof(size_t),
                                      "line index", __FILE__, __LINE__);
     if (!gb->line_idx.offsets) {
@@ -52,7 +50,6 @@ struct gap_buffer *gap_buffer_create(size_t initial_capacity) {
     gb->line_idx.offsets[0] = 0; // First line starts at offset 0
     atomic_init(&gb->line_idx.dirty, false);
     
-    // Initialize character cache
     gb->char_cache.byte_offset = 0;
     gb->char_cache.char_offset = 0;
     gb->char_cache.line_num = 0;
@@ -61,7 +58,6 @@ struct gap_buffer *gap_buffer_create(size_t initial_capacity) {
     return gb;
 }
 
-// Destroy gap buffer and free all resources
 void gap_buffer_destroy(struct gap_buffer *gb) {
     if (!gb) return;
     
@@ -112,7 +108,6 @@ static int move_gap_to(struct gap_buffer *gb, size_t pos) {
     return GAP_BUFFER_SUCCESS;
 }
 
-// Expand gap buffer capacity
 static int expand_gap_buffer(struct gap_buffer *gb, size_t min_additional) {
     size_t new_capacity = gb->capacity;
 
@@ -139,10 +134,8 @@ static int expand_gap_buffer(struct gap_buffer *gb, size_t min_additional) {
     char *new_data = safe_alloc(new_capacity, "gap buffer expansion", __FILE__, __LINE__);
     if (!new_data) return GAP_BUFFER_OUT_OF_MEM;
     
-    // Copy data before gap
     memcpy(new_data, gb->data, gb->gap_start);
     
-    // Copy data after gap
     size_t after_gap_size = gb->capacity - gb->gap_end;
     memcpy(&new_data[new_capacity - after_gap_size], 
            &gb->data[gb->gap_end], after_gap_size);
@@ -157,7 +150,6 @@ static int expand_gap_buffer(struct gap_buffer *gb, size_t min_additional) {
     return GAP_BUFFER_SUCCESS;
 }
 
-// Insert text at specified position
 int gap_buffer_insert(struct gap_buffer *restrict gb, size_t pos, const char *restrict text, size_t len) {
     if (!gb || !text || pos > gb->logical_size) {
         return GAP_BUFFER_INVALID;
@@ -201,7 +193,6 @@ int gap_buffer_insert(struct gap_buffer *restrict gb, size_t pos, const char *re
     return GAP_BUFFER_SUCCESS;
 }
 
-// Delete text at specified position
 int gap_buffer_delete(struct gap_buffer *gb, size_t pos, size_t len) {
     if (!gb || pos > gb->logical_size || pos + len > gb->logical_size) {
         return GAP_BUFFER_INVALID;
@@ -218,7 +209,10 @@ int gap_buffer_delete(struct gap_buffer *gb, size_t pos, size_t len) {
     
     // Compact gap if it becomes too large
     if (gb->gap_end - gb->gap_start > GAP_BUFFER_MAX_GAP) {
-        gap_buffer_compact(gb);
+        if (gap_buffer_compact(gb) != GAP_BUFFER_SUCCESS) {
+            /* Benign: the gap simply stays large until a later
+             * compaction succeeds. */
+        }
     }
     
     // Invalidate caches
@@ -230,7 +224,6 @@ int gap_buffer_delete(struct gap_buffer *gb, size_t pos, size_t len) {
     return GAP_BUFFER_SUCCESS;
 }
 
-// Set cursor position
 int gap_buffer_set_cursor(struct gap_buffer *gb, size_t pos) {
     if (!gb || pos > gb->logical_size) {
         return GAP_BUFFER_INVALID;
@@ -239,12 +232,10 @@ int gap_buffer_set_cursor(struct gap_buffer *gb, size_t pos) {
     return move_gap_to(gb, pos);
 }
 
-// Get current cursor position
 size_t gap_buffer_get_cursor(struct gap_buffer *gb) {
     return gb ? gb->gap_start : 0;
 }
 
-// Get character at position
 char gap_buffer_get_char(struct gap_buffer *gb, size_t pos) {
     if (!gb || pos >= gb->logical_size) {
         return '\0';
@@ -257,7 +248,6 @@ char gap_buffer_get_char(struct gap_buffer *gb, size_t pos) {
     }
 }
 
-// Get text range
 size_t gap_buffer_get_text(struct gap_buffer *restrict gb, size_t pos, size_t len,
                           char *restrict buffer, size_t buffer_size) {
     if (!gb || !buffer || pos > gb->logical_size) {
@@ -357,7 +347,6 @@ void gap_buffer_rebuild_line_index(struct gap_buffer *gb) {
     atomic_store(&gb->line_idx.dirty, false);
 }
 
-// Get line count
 size_t gap_buffer_line_count(struct gap_buffer *gb) {
     if (!gb) return 0;
     
@@ -368,7 +357,6 @@ size_t gap_buffer_line_count(struct gap_buffer *gb) {
     return gb->line_idx.count;
 }
 
-// Convert line number to byte offset
 size_t gap_buffer_line_to_offset(struct gap_buffer *gb, size_t line_num) {
     if (!gb || line_num >= gap_buffer_line_count(gb)) {
         return gb ? gb->logical_size : 0;
@@ -408,23 +396,19 @@ size_t gap_buffer_size(struct gap_buffer *gb) {
     return gb ? gb->logical_size : 0;
 }
 
-// Get buffer capacity
 size_t gap_buffer_capacity(struct gap_buffer *gb) {
     return gb ? gb->capacity : 0;
 }
 
-// Get current gap size
 size_t gap_buffer_gap_size(struct gap_buffer *gb) {
     return gb ? (gb->gap_end - gb->gap_start) : 0;
 }
 
-// Calculate fragmentation ratio
 double gap_buffer_fragmentation(struct gap_buffer *gb) {
     if (!gb || gb->capacity == 0) return 0.0;
     return (double)(gb->gap_end - gb->gap_start) / (double)gb->capacity;
 }
 
-// Compact gap buffer by removing unused space
 int gap_buffer_compact(struct gap_buffer *gb) {
     if (!gb) return GAP_BUFFER_INVALID;
     
@@ -485,14 +469,16 @@ size_t gap_buffer_search_forward(struct gap_buffer *restrict gb, size_t start_po
         text[i] = (unsigned char)gap_buffer_get_char(gb, start_pos + i);
     }
 
-    struct boyer_moore_context ctx;
-    if (bm_init(&ctx, (const unsigned char *)pattern, (int)pattern_len, true) != 0) {
+    sublimation_search prog;
+    sublimation_search_compile(&prog, pattern, pattern_len,
+                               SUBLIMATION_SEARCH_FIXED, 0);
+    if (!sublimation_search_valid(&prog)) {
         SAFE_FREE(text);
         return gb->logical_size;
     }
 
-    int pos = bm_search(&ctx, text, (int)remaining, 0);
-    bm_free(&ctx);
+    long pos = sublimation_search_find(&prog, (const char *)text,
+                                       remaining, nullptr);
     SAFE_FREE(text);
 
     if (pos >= 0) {
@@ -501,7 +487,6 @@ size_t gap_buffer_search_forward(struct gap_buffer *restrict gb, size_t start_po
     return gb->logical_size; // Not found
 }
 
-// Replace text at position: delete old_len bytes, insert new_text
 int gap_buffer_replace(struct gap_buffer *restrict gb, size_t pos, size_t old_len,
                        const char *restrict new_text, size_t new_len) {
     if (!gb || !new_text) return GAP_BUFFER_INVALID;
@@ -544,7 +529,6 @@ const char *gap_buffer_get_line(struct gap_buffer *gb, size_t line_num, size_t *
     return line_buf;
 }
 
-// Get byte length of a line
 size_t gap_buffer_line_length(struct gap_buffer *gb, size_t line_num) {
     if (!gb) return 0;
 
@@ -641,7 +625,6 @@ size_t gap_buffer_search_backward(struct gap_buffer *restrict gb, size_t start_p
     return result;
 }
 
-// Invalidate all caches
 void gap_buffer_invalidate_caches(struct gap_buffer *gb) {
     if (!gb) return;
     
@@ -671,7 +654,6 @@ void gap_buffer_dump_stats(struct gap_buffer *gb) {
     mlwrite("  EXPANSIONS: %zu", atomic_load(&gap_buffer_global_stats.expansions));
     mlwrite("  COMPACTIONS: %zu", atomic_load(&gap_buffer_global_stats.compactions));
 }
-// Validate gap buffer integrity
 void gap_buffer_validate(struct gap_buffer *gb) {
     if (!gb) return;
     

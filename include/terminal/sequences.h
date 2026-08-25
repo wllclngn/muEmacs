@@ -13,9 +13,7 @@
 #ifndef TERMINAL_SEQUENCES_H
 #define TERMINAL_SEQUENCES_H
 
-/* ==========================================================================
- * Screen Management
- * ========================================================================== */
+/* Screen Management */
 
 /* Alternate screen buffer (xterm) */
 #define ESC_ALT_SCREEN_ON   "\033[?1049h"
@@ -29,9 +27,7 @@
 #define ESC_CLEAR_LINE_LEFT "\033[1K"       /* Clear from cursor left */
 #define ESC_CLEAR_LINE_RIGHT "\033[0K"      /* Clear from cursor right */
 
-/* ==========================================================================
- * Cursor Control
- * ========================================================================== */
+/* Cursor Control */
 
 /* Cursor positioning */
 #define ESC_CURSOR_HOME     "\033[H"        /* Move to (1,1) */
@@ -52,9 +48,7 @@
 #define ESC_CURSOR_BLINK_UNDER  "\033[3 q"  /* Blinking underline */
 #define ESC_CURSOR_BLINK_BAR    "\033[5 q"  /* Blinking bar */
 
-/* ==========================================================================
- * Attribute Control (SGR - Select Graphic Rendition)
- * ========================================================================== */
+/* Attribute Control (SGR - Select Graphic Rendition) */
 
 /* Reset all attributes */
 #define ESC_RESET           "\033[0m"
@@ -86,9 +80,7 @@
 #define ESC_FG_RGB_FMT      "\033[38;2;%d;%d;%dm"  /* Truecolor foreground */
 #define ESC_BG_RGB_FMT      "\033[48;2;%d;%d;%dm"  /* Truecolor background */
 
-/* ==========================================================================
- * Terminal Modes
- * ========================================================================== */
+/* Terminal Modes */
 
 /* Bracketed paste mode */
 #define ESC_BRACKETED_PASTE_ON  "\033[?2004h"
@@ -108,18 +100,14 @@
 #define ESC_MOUSE_SGR_ON    "\033[?1006h"   /* SGR extended mouse */
 #define ESC_MOUSE_SGR_OFF   "\033[?1006l"
 
-/* ==========================================================================
- * Synchronized Updates (DEC private mode 2026)
- * Prevents flicker by batching updates
- * ========================================================================== */
+/* Synchronized Updates (DEC private mode 2026)
+ * Prevents flicker by batching updates */
 
 #define ESC_SYNC_START      "\033[?2026h"   /* Begin synchronized update */
 #define ESC_SYNC_END        "\033[?2026l"   /* End synchronized update */
 
-/* ==========================================================================
- * Kitty Keyboard Protocol
- * See: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
- * ========================================================================== */
+/* Kitty Keyboard Protocol
+ * See: https://sw.kovidgoyal.net/kitty/keyboard-protocol/ */
 
 /* Query terminal for keyboard protocol support */
 #define ESC_KITTY_QUERY     "\033[?u"
@@ -138,9 +126,7 @@
 #define KITTY_FLAG_REPORT_ALL       0x08    /* Report all keys as escapes */
 #define KITTY_FLAG_REPORT_TEXT      0x10    /* Report associated text */
 
-/* ==========================================================================
- * Terminal Queries
- * ========================================================================== */
+/* Terminal Queries */
 
 /* Device attributes */
 #define ESC_DEVICE_ATTRS    "\033[c"        /* Primary device attributes */
@@ -152,9 +138,7 @@
 /* Cursor position */
 #define ESC_QUERY_CURSOR    "\033[6n"       /* Request cursor position */
 
-/* ==========================================================================
- * Arrow Keys and Special Keys (for PTY output)
- * ========================================================================== */
+/* Arrow Keys and Special Keys (for PTY output) */
 
 /* Arrow keys */
 #define ESC_KEY_UP          "\033[A"
